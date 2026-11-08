@@ -544,3 +544,50 @@ export async function ogretmenYoklamaRapor(bas: string, bit: string): Promise<Og
       }))
     : [];
 }
+
+// ============================================================================
+// Aşama 223: ÖĞRENCİNİN KENDİ DERS DEVAMSIZLIĞI (yalnız kendi kayıtları; varsayılan bu eğitim yılı)
+// ============================================================================
+export interface DevamsizligimKayit {
+  tarih: string;
+  sira: number;
+  ders: string;
+  bas: string;
+  status: YoklamaDurum;
+  note: string;
+}
+export interface Devamsizligim {
+  bas: string;
+  bit: string;
+  sayilar: Sayilar;
+  gun: number;
+  kayitlar: DevamsizligimKayit[];
+}
+
+/** Ders programı kurulu değilse ya da öğrenci değilse null (ekran bölümü hiç çizilmez) */
+export async function devamsizligim(): Promise<Devamsizligim | null> {
+  let r: any;
+  try {
+    r = await rpc<any>('ders_devamsizligim');
+  } catch (e: any) {
+    if (e?.message === SQL_EKSIK) return null; // 217 / 223 kurulu değil
+    throw e;
+  }
+  if (!r || typeof r !== 'object') return null;
+  return {
+    bas: String(r.bas || ''),
+    bit: String(r.bit || ''),
+    sayilar: (r.sayilar && typeof r.sayilar === 'object' ? r.sayilar : {}) as Sayilar,
+    gun: Number(r.gun) || 0,
+    kayitlar: Array.isArray(r.kayitlar)
+      ? r.kayitlar.map((k: any) => ({
+          tarih: String(k.tarih || ''),
+          sira: Number(k.sira) || 0,
+          ders: String(k.ders || ''),
+          bas: String(k.bas || ''),
+          status: (['present', 'absent', 'late', 'excused'].includes(k.status) ? k.status : 'absent') as YoklamaDurum,
+          note: String(k.note || ''),
+        }))
+      : [],
+  };
+}

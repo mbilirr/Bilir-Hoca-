@@ -61,6 +61,7 @@ import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, 
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
 // Aşama 47: deneme sonuçları (grafik ve PDF kütüphaneleriyle) yalnız bu bölüm açılınca yüklenir
 const StudentDenemeSonuclari = lazyNamed(() => import('./StudentDenemeSonuclari'), 'StudentDenemeSonuclari');
+const StudentDersDevamsizlik = lazyNamed(() => import('./StudentDersDevamsizlik'), 'StudentDersDevamsizlik'); // Aşama 223
 
 // Aşama 109: üst menüdeki bütün kutular aynı en ve boyda (en uzun yazıya göre), içerik sola dayalı
 const NAV_BOX = 'inline-flex items-center justify-start gap-2 h-9 w-48 px-2.5 rounded-lg text-xs font-semibold text-left';
@@ -849,7 +850,16 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* TAB 3: GRADES & ATTENDANCE */}
       {activeTab === 'grades' && tabOpen('grades') && (
         <div className="space-y-6">
-          {/* Quick Metrics */}
+          {/* Aşama 223: ders saati yoklamasından kendi devamsızlığı (yalnız bu sekme açılınca okunur) */}
+          <Suspense fallback={null}>
+            <StudentDersDevamsizlik />
+          </Suspense>
+          {/* Quick Metrics · Aşama 223: bu kutular eski "attendance" tablosundan (etüt yoklamasının kopyaları); yalnız kayıt varsa,
+              "Etüt yoklamalarım" adıyla — ders devamsızlığıyla karışmaz (üstteki bölüm yalnız ders saati yoklamasıdır) */}
+          {presentDays + absentDays + lateDays + excusedDays > 0 && (
+          <p className="text-xs font-semibold text-muted">Etüt yoklamalarım (etüt sayısı)</p>
+          )}
+          {presentDays + absentDays + lateDays + excusedDays > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Katılım Durumu</span>
@@ -868,6 +878,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{excusedDays} Gün</div>
             </div>
           </div>
+          )}
 
           {/* Grades Table */}
           <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-xl">

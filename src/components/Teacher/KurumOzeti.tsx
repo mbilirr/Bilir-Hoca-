@@ -12,7 +12,7 @@ import { Panel, cx } from '../ui/kit';
 // KURUM ÖZETİ — idarenin ana sayfası. Aşama 221: SADELEŞTİ (ana sayfa hafif kalsın).
 //  * Bugün etüt (yalnız bugün etüdü olan öğretmenler, saat sırasıyla)
 //  * Geciken yoklama: yalnız varsa görünür (ders: bitiminden gecikme dakikası sonra; etüt: bitti, yoklama yok)
-//  * Bugün gelmeyen öğrenci sayısı (ders yoklamasından; ders programı yoksa etüt yoklamasından)
+//  * Bugün derse gelmeyen öğrenci sayısı (yalnız ders yoklamasından; Aşama 223: etütle karışmaz)
 //  * Ayrıntı (öğretmen etkinliği, devamsızlık, ödev oranları) → "Kurum raporu" penceresi (Yazdır + Excel)
 // Ders bilgisi tek küçük sorguyla (ders_ozet_bugun) gelir; açıkken kayıt olunca canlı, 5 dakikada bir yenilenir.
 // Önceki sürümdeki öğretmen etkinliği tablosu, "Son 14 gün devamsızlık" ve oran kartları ana sayfadan kalktı.
@@ -85,14 +85,9 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
   const etutEksik = bugunEtut.filter((e) => isEtutAttendanceMissing(e, now));
   const etutOgretmen = new Set(bugunEtut.flatMap((e) => etutTeacherNames(e))).size;
 
-  // Bugün gelmeyen: ders programı varsa ders yoklamasından, yoksa etüt yoklamasından
-  const etutGelmeyen = useMemo(() => {
-    const s = new Set<string>();
-    for (const e of bugunEtut) for (const [sid, r] of Object.entries(e.studentAttendance || {})) if (r && r.status === 'absent') s.add(sid);
-    return s.size;
-  }, [bugunEtut]);
+  // Bugün gelmeyen: YALNIZ ders yoklamasından (Aşama 223: etüt devamsızlığı buraya karışmaz; etüt ekranında ayrı)
   const dersVar = !!ders?.kayitli;
-  const gelmeyen = dersVar ? ders!.gelmeyen : etutGelmeyen;
+  const gelmeyen = dersVar ? ders!.gelmeyen : 0;
   const gecikenDers = ders?.gecikenler || [];
   const gecikenToplam = gecikenDers.length + etutEksik.length;
 
@@ -115,14 +110,14 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
       hint: [gecikenDers.length && `${gecikenDers.length} ders`, etutEksik.length && `${etutEksik.length} etüt`].filter(Boolean).join(' · '),
       onClick: () => (gecikenDers.length ? setRapor('yoklama') : onGo('etuts')),
     },
-    (dersVar || canEtut) && {
+    dersVar && {
       id: 'ko-gelmeyen',
       icon: UserX,
       tone: 'text-warning-fg bg-warning-soft',
-      label: 'Bugün gelmeyen',
+      label: 'Bugün derse gelmeyen',
       value: gelmeyen,
-      hint: dersVar ? 'öğrenci · ders yoklaması' : 'öğrenci · etüt yoklaması',
-      onClick: () => (dersVar ? setRapor('devamsizlik') : onGo('etuts')),
+      hint: 'öğrenci · ders yoklaması',
+      onClick: () => setRapor('devamsizlik'),
     },
   ].filter(Boolean) as Array<{ id: string; icon: React.ComponentType<{ className?: string }>; tone: string; label: string; value: number; hint: string; onClick: () => void }>;
 

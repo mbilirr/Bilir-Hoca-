@@ -59,7 +59,7 @@ const CRON_TIME_BUDGET_MS = 40000;
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme']); // Aşama 221: ders-yoklama-gecikme
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -3135,6 +3135,89 @@ async function actionDersYoklamaGecikme(req, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 223: veliye gün sonu ders devamsızlığı
+// Kurumun son ders saati bitip gecikme dakikası da dolunca (ders_veli_ozet_tara), o gün en az bir derse gelmeyen ya da
+// geç kalan öğrencinin velilerine TEK özet gider. Kanal izni: Bildirim ayarları › Ders devamsızlığı › Veli (e-posta / SMS);
+// varsayılan KAPALI. Öğrenciye e-posta gitmez (öğrenci kendi ekranında görür). Kurum + gün başına bir kez (ders_veli_ozet).
+const DURUM_TR = { absent: 'Gelmedi', late: 'Geç kaldı' };
+async function actionDersVeliOzet(req, deadline) {
+  const out = { kurum: 0, ogrenci: 0, sent: 0, failed: 0, skipped: 0, noEmail: 0 };
+  let list = null;
+  try {
+    list = await rest('rpc/ders_veli_ozet_tara', { token: 'service', method: 'POST', body: {} });
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === 'PGRST202' || err.code === '42883')) return out; // 223 kurulu değil
+    throw err;
+  }
+  const url = appUrl(req);
+  for (const k of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const kurumId = String((k && k.kurum_id) || '');
+    const tarih = String((k && k.tarih) || '');
+    if (!KURUM_ID_RE.test(kurumId) || !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) continue;
+    out.kurum++;
+    const ogrenciler = Array.isArray(k.ogrenciler) ? k.ogrenciler.filter((o) => o && o.student_id) : [];
+    let ok = true;
+    if (ogrenciler.length) {
+      const parents = await studentParentsMap(ogrenciler.map((o) => String(o.student_id)));
+      const items = [];
+      for (const o of ogrenciler) {
+        const sid = String(o.student_id);
+        const st = parents.get(sid);
+        const ad = clean((st && st.name) || o.ad);
+        const kayitlar = Array.isArray(o.kayitlar) ? o.kayitlar : [];
+        const rows = kayitlar.slice(0, 12).map((x) => [`${Number(x.sira) || ''}. ders`, `${clean(x.ders)} — ${DURUM_TR[x.status] || clean(x.status)}`]);
+        const gelmedi = kayitlar.filter((x) => x.status === 'absent').length;
+        const gec = kayitlar.filter((x) => x.status === 'late').length;
+        const ozet = [gelmedi && `${gelmedi} derse gelmedi`, gec && `${gec} derse geç kaldı`].filter(Boolean).join(', ');
+        const subject = `Ders devamsızlığı: ${ad} – ${trDate(tarih)}`;
+        const refId = `${sid}|${tarih}`;
+        // SMS için öğrenci adına iş (e-postası yok: öğrenciye gitmez; velinin SMS izni bu işten okunur)
+        items.push({ event: 'ders-devamsizlik-ozet', refId, refTitle: subject, to: '', toName: ad, role: 'ogrenci', studentId: sid, noVeliCopy: true, subject, text: '', html: '' });
+        const seen = new Set();
+        for (const p of (st && st.parents) || []) {
+          const em = String((p && p.email) || '').trim().toLowerCase();
+          if (!isEmail(em) || seen.has(em)) continue;
+          seen.add(em);
+          const who = clean(p.name) || 'Sayın Veli';
+          items.push({
+            event: 'ders-devamsizlik-ozet',
+            refId,
+            refTitle: subject,
+            to: em,
+            toName: `${who} (${ad} velisi)`.slice(0, 120),
+            role: 'veli',
+            subject,
+            ...layout({
+              heading: 'Bugünkü ders devamsızlığı',
+              greeting: `${who},`,
+              intro: `${ad} bugün (${trDate(tarih)}) ${ozet}.`,
+              rows,
+              buttonLabel: 'Sisteme git',
+              url,
+              footer: 'Bu bilgi gün sonunda bir kez gönderilir. Bir yanlışlık olduğunu düşünüyorsanız okul idaresiyle görüşün.',
+            }),
+          });
+        }
+      }
+      out.ogrenci += ogrenciler.length;
+      const owner = { authId: null, name: '', email: '', kurumId };
+      const sender = await resolveSender(owner);
+      const summary = await deliver(sender, owner, items, deadline);
+      if (summary) {
+        out.sent += summary.sent || 0;
+        out.failed += summary.failed || 0;
+        out.skipped += summary.skipped || 0;
+        out.noEmail += summary.noEmail || 0;
+        // gönderen hesabı yoksa ya da süre bittiyse sonraki turda yeniden denenir (gönderilenler tekrar gitmez)
+        if (summary.notConfigured || (summary.remaining || 0) > 0 || (summary.failed || 0) > 0) ok = false;
+      }
+    }
+    if (ok) await rest('rpc/ders_veli_ozet_isaretle', { token: 'service', method: 'POST', body: { p_kurum: kurumId, p_tarih: tarih, p_sayi: ogrenciler.length } });
+  }
+  return out;
+}
+
 async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
@@ -4537,7 +4620,14 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('[mail] ders yoklaması gecikme hatası', err && err.message);
         }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0 });
+        // Aşama 223: veliye gün sonu ders devamsızlığı özeti (izin kapalıysa e-posta / SMS gitmez)
+        let dv = null;
+        try {
+          dv = await actionDersVeliOzet(req, cronDeadline);
+        } catch (err) {
+          console.error('[mail] veli devamsızlık özeti hatası', err && err.message);
+        }
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0, veliDevamsizlik: dv ? dv.sent : 0 });
       }
       const r = await actionReminders(req, cronDeadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)

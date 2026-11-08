@@ -6,7 +6,7 @@
 // Sunucudaki kopya: api/_notifyPolicy.js — kategori / kanal listesi iki dosyada AYNI tutulmalıdır.
 // ============================================================================
 
-export type PolicyCategory = 'etut' | 'yoklama' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik';
+export type PolicyCategory = 'etut' | 'yoklama' | 'devamsizlik' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik'; // Aşama 223: devamsizlik
 export type PolicyRecipient = 'ogrenci' | 'veli' | 'ogretmen';
 export type PolicyChannel = 'email' | 'push' | 'sms' | 'whatsapp';
 
@@ -48,6 +48,13 @@ export const POLICY_CATEGORIES: {
     label: 'Etüt yoklaması',
     hint: 'Yoklama bağlantısı ve "yoklama alınmadı" uyarısı',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
+  },
+  // Aşama 223: ders yoklamasından veliye gün sonu tek özet (varsayılan kapalı)
+  {
+    id: 'devamsizlik',
+    label: 'Ders devamsızlığı',
+    hint: 'Gün sonunda veliye tek özet: derse gelmedi / geç kaldı',
+    channels: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] },
   },
   {
     id: 'odev',

@@ -261,6 +261,7 @@ const EVENT_TEXT = {
   'etut-cancelled': 'Bir etüt iptal edildi.',
   'etut-attendance': 'Etüt yoklaması bekleniyor.',
   'etut-no-attendance': 'Yoklaması alınmamış bir etüt var.',
+  'ders-devamsizlik-ozet': 'Bugün derse gelmediği / geç kaldığı ders saati var.', // Aşama 223
   'question-target': 'Yeni soru hedefi verildi.',
   'plan-sent': 'Haftalık çalışma planı gönderildi.',
   'plan-report': 'Haftalık plan raporu hazır.',
