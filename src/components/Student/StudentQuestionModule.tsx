@@ -82,6 +82,7 @@ import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -2488,8 +2489,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   );
                 })}
               </div>
-              <p className="text-[11px] text-muted">
-                Öğretmenin planından otomatik oluşturuldu. O gün geldiğinde dersin konusu ve hedefi bu formda ilgili dersin satırına kendiliğinden yazılır.
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                Öğretmenin planından oluşturuldu.
+                <InfoTip text="O gün geldiğinde dersin konusu ve hedefi bu formda ilgili dersin satırına kendiliğinden yazılır." />
               </p>
             </div>
           )}

@@ -5,6 +5,7 @@ import { dataService } from '../../services/dataService';
 import { cinsiyetTahmin } from '../../lib/cinsiyetTahmin';
 import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 import { turkishCompare } from '../../utils/turkishSearch';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // AŞAMA 171 — CİNSİYETİ ADDAN DOLDUR
@@ -144,8 +145,9 @@ export const CinsiyetDoldurModal: React.FC<{
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-muted">
-            İki cinsiyette de kullanılan ya da tanınmayan adlar boş bırakılır; dilerseniz satırdan seçebilirsiniz.
+          <p className="text-[11px] text-muted flex items-center gap-1">
+            Tanınmayan adlar boş kalır.
+            <InfoTip text="İki cinsiyette de kullanılan ya da tanınmayan adlar boş bırakılır; dilerseniz satırdan seçebilirsiniz." />
           </p>
           {error && (
             <div role="alert" className="p-2 rounded-lg bg-danger-soft text-danger-fg text-xs font-semibold flex items-center gap-1.5">

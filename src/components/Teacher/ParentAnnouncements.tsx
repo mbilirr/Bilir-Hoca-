@@ -6,6 +6,7 @@ import type { MailResult } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { ParentChecklist, RelationChips, parentRelations, pickParents, reachableIndexes, type ParentChannel, type ParentSelection } from '../Common/ParentPicker'; // Aşama 134
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // VELİ / ÖĞRENCİ DUYURUSU (Aşama 73, 83)
@@ -298,11 +299,10 @@ export const ParentAnnouncements: React.FC = () => {
     <div className="max-w-3xl" id="parent-announcements">
       <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-card space-y-5">
         <div>
-          <h3 className="text-base font-bold text-fg">Veli / öğrenci duyurusu gönder</h3>
-          <p className="text-xs text-muted mt-0.5">
-            Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) ve/veya öğrencilerin kendilerine (kayıtlı e-posta ve telefon) e-posta
-            ve/veya SMS ile gider. İletişim bilgisi olmayanlar atlanır.
-          </p>
+          <h3 className="text-base font-bold text-fg flex items-center gap-1.5">
+            Veli / öğrenci duyurusu gönder
+            <InfoTip text="Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) ve/veya öğrencilerin kendilerine (kayıtlı e-posta ve telefon) e-posta ve/veya SMS ile gider. İletişim bilgisi olmayanlar atlanır." />
+          </h3>
         </div>
 
         <div className="space-y-2">

@@ -4,6 +4,7 @@ import { Modal } from '../ui/kit';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { inputCls, FieldLabel, invalidateMailStatus } from './FormParts';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // E-posta Ayarları (Aşama 9)
@@ -207,7 +208,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
                     </button>
                   )}
                 </div>
-                <p className="text-[11px] text-muted">Şifreniz sunucuda şifrelenerek saklanır; sizin dahil kimse ekranda geri göremez. İstediğiniz an kaldırabilirsiniz.</p>
+                <p className="text-[11px] text-muted flex items-center gap-1">Şifreniz şifrelenerek saklanır.<InfoTip text="Şifreniz sunucuda şifrelenerek saklanır; sizin dahil kimse ekranda geri göremez. İstediğiniz an kaldırabilirsiniz." /></p>
               </div>
             )}
             {status.isAdmin && (

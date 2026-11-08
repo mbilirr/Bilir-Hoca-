@@ -655,7 +655,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           Haftalık Planlar Kapalı Durumda
                         </p>
                         <p className="text-[11px] text-muted max-w-md mx-auto mb-3">
-                          Planları görüntülemek için yukarıdaki <strong>"Sınıf seçiniz"</strong> açılır penceresinden ilgili sınıfı seçin veya aşağıdaki hızlı butonlara tıklayın.
+                          Yukarıdan ya da aşağıdan sınıf seçin.
                         </p>
                         <div className="flex flex-wrap justify-center gap-1.5 max-w-xl mx-auto">
                           {distinctWeeklyPlanClasses.map((cls) => (

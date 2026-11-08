@@ -464,11 +464,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <GraduationCap className="w-8 h-8" />
           </div>
           <h3 className="text-lg font-bold text-fg mb-2">
-            Sınıf ve Ders Seçimi Yapınız
+            Sınıf ve ders seçin
           </h3>
-          <p className="text-xs sm:text-sm text-muted max-w-lg mx-auto mb-6 leading-relaxed">
-            Ders notları, sınıf öğrenci listesi ve devamsızlık yoklama defterini görüntülemek için lütfen yukarıdaki açılır menülerden <strong className="text-indigo-700 dark:text-indigo-300">Sınıf Seçiniz</strong> ve <strong className="text-emerald-700 dark:text-emerald-300">Ders Seçiniz</strong> alanlarından seçiminizi yapınız.
-          </p>
+          <p className="text-xs text-muted max-w-lg mx-auto mb-6">Yukarıdaki kutulardan sınıf ve ders seçin.</p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <div

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import type { TeacherGrades } from '../../lib/teacherGrades';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // Aşama 102: "Görebileceği kademeler" tikleri — hesap açma ve erişim penceresinde ortak.
 // Düğmeler eşit boyda (h-8 w-24), yazıyla aynı büyüklükte.
@@ -60,9 +61,9 @@ export const GradeTicks: React.FC<{
       {roleNote ? (
         <p className="text-[10px] font-semibold text-info-fg" id={`${id}-rol`}>{roleNote}</p>
       ) : options.length === 0 ? (
-        <p className="text-[10px] text-muted">Kurumda henüz sınıf yok; sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.</p>
+        <p className="text-[10px] text-muted flex items-center gap-1">Kurumda henüz sınıf yok.<InfoTip text='Sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.' /></p>
       ) : (
-        <p className="text-[10px] text-muted">Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez.</p>
+        <p className="text-[10px] text-muted flex items-center gap-1">Kademe erişimi<InfoTip text="Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez." /></p>
       )}
     </div>
   );

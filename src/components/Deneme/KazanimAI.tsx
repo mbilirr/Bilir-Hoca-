@@ -508,9 +508,9 @@ export const KazanimAI: React.FC<{
         <div className="space-y-4">
           <p className="text-[11px] text-muted flex items-start gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-fg" />
-            <span>
-              Yapay zekâya yalnızca kitapçık sayfalarının resmi ve derslerin kazanım listesi gönderilir; öğrenci adı, numarası ya da cevabı gönderilmez. Kitapçık
-              bilgisayarınızda resme çevrilir, sisteme kaydedilmez. Ücretsiz planlarda Google ve Mistral gönderilen içeriği hizmetlerini geliştirmek için kullanabilir.
+            <span className="inline-flex items-center gap-1">
+              Öğrenci bilgisi gönderilmez.
+              <InfoTip text="Yapay zekâya yalnızca kitapçık sayfalarının resmi ve derslerin kazanım listesi gönderilir; öğrenci adı, numarası ya da cevabı gönderilmez. Kitapçık bilgisayarınızda resme çevrilir, sisteme kaydedilmez. Ücretsiz planlarda Google ve Mistral gönderilen içeriği hizmetlerini geliştirmek için kullanabilir." />
             </span>
           </p>
           {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}

@@ -1803,12 +1803,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-fg">Sistem Yöneticisi (Admin)</span>
+                    <span className="text-xs font-black text-fg inline-flex items-center gap-1">Sistem Yöneticisi (Admin)<InfoTip text="Kendi kurumu açılır: kendi öğretmen, sınıf ve öğrencilerini ekler ve yönetir. Yalnızca sizin açtığınız bölümleri ve izin verdiğiniz sınıfları görür (Yönetim › Kurumlar)." /></span>
                     {selectedTargetRole === 'admin' && <Check className="w-4 h-4 text-amber-700 dark:text-amber-400" />}
                   </div>
-                  <p className="text-[11px] text-muted mt-0.5">
-                    Kendi kurumu açılır: kendi öğretmen, sınıf ve öğrencilerini ekler ve yönetir. Yalnızca sizin açtığınız bölümleri ve izin verdiğiniz sınıfları görür (Yönetim › Kurumlar).
-                  </p>
                 </div>
               </div>
 
@@ -1826,12 +1823,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-fg">Öğretmen (Eğitmen)</span>
+                    <span className="text-xs font-black text-fg inline-flex items-center gap-1">Öğretmen (Eğitmen)<InfoTip text="Yetkili olduğu sınıflarda ödev, etüt, soru hedefi, not ve yoklama işlemlerini yapar. Öğrenci, sınıf ve öğretmen ekleyip çıkaramaz." /></span>
                     {selectedTargetRole === 'teacher' && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
                   </div>
-                  <p className="text-[11px] text-muted mt-0.5">
-                    Yetkili olduğu sınıflarda ödev, etüt, soru hedefi, not ve yoklama işlemlerini yapar. Öğrenci, sınıf ve öğretmen ekleyip çıkaramaz.
-                  </p>
                 </div>
               </div>
 
@@ -2670,8 +2664,9 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               onChange={setGrades}
               roleNote={createSeesAll ? `${wideRoleText(createWide)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; kademe seçmek gerekmez.` : undefined}
             />
-            <p className="text-[11px] text-muted">
-              Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız.
+            <p className="text-[11px] text-muted flex items-center gap-1">
+              Tek tek sınıf / öğrenci erişimi
+              <InfoTip text="Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız." />
             </p>
             <MailOptIn
               id="teacher-create-notify"

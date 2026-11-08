@@ -14,6 +14,7 @@ import {
   type OptikField,
 } from '../../lib/deneme/optik';
 import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // Optik format düzenleyici (Aşama 47)
@@ -91,8 +92,9 @@ export const OptikFormatEditor: React.FC<{
       </div>
 
       {fields.length === 0 ? (
-        <p className="text-sm text-muted">
-          FMT dosyasını yükleyin ya da "Alan ekle" ile alanları elle girin. Her alanın TXT'deki başlangıç karakterini ve genişliğini yazmanız yeterli.
+        <p className="text-sm text-muted flex items-center gap-1">
+          Henüz alan yok.
+          <InfoTip text={'FMT dosyasını yükleyin ya da "Alan ekle" ile alanları elle girin. Her alanın TXT\'deki başlangıç karakterini ve genişliğini yazmanız yeterli.'} />
         </p>
       ) : (
         <div className="bg-surface border border-line rounded-2xl overflow-hidden">

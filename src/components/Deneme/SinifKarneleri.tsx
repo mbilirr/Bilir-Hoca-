@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
-import { Award, Flame, Info, LayoutGrid, Medal, TrendingDown, TrendingUp, Users } from 'lucide-react';
+import { Award, Flame, LayoutGrid, Medal, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { Panel, Segmented, cx } from '../ui/kit';
 import { LEVEL_INFO, levelOf, type Level } from '../../lib/deneme/analiz';
 import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
@@ -19,6 +19,7 @@ import {
   type HeatOptions,
   type KazHeat,
 } from '../../lib/deneme/sinifKarne';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // Aşama 55: Sınıf Birleştirilmiş Karnesi ve Kazanım Isı Haritası (ekran)
@@ -686,10 +687,9 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
         </Panel>
       ))}
 
-      <p className="flex items-start gap-1.5 text-[11px] text-muted">
-        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        Başarı = doğru / soru (sınıfın bütün öğrencilerinin cevapları). "Fark" sütunu sınıflar arasındaki en yüksek ve en düşük başarı arasındaki farktır; 20 ve üstü turuncu gösterilir.
-        Az sayıda cevaba (*) dayanan hücreler fark ve öne çıkanlar hesabına girmez.
+      <p className="flex items-center gap-1 text-[11px] text-muted">
+        Başarı ve fark nasıl hesaplanır?
+        <InfoTip text='Başarı = doğru / soru (sınıfın bütün öğrencilerinin cevapları). "Fark" sütunu sınıflar arasındaki en yüksek ve en düşük başarı arasındaki farktır; 20 ve üstü turuncu gösterilir. Az sayıda cevaba (*) dayanan hücreler fark ve öne çıkanlar hesabına girmez.' />
       </p>
     </div>
   );

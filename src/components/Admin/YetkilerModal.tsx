@@ -264,7 +264,7 @@ export const YetkilerModal: React.FC<{
 
         {tab === 'unvan' && (
           <>
-            <p className="text-[11px] text-muted">Birden fazla unvan seçebilirsiniz. Bölüm ve işlem izinleri "Rolden" iken seçili unvana göre çalışır.</p>
+            <p className="text-[11px] text-muted flex items-center gap-1">Birden fazla unvan seçebilirsiniz.<InfoTip text='Bölüm ve işlem izinleri "Rolden" iken seçili unvana göre çalışır.' /></p>
             <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Roller">
               {ROLE_DEFS.map((r) => {
                 const on = sel.includes(r.code);

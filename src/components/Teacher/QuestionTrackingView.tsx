@@ -1504,11 +1504,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <Users className="w-6 h-6" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-fg">
-                Lütfen İncelemek İstediğiniz Sınıfı veya Öğrenciyi Seçiniz
+                Sınıf ya da öğrenci seçin
               </h3>
-              <p className="text-xs text-muted leading-relaxed">
-                Yukarıdaki menüden bir <strong>sınıf seçerek bütün sınıfın</strong> soru çözümlerini ve başarı sıralamasını listeleyebilir, veya <strong>öğrenci seçerek</strong> tek bir öğrencinin ayrıntılı analizini inceleyebilirsiniz.
-              </p>
+              <p className="text-xs text-muted">Sınıf seçince sıralama, öğrenci seçince ayrıntılı analiz açılır.</p>
             </div>
 
             {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}

@@ -10,6 +10,7 @@ import type { BirlesikDers } from '../../lib/deneme/kazanimBirlesik';
 import type { GelisimPanoData, IsiNoktaData } from '../../lib/deneme/karnePdfB';
 import { getKurumBrand } from '../../lib/kurumBrand';
 import { kurumRenkHazirla, kurumRenkOnbellek, seritRenk } from '../../lib/kurumRenk';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 type RGB = [number, number, number];
 const rgb = (c: RGB, a?: number) => (a === undefined ? `rgb(${c[0]} ${c[1]} ${c[2]})` : `rgb(${c[0]} ${c[1]} ${c[2]} / ${a})`);
@@ -455,8 +456,10 @@ const Spark: React.FC<{ vals: Array<number | null>; c: RGB }> = ({ vals, c }) =>
 export const IsiNokta: React.FC<{ data: IsiNoktaData; adlar: string[]; fazla?: number }> = ({ data, adlar, fazla }) => (
   <section className="ui-card ui-card-pad space-y-3" id="karne-isi-tablosu">
     <div>
-      <h3 className="text-base font-extrabold text-fg">Konu ısı tablosu</h3>
-      <p className="text-xs text-muted">Satırlar kazanımlar, sütunlar denemeler; her daire o denemedeki başarıdır (içindeki sayı yüzde). Kesikli boş daire o denemede sorulmadı demektir.</p>
+      <h3 className="text-base font-extrabold text-fg flex items-center gap-1.5">
+        Konu ısı tablosu
+        <InfoTip text="Satırlar kazanımlar, sütunlar denemeler; her daire o denemedeki başarıdır (içindeki sayı yüzde). Kesikli boş daire o denemede sorulmadı demektir." />
+      </h3>
       <p className="mt-1 text-[11px] text-muted">
         Sütunlar: {adlar.map((a, i) => `${i + 1}) ${a}`).join('  ')}
         {fazla ? ` (son ${adlar.length} deneme gösterilir)` : ''}

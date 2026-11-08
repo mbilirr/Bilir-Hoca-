@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, HelpCircle, Info } from 'lucide-react';
-import { cx } from './kit';
+// Aşama 215: kit.tsx InfoTip'i kullandığı için döngüsel içe aktarma olmasın diye cx burada tanımlı (kit'tekiyle aynı)
+const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
 // ============================================================================
 // Aşama 182: SADE PENCERE PARÇALARI

@@ -5,6 +5,7 @@ import type { DenemeExam } from '../../services/denemeService';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
 import { bookletKey, downloadKeyExcel, hasBMapping, showLetter, type Booklet } from '../../lib/deneme/anahtarCikti';
+import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
 // Aşama 91: Cevap anahtarı penceresi — A / B kitapçığı anahtarını gösterir, Excel ya da PDF olarak indirir.
@@ -124,7 +125,7 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
             </div>
           </div>
         ))}
-        <p className="text-[11px] text-muted">İ: iptal edilen soru (herkese doğru sayılır). Excel dosyası yayınevi düzenindedir; başka bir denemeye de yüklenebilir.</p>
+        <p className="text-[11px] text-muted flex items-center gap-1">İ: iptal edilen soru (herkese doğru sayılır).<InfoTip text="Excel dosyası yayınevi düzenindedir; başka bir denemeye de yüklenebilir." /></p>
         {msg && (
           <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-lg px-2.5 py-1.5">
             {msg}

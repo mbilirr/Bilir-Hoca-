@@ -2,6 +2,13 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sun, Moon } from 'lucide-react';
 import { useTheme, THEME_SWITCH_ENABLED } from '../../lib/theme';
+import { InfoTip } from './Compact'; // Aşama 215
+
+// Aşama 215: uzun açıklama başlığın altında durmaz; başlığın yanındaki (i) simgesine taşınır.
+// Kısa açıklamalar (sayı, tarih vb.) eskisi gibi görünür.
+const LONG_DESC = 80;
+const isLongDesc = (d: React.ReactNode) => typeof d === 'string' && d.trim().length > LONG_DESC;
+const DescTip: React.FC<{ d: React.ReactNode }> = ({ d }) => (isLongDesc(d) ? <InfoTip text={d} /> : null);
 
 // ============================================================================
 // ORTAK ARAYÜZ PARÇALARI (Aşama 8)
@@ -53,8 +60,11 @@ export const PageHeader: React.FC<{
     <div className="flex items-center gap-3 min-w-0">
       {icon && <IconBox icon={icon} tone={tone} />}
       <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-fg truncate">{title}</h1>
-        {description && <p className="text-sm text-muted mt-0.5">{description}</p>}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-fg truncate">{title}</h1>
+          <DescTip d={description} />
+        </div>
+        {description && !isLongDesc(description) && <p className="text-sm text-muted mt-0.5">{description}</p>}
       </div>
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
@@ -80,8 +90,13 @@ export const Panel: React.FC<{
         <div className="flex items-center gap-2.5 min-w-0">
           {icon && <IconBox icon={icon} tone={tone} size="sm" />}
           <div className="min-w-0">
-            {title && <h2 className="text-base font-semibold text-fg truncate">{title}</h2>}
-            {description && <p className="text-xs text-muted mt-0.5">{description}</p>}
+            {title && (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2 className="text-base font-semibold text-fg truncate">{title}</h2>
+                <DescTip d={description} />
+              </div>
+            )}
+            {description && !(title && isLongDesc(description)) && <p className="text-xs text-muted mt-0.5">{description}</p>}
           </div>
         </div>
         {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
@@ -299,11 +314,14 @@ export const Modal: React.FC<{
               {icon && <IconBox icon={icon} tone={tone} />}
               <div className="min-w-0">
                 {title && (
-                  <h2 id={titleId} className="text-base sm:text-lg font-semibold text-fg">
-                    {title}
-                  </h2>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h2 id={titleId} className="text-base sm:text-lg font-semibold text-fg">
+                      {title}
+                    </h2>
+                    <DescTip d={description} />
+                  </div>
                 )}
-                {description && <p className="text-xs sm:text-sm text-muted mt-0.5">{description}</p>}
+                {description && !(title && isLongDesc(description)) && <p className="text-xs sm:text-sm text-muted mt-0.5">{description}</p>}
               </div>
             </div>
             <button type="button" onClick={onClose} aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon -mr-2 -mt-1">
