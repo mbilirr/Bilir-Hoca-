@@ -1,0 +1,869 @@
+import React, { useState, useMemo, Suspense } from 'react';
+import {
+  FolderArchive,
+  Folder,
+  FolderOpen,
+  FileText,
+  FileSpreadsheet,
+  FileCode,
+  Upload,
+  Download,
+  Eye,
+  Trash2,
+  Search,
+  Calendar,
+  Layers,
+  BookOpen,
+  Award,
+  Sparkles,
+  Users,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Plus,
+  ChevronsUpDown,
+  GraduationCap,
+  Filter,
+} from 'lucide-react';
+import { PageHeader } from '../../ui/kit';
+import { TeacherDocument, DocumentCategory, ClassGroup } from '../../../types';
+import { dataService } from '../../../services/dataService';
+import { DocumentViewerModal } from './DocumentViewerModal';
+import { lazyNamed } from '../../../lib/lazyLoad';
+// Aşama 124: belge yükleme penceresi (xlsx + mammoth kütüphaneleri) yalnız açılınca indirilir
+const UploadDocumentModal = lazyNamed(() => import('./UploadDocumentModal'), 'UploadDocumentModal');
+import { ConfirmDeleteModal } from '../../Common/ConfirmDeleteModal';
+import { normalizeBranch } from '../../../lib/subjects';
+import { getSignedFileUrl, dataUrlToBlobUrl } from '../../../lib/fileStorage';
+import { SelectBox, inputCls } from '../FormParts';
+import { matchTurkishSearch } from '../../../utils/turkishSearch';
+
+// Aşama 80: arşivdeki tüm açılır kutular, arama kutusu ve düğmeler aynı yükseklik ve yazı boyutunda
+const FIELD_CLS = `${inputCls} h-10 cursor-pointer`;
+
+interface TeacherDocumentsArchiveProps {
+  documents: TeacherDocument[];
+  onDocumentsChange?: () => void;
+}
+
+interface CategoryConfig {
+  id: DocumentCategory;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  bgLight: string;
+  borderLight: string;
+  badgeClass: string;
+}
+
+const CATEGORIES: CategoryConfig[] = [
+  {
+    id: 'yearly_plan',
+    title: 'Yıllık Ders Planları',
+    description: 'MEB onaylı yıllık çalışma ve ders planları',
+    icon: Calendar,
+    color: 'text-emerald-700 dark:text-emerald-400',
+    bgLight: 'bg-emerald-50 dark:bg-emerald-950/40',
+    borderLight: 'border-emerald-500/30',
+    badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+  },
+  {
+    id: 'weekly_plan',
+    title: 'Haftalık Ders Planları',
+    description: 'Sınıf bazlı haftalık ünite ve konu işleniş çizelgeleri',
+    icon: BookOpen,
+    color: 'text-cyan-700 dark:text-cyan-400',
+    bgLight: 'bg-cyan-50 dark:bg-cyan-950/40',
+    borderLight: 'border-cyan-500/30',
+    badgeClass: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+  },
+  {
+    id: 'sample_exam',
+    title: 'Örnek Yazılılar & Denemeler',
+    description: '1. ve 2. dönem yazılı sınav örnekleri ve cevap anahtarları',
+    icon: Award,
+    color: 'text-amber-700 dark:text-amber-400',
+    bgLight: 'bg-amber-50 dark:bg-amber-950/40',
+    borderLight: 'border-amber-500/30',
+    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
+  },
+  {
+    id: 'meeting_minutes',
+    title: 'Zümre Tutanakları & Kararlar',
+    description: 'Dönem başı/sonu zümre öğretmenler kurulu kararları',
+    icon: Users,
+    color: 'text-purple-600 dark:text-purple-400',
+    bgLight: 'bg-purple-50 dark:bg-purple-950/40',
+    borderLight: 'border-purple-500/30',
+    badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30',
+  },
+  {
+    id: 'curriculum',
+    title: 'Müfredat & Kazanım Çizelgesi',
+    description: 'Öğrenme alanları ve ders kazanım tabloları',
+    icon: Layers,
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgLight: 'bg-indigo-50 dark:bg-indigo-950/40',
+    borderLight: 'border-indigo-500/30',
+    badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+  },
+];
+
+export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = ({
+  documents: initialDocs,
+  onDocumentsChange,
+}) => {
+  // Belgeler her zaman güncel listeden okunur (başka öğretmen belge ekleyince ekran kendiliğinden yenilenir)
+  const documents: TeacherDocument[] = initialDocs || dataService.getTeacherDocuments();
+
+  // Ders (branş) süzgeci: varsayılan olarak öğretmenin kendi branşı seçili gelir
+  const teacherBranch = useMemo(() => normalizeBranch(dataService.getCurrentTeacher()?.branch), []);
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => teacherBranch || 'all');
+  // Aşama 116: belgenin dersi öğretmen branşıyla aynı kuralla okunur ("Fen" / "Fen Bilgisi" → "Fen Bilimleri");
+  // aynı ders farklı yazılmış olsa da tek seçenekte toplanır. Belge başına bir kez hesaplanır.
+  const branchKeyOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of documents) m.set(d.id, normalizeBranch(d.subject) || 'Genel');
+    return m;
+  }, [documents]);
+  const branchCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    documents.forEach((d) => {
+      const key = branchKeyOf.get(d.id) || 'Genel';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    if (teacherBranch && !counts.has(teacherBranch)) counts.set(teacherBranch, 0);
+    if (selectedBranch !== 'all' && !counts.has(selectedBranch)) counts.set(selectedBranch, 0);
+    return Array.from(counts.entries()).sort((a, b) => {
+      if (a[0] === teacherBranch) return -1;
+      if (b[0] === teacherBranch) return 1;
+      return b[1] - a[1] || a[0].localeCompare(b[0], 'tr');
+    });
+  }, [documents, teacherBranch, selectedBranch, branchKeyOf]);
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null);
+  const [activePdfUrl, setActivePdfUrl] = useState<string | undefined>(undefined);
+
+  const [availableClasses] = useState<ClassGroup[]>(() => dataService.getClasses());
+
+  const [searchQuery, setSearchQuery] = useState('');
+  // Arşiv Seçimi: Varsayılan olarak boş / "none" -> Bütün belgeler kapalı başlar
+  const [selectedArchiveCategory, setSelectedArchiveCategory] = useState<string>('');
+  const [selectedSchool, setSelectedSchool] = useState<string>('all');
+  const [selectedFormat, setSelectedFormat] = useState<string>('all');
+
+  // Haftalık Planlar için özel sınıf filtresi (varsayılan boş, kullanıcı seçince açılır)
+  const [weeklyPlanSelectedClass, setWeeklyPlanSelectedClass] = useState<string>('');
+
+  // Track which category accordions are expanded (Başlangıçta hepsi KAPALI)
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    yearly_plan: false,
+    weekly_plan: false,
+    sample_exam: false,
+    meeting_minutes: false,
+    curriculum: false,
+  });
+
+  // Modals
+  const [activeViewingDoc, setActiveViewingDoc] = useState<TeacherDocument | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<TeacherDocument | null>(null);
+
+  // Helper to categorize docs properly
+  const getDocCategoryKey = (doc: TeacherDocument): string => {
+    if (doc.category === 'yearly_plan') return 'yearly_plan';
+    if (doc.category === 'weekly_plan') return 'weekly_plan';
+    if (doc.category === 'lesson_plan') {
+      return doc.title.toLowerCase().includes('yıllık') ? 'yearly_plan' : 'weekly_plan';
+    }
+    return doc.category;
+  };
+
+  const toggleCategory = (catId: string) => {
+    setExpandedCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  };
+
+  const toggleAllCategories = () => {
+    const anyOpen = Object.values(expandedCategories).some(Boolean);
+    const nextState: Record<string, boolean> = {};
+    CATEGORIES.forEach((c) => {
+      nextState[c.id] = !anyOpen;
+    });
+    setExpandedCategories(nextState);
+  };
+
+  const scrollCategoryTrack = (catId: string, distance: number) => {
+    const el = document.getElementById(`doc-track-${catId}`);
+    if (el) {
+      el.scrollBy({ left: distance, behavior: 'smooth' });
+    }
+  };
+
+  // Distinct class list for weekly plan filtering - Only pure grade level names (8/a, 8/B gibi şubeler YOK, sadece sınıf isimleri)
+  const distinctWeeklyPlanClasses = useMemo(() => {
+    return [
+      '5. Sınıf',
+      '6. Sınıf',
+      '7. Sınıf',
+      '8. Sınıf',
+      '9. Sınıf',
+      '10. Sınıf',
+      '11. Sınıf',
+      '12. Sınıf',
+    ];
+  }, []);
+
+  // Filtered documents
+  // Aşama 116: süzme yalnız belgeler ya da süzgeçler değişince yeniden yapılır
+  const filteredDocuments = useMemo(() => documents.filter((doc) => {
+    if (selectedBranch !== 'all' && (branchKeyOf.get(doc.id) || 'Genel') !== selectedBranch) return false;
+    const docCat = getDocCategoryKey(doc);
+    if (selectedArchiveCategory && selectedArchiveCategory !== 'all' && docCat !== selectedArchiveCategory) return false;
+    if (selectedFormat !== 'all' && doc.fileFormat !== selectedFormat) return false;
+
+    if (selectedSchool !== 'all') {
+      if (doc.schoolType && doc.schoolType !== selectedSchool) return false;
+      if (!doc.schoolType) {
+        const isOrtaGrade = ['5.', '6.', '7.', '8.'].some((g) => (doc.gradeLevel || '').includes(g));
+        const isLiseGrade = ['9.', '10.', '11.', '12.'].some((g) => (doc.gradeLevel || '').includes(g));
+        if (selectedSchool === 'Ortaokul' && isLiseGrade) return false;
+        if (selectedSchool === 'Lise' && isOrtaGrade) return false;
+      }
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery; // Aşama 116: Türkçe harf duyarsız
+      const matchTitle = matchTurkishSearch(doc.title, q);
+      const matchDesc = matchTurkishSearch(doc.description, q);
+      const matchSubject = matchTurkishSearch(doc.subject, q);
+      const matchTags = doc.tags?.some((t) => matchTurkishSearch(t, q)) || false;
+      if (!matchTitle && !matchDesc && !matchSubject && !matchTags) return false;
+    }
+
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [documents, selectedBranch, branchKeyOf, selectedArchiveCategory, selectedFormat, selectedSchool, searchQuery]);
+
+  const clickDownload = (href: string, fileName: string) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  // Belgeyi indir: depodaki dosya imzalı bağlantıyla, eski belgeler kayıttaki içerikle indirilir
+  const handleDownload = async (doc: TeacherDocument) => {
+    setActionError(null);
+    try {
+      if (doc.storagePath) {
+        clickDownload(await getSignedFileUrl(doc.storagePath, doc.fileName || doc.title), doc.fileName || doc.title);
+        return;
+      }
+      const full = await dataService.getTeacherDocumentDetail(doc);
+      if (full.fileData && full.fileData.startsWith('data:')) {
+        const blobUrl = dataUrlToBlobUrl(full.fileData);
+        clickDownload(blobUrl || full.fileData, full.fileName);
+        if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      }
+
+      if (full.fileFormat === 'xlsx' && full.tableSheets && full.tableSheets.length > 0) {
+        const XLSX = await import('xlsx'); // Aşama 124: kütüphane yalnız gerektiğinde iner
+        const wb = XLSX.utils.book_new();
+        full.tableSheets.forEach((sheet) => {
+          const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
+          XLSX.utils.book_append_sheet(wb, ws, sheet.name.substring(0, 31));
+        });
+        XLSX.writeFile(wb, full.fileName);
+        return;
+      }
+
+      const content =
+        full.htmlPreview ||
+        `${full.title}\n${full.subject} - ${full.academicYear}\n\n${full.description || ''}`;
+      const blob = new Blob([content], {
+        type: full.htmlPreview ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      clickDownload(url, full.htmlPreview ? `${full.title}.html` : `${full.title}.txt`);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge indirilemedi.');
+    }
+  };
+
+  // Belgeyi aç: önizleme içeriği ve PDF adresi gerektiğinde yüklenir
+  const handleOpenDocument = async (doc: TeacherDocument) => {
+    setActionError(null);
+    setOpeningDocId(doc.id);
+    try {
+      const full = await dataService.getTeacherDocumentDetail(doc);
+      let pdfUrl: string | undefined;
+      if (full.fileFormat === 'pdf') {
+        if (full.storagePath) pdfUrl = await getSignedFileUrl(full.storagePath);
+        else if (full.fileData && full.fileData.startsWith('data:')) pdfUrl = dataUrlToBlobUrl(full.fileData) || undefined;
+      }
+      setActivePdfUrl(pdfUrl);
+      setActiveViewingDoc(full);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge açılamadı.');
+    } finally {
+      setOpeningDocId(null);
+    }
+  };
+
+  const handleCloseViewer = () => {
+    if (activePdfUrl && activePdfUrl.startsWith('blob:')) URL.revokeObjectURL(activePdfUrl);
+    setActivePdfUrl(undefined);
+    setActiveViewingDoc(null);
+  };
+
+  const handleCreateDocument = async (newDocData: Omit<TeacherDocument, 'id' | 'uploadedAt'>, file: File) => {
+    await dataService.addTeacherDocument(newDocData, file); // hata olursa yükleme penceresi mesajı gösterir
+    // Yüklenen belgenin branşı ve kategorisi açılır
+    setSelectedBranch(newDocData.subject || 'all');
+    const cat = getDocCategoryKey(newDocData as TeacherDocument);
+    setSelectedArchiveCategory(cat);
+    setExpandedCategories((prev) => ({ ...prev, [cat]: true }));
+    if (cat === 'weekly_plan' && newDocData.gradeLevel) {
+      setWeeklyPlanSelectedClass(newDocData.gradeLevel);
+    }
+    if (onDocumentsChange) onDocumentsChange();
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    setActionError(null);
+    setDocToDelete(null);
+    try {
+      await dataService.deleteTeacherDocument(id);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge silinemedi.');
+    }
+    if (onDocumentsChange) onDocumentsChange();
+  };
+
+  const getFormatBadge = (format: 'pdf' | 'docx' | 'xlsx') => {
+    switch (format) {
+      case 'pdf':
+        return {
+          bg: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30',
+          label: 'PDF',
+          icon: FileText,
+        };
+      case 'docx':
+        return {
+          bg: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
+          label: 'WORD',
+          icon: FileCode,
+        };
+      case 'xlsx':
+        return {
+          bg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
+          label: 'EXCEL',
+          icon: FileSpreadsheet,
+        };
+      default:
+        return {
+          bg: 'bg-surface-2 text-fg-2 border-line',
+          label: 'DOSYA',
+          icon: FileText,
+        };
+    }
+  };
+
+  // Visible categories based on user selection: Yalnızca açılır pencereden seçilen belge türü açılır
+  const visibleCategories = useMemo(() => {
+    if (!selectedArchiveCategory) {
+      return [];
+    }
+    return CATEGORIES.filter((c) => c.id === selectedArchiveCategory);
+  }, [selectedArchiveCategory]);
+
+  return (
+    <div className="space-y-6">
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={FolderArchive}
+        tone="warning"
+        title="Arşiv"
+        description={`Plan ve zümre evrakları · ${documents.length} belge`}
+        actions={
+          <button type="button" onClick={() => setIsUploadModalOpen(true)} className="ui-btn ui-btn-primary">
+            <Upload className="w-4 h-4" />
+            <span>Yeni Belge Yükle</span>
+          </button>
+        }
+      />
+
+      {actionError && (
+        <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="font-bold text-rose-600 dark:text-rose-200 hover:text-fg cursor-pointer">
+            Tamam
+          </button>
+        </div>
+      )}
+
+      {/* ARAMA VE AÇILIR KUTULAR (Aşama 80: hepsi aynı ölçüde; sıra: Arşiv · Kademe · Ders · Format) */}
+      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md space-y-2.5">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Belge adı, zümre, konu veya etiket ara..."
+            className={`${inputCls} h-10 pl-9`}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <SelectBox
+            aria-label="Arşiv"
+            value={selectedArchiveCategory}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedArchiveCategory(val);
+              if (val) {
+                const nextState: Record<string, boolean> = {
+                  yearly_plan: false,
+                  weekly_plan: false,
+                  sample_exam: false,
+                  meeting_minutes: false,
+                  curriculum: false,
+                };
+                nextState[val] = true;
+                setExpandedCategories(nextState);
+              }
+            }}
+            className={FIELD_CLS}
+          >
+            <option value="">Arşiv seçiniz</option>
+            <option value="yearly_plan">Yıllık Planlar</option>
+            <option value="weekly_plan">Haftalık Planlar</option>
+            <option value="sample_exam">Örnek Yazılılar</option>
+            <option value="meeting_minutes">Zümre Tutanakları</option>
+            <option value="curriculum">Müfredat & Kazanım</option>
+          </SelectBox>
+
+          <SelectBox aria-label="Kademe" value={selectedSchool} onChange={(e) => setSelectedSchool(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Kademe seçiniz</option>
+            <option value="Ortaokul">Ortaokul</option>
+            <option value="Lise">Lise</option>
+          </SelectBox>
+
+          <SelectBox aria-label="Ders" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Ders seçiniz</option>
+            {branchCounts.map(([branch, count]) => (
+              <option key={branch} value={branch}>
+                {branch} ({count}){branch === teacherBranch ? ' · Branşım' : ''}
+              </option>
+            ))}
+          </SelectBox>
+
+          <SelectBox aria-label="Format" value={selectedFormat} onChange={(e) => setSelectedFormat(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Format seçiniz</option>
+            <option value="pdf">PDF</option>
+            <option value="docx">Word (.docx)</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+          </SelectBox>
+        </div>
+
+        {(searchQuery || selectedArchiveCategory || selectedFormat !== 'all' || selectedSchool !== 'all' || selectedBranch !== (teacherBranch || 'all')) && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedArchiveCategory('');
+                setSelectedFormat('all');
+                setSelectedSchool('all');
+                setSelectedBranch(teacherBranch || 'all');
+                setWeeklyPlanSelectedClass('');
+                setExpandedCategories({
+                  yearly_plan: false,
+                  weekly_plan: false,
+                  sample_exam: false,
+                  meeting_minutes: false,
+                  curriculum: false,
+                });
+              }}
+              className="ui-btn ui-btn-secondary h-10"
+            >
+              Sıfırla
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* SEÇİLEN BELGE TÜRÜ AÇILIR (SADECE SEÇİLEN KATEGORİ) */}
+      {visibleCategories.length > 0 && (
+        <div className="space-y-3">
+          {visibleCategories.map((category) => {
+            const CatIcon = category.icon;
+            const isExpanded = !!expandedCategories[category.id];
+
+            // Documents belonging to this category and matching current general filters
+            let categoryDocs = filteredDocuments.filter(
+              (doc) => getDocCategoryKey(doc) === category.id
+            );
+
+            // If this is weekly_plan and user selected a specific class, filter by class
+            const isWeeklyPlanCat = category.id === 'weekly_plan';
+            if (isWeeklyPlanCat && weeklyPlanSelectedClass) {
+              categoryDocs = categoryDocs.filter((doc) => {
+                if (doc.gradeLevel === weeklyPlanSelectedClass) return true;
+                if (doc.gradeLevel && weeklyPlanSelectedClass && doc.gradeLevel.startsWith(weeklyPlanSelectedClass.split('.')[0])) return true;
+                if (doc.tags?.some((t) => matchTurkishSearch(t, weeklyPlanSelectedClass))) return true; // Aşama 154
+                return false;
+              });
+            }
+
+            // Total in category regardless of search/filter
+            const allCatDocs = documents.filter((doc) => getDocCategoryKey(doc) === category.id);
+
+            return (
+              <div
+                key={category.id}
+                className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm transition-all"
+              >
+                {/* Category Folder Accordion Header */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleCategory(category.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleCategory(category.id);
+                    }
+                  }}
+                  className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-2/60 transition-colors cursor-pointer select-none"
+                >
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${category.bgLight} ${category.borderLight} ${category.color}`}
+                    >
+                      {isExpanded ? (
+                        <FolderOpen className="w-4 h-4" />
+                      ) : (
+                        <Folder className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <div className="flex items-center space-x-2">
+                        <h3 className="text-sm font-bold text-fg truncate">{category.title}</h3>
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${category.badgeClass}`}>
+                          {categoryDocs.length} {categoryDocs.length !== allCatDocs.length ? `/ ${allCatDocs.length}` : ''} Belge
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted truncate mt-0.5 hidden sm:block">
+                        {category.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0 ml-3">
+                    {/* Horizontal Scroll Controls */}
+                    {isExpanded && categoryDocs.length > 1 && (
+                      <div className="flex items-center space-x-1 bg-surface-2/80 p-0.5 rounded-lg border border-line">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollCategoryTrack(category.id, -340);
+                          }}
+                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
+                          title="Sola Kaydır"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollCategoryTrack(category.id, 340);
+                          }}
+                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
+                          title="Sağa Kaydır"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <span className="text-xs text-muted hidden sm:inline">
+                      {isExpanded ? 'Kapat' : 'Aç'}
+                    </span>
+                    <div
+                      className={`w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center text-muted transition-transform duration-200 ${
+                        isExpanded ? 'rotate-180 text-fg' : ''
+                      }`}
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapsible Documents Track */}
+                {isExpanded && (
+                  <div className="border-t border-line bg-canvas/50 p-4 sm:p-5">
+                    {/* HAFTALIK PLAN ÖZEL SINIF SEÇİM AÇILIR PENCERESİ (YALNIZCA SINIF İSİMLERİ: 5. Sınıf - 12. Sınıf) */}
+                    {isWeeklyPlanCat && (
+                      <div className="mb-4 p-3.5 bg-surface border border-cyan-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center space-x-2.5">
+                          <GraduationCap className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-fg">Sınıf Seçimi</p>
+                            <p className="text-[11px] text-muted">
+                              Haftalık planları sınıf bazında incelemek için sınıf seçin
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <div className="w-full sm:w-56">
+                            <SelectBox aria-label="Sınıf" value={weeklyPlanSelectedClass} onChange={(e) => setWeeklyPlanSelectedClass(e.target.value)} className={FIELD_CLS}>
+                              <option value="">Sınıf seçiniz</option>
+                              {distinctWeeklyPlanClasses.map((cls) => (
+                                <option key={cls} value={cls}>
+                                  {cls}
+                                </option>
+                              ))}
+                            </SelectBox>
+                          </div>
+
+                          {weeklyPlanSelectedClass && (
+                            <button type="button" onClick={() => setWeeklyPlanSelectedClass('')} className="ui-btn ui-btn-secondary h-10 shrink-0">
+                              Tüm Sınıflar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Haftalık plan seçimi yapılmadıysa ve kullanıcı sınıf seçmek istiyorsa */}
+                    {isWeeklyPlanCat && !weeklyPlanSelectedClass && allCatDocs.length > 0 ? (
+                      <div className="p-6 text-center bg-surface/60 border border-line rounded-xl">
+                        <BookOpen className="w-8 h-8 text-cyan-700/80 dark:text-cyan-400/80 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-fg mb-1">
+                          Haftalık Planlar Kapalı Durumda
+                        </p>
+                        <p className="text-[11px] text-muted max-w-md mx-auto mb-3">
+                          Yukarıdan ya da aşağıdan sınıf seçin.
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-1.5 max-w-xl mx-auto">
+                          {distinctWeeklyPlanClasses.map((cls) => (
+                            <button
+                              key={cls}
+                              type="button"
+                              onClick={() => setWeeklyPlanSelectedClass(cls)}
+                              className="ui-btn ui-btn-sm bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/60 min-w-24"
+                            >
+                              {cls}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : categoryDocs.length > 0 ? (
+                      <div className="relative">
+                        {/* Kaydırma İpucu */}
+                        <div className="pb-2.5 flex items-center justify-between text-[11px] text-muted">
+                          <span className="flex items-center space-x-1.5">
+                            <span>👉</span>
+                            <span>
+                              {isWeeklyPlanCat && weeklyPlanSelectedClass
+                                ? `${weeklyPlanSelectedClass} Haftalık Planları (${categoryDocs.length} belge)`
+                                : `Yan yana kayan özet sayfalar (${categoryDocs.length} belge)`}
+                            </span>
+                          </span>
+                          <span className="hidden sm:inline font-mono text-muted">Kaydır ⇄</span>
+                        </div>
+
+                        {/* Yan Yana Kayan Özet Sayfalar Konteyneri */}
+                        <div
+                          id={`doc-track-${category.id}`}
+                          className="flex items-stretch space-x-4 overflow-x-auto pb-2 scrollbar-thin snap-x snap-mandatory scroll-smooth"
+                        >
+                          {categoryDocs.map((doc) => {
+                            const formatBadge = getFormatBadge(doc.fileFormat);
+                            const FormatIcon = formatBadge.icon;
+
+                            return (
+                              <div
+                                key={doc.id}
+                                className="w-80 sm:w-88 shrink-0 snap-start bg-surface hover:bg-surface border border-line hover:border-indigo-400 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md transition-all group hover:shadow-xl hover:-translate-y-0.5 text-fg"
+                              >
+                                {/* Üst Kısım */}
+                                <div>
+                                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                                    <div className="flex items-center space-x-1.5 flex-wrap">
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center space-x-1 ${formatBadge.bg}`}
+                                      >
+                                        <FormatIcon className="w-3 h-3 mr-1 inline" />
+                                        <span>{formatBadge.label}</span>
+                                      </span>
+
+                                      {doc.schoolType && (
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
+                                          {doc.schoolType === 'Ortaokul'
+                                            ? '🏫 Ortaokul'
+                                            : doc.schoolType === 'Lise'
+                                            ? '🎓 Lise'
+                                            : doc.schoolType}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {doc.gradeLevel && (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-2 text-fg-2 border border-line">
+                                        {doc.gradeLevel}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Belge Başlığı */}
+                                  <h4
+                                    className="text-sm font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
+                                    title={doc.title}
+                                  >
+                                    {doc.title}
+                                  </h4>
+
+                                  {/* Özet Sayfa Görsel Kartı */}
+                                  <div className="bg-surface-2/90 rounded-xl p-3 border border-line mb-3 space-y-1.5 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-200 dark:border-indigo-500/30" />
+
+                                    <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold border-b border-line pb-1 pr-6">
+                                      <span>{doc.subject}</span>
+                                      <span className="text-muted font-mono">{doc.academicYear || '2026-2027'}</span>
+                                    </div>
+
+                                    <p className="text-xs text-muted line-clamp-3 leading-relaxed">
+                                      {doc.description ||
+                                        'MEB müfredat standartlarına uygun 2026-2027 yıllık/haftalık plan ve zümre kararları özeti.'}
+                                    </p>
+
+                                    {doc.tags && doc.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 pt-1">
+                                        {doc.tags.slice(0, 3).map((tag, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="text-[10px] px-1.5 py-0.5 rounded bg-surface text-muted border border-line font-medium"
+                                          >
+                                            #{tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Yazar & Dosya Boyutu */}
+                                  <div className="flex items-center justify-between text-[11px] text-muted mb-3 px-0.5">
+                                    <span className="truncate max-w-[170px] text-fg-2 font-medium" title={doc.authorName}>
+                                      ✍️ {doc.authorName || 'Öğretmen'}
+                                    </span>
+                                    <span className="font-mono text-[10px] text-subtle">
+                                      {doc.fileSize || 'Belge'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Alt Aksiyon Butonları */}
+                                <div className="pt-3 border-t border-line flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDocument(doc)}
+                                    disabled={openingDocId === doc.id}
+                                    className="ui-btn ui-btn-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white min-w-24"
+                                    title="Tam Sayfa Olarak Aç ve İncele"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>{openingDocId === doc.id ? 'Açılıyor…' : 'Görüntüle'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownload(doc)}
+                                    className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs border border-line transition-colors cursor-pointer"
+                                    title="Belgeyi Bilgisayara İndir"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {dataService.canManageDocument(doc) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDocToDelete(doc)}
+                                      className="p-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-xl text-xs border border-rose-200 dark:border-rose-500/30 transition-colors cursor-pointer"
+                                      title="Belgeyi Sil"
+                                      aria-label="Belgeyi Sil"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center text-muted text-xs bg-surface/40 rounded-xl">
+                        Bu kategoride seçilen filtrelere uygun kayıtlı belge bulunmuyor.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* DOCUMENT VIEWER MODAL */}
+      {activeViewingDoc && (
+        <DocumentViewerModal
+          document={activeViewingDoc}
+          isOpen={!!activeViewingDoc}
+          onClose={handleCloseViewer}
+          onDownload={handleDownload}
+          pdfUrl={activePdfUrl}
+        />
+      )}
+
+      {/* UPLOAD DOCUMENT MODAL */}
+      {isUploadModalOpen && (
+        <Suspense fallback={null}>
+          <UploadDocumentModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onUploadSuccess={handleCreateDocument}
+            defaultSubject={selectedBranch !== 'all' ? selectedBranch : teacherBranch || undefined}
+            defaultCategory={(selectedArchiveCategory || undefined) as DocumentCategory | undefined}
+          />
+        </Suspense>
+      )}
+
+      {/* CONFIRM DELETE MODAL */}
+      {docToDelete && (
+        <ConfirmDeleteModal
+          isOpen={!!docToDelete}
+          title="Belgeyi Sil"
+          itemBadge={`${docToDelete.title} (${docToDelete.fileFormat.toUpperCase()})`}
+          description={`"${docToDelete.title}" isimli belge arşivden kalıcı olarak silinecektir. Bu işlem geri alınamaz.`}
+          confirmButtonText="Belgeyi Sil"
+          onConfirm={() => handleDeleteDocument(docToDelete.id)}
+          onClose={() => setDocToDelete(null)}
+        />
+      )}
+    </div>
+  );
+};
+
