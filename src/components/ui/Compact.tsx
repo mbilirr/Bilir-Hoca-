@@ -152,7 +152,7 @@ export const HelpDisclosure: React.FC<{
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1.5 px-3 h-9 text-xs font-semibold text-brand-fg hover:text-fg rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="w-full flex items-center gap-1.5 px-3 h-8 text-xs font-semibold text-brand-fg hover:text-fg rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <HelpCircle className="w-4 h-4 shrink-0" />
         <span className="flex-1 text-left">{title}</span>
