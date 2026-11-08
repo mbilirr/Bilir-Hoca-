@@ -389,7 +389,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <button
             type="button"
             onClick={onNavigateHome}
-            className="px-3.5 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold transition-all border border-line cursor-pointer"
+            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg border border-line min-w-24"
           >
             Öğretmen Paneline Dön
           </button>
@@ -897,7 +897,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               placeholder="İsim, telefon, branş veya sınıf ile ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="ui-field w-full pl-10 pr-4"
             />
             {searchQuery && (
               <button
@@ -971,7 +971,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   setStatusFilter('all');
                   setKurumFilter(kurumLock ?? '');
                 }}
-                className="px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-bold transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
               >
                 Temizle
               </button>
@@ -1064,7 +1064,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setRoleFilter('all');
               setStatusFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`ui-btn ui-btn-sm ${
               roleFilter === 'all' && statusFilter === 'all'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-fg-2'
@@ -1078,7 +1078,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setRoleFilter(roleFilter === 'admin' && statusFilter === 'all' ? 'all' : 'admin');
               setStatusFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+            className={`ui-btn ui-btn-sm ${
               roleFilter === 'admin' && statusFilter === 'all'
                 ? 'bg-amber-500 text-slate-950 shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-amber-700 dark:text-amber-300'
@@ -1093,7 +1093,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setRoleFilter(roleFilter === 'teacher' && statusFilter === 'all' ? 'all' : 'teacher');
               setStatusFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+            className={`ui-btn ui-btn-sm ${
               roleFilter === 'teacher' && statusFilter === 'all'
                 ? 'bg-indigo-500 text-white shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300'
@@ -1108,7 +1108,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setRoleFilter(roleFilter === 'student' && statusFilter === 'all' ? 'all' : 'student');
               setStatusFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+            className={`ui-btn ui-btn-sm ${
               roleFilter === 'student' && statusFilter === 'all'
                 ? 'bg-emerald-500 text-white shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-emerald-700 dark:text-emerald-300'
@@ -1123,7 +1123,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended');
               setRoleFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+            className={`ui-btn ui-btn-sm ${
               statusFilter === 'suspended'
                 ? 'bg-rose-500 text-white shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-rose-600 dark:text-rose-300'
@@ -1138,7 +1138,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
               setRoleFilter('all');
             }}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+            className={`ui-btn ui-btn-sm ${
               statusFilter === 'pending'
                 ? 'bg-orange-500 text-white shadow-xs'
                 : 'bg-surface-2 hover:bg-surface-3 text-orange-700 dark:text-orange-300'
@@ -1518,7 +1518,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     required
                     value={editFormData.name}
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full"
                   />
                 </div>
 
@@ -1530,7 +1530,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     required
                     value={editFormData.username}
                     onChange={(e) => setEditFormData({ ...editFormData, username: trFold(e.target.value) })} // Aşama 154
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full"
                   />
                 </div>
 
@@ -1541,7 +1541,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     type="email"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full"
                   />
                 </div>
 
@@ -1553,7 +1553,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     placeholder="05XX XXX XX XX"
                     value={editFormData.phone}
                     onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full"
                   />
                 </div>
 
@@ -1564,7 +1564,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     id="kullanici-duzen-cinsiyet"
                     value={editFormData.gender}
                     onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value as '' | 'K' | 'E' })}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs font-semibold text-fg focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    className="ui-field w-full font-semibold cursor-pointer"
                   >
                     <option value="">Seçiniz</option>
                     <option value="K">{editModalUser.role === 'student' ? 'Kız' : 'Kadın'}</option>
@@ -1581,7 +1581,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       id="ogretmen-duzen-dogum"
                       value={editFormData.birthDate}
                       onChange={(e) => setEditFormData({ ...editFormData, birthDate: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                      className="ui-field w-full"
                     />
                   </div>
                 )}
@@ -1595,7 +1595,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       placeholder="Örn: Fen Bilgisi Öğretmeni, Matematik, Kurum Müdürü"
                       value={editFormData.branch}
                       onChange={(e) => setEditFormData({ ...editFormData, branch: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                      className="ui-field w-full"
                     />
                   </div>
                 )}
@@ -1615,7 +1615,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             className: cls ? cls.name : editFormData.className,
                           });
                         }}
-                        className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        className="ui-field w-full cursor-pointer"
                       >
                         {classes.filter((c) => dataService.canManageClass(c) || c.id === editFormData.classId).map((c) => (
                           <option key={c.id} value={c.id} className="bg-surface text-fg">
@@ -1632,7 +1632,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         placeholder="Örn: 482"
                         value={editFormData.studentNumber}
                         onChange={(e) => setEditFormData({ ...editFormData, studentNumber: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                        className="ui-field w-full"
                       />
                     </div>
                   </>
@@ -1687,7 +1687,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           placeholder="En az 6 karakter"
                           value={editFormData.newPassword}
                           onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
-                          className={`w-full pl-3 pr-16 h-8 bg-surface border border-line rounded-lg text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-brand ${showPassword ? '' : 'pw-mask'}`}
+                          className={`ui-field w-full pl-3 pr-16 font-mono ${showPassword ? '' : 'pw-mask'}`}
                         />
                         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                           {editFormData.newPassword && (
@@ -1858,14 +1858,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setRoleModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
               >
                 Vazgeç
               </button>
               <button
                 type="button"
                 onClick={handleSaveRoleChange}
-                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md cursor-pointer"
+                className="ui-btn ui-btn-sm bg-amber-500 hover:bg-amber-400 text-slate-950 min-w-24"
               >
                 Yetkiyi Kaydet
               </button>
@@ -1917,14 +1917,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setSuspendModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
               >
                 Vazgeç
               </button>
               <button
                 type="button"
                 onClick={handleConfirmToggleSuspension}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                className={`ui-btn ui-btn-sm ${
                   suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-rose-600 hover:bg-rose-500 text-white'
@@ -1965,14 +1965,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
               >
                 Vazgeç
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-950 cursor-pointer"
+                className="ui-btn ui-btn-sm bg-rose-600 hover:bg-rose-500 text-white min-w-24"
               >
                 Evet, Kalıcı Olarak Sil
               </button>
@@ -2155,7 +2155,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     placeholder="Öğrenci ara (Ad, Sınıf, Numara)..."
                     value={authStudentSearch}
                     onChange={(e) => setAuthStudentSearch(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full pl-9 pr-3.5"
                   />
                 </div>
 
@@ -2230,14 +2230,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setAuthModalTeacher(null)}
-                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
               >
                 Vazgeç
               </button>
               <button
                 type="button"
                 onClick={handleSaveAuthModal}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 flex items-center space-x-1.5 cursor-pointer"
+                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Yetkileri Kaydet ve Uygula</span>
@@ -2518,12 +2518,12 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                     void appCopyFallback('Giriş bilgileri', credentialText);
                   }
                 }}
-                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold border border-line"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg border border-line min-w-24"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>Bilgileri Kopyala</span>
               </button>
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+              <button type="button" onClick={onClose} className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24">
                 Kapat
               </button>
             </div>
@@ -2622,7 +2622,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setPassword(dataService.generatePassword())}
-                  className="px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300 text-xs font-bold border border-line shrink-0"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300 border border-line shrink-0 min-w-24"
                 >
                   🎲 Üret
                 </button>
@@ -2645,7 +2645,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                         disabled={locked || (r.code === 'ogretmen' && on && roles.includes('zumre_baskani'))}
                         title={locked ? 'Zümre başkanı için önce branşı yazın' : r.description}
                         onClick={() => toggleRole(r.code)}
-                        className={`h-8 px-2 rounded-lg border text-xs font-semibold truncate transition-colors disabled:opacity-50 ${
+                        className={`ui-btn ui-btn-sm border truncate disabled:opacity-50 ${
                           on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-canvas border-line text-fg-2 hover:border-indigo-400'
                         }`}
                       >
@@ -2680,13 +2680,13 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi öğretmenin e-posta adresine gider.' : 'Göndermek için yukarıya öğretmenin e-posta adresini yazın.'}
             />
             <div className="flex justify-end space-x-2 pt-1">
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold">
+              <button type="button" onClick={onClose} className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24">
                 Vazgeç
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-bold"
+                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white min-w-24"
               >
                 {isSaving ? 'Hesap açılıyor...' : 'Hesabı Aç'}
               </button>

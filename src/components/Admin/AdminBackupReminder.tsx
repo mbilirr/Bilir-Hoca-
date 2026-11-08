@@ -45,7 +45,7 @@ export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ on
         <button
           type="button"
           onClick={onOpenBackup}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400 cursor-pointer"
+          className="ui-btn ui-btn-sm bg-emerald-500 text-slate-950 hover:bg-emerald-400 min-w-24"
         >
           Yedek Al
         </button>

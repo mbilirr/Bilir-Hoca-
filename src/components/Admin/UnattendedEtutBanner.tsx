@@ -112,7 +112,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
           <button
             type="button"
             onClick={goToEtuts}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
+            className="ui-btn ui-btn-sm bg-rose-600 text-white hover:bg-rose-500 min-w-24"
           >
             Etütlere git
           </button>

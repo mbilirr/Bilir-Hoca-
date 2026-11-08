@@ -210,7 +210,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                     type="text"
                     value={row.studentNumber}
                     onChange={(e) => patchRow(app.id, { studentNumber: e.target.value })}
-                    className="w-full px-2.5 py-1.5 bg-surface border border-line rounded-lg text-fg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="ui-field w-full font-mono"
                   />
                 </div>
                 <div>
@@ -218,7 +218,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                   <select
                     value={row.classId}
                     onChange={(e) => patchRow(app.id, { classId: e.target.value })}
-                    className="w-full px-2.5 py-1.5 bg-surface border border-line rounded-lg text-fg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="ui-field w-full"
                   >
                     <option value="">Sınıf atanmadı (sonra atanır)</option>
                     {classes.map((c) => (
@@ -242,7 +242,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                   value={row.rejectReason}
                   onChange={(e) => patchRow(app.id, { rejectReason: e.target.value })}
                   placeholder="Red nedeni (isteğe bağlı)"
-                  className="w-full px-2.5 py-1.5 bg-surface border border-rose-500/40 rounded-lg text-fg text-xs focus:outline-none"
+                  className="ui-field w-full"
                 />
               )}
 
@@ -253,7 +253,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                       type="button"
                       onClick={() => patchRow(app.id, { showReject: false })}
                       disabled={row.busy}
-                      className="px-3 py-1.5 rounded-lg bg-surface-2 text-fg-2 text-xs font-semibold border border-line"
+                      className="ui-btn ui-btn-sm bg-surface-2 text-fg-2 border border-line min-w-24"
                     >
                       Vazgeç
                     </button>
@@ -261,7 +261,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                       type="button"
                       onClick={() => handleReject(app)}
                       disabled={row.busy}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold disabled:opacity-50"
+                      className="ui-btn ui-btn-sm bg-rose-600 hover:bg-rose-500 text-white disabled:opacity-50 min-w-24"
                     >
                       {row.busy ? 'İşleniyor...' : 'Reddet ve Sil'}
                     </button>
@@ -272,7 +272,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                       type="button"
                       onClick={() => patchRow(app.id, { showReject: true })}
                       disabled={row.busy}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-300 text-xs font-semibold border border-line"
+                      className="ui-btn ui-btn-sm bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-line min-w-24"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>Reddet</span>
@@ -281,7 +281,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                       type="button"
                       onClick={() => handleApprove(app)}
                       disabled={row.busy}
-                      className="flex items-center space-x-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold disabled:opacity-50"
+                      className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 min-w-24"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>{row.busy ? 'Onaylanıyor...' : 'Onayla ve Hesabı Aç'}</span>
