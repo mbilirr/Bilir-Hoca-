@@ -219,7 +219,9 @@
     input.ui-input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
     select.ui-input,
     input.ui-field:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
-    select.ui-field {
+    select.ui-field,
+    button.ui-input,
+    button.ui-field {
       min-height: 2.25rem;
     }
   }
@@ -241,6 +243,11 @@
   select.ui-input,
   input.ui-field:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
   select.ui-field {
+    @apply h-8 py-0;
+  }
+  /* Aşama 211: açılır liste gibi çalışan düğmeler (öğrenci / öğretmen / ders seçiciler) de aynı 32 px */
+  button.ui-input,
+  button.ui-field {
     @apply h-8 py-0;
   }
 
