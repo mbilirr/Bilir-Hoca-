@@ -164,17 +164,20 @@
 
   /* Düğmeler */
   /* Aşama 42: düğmeler sistem genelinde daha kompakt (yazı, simge ve iç boşluk orantılı küçültüldü) */
+  /* Aşama 205: bütün sitede tek ölçü — düğme 32 px yükseklik (h-8), 12 px yazı (text-xs), köşe rounded-lg.
+     sm / lg yalnız yan boşlukta ayrışır; boy ve yazı hepsinde aynı. Simge düğmesi 32x32 kare.
+     Bir düğmeye özel verilen h- / w- / px- sınıfları (utilities katmanı) yine geçerlidir. */
   .ui-btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[0.8125rem] leading-5 font-semibold transition-colors cursor-pointer select-none whitespace-nowrap disabled:opacity-55 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5 h-8 rounded-lg px-3 py-0 text-xs leading-4 font-semibold transition-colors cursor-pointer select-none whitespace-nowrap disabled:opacity-55 disabled:cursor-not-allowed;
   }
   .ui-btn-sm {
-    @apply px-2.5 py-1 text-xs leading-4 gap-1 rounded-md;
+    @apply px-2.5 gap-1;
   }
   .ui-btn-lg {
-    @apply px-4 py-2 text-sm;
+    @apply px-4;
   }
   .ui-btn-icon {
-    @apply p-1.5 gap-0;
+    @apply w-8 p-0 gap-0;
   }
   .ui-btn-primary {
     @apply bg-brand text-white hover:bg-brand-hover shadow-sm;
@@ -205,12 +208,19 @@
   }
 
   /* Dokunmatik ekranlarda parmakla rahat basılabilsin (görünüm yine kompakt) */
+  /* Aşama 205: telefonda / dokunmatikte düğme ve tek satırlık kutular en az 36 px */
   @media (pointer: coarse) {
     .ui-btn {
       min-height: 2.25rem;
     }
-    .ui-btn-sm {
-      min-height: 2rem;
+    .ui-btn-icon {
+      min-width: 2.25rem;
+    }
+    input.ui-input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+    select.ui-input,
+    input.ui-field:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+    select.ui-field {
+      min-height: 2.25rem;
     }
   }
 
@@ -218,8 +228,20 @@
   .ui-label {
     @apply block text-xs font-semibold text-fg-2 mb-1.5;
   }
+  /* Aşama 205: kutular düğmelerle aynı ölçü — tek satırlık kutu ve açılır liste 32 px, 12 px yazı, rounded-lg.
+     Çok satırlı yazı alanı (textarea) yüksekliğini korur, yalnız yazısı ve köşesi eşitlenir. */
   .ui-input {
-    @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-subtle transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60;
+    @apply w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-fg placeholder:text-subtle transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60;
+  }
+  /* Öğretmen formlarındaki ortak kutu (FormParts inputCls) */
+  .ui-field {
+    @apply w-full px-3 py-1.5 bg-surface border border-line-strong rounded-lg text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  input.ui-input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select.ui-input,
+  input.ui-field:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select.ui-field {
+    @apply h-8 py-0;
   }
 
   /* Etiket / rozet */
