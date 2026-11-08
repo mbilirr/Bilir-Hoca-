@@ -686,14 +686,14 @@ html, body {
   background-image: radial-gradient(560px 460px at 78% 70%, rgb(20 184 166 / 0.3), transparent 70%),
     radial-gradient(420px 360px at 10% 0%, rgb(226 178 124 / 0.16), transparent 70%);
 }
+/* Aşama 224: telefonda logo çizgileri ilk taslaktaki gibi (300px) */
 .auth-strokes {
   position: absolute;
   pointer-events: none;
-  width: 220px;
-  height: 220px;
-  right: -70px;
-  top: 20px;
-  opacity: 0.8;
+  width: 300px;
+  height: 300px;
+  right: -96px;
+  top: 40px;
 }
 @media (min-width: 768px) {
   .auth-strokes {

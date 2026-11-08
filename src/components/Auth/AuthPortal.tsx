@@ -500,10 +500,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   return (
     <div className="auth-v2 relative min-h-[100dvh] w-full font-sans flex flex-col md:p-5 lg:grid lg:grid-cols-12 lg:gap-4 lg:p-4">
+      {/* Aşama 224: telefonda ilk taslaktaki gibi üç satır başlık (40px) ve geniş üst boşluk */}
       {/* Aşama 222: marka paneli — telefonda üstte kısa, tablette üstte geniş, bilgisayarda solda tam boy */}
       <section
         id="auth-brand-panel"
-        className="auth-brand relative overflow-hidden flex flex-col gap-6 px-7 pb-8 pt-[max(20px,env(safe-area-inset-top))] md:rounded-[32px] md:gap-12 md:px-12 md:pt-12 md:pb-[124px] lg:col-span-7 lg:rounded-[24px] lg:justify-between lg:gap-8 lg:px-14 lg:py-12"
+        className="auth-brand relative overflow-hidden flex flex-col gap-[30px] px-7 pb-9 pt-[max(24px,env(safe-area-inset-top))] md:rounded-[32px] md:gap-12 md:px-12 md:pt-12 md:pb-[124px] lg:col-span-7 lg:rounded-[24px] lg:justify-between lg:gap-8 lg:px-14 lg:py-12"
       >
         <AuthStrokes />
         <div className="relative flex items-center gap-2.5 md:gap-3">
@@ -513,9 +514,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           </span>
         </div>
         <div className="relative flex flex-col gap-7">
-          <h1 className="auth-serif m-0 text-[30px] leading-[1.05] md:text-[66px] md:leading-[0.98] lg:text-[clamp(56px,6vw,84px)] lg:leading-[0.95]">
+          <h1 className="auth-serif m-0 text-[40px] leading-[0.98] md:text-[66px] md:leading-[0.98] lg:text-[clamp(56px,6vw,84px)] lg:leading-[0.95]">
             Her öğrencinin
-            <br className="hidden md:inline" /> <span className="auth-gold">yolculuğu</span>,
+            <br /> <span className="auth-gold">yolculuğu</span>,
             <br />
             tek bakışta.
           </h1>
