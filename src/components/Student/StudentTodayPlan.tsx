@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, CalendarCheck, Check, ChevronDown, ChevronUp, PartyPopper, AlertTriangle, ListChecks } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cx, IconBox } from '../ui/kit';
@@ -43,7 +43,8 @@ export const StudentTodayPlan: React.FC<{
   const [editValue, setEditValue] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [, setLogsTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setLogsTick((n) => n + 1)), []);
+  // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
+  useEffect(() => dataService.subscribe(() => startTransition(() => setLogsTick((n) => n + 1))), []);
   useEffect(
     () => () => {
       if (infoTimer.current) window.clearTimeout(infoTimer.current);

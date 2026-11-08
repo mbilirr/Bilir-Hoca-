@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { Etut } from '../../types';
@@ -55,7 +55,8 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(readDismissed);
 
   useEffect(() => {
-    const unsubscribe = dataService.subscribe(() => setEtuts(dataService.getVisibleEtuts()));
+    // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
+    const unsubscribe = dataService.subscribe(() => startTransition(() => setEtuts(dataService.getVisibleEtuts())));
     // Etüt saatleri geçtikçe listenin güncellenmesi için dakikada bir yeniden hesaplanır
     const timer = window.setInterval(() => setTick((t) => t + 1), 60000);
     return () => {

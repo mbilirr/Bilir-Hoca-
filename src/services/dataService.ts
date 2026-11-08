@@ -1011,13 +1011,31 @@ const pendingSaves = new Map<string, unknown>();
 let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let onDataChanged: (() => void) | null = null; // görünüm önbelleğini geçersiz kılar (DataService ayarlar)
 
+// HIZ (Aşama 226): kayıt sayısı az ama kendisi çok büyük listeler (ör. her biri 30 öğrencilik yoklama kayıtları,
+// 2.400 kayıt ≈ 3 MB) de önbelleğe yazılmaz. Boyut, ilk birkaç kaydın uzunluğundan tahmin edilir (tümü metne çevrilmez).
+const MAX_CACHED_CHARS = 1_000_000;
+function tooBigToCache(data: unknown): boolean {
+  if (!Array.isArray(data)) return false;
+  if (data.length > MAX_CACHED_ITEMS) return true;
+  if (data.length < 200) return false;
+  try {
+    const n = Math.min(20, data.length);
+    let len = 0;
+    for (let i = 0; i < n; i++) len += JSON.stringify(data[Math.floor((i * data.length) / n)])?.length || 0;
+    return (len / n) * data.length > MAX_CACHED_CHARS;
+  } catch {
+    return false;
+  }
+}
 function writeNow(key: string, data: unknown): void {
-  if (Array.isArray(data) && data.length > MAX_CACHED_ITEMS) {
+  if (tooBigToCache(data)) {
     try { localStorage.removeItem(key); } catch {}
     return;
   }
   saveDataNow(key, data);
 }
+// HIZ (Aşama 226): bekleyen yazmalar tek seferde değil, tarayıcı boşken birer birer yapılır
+// (açılışta öğrenci + ödev + etüt listesi art arda yazılınca telefonda tek uzun donma oluyordu).
 function flushPendingSaves(): void {
   if (pendingSaveTimer) {
     clearTimeout(pendingSaveTimer);
@@ -1026,6 +1044,26 @@ function flushPendingSaves(): void {
   const items = Array.from(pendingSaves.entries());
   pendingSaves.clear();
   for (const [k, v] of items) writeNow(k, v);
+}
+function flushPendingSavesIdle(deadline?: { timeRemaining?: () => number; didTimeout?: boolean }): void {
+  pendingSaveTimer = null;
+  const ric = (window as any).requestIdleCallback;
+  // ilk kayıt her zaman yazılır; sonrakiler boş süre kaldıkça
+  let first = true;
+  while (pendingSaves.size) {
+    if (!first && deadline && typeof deadline.timeRemaining === 'function' && !deadline.didTimeout && deadline.timeRemaining() < 8) break;
+    if (!first && (!deadline || deadline.didTimeout)) break;
+    first = false;
+    const [k, v] = pendingSaves.entries().next().value as [string, unknown];
+    pendingSaves.delete(k);
+    writeNow(k, v);
+  }
+  if (pendingSaves.size && !pendingSaveTimer) {
+    pendingSaveTimer = setTimeout(() => {
+      if (typeof ric === 'function') ric(flushPendingSavesIdle, { timeout: 2000 });
+      else flushPendingSavesIdle();
+    }, 0);
+  }
 }
 function cancelPendingSaves(): void {
   if (pendingSaveTimer) clearTimeout(pendingSaveTimer);
@@ -1046,11 +1084,9 @@ function saveData<T>(key: string, data: T): void {
     pendingSaves.set(key, data);
     if (!pendingSaveTimer) {
       pendingSaveTimer = setTimeout(() => {
-        pendingSaveTimer = null;
-        const run = () => flushPendingSaves();
         const ric = (window as any).requestIdleCallback;
-        if (typeof ric === 'function') ric(run, { timeout: 2000 });
-        else run();
+        if (typeof ric === 'function') ric(flushPendingSavesIdle, { timeout: 2000 });
+        else flushPendingSavesIdle();
       }, 600);
     }
     return;

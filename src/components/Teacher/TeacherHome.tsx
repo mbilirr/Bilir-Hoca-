@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
   CalendarDays,
@@ -67,6 +67,17 @@ const longDate = (s: string) => {
   return `${d} ${MONTHS[m - 1]} ${DAYS[dt.getDay()]}`;
 };
 const byTime = (a: Etut, b: Etut) => (a.time || '').localeCompare(b.time || '');
+// HIZ (Aşama 226): binlerce soru kaydı / teslimde her yeniden hesapta tarih yeniden çözülmesin diye kayıt başına bir kez çözülür
+// (kayıt nesnesi değişmedikçe hatırlanır; sonuç eskisiyle aynı: new Date(x || 0).getTime())
+const timeCache = new WeakMap<object, { s: string; t: number }>();
+const timeOf = (o: object, iso: string | undefined | null): number => {
+  const s = iso || '';
+  const c = timeCache.get(o);
+  if (c && c.s === s) return c.t;
+  const t = new Date(iso || 0).getTime();
+  timeCache.set(o, { s, t });
+  return t;
+};
 
 type TodayTab = 'etut' | 'odev' | 'teslim' | 'soru' | 'mesaj';
 type Scope = 'mine' | 'all';
@@ -105,7 +116,8 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
   onOpenStudentView,
 }) => {
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
-  useEffect(() => dataService.subscribe(() => setQuestionLogs(dataService.getQuestionLogs())), []);
+  // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
+  useEffect(() => dataService.subscribe(() => startTransition(() => setQuestionLogs(dataService.getQuestionLogs()))), []);
 
   // --- Aşama 98: bölüm / rol izinleri (veritabanı ayrıca denetler)
   const can = {
@@ -240,7 +252,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     if (!can.questions) return [];
     const cutoff = Date.now() - 3 * 86400000;
     return questionLogs
-      .filter((l) => (l.totalQuestions || 0) > 0 && studentById.has(l.studentId) && new Date(l.createdAt || 0).getTime() >= cutoff)
+      .filter((l) => (l.totalQuestions || 0) > 0 && studentById.has(l.studentId) && timeOf(l, l.createdAt) >= cutoff)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
       .map((l) => ({
         id: l.id,
@@ -265,7 +277,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           (sub.status === 'on_time' || sub.status === 'late') &&
           studentById.has(sub.studentId) &&
           hwById.has(sub.homeworkId) &&
-          new Date(sub.submittedAt || 0).getTime() >= cutoff
+          timeOf(sub, sub.submittedAt) >= cutoff
       )
       .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
       .map((sub) => ({

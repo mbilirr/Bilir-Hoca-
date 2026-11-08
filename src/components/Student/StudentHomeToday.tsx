@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Award,
@@ -120,7 +120,8 @@ export const StudentHomeToday: React.FC<{
   const [openAnn, setOpenAnn] = useState<string | null>(null);
 
   const [logs, setLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
-  useEffect(() => dataService.subscribe(() => setLogs(dataService.getQuestionLogs())), []);
+  // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
+  useEffect(() => dataService.subscribe(() => startTransition(() => setLogs(dataService.getQuestionLogs()))), []);
 
   const go = (tab: StudentTabType) => {
     onNavigateTab(tab);
