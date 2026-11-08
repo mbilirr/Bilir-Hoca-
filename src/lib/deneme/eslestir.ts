@@ -266,6 +266,10 @@ export function matchGroups(
     const base = { group: g, skip: false, candidates: [] as string[] };
     const remembered = aliases[aliasKeyOf(g)];
     if (remembered && byId.has(remembered)) {
+      // Aşama 213: hatırlanan öğrencinin adı optikteki addan çok farklıysa (öğrenci adı değişmiş / yanlış onay) kontrole düşer
+      const rs = byId.get(remembered)!;
+      if (g.name && nameSimilarity(g.name, rs.name) < 0.5)
+        return { ...base, studentId: remembered, status: 'check' as MatchStatus, method: 'hafıza', reason: 'Hatırlanan eşleştirme, ama ad soyad çok farklı', candidates: [remembered] };
       return { ...base, studentId: remembered, status: 'ok' as MatchStatus, method: 'hafıza', reason: 'Daha önce onayladığınız eşleştirme', candidates: [remembered] };
     }
     // Aşama 50: TC parmak izi tuttu (en güvenilir). Ad çok farklıysa yine de kontrole düşer.

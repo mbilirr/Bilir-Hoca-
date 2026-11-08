@@ -9,7 +9,7 @@ import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type OptikRow, type TxtParseResult } from '../../lib/deneme/optik';
 import { checkBlocksWithKey, fixSessionSubjects, remapFields, remapRows, suggestionMap, type KeySuggestion } from '../../lib/deneme/oturum';
-import { aliasKeyOf, applyMerge, findSessionPairs, groupRows, matchGroups, resultNumber, type MatchItem, type SessionPair } from '../../lib/deneme/eslestir';
+import { aliasKeyOf, applyMerge, findSessionPairs, groupRows, matchGroups, nameSimilarity, resultNumber, type MatchItem, type SessionPair } from '../../lib/deneme/eslestir';
 import {
   LGS_SCORING,
   LGS_SUBJECTS,
@@ -651,15 +651,26 @@ export const DenemeWizard: React.FC<{
     const used = new Map<string, number>();
     for (const m of matches) if (!m.skip && m.studentId) used.set(m.studentId, (used.get(m.studentId) || 0) + 1);
     let done = 0;
+    let weak = 0;
+    // Aşama 213: optikteki ad önerilen öğrencinin adına %50'den az benziyorsa toplu onay yapılmaz (tek tek onaylanır);
+    // örn. başka öğrenci "123" gibi bir numarayı kodladığında puan yanlış öğrenciye yazılmasın.
+    const weakName = (m: MatchItem, id: string) => {
+      const st = studentById.get(id);
+      return !!m.group.name && !!st && nameSimilarity(m.group.name, st.name) < 0.5;
+    };
     const next = matches.map((m) => {
       if (m.skip || m.status === 'ok') return m;
       if (m.studentId) {
         if ((used.get(m.studentId) || 0) > 1) return m;
+        if (weakName(m, m.studentId)) {
+          weak++;
+          return m;
+        }
         done++;
         return { ...m, status: 'ok' as const };
       }
       const first = m.candidates.find((id) => !used.has(id));
-      if (m.status === 'check' && first) {
+      if (m.status === 'check' && first && !weakName(m, first)) {
         used.set(first, 1);
         done++;
         return { ...m, studentId: first, status: 'ok' as const };
@@ -670,6 +681,7 @@ export const DenemeWizard: React.FC<{
     const left = next.filter((m) => !m.skip && (m.status !== 'ok' || !m.studentId)).length;
     setMatchMsg(
       `${done} öneri onaylandı.` +
+        (weak ? ` ${weak} satırda ad %50'den az benziyor; bunları tek tek onaylayın.` : '') +
         (left ? ` ${left} satırda öneri yok ya da öğrenci başka satırda kullanılıyor; bunları elle seçin ya da "Atla" işaretleyin.` : ' Onay bekleyen satır kalmadı.')
     );
     if (left) setMatchFilter('pending');
@@ -1334,7 +1346,7 @@ export const DenemeWizard: React.FC<{
               </table>
             </div>
           </div>
-          <p className="text-[11px] text-muted mt-2">Elle seçtiğiniz ve ad soyadla bulunan eşleştirmeler hatırlanır; sonraki denemelerde otomatik eşleşir.</p>
+          <p className="text-[11px] text-muted flex items-center gap-1 mt-2">Eşleştirmeler hatırlanır.<InfoTip text="Elle seçtiğiniz ve ad soyadla bulunan eşleştirmeler hatırlanır; sonraki denemelerde otomatik eşleşir." /></p>
         </Panel>
       )}
 
@@ -1409,8 +1421,9 @@ export const DenemeWizard: React.FC<{
                     </table>
                   </div>
                 </div>
-                <p className="text-[11px] text-muted">
-                  Puan yaklaşık LGS puanıdır (194,75 + ağırlıklı net × 1,13; 3 yanlış 1 doğruyu götürür). Gerçek LGS puanı Türkiye geneli ortalamalarla hesaplanır.
+                <p className="text-[11px] text-muted flex items-center gap-1">
+                  Puan yaklaşık LGS puanıdır.
+                  <InfoTip text="194,75 + ağırlıklı net × 1,13; 3 yanlış 1 doğruyu götürür. Gerçek LGS puanı Türkiye geneli ortalamalarla hesaplanır." />
                 </p>
               </div>
             );
