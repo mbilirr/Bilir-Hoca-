@@ -159,6 +159,11 @@ export const MailOptIn: React.FC<{ checked: boolean; onChange: (v: boolean) => v
 };
 
 // ----------------------------------------------------------------------------- Öğrenci seçici
+// Aşama 200: sınıfı olmayan öğrenciler (classId boş / 'class-default' / 'unassigned' / 'tanimsiz') etüt seçicisinde
+// tek bir "Sınıfsız" grubunda toplanır ve kendi süzgeç düğmesiyle bulunur
+const SINIFSIZ = '__sinifsiz__';
+const SINIFSIZ_IDS = new Set(['', 'class-default', 'unassigned', 'tanimsiz']);
+const isSinifsiz = (s: Student) => !s.classId || SINIFSIZ_IDS.has(s.classId);
 // variant 'classes': ödev — seçilen sınıflar hedeftir; sınıf seçilince öğrencileri de seçilir.
 // variant 'filter' : etüt — sınıf yalnızca listeyi süzer; seçilen öğrenciler her zaman özette görünür.
 export const StudentPicker: React.FC<{
@@ -193,14 +198,25 @@ export const StudentPicker: React.FC<{
   const byClass = useMemo(() => {
     const m = new Map<string, Student[]>();
     for (const s of students) {
-      const arr = m.get(s.classId) || [];
+      // Aşama 200: etütte sınıfsız öğrenciler tek grupta (ödevde sınıf hedef olduğu için eski davranış)
+      const key = variant === 'filter' && isSinifsiz(s) ? SINIFSIZ : s.classId;
+      const arr = m.get(key) || [];
       arr.push(s);
-      m.set(s.classId, arr);
+      m.set(key, arr);
     }
     for (const arr of m.values()) arr.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    // Aşama 200: "Tüm sınıflar" görünümünde Sınıfsız grubu en sonda
+    const none = m.get(SINIFSIZ);
+    if (none) {
+      m.delete(SINIFSIZ);
+      m.set(SINIFSIZ, none);
+    }
     return m;
-  }, [students]);
-  const className = (id: string) => classes.find((c) => c.id === id)?.name || students.find((s) => s.classId === id)?.className || id;
+  }, [students, variant]);
+  const sinifsizCount = (byClass.get(SINIFSIZ) || []).length;
+  const className = (id: string) =>
+    id === SINIFSIZ ? 'Sınıfsız' : classes.find((c) => c.id === id)?.name || students.find((s) => s.classId === id)?.className || id;
+  const studentClassName = (s: Student) => (variant === 'filter' && isSinifsiz(s) ? 'Sınıfsız' : className(s.classId));
   const q = query.trim(); // Aşama 116: Türkçe harf duyarsız
   const match = (s: Student) => !q || matchTurkishSearch(s.name, q) || (s.studentNumber || '').toLowerCase().includes(q.toLowerCase());
 
@@ -263,7 +279,19 @@ export const StudentPicker: React.FC<{
             </button>
           );
         })}
-        {classes.length === 0 && <span className="text-xs text-muted">Size tanımlı sınıf bulunmuyor.</span>}
+        {variant === 'filter' && sinifsizCount > 0 && (
+          <button
+            type="button"
+            id={`${idPrefix}-class-sinifsiz`}
+            aria-pressed={classIds.includes(SINIFSIZ)}
+            className={chipCls(classIds.includes(SINIFSIZ))}
+            onClick={() => toggleClass(SINIFSIZ)}
+          >
+            Sınıfsız
+            <span className={cx('text-[10px] font-medium', classIds.includes(SINIFSIZ) ? 'text-white/80' : 'text-subtle')}>{sinifsizCount}</span>
+          </button>
+        )}
+        {classes.length === 0 && sinifsizCount === 0 && <span className="text-xs text-muted">Size tanımlı sınıf bulunmuyor.</span>}
       </div>
       {anyKapali && (
         <p className="flex items-center gap-1.5 text-[11px] text-muted" id={`${idPrefix}-ogr-kapali-not`}>
@@ -369,7 +397,7 @@ export const StudentPicker: React.FC<{
             {selectedStudents.map((s) => (
               <span key={s.id} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-surface border border-line text-[11px] text-fg">
                 {s.name}
-                <span className="text-subtle">· {className(s.classId)}</span>
+                <span className="text-subtle">· {studentClassName(s)}</span>
                 <button
                   type="button"
                   onClick={() => toggleStudent(s.id)}
