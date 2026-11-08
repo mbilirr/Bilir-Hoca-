@@ -157,6 +157,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [attPickFilter, setAttPickFilter] = useState<'bekleyen' | 'bugun' | 'tumu' | null>(null);
   const [attPickQuery, setAttPickQuery] = useState('');
   const [attPickLimit, setAttPickLimit] = useState(40);
+  // Aşama 214: etüt seçilince liste kapanır, yoklama hemen altında açılır; "Değiştir" ile liste geri gelir
+  const [attPickOpen, setAttPickOpen] = useState(false);
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
   useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
@@ -1141,6 +1143,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           onClick={() => {
                             setAttPickFilter(f.key);
                             setAttPickLimit(40);
+                            setAttPickOpen(true);
                           }}
                           className={cx(
                             'h-8 w-24 rounded-md text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
@@ -1161,6 +1164,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         onChange={(e) => {
                           setAttPickQuery(e.target.value);
                           setAttPickLimit(40);
+                          setAttPickOpen(true);
                         }}
                         placeholder="Ders, konu, sınıf, öğretmen"
                         aria-label="Etüt ara"
@@ -1169,6 +1173,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </div>
                   </div>
 
+                  {(!currentAttendanceEtut || attPickOpen) && (
                   <div className="rounded-xl border border-line overflow-hidden max-h-80 overflow-y-auto" id="etut-att-list">
                     {visible.length === 0 ? (
                       <div className="py-6 text-center text-xs text-muted">
@@ -1198,6 +1203,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               onClick={() => {
                                 setSelectedAttendanceEtutId(e.id);
                                 ackMissing([e.id]); // Aşama 33d: eksik etüt seçilince yanıp sönme durur
+                                setAttPickOpen(false); // Aşama 214
+                                requestAnimationFrame(() =>
+                                  document.getElementById('etut-att-selected')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                                );
                               }}
                               className={cx(
                                 'w-full flex items-center gap-3 px-3 py-2 text-left border-b border-line last:border-b-0 cursor-pointer transition-colors',
@@ -1220,7 +1229,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       })
                     )}
                   </div>
-                  {shown.length > visible.length && (
+                  )}
+                  {(!currentAttendanceEtut || attPickOpen) && shown.length > visible.length && (
                     <div className="flex justify-center">
                       <button
                         type="button"
@@ -1246,6 +1256,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <span className="text-[11px] text-muted">
                         {[currentAttendanceEtut.time ? `${currentAttendanceEtut.duration} dk` : '', currentAttendanceEtut.location].filter(Boolean).join(' · ')}
                       </span>
+                      <button
+                        type="button"
+                        id="etut-att-change"
+                        onClick={() => setAttPickOpen((v) => !v)}
+                        className="ui-btn ui-btn-secondary ui-btn-sm w-24"
+                      >
+                        {attPickOpen ? 'Listeyi kapat' : 'Değiştir'}
+                      </button>
                       {currentAttendanceEtut.teacherFeedback && (
                         <div className="w-full mt-2 pt-2 border-t border-line flex items-start space-x-2 text-xs text-amber-700/90 dark:text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
                           <MessageSquareQuote className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
