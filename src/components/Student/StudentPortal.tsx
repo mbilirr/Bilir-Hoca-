@@ -52,6 +52,7 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
+import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
 import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
@@ -771,8 +772,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                           {etut.subject}
                         </span>
-                        <span className="text-xs text-muted font-medium">
-                          {etut.duration} Dakika
+                        <span className="flex items-center gap-2">
+                          {(() => {
+                            const d = ogrenciEtutDurum(etut, currentStudent.id); // Aşama 214: yoklama durumu
+                            return d ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span> : null;
+                          })()}
+                          <span className="text-xs text-muted font-medium">
+                            {etut.duration} Dakika
+                          </span>
                         </span>
                       </div>
 
@@ -796,7 +803,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         )}
                         {etut.teacherFeedback && (
                           <div className="mt-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-900 dark:text-amber-200">
-                            <strong className="text-amber-800 dark:text-amber-200 font-semibold block text-[11px]">💬 Öğretmen Görüş ve Değerlendirmesi:</strong>
+                            <strong className="text-amber-800 dark:text-amber-200 font-semibold block text-[11px]">💬 Öğretmen notu:</strong>
                             <p className="italic text-fg-2 mt-0.5">"{etut.teacherFeedback}"</p>
                           </div>
                         )}

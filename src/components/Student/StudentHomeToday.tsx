@@ -31,6 +31,7 @@ import { useLiveNow } from '../../lib/useLiveNow';
 import { useDataVersion } from '../../lib/useDataVersion';
 import { Panel, cx } from '../ui/kit';
 import { profilResmi } from '../../lib/profilResmi';
+import { ogrenciEtutDurum, type OgrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 
 // ============================================================================
 // ÖĞRENCİ ANA SAYFASI — "BUGÜN" ve "BU HAFTA" (Aşama 66)
@@ -185,6 +186,17 @@ export const StudentHomeToday: React.FC<{
     () => etuts.filter((e) => e.date === todayStr).sort((a, b) => (a.time || '').localeCompare(b.time || '')),
     [etuts, todayStr]
   );
+  // Aşama 214: son 3 günün yoklaması alınmış ya da öğretmen notu olan etütleri de görünür (öğrenci uyarı almadan kaçırmasın)
+  const pastEtuts = useMemo(() => {
+    const from = ymdOf(addDays(now, -3));
+    return etuts
+      .filter((e) => e.date < todayStr && e.date >= from && (!!e.studentAttendance?.[student.id] || !!e.teacherFeedback || !!e.notes))
+      .sort((a, b) => (b.date + (b.time || '')).localeCompare(a.date + (a.time || '')))
+      .slice(0, 3);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etuts, todayStr, student.id, dataVersion]);
+  const etutNote = (e: Etut) =>
+    e.teacherFeedback ? `Öğretmen notu: ${e.teacherFeedback}` : e.notes ? `Not: ${e.notes}` : '';
   const dueHomeworks = useMemo(() => {
     const nowMs = Date.now();
     return homeworks
@@ -400,7 +412,7 @@ export const StudentHomeToday: React.FC<{
               )}
             </span>
           </div>
-          {todayEtuts.length === 0 && dueHomeworks.length === 0 && newHomeworks.length === 0 ? (
+          {todayEtuts.length === 0 && pastEtuts.length === 0 && dueHomeworks.length === 0 && newHomeworks.length === 0 ? (
             <p className="text-sm text-muted">
               {showHw && showEtut
                 ? 'Bugün etüdün yok; bugün ve yarın teslim edilecek ödevin de yok.'
@@ -412,9 +424,34 @@ export const StudentHomeToday: React.FC<{
             <ul className="space-y-1.5">
               {todayEtuts.map((e) => (
                 <li key={`e-${e.id}`}>
-                  <RowButton icon={Clock} tone="info" onClick={() => go('etuts')} title={`${e.time ? `${e.time} · ` : ''}${e.subject} etüdü`} detail={[e.topic, e.location].filter(Boolean).join(' · ')} />
+                  <RowButton
+                    icon={Clock}
+                    tone="info"
+                    onClick={() => go('etuts')}
+                    title={`${e.time ? `${e.time} · ` : ''}${e.subject} etüdü`}
+                    detail={[e.topic, e.location].filter(Boolean).join(' · ')}
+                    badge={ogrenciEtutDurum(e, student.id, now)}
+                    note={etutNote(e)}
+                  />
                 </li>
               ))}
+              {pastEtuts.map((e) => {
+                const d = parseYmd(e.date);
+                const gun = d ? `${d.getDate()} ${d.toLocaleDateString('tr-TR', { month: 'short' })}` : e.date;
+                return (
+                  <li key={`pe-${e.id}`}>
+                    <RowButton
+                      icon={Clock}
+                      tone="info"
+                      onClick={() => go('etuts')}
+                      title={`${gun}${e.time ? ` ${e.time}` : ''} · ${e.subject} etüdü`}
+                      detail={[e.topic, e.location].filter(Boolean).join(' · ')}
+                      badge={ogrenciEtutDurum(e, student.id, now)}
+                      note={etutNote(e)}
+                    />
+                  </li>
+                );
+              })}
               {dueHomeworks.map((hw) => {
                 const isToday = hw.dueDate.slice(0, 10) === todayStr;
                 const time = hw.dueDate.includes('T') ? hw.dueDate.slice(11, 16) : '';
@@ -641,7 +678,10 @@ const RowButton: React.FC<{
   onClick: () => void;
   expandable?: boolean;
   open?: boolean;
-}> = ({ icon: Icon, tone, title, detail, onClick, expandable, open }) => (
+  /** Aşama 214: etüt yoklama durumu (Geldi / Gelmedi …) ve öğretmen notu */
+  badge?: OgrenciEtutDurum | null;
+  note?: string;
+}> = ({ icon: Icon, tone, title, detail, onClick, expandable, open, badge, note }) => (
   <button
     type="button"
     onClick={onClick}
@@ -654,7 +694,13 @@ const RowButton: React.FC<{
     <span className="flex-1 min-w-0">
       <span className={cx('block text-sm font-semibold text-fg', open ? 'break-words' : 'truncate')}>{title}</span>
       {detail && <span className="block text-xs text-muted truncate">{detail}</span>}
+      {note && (
+        <span className="block text-xs text-fg-2 line-clamp-2 break-words mt-0.5" title={note}>
+          {note}
+        </span>
+      )}
     </span>
+    {badge && <span className={cx('shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full', badge.cls)}>{badge.label}</span>}
     {expandable ? (
       <ChevronRight className={cx('w-4 h-4 text-subtle shrink-0 transition-transform', open && 'rotate-90')} />
     ) : (
