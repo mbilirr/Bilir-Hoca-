@@ -73,6 +73,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
 import { PageHeader, Segmented, Modal, OverlayLayer, cx } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182, 184
+import { MoreMenu } from '../ui/MoreMenu'; // Aşama 207
 import {
   STUDENT_COLUMNS,
   matrixToRows,
@@ -1336,70 +1337,68 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         actions={
           activeTab === 'students' ? (
             <>
-            <button
-              type="button"
-              onClick={() => setIsListExportOpen(true)}
-              className="ui-btn ui-btn-secondary"
-              id="student-list-export-btn"
-              title="Sınıf ya da tüm sınıflar için öğrenci listesini Excel olarak al"
-            >
-              <Download className="w-4 h-4 text-brand-fg" />
-              <span>Liste Al</span>
-            </button>
-            {canSendAnyCred && (
-              <button
-                type="button"
-                onClick={() => setCredPickOpen(true)}
-                className="ui-btn ui-btn-secondary"
-                id="ogrenciler-giris-bilgisi-btn"
-                title="Sınıf seçip öğrencilere ve/veya velilerine giriş bilgisini SMS / e-posta ile gönder"
-              >
-                <KeyRound className="w-4 h-4 text-brand-fg" />
-                <span>Giriş Bilgisi</span>
-              </button>
-            )}
+            {/* Aşama 207: seyrek işlemler "Diğer" menüsünde; yalnız Öğrenci ekle açıkta */}
+            <MoreMenu
+              id="student-more-btn"
+              label="Diğer"
+              sheetTitle="Öğrenciler"
+              items={[
+                {
+                  id: 'student-list-export-btn',
+                  label: 'Liste al',
+                  icon: Download,
+                  title: 'Sınıf ya da tüm sınıflar için öğrenci listesini Excel olarak al',
+                  onClick: () => setIsListExportOpen(true),
+                },
+                {
+                  id: 'ogrenciler-giris-bilgisi-btn',
+                  label: 'Giriş bilgisi gönder',
+                  icon: KeyRound,
+                  title: 'Sınıf seçip öğrencilere ve/veya velilerine giriş bilgisini SMS / e-posta ile gönder',
+                  show: !!canSendAnyCred,
+                  onClick: () => setCredPickOpen(true),
+                },
+                {
+                  id: 'student-excel-upload-btn',
+                  label: "Excel'den toplu yükle",
+                  icon: FileSpreadsheet,
+                  title: 'Excel (.xlsx, .xls) veya CSV dosyasından toplu öğrenci ekle',
+                  show: !!canAddStudents,
+                  onClick: () => setIsExcelModalOpen(true),
+                },
+                {
+                  id: 'student-excel-update-btn',
+                  label: 'Excel ile güncelle',
+                  icon: FileSpreadsheet,
+                  title: "Sistemdeki öğrencilerin bilgilerini Excel'den toplu güncelle (yeni öğrenci eklemez)",
+                  show: !!canAddStudents,
+                  onClick: () => setIsExcelUpdateOpen(true),
+                },
+                {
+                  /* Aşama 171 */
+                  id: 'ogrenci-cinsiyet-doldur-btn',
+                  label: genderCounts.none > 0 ? `Cinsiyeti doldur (${genderCounts.none})` : 'Cinsiyeti doldur',
+                  icon: VenusAndMars,
+                  title: 'Cinsiyeti boş öğrencileri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)',
+                  show: !!canAddStudents,
+                  onClick: () => setIsGenderFillOpen(true),
+                },
+              ]}
+            />
             {canAddStudents ? (
-              <>
-                <button
-                  onClick={() => setIsExcelModalOpen(true)}
-                  className="ui-btn ui-btn-secondary"
-                  title="Excel (.xlsx, .xls) veya CSV dosyasından toplu öğrenci ekle"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-success-fg" />
-                  <span>Excel'den Toplu Yükle</span>
-                </button>
-                <button
-                  onClick={() => setIsExcelUpdateOpen(true)}
-                  className="ui-btn ui-btn-secondary"
-                  title="Sistemdeki öğrencilerin bilgilerini Excel'den toplu güncelle (yeni öğrenci eklemez)"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-brand-fg" />
-                  <span>Excel ile Güncelle</span>
-                </button>
-                {/* Aşama 171 */}
                 <button
                   type="button"
-                  id="ogrenci-cinsiyet-doldur-btn"
-                  onClick={() => setIsGenderFillOpen(true)}
-                  className="ui-btn ui-btn-secondary"
-                  title="Cinsiyeti boş öğrencileri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)"
-                >
-                  <VenusAndMars className="w-4 h-4 text-brand-fg" />
-                  <span>Cinsiyeti Doldur</span>
-                  {genderCounts.none > 0 && <span className="ui-chip ui-chip-warning !py-0 !px-1.5 text-[10px] tabular-nums">{genderCounts.none}</span>}
-                </button>
-                <button
+                  id="student-add-btn"
                   onClick={() => {
                     resetStudentForm();
                     setEditingStudent(null);
                     setIsAddStudentOpen(true);
                   }}
-                  className="ui-btn ui-btn-primary"
+                  className="ui-btn ui-btn-primary w-28"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Yeni Öğrenci Ekle</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Öğrenci ekle</span>
                 </button>
-              </>
             ) : (
               <span className="ui-chip ui-chip-warning py-1.5 px-3 text-xs">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
@@ -1412,11 +1411,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setIsExcelClassModalOpen(true)}
-                className="ui-btn ui-btn-secondary"
+                className="ui-btn ui-btn-secondary w-28"
                 title="Excel (.xlsx, .xls) veya CSV dosyasından toplu sınıf ekle"
               >
-                <FileSpreadsheet className="w-4 h-4 text-success-fg" />
-                <span>Excel'den Sınıf Yükle</span>
+                {/* Aşama 207: iki düğme aynı en ve boy, kısa yazı */}
+                <FileSpreadsheet className="w-3.5 h-3.5 text-success-fg" />
+                <span>Excel'den</span>
               </button>
               <button
                 type="button"
@@ -1424,10 +1424,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   resetClassForm();
                   setIsAddClassOpen(true);
                 }}
-                className="ui-btn ui-btn-primary"
+                className="ui-btn ui-btn-primary w-28"
               >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Sınıf Ekle</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Sınıf ekle</span>
               </button>
             </>
           ) : (
@@ -2025,14 +2025,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <Users className="w-4 h-4" />
                       </StripAction>
                       {canAddClasses && dataService.canManageClass(cls) && (
-                        <>
-                          <StripAction label="Düzenle" onClick={() => openEditClass(cls)}>
-                            <Edit2 className="w-4 h-4" />
-                          </StripAction>
-                          <StripAction label="Sınıfı Sil" tone="danger" onClick={() => setClassToDelete(cls)}>
-                            <Trash2 className="w-4 h-4" />
-                          </StripAction>
-                        </>
+                        /* Aşama 207: düzenle / sil "⋯" menüsünde (sil onay penceresi aynen) */
+                        <MoreMenu
+                          quiet
+                          id={`class-more-${cls.id}`}
+                          ariaLabel="Sınıf işlemleri"
+                          sheetTitle={cls.name}
+                          items={[
+                            { id: `class-edit-${cls.id}`, label: 'Düzenle', icon: Edit2, onClick: () => openEditClass(cls) },
+                            { id: `class-delete-${cls.id}`, label: 'Sınıfı sil', icon: Trash2, danger: true, onClick: () => setClassToDelete(cls) },
+                          ]}
+                        />
                       )}
                     </>
                   }

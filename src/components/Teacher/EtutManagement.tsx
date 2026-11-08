@@ -58,6 +58,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented, cx } from '../ui/kit'; // Aşama 204: cx
 import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib/etutTiming';
 import { InfoTip } from '../ui/Compact'; // Aşama 204
+import { MoreMenu } from '../ui/MoreMenu'; // Aşama 207
 import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 import { ETUT_STATUS_STYLE, NO_TEACHER_LABEL, etutTeacherNames, getEtutStatus } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
@@ -434,38 +435,38 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         description="Etüt ve birebir çalışma planı, yoklama ve analiz"
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => setIsScheduleExportOpen(true)}
-              id="btn-etut-schedule-export"
-              className="ui-btn ui-btn-secondary"
-              title="Sınıfa göre günlük / haftalık etüt listesini Excel veya PDF olarak indir"
-            >
-              <ListChecks className="w-4 h-4" />
-              <span>Etüt Listesi</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setReportSelectedStudentId(undefined);
-                setIsReportModalOpen(true);
-              }}
-              id="btn-etut-analysis"
-              className="ui-btn ui-btn-secondary"
-              title="Sınıf ve öğrenci bazlı etüt analizi ve raporu"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Etüt Analizi</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSentCommunicationsOpen(true)}
-              className="ui-btn ui-btn-secondary ui-btn-icon"
-              title="Giden e-posta ve bildirimler"
-              aria-label="Giden e-posta ve bildirimler"
-            >
-              <Mail className="w-4 h-4" />
-            </button>
+            {/* Aşama 207: seyrek işlemler "Diğer" menüsünde; yalnız Yeni etüt açıkta */}
+            <MoreMenu
+              id="btn-etut-more"
+              label="Diğer"
+              sheetTitle="Etüt"
+              items={[
+                {
+                  id: 'btn-etut-schedule-export',
+                  label: 'Etüt listesi indir',
+                  icon: ListChecks,
+                  title: 'Sınıfa göre günlük / haftalık etüt listesini Excel veya PDF olarak indir',
+                  onClick: () => setIsScheduleExportOpen(true),
+                },
+                {
+                  id: 'btn-etut-analysis',
+                  label: 'Etüt analizi',
+                  icon: BarChart3,
+                  title: 'Sınıf ve öğrenci bazlı etüt analizi ve raporu',
+                  onClick: () => {
+                    setReportSelectedStudentId(undefined);
+                    setIsReportModalOpen(true);
+                  },
+                },
+                {
+                  id: 'btn-etut-sent',
+                  label: 'Gönderilenler',
+                  icon: Mail,
+                  title: 'Giden e-posta ve bildirimler',
+                  onClick: () => setIsSentCommunicationsOpen(true),
+                },
+              ]}
+            />
             {dataService.canPlanEtut() && (
               <button
                 type="button"
@@ -473,10 +474,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 onClick={() => {
                   openEtutForm('create');
                 }}
-                className="ui-btn ui-btn-primary"
+                className="ui-btn ui-btn-primary w-28"
               >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Etüt Planla</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Yeni etüt</span>
               </button>
             )}
           </>
@@ -787,15 +788,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <StripAction label="Yoklama Al" tone="success" onClick={() => setSelectedEtutForAttendance(etut)}>
                       <CheckCircle2 className="w-4 h-4" />
                     </StripAction>
-                    <StripAction label="Etüdü kopyala" id={`btn-copy-etut-${etut.id}`} title="Kopyala (başka tarihe yeniden tanımla)" onClick={() => openCopy(etut)}>
-                      <Copy className="w-4 h-4" />
-                    </StripAction>
-                    <StripAction label="Etüdü düzenle" title="Düzenle" onClick={() => openEdit(etut)}>
-                      <Edit2 className="w-4 h-4" />
-                    </StripAction>
-                    <StripAction label="Etüdü sil" title="Etütü Sil" tone="danger" onClick={() => setEtutToDelete(etut)}>
-                      <Trash2 className="w-4 h-4" />
-                    </StripAction>
+                    {/* Aşama 207: kopyala / düzenle / sil "⋯" menüsünde (sil onay penceresi aynen) */}
+                    <MoreMenu
+                      quiet
+                      id={`btn-more-etut-${etut.id}`}
+                      ariaLabel="Etüt işlemleri"
+                      sheetTitle={etut.topic || 'Etüt'}
+                      items={[
+                        { id: `btn-copy-etut-${etut.id}`, label: 'Kopyala', icon: Copy, title: 'Başka tarihe yeniden tanımla', onClick: () => openCopy(etut) },
+                        { id: `btn-edit-etut-${etut.id}`, label: 'Düzenle', icon: Edit2, onClick: () => openEdit(etut) },
+                        { id: `btn-delete-etut-${etut.id}`, label: 'Sil', icon: Trash2, danger: true, onClick: () => setEtutToDelete(etut) },
+                      ]}
+                    />
                   </>
                   )
                 }

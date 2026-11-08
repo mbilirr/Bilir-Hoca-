@@ -55,6 +55,7 @@ import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkFormModal, type HomeworkFormMode, type HomeworkFormSaved } from './HomeworkFormModal';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailNoticeBar } from './FormParts';
+import { MoreMenu } from '../ui/MoreMenu'; // Aşama 207
 import { HomeworkDetailModal } from './HomeworkDetailModal';
 import {
   SubmissionViewModal,
@@ -1554,26 +1555,30 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       stats={<StripProgress label="Teslim" value={hwSubmissions.length} total={assignedCount} />}
                       actions={
                         <>
-                          <StripAction label="Ödevi görüntüle" onClick={() => setActiveViewingHomework(hw)}>
-                            <Eye className="w-4 h-4" />
-                          </StripAction>
                           <StripAction label="Kontrol Et" tone="success" onClick={() => focusHomeworkInTracker(hw)}>
                             <CheckCircle2 className="w-4 h-4" />
                           </StripAction>
-                          <StripAction label="İndir (.doc)" onClick={() => handleDownloadHomeworkDoc(hw)}>
-                            <Download className="w-4 h-4" />
-                          </StripAction>
-                          {canGive && (
-                            <StripAction label="Kopyala (başka sınıfa da ver)" id={`btn-copy-hw-${hw.id}`} onClick={() => openHomeworkForm('copy', hw)}>
-                              <Copy className="w-4 h-4" />
-                            </StripAction>
-                          )}
-                          <StripAction label="Ödevi düzenle" id={`btn-edit-hw-${hw.id}`} onClick={() => openHomeworkForm('edit', hw)}>
-                            <Edit3 className="w-4 h-4" />
-                          </StripAction>
-                          <StripAction label="Ödevi sil" tone="danger" onClick={() => setHomeworkToDelete(hw)}>
-                            <Trash2 className="w-4 h-4" />
-                          </StripAction>
+                          {/* Aşama 207: görüntüle / indir / kopyala / düzenle / sil "⋯" menüsünde (sil onay penceresi aynen) */}
+                          <MoreMenu
+                            quiet
+                            id={`btn-more-hw-${hw.id}`}
+                            ariaLabel="Ödev işlemleri"
+                            sheetTitle={hw.title}
+                            items={[
+                              { id: `btn-view-hw-${hw.id}`, label: 'Görüntüle', icon: Eye, onClick: () => setActiveViewingHomework(hw) },
+                              { id: `btn-download-hw-${hw.id}`, label: 'İndir (.doc)', icon: Download, onClick: () => handleDownloadHomeworkDoc(hw) },
+                              {
+                                id: `btn-copy-hw-${hw.id}`,
+                                label: 'Kopyala',
+                                icon: Copy,
+                                title: 'Başka sınıfa da ver',
+                                show: !!canGive,
+                                onClick: () => openHomeworkForm('copy', hw),
+                              },
+                              { id: `btn-edit-hw-${hw.id}`, label: 'Düzenle', icon: Edit3, onClick: () => openHomeworkForm('edit', hw) },
+                              { id: `btn-delete-hw-${hw.id}`, label: 'Sil', icon: Trash2, danger: true, onClick: () => setHomeworkToDelete(hw) },
+                            ]}
+                          />
                         </>
                       }
                     >
