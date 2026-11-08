@@ -54,7 +54,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
             <button
               type="button"
               onClick={this.handleRetry}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Modülü Yeniden Başlat</span>
@@ -63,7 +63,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
               <button
                 type="button"
                 onClick={this.props.onResetToHome}
-                className="flex items-center space-x-1.5 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-semibold transition-all cursor-pointer border border-line"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg border border-line min-w-24"
               >
                 <Home className="w-3.5 h-3.5" />
                 <span>Ana Sayfaya Dön</span>

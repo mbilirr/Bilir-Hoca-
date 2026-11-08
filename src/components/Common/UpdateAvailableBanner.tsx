@@ -105,7 +105,7 @@ export const UpdateAvailableBanner: React.FC = () => {
             snoozeUntilRef.current = Date.now() + SNOOZE_MS;
             setVisible(false);
           }}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-100 hover:bg-indigo-500 flex items-center gap-1 cursor-pointer"
+          className="ui-btn ui-btn-sm text-indigo-100 hover:bg-indigo-500 min-w-24"
         >
           <X className="w-3.5 h-3.5" />
           Sonra
@@ -113,7 +113,7 @@ export const UpdateAvailableBanner: React.FC = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-surface text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 shadow-sm cursor-pointer"
+          className="ui-btn ui-btn-sm bg-surface text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 shadow-sm min-w-24"
         >
           Şimdi Yenile
         </button>

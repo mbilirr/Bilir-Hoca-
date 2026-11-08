@@ -212,7 +212,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
             <button
               type="button"
               onClick={() => openResourceInNewTab(res)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg border border-line rounded-xl text-xs font-semibold transition-colors"
+              className="ui-btn ui-btn-sm hidden sm:flex bg-surface-2 hover:bg-surface-3 text-fg border border-line min-w-24"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Yeni Sekmede Aç</span>
@@ -220,7 +220,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
             <button
               type="button"
               onClick={() => downloadResource(res)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
+              className="ui-btn ui-btn-sm bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 min-w-24"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{kindLabel} İndir</span>
@@ -431,7 +431,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                 else if (res.type === 'pdf' || res.type === 'image') setActivePdfModal(res);
                 else openResourceInNewTab(res);
               }}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all hover:scale-[1.02] ${badge.bg}`}
+              className={`ui-btn ui-btn-sm border ${badge.bg}`}
               title={res.description || res.title}
             >
               {getResourceIcon(res.type)}
@@ -516,7 +516,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveVideoModal(res)}
-                    className="py-1 px-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
+                    className="ui-btn ui-btn-sm bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 min-w-24"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Videoyu İzle</span>
@@ -528,7 +528,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                     <button
                       type="button"
                       onClick={() => setActivePdfModal(res)}
-                      className="py-1 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
+                      className="ui-btn ui-btn-sm bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 min-w-24"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>{res.type === 'image' ? 'Fotoğrafı Gör' : 'PDF İncele'}</span>
