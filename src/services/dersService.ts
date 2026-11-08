@@ -404,3 +404,143 @@ export function dersCanliDinle(kurumId: string | null | undefined, tablolar: Der
     }
   };
 }
+
+// ============================================================================
+// Aşama 221: YOKLAMA TAKİBİ ve KURUM RAPORU (yalnız idare; hepsi sunucuda, kendi kurumunda hesaplanır)
+// ============================================================================
+const SQL_EKSIK_221 = "Yoklama takibi veritabanında henüz kurulu değil. Supabase SQL Editor'de 221 numaralı SQL dosyasını çalıştırın.";
+
+async function rpc221<T = any>(fn: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await rpc<T>(fn, args);
+  } catch (e: any) {
+    if (e?.message === SQL_EKSIK) throw new Error(SQL_EKSIK_221);
+    throw e;
+  }
+}
+
+export type GunDurum = 'alindi' | 'geciken' | 'bekliyor' | 'sonra';
+
+export interface GecikenDers {
+  classId: string;
+  classAd: string;
+  sira: number;
+  ders: string;
+  bas: string;
+  bit: string;
+  teacherAdlari: string[];
+}
+
+export interface BugunOzet {
+  kayitli: boolean;
+  gecikmeDk: number;
+  gecikenler: GecikenDers[];
+  gelmeyen: number;
+}
+
+export interface GunHucre {
+  classId: string;
+  classAd: string;
+  sira: number;
+  ders: string;
+  teacherAdlari: string[];
+  durum: GunDurum;
+  oturum: { alanAd: string; alindiAt: string; sayilar: Sayilar; gec: boolean } | null;
+}
+
+export interface DevamsizlikSatiri {
+  studentId: string;
+  ad: string;
+  no: string;
+  classAd: string;
+  absent: number;
+  late: number;
+  excused: number;
+  gun: number;
+  toplam: number;
+}
+
+export interface OgretmenYoklamaSatiri {
+  teacherId: string;
+  ad: string;
+  planli: number;
+  alinan: number;
+  alinmayan: number;
+  gec: number;
+}
+
+/** İdare ana sayfası: bugün geciken dersler + bugün (derste) gelmeyen öğrenci sayısı. İdare değilse null. */
+export async function ozetBugun(): Promise<BugunOzet | null> {
+  const r = await rpc221<any>('ders_ozet_bugun');
+  if (!r || typeof r !== 'object') return null;
+  return {
+    kayitli: r.kayitli === true,
+    gecikmeDk: Number(r.gecikme_dk) || 40,
+    gelmeyen: Number(r.gelmeyen) || 0,
+    gecikenler: Array.isArray(r.gecikenler)
+      ? r.gecikenler.map((g: any) => ({
+          classId: String(g.class_id),
+          classAd: String(g.class_ad || g.class_id),
+          sira: Number(g.sira),
+          ders: String(g.ders || ''),
+          bas: String(g.bas || ''),
+          bit: String(g.bit || ''),
+          teacherAdlari: yaziDizisi(g.teacher_adlari),
+        }))
+      : [],
+  };
+}
+
+export async function gunTablosu(tarih: string): Promise<{ ayar: DersAyar | null; hucreler: GunHucre[] }> {
+  const r = await rpc221<any>('ders_gun_tablosu', { p_tarih: tarih });
+  const hucreler: GunHucre[] = Array.isArray(r?.hucreler)
+    ? r.hucreler.map((h: any) => ({
+        classId: String(h.class_id),
+        classAd: String(h.class_ad || h.class_id),
+        sira: Number(h.sira),
+        ders: String(h.ders || ''),
+        teacherAdlari: yaziDizisi(h.teacher_adlari),
+        durum: (['alindi', 'geciken', 'bekliyor', 'sonra'].includes(h.durum) ? h.durum : 'sonra') as GunDurum,
+        oturum: h.oturum
+          ? {
+              alanAd: String(h.oturum.alan_ad || ''),
+              alindiAt: String(h.oturum.alindi_at || ''),
+              sayilar: (h.oturum.sayilar && typeof h.oturum.sayilar === 'object' ? h.oturum.sayilar : {}) as Sayilar,
+              gec: h.oturum.gec === true,
+            }
+          : null,
+      }))
+    : [];
+  return { ayar: ayarCevir(r?.ayar), hucreler };
+}
+
+export async function devamsizlikRapor(bas: string, bit: string): Promise<DevamsizlikSatiri[]> {
+  const r = await rpc221<any>('ders_devamsizlik_rapor', { p_bas: bas, p_bit: bit });
+  return Array.isArray(r?.ogrenciler)
+    ? r.ogrenciler.map((x: any) => ({
+        studentId: String(x.student_id),
+        ad: String(x.ad || ''),
+        no: String(x.no || ''),
+        classAd: String(x.class_ad || ''),
+        absent: Number(x.absent) || 0,
+        late: Number(x.late) || 0,
+        excused: Number(x.excused) || 0,
+        gun: Number(x.gun) || 0,
+        toplam: Number(x.toplam) || 0,
+      }))
+    : [];
+}
+
+export async function ogretmenYoklamaRapor(bas: string, bit: string): Promise<OgretmenYoklamaSatiri[]> {
+  const r = await rpc221<any>('ders_ogretmen_rapor', { p_bas: bas, p_bit: bit });
+  return Array.isArray(r?.ogretmenler)
+    ? r.ogretmenler.map((x: any) => ({
+        teacherId: String(x.teacher_id),
+        ad: String(x.ad || ''),
+        planli: Number(x.planli) || 0,
+        alinan: Number(x.alinan) || 0,
+        alinmayan: Number(x.alinmayan) || 0,
+        gec: Number(x.gec) || 0,
+      }))
+    : [];
+}

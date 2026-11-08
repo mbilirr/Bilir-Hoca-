@@ -59,7 +59,7 @@ const CRON_TIME_BUDGET_MS = 40000;
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme']); // Aşama 221: ders-yoklama-gecikme
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -3060,6 +3060,81 @@ async function actionNoAttendanceAlerts(req, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 221: geciken DERS yoklaması
+// Ders bitiminden kurumun "gecikme dakikası" (vars. 40) sonra yoklaması alınmamış dersler veritabanında
+// (ders_gecikme_tara) kaydedilir; burada kurum başına TEK e-posta ile idareye bildirilir. Her ders bir kez bildirilir
+// (ders_gecikme_isaretle). Alıcılar kurum ayarındaki "Yoklama uyarı e-postaları", boşsa Müdür Yardımcıları.
+// 217/221 SQL kurulu değilse sessizce geçer.
+async function actionDersYoklamaGecikme(req, deadline) {
+  const out = { kurum: 0, ders: 0, sent: 0, failed: 0, skipped: 0, noRecipient: 0 };
+  let list = null;
+  try {
+    list = await rest('rpc/ders_gecikme_tara', { token: 'service', method: 'POST', body: {} });
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === 'PGRST202' || err.code === '42883')) return out; // 221 kurulu değil
+    throw err;
+  }
+  try {
+    await rest('rpc/ders_gecikme_temizle', { token: 'service', method: 'POST', body: {} });
+  } catch {}
+  const url = appUrl(req);
+  for (const k of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const dersler = Array.isArray(k && k.dersler) ? k.dersler : [];
+    const ids = dersler.map((d) => String(d.id)).filter(isUuid);
+    if (!ids.length) continue;
+    out.kurum++;
+    out.ders += ids.length;
+    const alicilar = Array.from(new Set((Array.isArray(k.alicilar) ? k.alicilar : []).map((a) => String(a || '').trim().toLowerCase()).filter(isEmail))).slice(0, 5);
+    if (!alicilar.length) {
+      // Alıcı yoksa her 10 dakikada yeniden denenmesin: işaretlenir (ekranda geciken olarak görünmeye devam eder)
+      out.noRecipient += ids.length;
+      await rest('rpc/ders_gecikme_isaretle', { token: 'service', method: 'POST', body: { p_ids: ids, p_alicilar: [] } });
+      continue;
+    }
+    const tarih = String((dersler[0] && dersler[0].tarih) || '');
+    const satir = (d) => {
+      const ogr = (Array.isArray(d.teacher_adlari) ? d.teacher_adlari : []).map(clean).filter(Boolean).join(', ') || 'Öğretmen yazılı değil';
+      const saat = clean(d.bas) ? ` (${clean(d.bas)}${clean(d.bit) ? `–${clean(d.bit)}` : ''})` : '';
+      return [`${clean(d.class_ad)} · ${Number(d.sira) || ''}. ders${saat}`, `${clean(d.ders)} — ${ogr}`];
+    };
+    const rows = dersler.slice(0, 40).map(satir);
+    const fazla = dersler.length > 40 ? dersler.length - 40 : 0;
+    const subject = `Yoklama alınmadı: ${dersler.length} ders – ${trDate(tarih)}`;
+    const refId = `${k.kurum_id}|${tarih}|${crypto.createHash('sha1').update(ids.slice().sort().join(',')).digest('hex').slice(0, 16)}`;
+    const items = alicilar.map((to) => ({
+      event: 'ders-yoklama-gecikme',
+      refId,
+      refTitle: `Ders yoklaması – ${tarih}`,
+      to,
+      toName: '',
+      role: 'ogretmen',
+      subject,
+      ...layout({
+        heading: 'Ders yoklaması alınmadı',
+        greeting: 'Merhaba,',
+        intro: `Aşağıdaki derslerin bitiminden ${Number(k.gecikme_dk) || 40} dakika geçti, yoklamaları henüz alınmadı.${fazla ? ` (+${fazla} ders daha)` : ''}`,
+        rows,
+        buttonLabel: 'Sisteme git',
+        url,
+        footer: 'Her ders için yalnız bir kez bildirilir. Alıcıları Yönetim › Ders programı › Ders saatleri bölümünden değiştirebilirsiniz.',
+      }),
+    }));
+    const owner = { authId: null, name: '', email: '', kurumId: String(k.kurum_id || '') || null };
+    const sender = await resolveSender(owner);
+    const summary = await deliver(sender, owner, items, deadline);
+    const sent = (summary && summary.sent) || 0;
+    out.sent += sent;
+    out.failed += (summary && summary.failed) || 0;
+    out.skipped += (summary && summary.skipped) || 0;
+    // En az bir alıcıya gittiyse (ya da daha önce gitmişse) dersler bildirildi sayılır; gitmediyse sonraki turda yeniden denenir
+    if (sent > 0 || (summary && summary.skipped >= items.length)) {
+      await rest('rpc/ders_gecikme_isaretle', { token: 'service', method: 'POST', body: { p_ids: ids, p_alicilar: alicilar } });
+    }
+  }
+  return out;
+}
+
 async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
@@ -4455,7 +4530,14 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('[mail] yoklama uyarısı hatası', err && err.message);
         }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0 });
+        // Aşama 221: dersi biten ama yoklaması alınmayan DERSLER için idareye toplu e-posta
+        let dg = null;
+        try {
+          dg = await actionDersYoklamaGecikme(req, cronDeadline);
+        } catch (err) {
+          console.error('[mail] ders yoklaması gecikme hatası', err && err.message);
+        }
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0 });
       }
       const r = await actionReminders(req, cronDeadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)

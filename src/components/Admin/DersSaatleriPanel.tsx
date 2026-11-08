@@ -336,7 +336,7 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
           <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[16rem]">
             <span className="flex items-center gap-1">
               Yoklama uyarı e-postaları
-              <InfoTip text="Müdür yardımcılarının e-posta adresleri (en çok 5, virgülle ayırın). Geciken yoklamalar bu adreslere gider." />
+              <InfoTip text="Müdür yardımcılarının e-posta adresleri (en çok 5, virgülle ayırın). Geciken yoklamalar bu adreslere toplu tek e-postayla gider. Boş bırakılırsa Müdür Yardımcısı rolündeki öğretmenlerin gerçek e-postalarına gider (Aşama 221)." />
             </span>
             <input
               type="text"
