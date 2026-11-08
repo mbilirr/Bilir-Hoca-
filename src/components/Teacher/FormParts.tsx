@@ -179,7 +179,9 @@ export const StudentPicker: React.FC<{
   badges?: Record<string, { rate: number; total: number; exams?: number }> | null;
   /** Aşama 165: bu öğrenci bölümü kapalı sınıf / öğrenci seçilemez (seçiliyse yalnız kaldırılabilir) */
   bolum?: OgrBolum;
-}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges, bolum }) => {
+  /** Aşama 203: öğrenci listesinin yükseklik sınıfı (verilmezse eskisi gibi max-h-56) */
+  listCls?: string;
+}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges, bolum, listCls }) => {
   const [query, setQuery] = useState('');
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   // Aşama 165: kapalı sınıf / öğrenci kümeleri (hiç kapalı ayar yoksa hesap yapılmaz)
@@ -324,7 +326,7 @@ export const StudentPicker: React.FC<{
               {allVisibleSelected ? 'Görünenleri kaldır' : 'Görünenlerin tümünü seç'}
             </button>
           </div>
-          <div className="max-h-56 overflow-y-auto p-2 space-y-2">
+          <div className={cx(listCls || 'max-h-56', 'overflow-y-auto p-2 space-y-2')}>
             {groups.length === 0 || visibleIds.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted">
                 <Users className="w-5 h-5 mx-auto mb-1 text-subtle" />

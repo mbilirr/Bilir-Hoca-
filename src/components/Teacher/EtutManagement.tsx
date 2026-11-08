@@ -55,8 +55,9 @@ import { EtutTeacherManagerModal } from './EtutTeacherManagerModal';
 import { MailNoticeBar } from './FormParts';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { useQuickFocus } from '../../lib/quickFocus';
-import { PageHeader, Segmented } from '../ui/kit';
+import { PageHeader, Segmented, cx } from '../ui/kit'; // Aşama 204: cx
 import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib/etutTiming';
+import { InfoTip } from '../ui/Compact'; // Aşama 204
 import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 import { ETUT_STATUS_STYLE, NO_TEACHER_LABEL, etutTeacherNames, getEtutStatus } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
@@ -151,6 +152,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     }
   }, [selectedAttendanceEtutId]);
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
+  // Aşama 204: yoklama ekranında etüt seçimi kısa liste (süzgeç: null = yoklaması bekleyen varsa 'bekleyen', yoksa 'tumu')
+  const [attPickFilter, setAttPickFilter] = useState<'bekleyen' | 'bugun' | 'tumu' | null>(null);
+  const [attPickQuery, setAttPickQuery] = useState('');
+  const [attPickLimit, setAttPickLimit] = useState(40);
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
   useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
@@ -1057,90 +1062,200 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </div>
             )}
 
-            {/* 1. ETÜT SEÇİMİ AÇILIR MENÜSÜ */}
-            <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                    <CalendarCheck className="w-5 h-5" />
+            {/* 1. ETÜT SEÇİMİ — Aşama 204: uzun açılır menü yerine güne göre gruplu kısa liste.
+                Her satır: saat · ders · yer · öğretmen · öğrenci sayısı · yoklama durumu. Konu yalnız seçili etüdün satırında. */}
+            {(() => {
+              const todayYmd = ymdLocal(new Date());
+              const yest = new Date();
+              yest.setDate(yest.getDate() - 1);
+              const yestYmd = ymdLocal(yest);
+              const tom = new Date();
+              tom.setDate(tom.getDate() + 1);
+              const tomYmd = ymdLocal(tom);
+              const ymdOf = (e: Etut) => String(e.date || '').trim().slice(0, 10);
+              const isMissing = (e: Etut) => isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e);
+              const pending = attEtuts.filter(isMissing);
+              const todays = attEtuts.filter((e) => ymdOf(e) === todayYmd);
+              const filt = attPickFilter ?? (pending.length > 0 ? 'bekleyen' : 'tumu');
+              const q = attPickQuery.trim();
+              const base = filt === 'bekleyen' ? pending : filt === 'bugun' ? todays : attEtuts;
+              const shown = (q
+                ? base.filter(
+                    (e) =>
+                      matchTurkishSearch(e.subject || '', q) ||
+                      matchTurkishSearch(e.topic || '', q) ||
+                      matchTurkishSearch(e.location || '', q) ||
+                      etutTeacherNames(e).some((n) => matchTurkishSearch(n, q))
+                  )
+                : base
+              )
+                .slice()
+                .sort((a, b) => ymdOf(b).localeCompare(ymdOf(a)) || String(a.time || '').localeCompare(String(b.time || '')));
+              const visible = shown.slice(0, attPickLimit);
+              const dayLabel = (ymd: string) => {
+                if (ymd === todayYmd) return 'Bugün';
+                if (ymd === yestYmd) return 'Dün';
+                if (ymd === tomYmd) return 'Yarın';
+                const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+                if (!m) return ymd || 'Tarihsiz';
+                return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
+              };
+              const studentCount = (e: Etut) =>
+                e.assignedStudentIds === 'all' ? students.length : Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.length : 0;
+              const statusOf = (e: Etut) => {
+                if (hasEtutAttendance(e)) return { label: 'Alındı', cls: 'bg-success-soft text-success-fg' };
+                if (isMissing(e)) return { label: 'Alınmadı', cls: 'bg-warning-soft text-warning-fg' };
+                const st = getEtutStatus(e);
+                if (st === 'live') return { label: 'Sürüyor', cls: 'bg-info-soft text-info-fg' };
+                if (st === 'upcoming') return { label: 'Başlamadı', cls: 'bg-surface-2 text-muted' };
+                return null;
+              };
+              const filters: { key: 'bekleyen' | 'bugun' | 'tumu'; label: string; n: number }[] = [
+                { key: 'bekleyen', label: 'Bekleyen', n: pending.length },
+                { key: 'bugun', label: 'Bugün', n: todays.length },
+                { key: 'tumu', label: 'Tümü', n: attEtuts.length },
+              ];
+              let lastDay = '';
+              return (
+                <div className="bg-surface border border-line rounded-2xl p-3 sm:p-4 space-y-3" id="etut-att-picker">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 mr-auto">
+                      <div className="w-8 h-8 rounded-lg bg-brand-soft flex items-center justify-center text-brand-fg">
+                        <CalendarCheck className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-fg">Etüt seçin</h3>
+                      <InfoTip text="Yoklamasını almak istediğiniz etüde dokunun. Yoklaması alınmamış geçmiş etütler Bekleyen'de görünür." />
+                    </div>
+                    <div role="tablist" aria-label="Etüt süzgeci" className="inline-flex rounded-lg bg-surface-2 border border-line p-0.5">
+                      {filters.map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          role="tab"
+                          id={`etut-att-filter-${f.key}`}
+                          aria-selected={filt === f.key}
+                          onClick={() => {
+                            setAttPickFilter(f.key);
+                            setAttPickLimit(40);
+                          }}
+                          className={cx(
+                            'h-8 w-24 rounded-md text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
+                            filt === f.key ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'
+                          )}
+                        >
+                          {f.label}
+                          <span className={cx('tabular-nums', filt === f.key ? 'text-brand-fg' : 'text-subtle')}>{f.n}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="relative w-full sm:w-56">
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-subtle" />
+                      <input
+                        id="etut-att-search"
+                        type="search"
+                        value={attPickQuery}
+                        onChange={(e) => {
+                          setAttPickQuery(e.target.value);
+                          setAttPickLimit(40);
+                        }}
+                        placeholder="Ders, konu, sınıf, öğretmen"
+                        aria-label="Etüt ara"
+                        className="w-full h-8 bg-surface border border-line rounded-lg pl-8 pr-2 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-fg">Yoklaması Alınacak Etütü Seçiniz</h3>
-                    <p className="text-xs text-muted">
-                      Öğrencilerin devamsızlığını girmek için listeden ilgili etüt çalışmasını seçin.
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
-                  {attEtuts.length} Planlı Etüt
-                </span>
-              </div>
 
-              {/* AÇILIR MENÜ */}
-              <div className="relative">
-                <select
-                  value={currentAttendanceEtut?.id || ''}
-                  onChange={(e) => {
-                    setSelectedAttendanceEtutId(e.target.value);
-                    ackMissing([e.target.value]); // Aşama 33d: eksik etüt seçilince yanıp sönme durur
-                  }}
-                  className="w-full bg-canvas border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
-                >
-                  {attEtuts.map((e) => {
-                    let formattedDate = e.date;
-                    try {
-                      const parts = (e.date || '').trim().split('T')[0].split('-');
-                      if (parts.length === 3) formattedDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
-                      else formattedDate = new Date(e.date).toLocaleDateString('tr-TR');
-                    } catch {}
-                    return (
-                      <option key={e.id} value={e.id} className="bg-surface text-fg py-2">
-                        {isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e) ? '⚠ YOKLAMA ALINMADI · ' : ''}
-                        [{formattedDate} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {/* Seçili Etüt Detay Paneli */}
-              {currentAttendanceEtut && (
-                <div className="mt-3.5 p-3.5 rounded-xl bg-canvas/70 border border-line flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2.5">
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
-                      {currentAttendanceEtut.subject}
-                    </span>
-                    <span className="text-sm font-bold text-fg">{currentAttendanceEtut.topic}</span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                    <span className="flex items-center space-x-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                      <span>{new Date(currentAttendanceEtut.date).toLocaleDateString('tr-TR')} • {currentAttendanceEtut.time ? `${currentAttendanceEtut.time} (${currentAttendanceEtut.duration} dk)` : 'Saat belirtilmedi'}</span>
-                    </span>
-                    <span className="flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                      <span>{currentAttendanceEtut.location}</span>
-                    </span>
-                    {currentAttendanceEtut.teacherName && (
-                      <span className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-300 font-medium">
-                        <Users className="w-3.5 h-3.5" />
-                        <span>{currentAttendanceEtut.teacherName}</span>
-                      </span>
+                  <div className="rounded-xl border border-line overflow-hidden max-h-80 overflow-y-auto" id="etut-att-list">
+                    {visible.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-muted">
+                        {q ? `"${q}" ile eşleşen etüt yok.` : filt === 'bekleyen' ? 'Yoklaması bekleyen etüt yok.' : 'Bu süzgeçte etüt yok.'}
+                      </div>
+                    ) : (
+                      visible.map((e) => {
+                        const day = ymdOf(e);
+                        const head = day !== lastDay;
+                        lastDay = day;
+                        const on = currentAttendanceEtut?.id === e.id;
+                        const stt = statusOf(e);
+                        const teachers = etutTeacherNames(e).join(', ');
+                        const n = studentCount(e);
+                        return (
+                          <React.Fragment key={e.id}>
+                            {head && (
+                              <div className="px-3 py-1 text-[11px] font-semibold text-muted bg-surface-2 border-b border-line first:border-t-0">
+                                {dayLabel(day)}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              id={`etut-att-pick-${e.id}`}
+                              aria-pressed={on}
+                              title={e.topic || undefined}
+                              onClick={() => {
+                                setSelectedAttendanceEtutId(e.id);
+                                ackMissing([e.id]); // Aşama 33d: eksik etüt seçilince yanıp sönme durur
+                              }}
+                              className={cx(
+                                'w-full flex items-center gap-3 px-3 py-2 text-left border-b border-line last:border-b-0 cursor-pointer transition-colors',
+                                on ? 'bg-brand-soft shadow-[inset_3px_0_0_var(--color-brand)]' : 'hover:bg-surface-2'
+                              )}
+                            >
+                              <span className="w-11 shrink-0 text-sm font-bold text-fg tabular-nums">{e.time || '—'}</span>
+                              <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                                <span className="text-xs font-semibold text-brand-fg truncate sm:w-32 sm:shrink-0">{normalizeSubject(e.subject) || e.subject || '—'}</span>
+                                <span className="text-xs text-muted truncate">
+                                  {[e.location, teachers, n ? `${n} öğrenci` : ''].filter(Boolean).join(' · ')}
+                                </span>
+                              </span>
+                              {stt && (
+                                <span className={cx('shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full', stt.cls)}>{stt.label}</span>
+                              )}
+                            </button>
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </div>
-                  {currentAttendanceEtut.teacherFeedback && (
-                    <div className="w-full mt-2 pt-2 border-t border-line flex items-start space-x-2 text-xs text-amber-700/90 dark:text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
-                      <MessageSquareQuote className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">Öğretmen Görüş ve Düşünceleri:</strong>
-                        <span className="italic text-fg-2 font-normal">"{currentAttendanceEtut.teacherFeedback}"</span>
-                      </div>
+                  {shown.length > visible.length && (
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        id="etut-att-more"
+                        onClick={() => setAttPickLimit((l) => l + 40)}
+                        className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28"
+                      >
+                        Daha fazla
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Seçili etüt: tek satır (konu burada) */}
+                  {currentAttendanceEtut && (
+                    <div className="rounded-xl bg-surface-2/70 border border-line px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1" id="etut-att-selected">
+                      <span className="text-xs font-bold text-fg">
+                        {normalizeSubject(currentAttendanceEtut.subject) || currentAttendanceEtut.subject} · {dayLabel(ymdOf(currentAttendanceEtut))}
+                        {currentAttendanceEtut.time ? ` ${currentAttendanceEtut.time}` : ''}
+                      </span>
+                      <span className="flex-1 min-w-0 text-xs text-fg-2 truncate" title={currentAttendanceEtut.topic || undefined}>
+                        {currentAttendanceEtut.topic}
+                      </span>
+                      <span className="text-[11px] text-muted">
+                        {[currentAttendanceEtut.time ? `${currentAttendanceEtut.duration} dk` : '', currentAttendanceEtut.location].filter(Boolean).join(' · ')}
+                      </span>
+                      {currentAttendanceEtut.teacherFeedback && (
+                        <div className="w-full mt-2 pt-2 border-t border-line flex items-start space-x-2 text-xs text-amber-700/90 dark:text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
+                          <MessageSquareQuote className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">Öğretmen Görüş ve Düşünceleri:</strong>
+                            <span className="italic text-fg-2 font-normal">"{currentAttendanceEtut.teacherFeedback}"</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* 2. ETÜTTEKİ ÖĞRENCİLER VE DEVAMSIZLIK LİSTESİ */}
             {currentAttendanceEtut && (

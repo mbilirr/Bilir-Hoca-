@@ -1,6 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Repeat, Settings2, History, X } from 'lucide-react';
+import { CalendarDays, Copy, Edit3, AlertCircle, AlertTriangle, Users, Repeat, Settings2, History, X, ChevronDown } from 'lucide-react';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService, type EtutTeacherOption } from '../../services/dataService';
 import { Modal, cx } from '../ui/kit';
@@ -247,6 +247,9 @@ const EtutFormContent: React.FC<Props> = ({
   const [location, setLocation] = useState(initial.location);
   const [repeatWeeks, setRepeatWeeks] = useState(1);
   const [sendMail, setSendMail] = useState(true);
+  // Aşama 203: telefonda öğrenci listesi ve 'yer ve tekrar' bölümü düğmeyle açılır (bilgisayarda hep açık)
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => !!(initial.location || '').trim());
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<string[] | null>(null);
@@ -682,7 +685,7 @@ const EtutFormContent: React.FC<Props> = ({
       onClose={requestClose}
       icon={isEdit ? Edit3 : isCopy ? Copy : CalendarDays}
       tone="info"
-      size="lg"
+      size="xl"
       title={isEdit ? 'Etüdü Düzenle' : isCopy ? 'Etüdü Kopyala' : 'Yeni Etüt'}
       description={
         isEdit
@@ -702,18 +705,18 @@ const EtutFormContent: React.FC<Props> = ({
               {occurrences.length > 1 ? ` · ${occurrences.length} hafta` : ''}
             </span>
             <span className="flex gap-2 ml-auto">
-              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary">
+              {/* Aşama 203: iki düğme aynı en ve boy, kısa yazı (hafta sayısı soldaki özette görünür) */}
+              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 min-w-0">
                 İptal
               </button>
-              <button type="button" id="etut-form-save" onClick={() => handleSubmit(false)} disabled={isSaving} className="ui-btn ui-btn-primary">
-                <Save className="w-4 h-4" />
-                {isSaving
-                  ? 'Kaydediliyor…'
-                  : isEdit
-                    ? 'Değişiklikleri Kaydet'
-                    : occurrences.length > 1
-                      ? `${occurrences.length} Etüdü Kaydet`
-                      : 'Etüdü Kaydet'}
+              <button
+                type="button"
+                id="etut-form-save"
+                onClick={() => handleSubmit(false)}
+                disabled={isSaving}
+                className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 min-w-0"
+              >
+                {isSaving ? 'Kaydediliyor' : 'Kaydet'}
               </button>
             </span>
           </div>
@@ -725,336 +728,393 @@ const EtutFormContent: React.FC<Props> = ({
           e.preventDefault();
           handleSubmit(false);
         }}
-        className="space-y-6"
+        className="space-y-5"
         noValidate
       >
-        {/* 1. DERS VE ÖĞRETMEN */}
-        <FormSection title="1. Ders ve etüt öğretmeni" hint={mySubjects ? 'Branşınıza göre sınırlı' : undefined}>
-          {subjectOptions.length <= 1 ? (
-            <div id="etut-subject-fixed" className="flex items-center gap-2 h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
-              <CalendarDays className="w-4 h-4 text-info-fg" />
-              {effectiveSubject || 'Branş bilgisi yok'}
-            </div>
-          ) : (
-            <div>
-              <FieldLabel htmlFor="etut-subject">Ders</FieldLabel>
-              <SelectBox id="etut-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={ctrlCls}>
-                {subjectOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </SelectBox>
-            </div>
-          )}
-
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <FieldLabel htmlFor="etut-teacher-select">Etüt öğretmenleri</FieldLabel>
-              {isAdmin && onManageTeachers && (
-                <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ml-auto text-xs font-semibold text-brand-fg hover:underline flex items-center gap-1 cursor-pointer">
-                  <Settings2 className="w-3.5 h-3.5" />
-                  Öğretmen listesini yönet
-                </button>
-              )}
-            </div>
-            <EtutTeacherSelect
-              groups={teacherGroups}
-              value={teacherIds}
-              onChange={setTeacherIds}
-              loading={teacherOptions === null}
-              placeholder="Öğretmen seçin"
-              currentSubject={effectiveSubject}
-              allLabel={zumre.subjects.length > 1 ? `${zumre.name} zümresinin tüm öğretmenleri` : undefined}
-            />
-            {idareAdina && (
-              <p className="text-[11px] font-semibold text-info-fg mt-1" id="etut-idare-adina">
-                Etüdü öğretmen adına planlıyorsunuz; etüt seçilen öğretmenin takviminde görünür ve ona e-posta gider.
-              </p>
-            )}
-            {/* Aşama 185: kısaltıldı, zümre ayrıntısı ⓘ içinde */}
-            <p className="text-[11px] text-muted mt-1 flex items-center gap-1">
-              Birden çok öğretmen seçebilirsiniz; her birine etüt ve e-posta gider.
-              {assignAll && (
-                <InfoTip
-                  text={
-                    zumre.subjects.length > 1
-                      ? `Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
-                      : 'Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.'
-                  }
-                />
-              )}
-            </p>
-          </div>
-          {(() => {
-            const noMail = selectedTeachers.filter((o) => !o.isMe && !o.hasEmail);
-            return noMail.length ? (
-              <p className="text-[11px] text-warning-fg" id="etut-teacher-nomail">
-                {noMail.map((o) => o.name).join(', ')} için e-posta adresi kayıtlı değil; etüt kaydedilir ama {noMail.length > 1 ? 'bu öğretmenlere' : 'öğretmene'} e-posta gitmez.
-                {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
-              </p>
-            ) : null;
-          })()}
-        </FormSection>
-
-        {/* 2. KONU */}
-        <FormSection title="2. Konu">
-          {/* Aşama 50: deneme konuları açılır listede; seçilince öğrenciler başarıya göre renklenir */}
-          <DenemeKonuSecici
-            subjectName={effectiveSubject}
-            classIds={filterClassIds}
-            students={students}
-            initialTopic={!isEdit ? initial.topic : undefined}
-            selectedIds={selectedIds}
-            onPickTopic={(label) => setTopic(label)}
-            onRates={setKonuRates}
-            onSelectIds={setSelectedIds}
-          />
-          <div>
-            <FieldLabel htmlFor="etut-topic">Etüt konusu / kazanım</FieldLabel>
-            <input
-              id="etut-topic"
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              maxLength={160}
-              placeholder="Örn: Üslü ifadeler – soru çözümü"
-              className={ctrlCls}
-            />
-          </div>
-          <div>
-            <FieldLabel htmlFor="etut-notes" optional>
-              Öğrencilere not
-            </FieldLabel>
-            <input
-              id="etut-notes"
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              maxLength={300}
-              placeholder="Örn: Soru bankanızı getirin"
-              className={ctrlCls}
-            />
-          </div>
-        </FormSection>
-
-        {/* 3. ÖĞRENCİLER */}
-        <FormSection title="3. Öğrenciler" hint="Sınıf yalnızca listeyi süzer; farklı sınıflardan öğrenci seçebilirsiniz">
-          <StudentPicker
-            variant="filter"
-            idPrefix="etut"
-            bolum="etut"
-            classes={classes}
-            students={students}
-            classIds={filterClassIds}
-            onClassIdsChange={setFilterClassIds}
-            selectedIds={selectedIds}
-            onSelectedChange={setSelectedIds}
-            badges={konuRates}
-          />
-          {copyInfo && (
-            <p className="flex items-start gap-1.5 rounded-lg bg-surface-2 text-muted px-2.5 py-1.5 text-[11px] mt-2" id="etut-kopya-bilgi">
-              <Copy className="w-3.5 h-3.5 shrink-0 mt-px" />
-              <span>{copyInfo}</span>
-            </p>
-          )}
-          {repeats.length > 0 && (
-            <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold mt-2" id="etut-tekrar-uyari">
-              <History className="w-3.5 h-3.5 shrink-0 mt-px" />
-              <span>
-                {repeats.length === 1
-                  ? repeatText(repeats[0])
-                  : `${repeats.length} öğrenci bu dersten aynı konuda daha önce etüt almış: ${repeats
-                      .slice(0, 4)
-                      .map((r) => `${r.name} (${trDate(r.etut.date)})`)
-                      .join(', ')}${repeats.length > 4 ? ` +${repeats.length - 4}` : ''}.`}
-              </span>
-            </p>
-          )}
-        </FormSection>
-
-        {/* 4. ZAMAN VE YER */}
-        <FormSection title="4. Zaman ve yer" hint={isCopy && !date ? 'Kopya için yeni tarihi seçin' : undefined}>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" className={chipCls(date === today)} onClick={() => setDate(today)}>
-              Bugün
-            </button>
-            <button type="button" className={chipCls(date === tomorrow)} onClick={() => setDate(tomorrow)}>
-              Yarın
-            </button>
-            {isCopy && sourceNextWeek && (
-              <button type="button" id="etut-copy-next-week" className={chipCls(date === sourceNextWeek)} onClick={() => setDate(sourceNextWeek)}>
-                Haftaya aynı gün ({shortTrDate(sourceNextWeek)})
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <FieldLabel htmlFor="etut-date">Tarih</FieldLabel>
-              <input
-                id="etut-date"
-                type="date"
-                min={isEdit ? undefined : today}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={cx(ctrlCls, isCopy && !date && 'ring-2 ring-warning/40 border-warning')}
-              />
-            </div>
-            <div>
-              <FieldLabel htmlFor="etut-period" optional>
-                Ders saati
-              </FieldLabel>
-              <SelectBox
-                id="etut-period"
-                value={lessonPeriod}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setLessonPeriod(v);
-                  if (v && periodTimes[v]) setTime(periodTimes[v]);
-                }}
-                className={ctrlCls}
-              >
-                <option value="">—</option>
-                {LESSON_PERIODS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                    {periodTimes[p] ? ` (${periodTimes[p]})` : ''}
-                  </option>
-                ))}
-              </SelectBox>
-            </div>
-            <div>
-              <FieldLabel htmlFor="etut-time" optional>
-                Başlangıç
-              </FieldLabel>
-              <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={ctrlCls} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="etut-duration" optional>
-                Süre (dk)
-              </FieldLabel>
-              <input
-                id="etut-duration"
-                type="number"
-                min={10}
-                max={300}
-                step={5}
-                value={duration || ''}
-                placeholder="40"
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className={ctrlCls}
-              />
-            </div>
-          </div>
-          <p className="text-[11px] text-muted" id="etut-time-hint">
-            Yalnızca tarih zorunlu. Saat, süre ve yer boş bırakılabilir (süre boşsa 40 dk sayılır).
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {DURATIONS.map((d) => (
-              <button key={d} type="button" className={chipCls(Number(duration) === d)} onClick={() => setDuration(d)}>
-                {d} dk
-              </button>
-            ))}
-            {endLabel && <span className="self-center text-[11px] text-muted ml-1">Bitiş: {endLabel}</span>}
-          </div>
-          <div>
-            <FieldLabel htmlFor="etut-location" optional>
-              Yer
-            </FieldLabel>
-            <input
-              id="etut-location"
-              type="text"
-              list="etut-location-list"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              maxLength={80}
-              placeholder="Örn: Fen Laboratuvarı, 8-A sınıfı"
-              className={ctrlCls}
-            />
-            <datalist id="etut-location-list">
-              {locationSuggestions.map((l) => (
-                <option key={l} value={l} />
-              ))}
-            </datalist>
-          </div>
-          {!isEdit && (
-            <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Repeat className="w-4 h-4 text-info-fg" />
-                <span className="text-xs font-semibold text-fg">Tekrar</span>
-                <button type="button" id="etut-repeat-once" className={chipCls(repeatWeeks === 1)} onClick={() => setRepeatWeeks(1)}>
-                  Tek seferlik
-                </button>
-                <button type="button" id="etut-repeat-weekly" className={chipCls(repeatWeeks > 1)} onClick={() => setRepeatWeeks((w) => (w > 1 ? w : 4))}>
-                  Her hafta
-                </button>
-                {repeatWeeks > 1 && (
-                  <label className="flex items-center gap-1.5 text-xs text-fg-2">
-                    <select
-                      id="etut-repeat-count"
-                      value={repeatWeeks}
-                      onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-                      className="h-7.5 bg-surface border border-line rounded-full px-3 text-xs font-semibold text-fg-2 cursor-pointer"
-                    >
-                      {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
-                        <option key={n} value={n}>
-                          {n}
+        {/* Aşama 203: bilgisayarda iki sütun (solda bilgiler, sağda öğrenciler).
+            Telefonda sıra: Ders → Konu → Öğretmen → Öğrenciler → Zaman → Not → E-posta (order sınıfları; lg'de sıra DOM'daki gibi). */}
+        <div className="flex flex-col gap-5 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+          <div className="contents lg:flex lg:flex-col lg:gap-5">
+            <div className="contents lg:grid lg:grid-cols-2 lg:gap-3">
+              <div className="order-1 lg:order-none min-w-0">
+                {subjectOptions.length <= 1 ? (
+                  <div>
+                  <FieldLabel>Ders</FieldLabel>
+                  <div id="etut-subject-fixed" className="flex items-center gap-2 h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
+                    <CalendarDays className="w-4 h-4 text-info-fg" />
+                    {effectiveSubject || 'Branş bilgisi yok'}
+                  </div>
+                  </div>
+                ) : (
+                  <div>
+                    <FieldLabel htmlFor="etut-subject">
+                      <span className="inline-flex items-center gap-1">
+                        Ders
+                        {mySubjects && <InfoTip text="Branşınıza göre sınırlı." />}
+                      </span>
+                    </FieldLabel>
+                    <SelectBox id="etut-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={ctrlCls}>
+                      {subjectOptions.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
                         </option>
                       ))}
-                    </select>
-                    hafta
-                  </label>
+                    </SelectBox>
+                  </div>
                 )}
               </div>
-              {repeatWeeks > 1 && (
-                <p className="text-[11px] text-muted" id="etut-repeat-preview">
-                  {occurrences.map(shortTrDate).join(' · ')}
+              <div className="order-3 lg:order-none min-w-0 space-y-1">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    {/* Aşama 203: açıklama (Aşama 185 zümre ayrıntısı dahil) ⓘ içinde */}
+                    <span className="flex items-center gap-1 text-xs font-medium text-fg-2">
+                      <label htmlFor="etut-teacher-select">Etüt öğretmenleri</label>
+                      <InfoTip
+                        text={`Birden çok öğretmen seçebilirsiniz; her birine etüt ve e-posta gider.${
+                          assignAll
+                            ? zumre.subjects.length > 1
+                              ? ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
+                              : ' Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.'
+                            : ''
+                        }`}
+                      />
+                    </span>
+                    {isAdmin && onManageTeachers && (
+                      <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ml-auto text-xs font-semibold text-brand-fg hover:underline flex items-center gap-1 cursor-pointer">
+                        <Settings2 className="w-3.5 h-3.5" />
+                        Listeyi yönet
+                      </button>
+                    )}
+                  </div>
+                  <EtutTeacherSelect
+                    groups={teacherGroups}
+                    value={teacherIds}
+                    onChange={setTeacherIds}
+                    loading={teacherOptions === null}
+                    placeholder="Öğretmen seçin"
+                    currentSubject={effectiveSubject}
+                    allLabel={zumre.subjects.length > 1 ? `${zumre.name} zümresinin tüm öğretmenleri` : undefined}
+                  />
+                  {idareAdina && (
+                    <p className="text-[11px] font-semibold text-info-fg mt-1" id="etut-idare-adina">
+                      Etüdü öğretmen adına planlıyorsunuz; etüt seçilen öğretmenin takviminde görünür ve ona e-posta gider.
+                    </p>
+                  )}
+                </div>
+                {(() => {
+                  const noMail = selectedTeachers.filter((o) => !o.isMe && !o.hasEmail);
+                  return noMail.length ? (
+                    <p className="text-[11px] text-warning-fg" id="etut-teacher-nomail">
+                      {noMail.map((o) => o.name).join(', ')} için e-posta adresi kayıtlı değil; etüt kaydedilir ama {noMail.length > 1 ? 'bu öğretmenlere' : 'öğretmene'} e-posta gitmez.
+                      {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+            <section className="order-2 lg:order-none space-y-2.5">
+              <div>
+                <FieldLabel htmlFor="etut-topic">Etüt konusu / kazanım</FieldLabel>
+                <input
+                  id="etut-topic"
+                  type="text"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  maxLength={160}
+                  placeholder="Örn: Üslü ifadeler – soru çözümü"
+                  className={ctrlCls}
+                />
+              </div>
+              {/* Aşama 50: deneme konuları açılır listede; seçilince öğrenciler başarıya göre renklenir */}
+              <DenemeKonuSecici
+                subjectName={effectiveSubject}
+                classIds={filterClassIds}
+                students={students}
+                initialTopic={!isEdit ? initial.topic : undefined}
+                selectedIds={selectedIds}
+                onPickTopic={(label) => setTopic(label)}
+                onRates={setKonuRates}
+                onSelectIds={setSelectedIds}
+              />
+            </section>
+            <div className="order-6 lg:order-none">
+              <div>
+                <FieldLabel htmlFor="etut-notes" optional>
+                  Öğrencilere not
+                </FieldLabel>
+                <input
+                  id="etut-notes"
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  maxLength={300}
+                  placeholder="Örn: Soru bankanızı getirin"
+                  className={ctrlCls}
+                />
+              </div>
+            </div>
+            <div className="order-5 lg:order-none">
+            {/* 4. ZAMAN VE YER */}
+            <FormSection
+              title="Zaman ve yer"
+              hint={
+                <span className="inline-flex items-center gap-1">
+                  {isCopy && !date ? 'Kopya için yeni tarihi seçin' : null}
+                  <InfoTip text="Yalnızca tarih zorunlu. Saat, süre ve yer boş bırakılabilir (süre boşsa 40 dk sayılır)." />
+                </span>
+              }
+            >
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" className={chipCls(date === today)} onClick={() => setDate(today)}>
+                  Bugün
+                </button>
+                <button type="button" className={chipCls(date === tomorrow)} onClick={() => setDate(tomorrow)}>
+                  Yarın
+                </button>
+                {isCopy && sourceNextWeek && (
+                  <button type="button" id="etut-copy-next-week" className={chipCls(date === sourceNextWeek)} onClick={() => setDate(sourceNextWeek)}>
+                    Haftaya aynı gün ({shortTrDate(sourceNextWeek)})
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel htmlFor="etut-date">Tarih</FieldLabel>
+                  <input
+                    id="etut-date"
+                    type="date"
+                    min={isEdit ? undefined : today}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={cx(ctrlCls, isCopy && !date && 'ring-2 ring-warning/40 border-warning')}
+                  />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="etut-period" optional>
+                    Ders saati
+                  </FieldLabel>
+                  <SelectBox
+                    id="etut-period"
+                    value={lessonPeriod}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setLessonPeriod(v);
+                      if (v && periodTimes[v]) setTime(periodTimes[v]);
+                    }}
+                    className={ctrlCls}
+                  >
+                    <option value="">—</option>
+                    {LESSON_PERIODS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                        {periodTimes[p] ? ` (${periodTimes[p]})` : ''}
+                      </option>
+                    ))}
+                  </SelectBox>
+                </div>
+                <div>
+                  <FieldLabel htmlFor="etut-time" optional>
+                    Başlangıç
+                  </FieldLabel>
+                  <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={ctrlCls} />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="etut-duration" optional>
+                    Süre (dk)
+                  </FieldLabel>
+                  <input
+                    id="etut-duration"
+                    type="number"
+                    min={10}
+                    max={300}
+                    step={5}
+                    value={duration || ''}
+                    placeholder="40"
+                    onChange={(e) => setDuration(Number(e.target.value))}
+                    className={ctrlCls}
+                  />
+                </div>
+              </div>
+              {/* Aşama 203: telefonda süre kısayolları, yer ve tekrar düğmeyle açılır; bilgisayarda hep açık */}
+              <button
+                type="button"
+                id="etut-more-toggle"
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen((v) => !v)}
+                className="lg:hidden h-8 inline-flex items-center gap-1 text-xs font-semibold text-brand-fg cursor-pointer"
+              >
+                Süre, yer ve tekrar
+                <ChevronDown className={cx('w-3.5 h-3.5 transition-transform', moreOpen && 'rotate-180')} />
+              </button>
+              <div id="etut-more" className={cx('space-y-2.5', !moreOpen && 'hidden lg:block')}>
+              <div className="flex flex-wrap gap-1.5">
+                {DURATIONS.map((d) => (
+                  <button key={d} type="button" className={chipCls(Number(duration) === d)} onClick={() => setDuration(d)}>
+                    {d} dk
+                  </button>
+                ))}
+                {endLabel && <span className="self-center text-[11px] text-muted ml-1">Bitiş: {endLabel}</span>}
+              </div>
+              <div>
+                <FieldLabel htmlFor="etut-location" optional>
+                  Yer
+                </FieldLabel>
+                <input
+                  id="etut-location"
+                  type="text"
+                  list="etut-location-list"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  maxLength={80}
+                  placeholder="Örn: Fen Laboratuvarı, 8-A sınıfı"
+                  className={ctrlCls}
+                />
+                <datalist id="etut-location-list">
+                  {locationSuggestions.map((l) => (
+                    <option key={l} value={l} />
+                  ))}
+                </datalist>
+              </div>
+              {!isEdit && (
+                <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Repeat className="w-4 h-4 text-info-fg" />
+                    <span className="text-xs font-semibold text-fg">Tekrar</span>
+                    <button type="button" id="etut-repeat-once" className={chipCls(repeatWeeks === 1)} onClick={() => setRepeatWeeks(1)}>
+                      Tek seferlik
+                    </button>
+                    <button type="button" id="etut-repeat-weekly" className={chipCls(repeatWeeks > 1)} onClick={() => setRepeatWeeks((w) => (w > 1 ? w : 4))}>
+                      Her hafta
+                    </button>
+                    {repeatWeeks > 1 && (
+                      <label className="flex items-center gap-1.5 text-xs text-fg-2">
+                        <select
+                          id="etut-repeat-count"
+                          value={repeatWeeks}
+                          onChange={(e) => setRepeatWeeks(Number(e.target.value))}
+                          className="h-7.5 bg-surface border border-line rounded-full px-3 text-xs font-semibold text-fg-2 cursor-pointer"
+                        >
+                          {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                        hafta
+                      </label>
+                    )}
+                  </div>
+                  {repeatWeeks > 1 && (
+                    <p className="text-[11px] text-muted" id="etut-repeat-preview">
+                      {occurrences.map(shortTrDate).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )}
+              </div>
+              {clashes.length > 0 && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="etut-cakisma-uyari">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>
+                    {clashes.length === 1
+                      ? clashText(clashes[0])
+                      : `${clashes.length} öğrencinin aynı saatte / ders saatinde başka etüdü var: ${clashes
+                          .slice(0, 4)
+                          .map((c) => `${c.name} (${normalizeSubject(c.etut.subject) || '-'})`)
+                          .join(', ')}${clashes.length > 4 ? ` +${clashes.length - 4}` : ''}.`}
+                  </span>
                 </p>
               )}
+            </FormSection>
             </div>
-          )}
-          {clashes.length > 0 && (
-            <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="etut-cakisma-uyari">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-              <span>
-                {clashes.length === 1
-                  ? clashText(clashes[0])
-                  : `${clashes.length} öğrencinin aynı saatte / ders saatinde başka etüdü var: ${clashes
-                      .slice(0, 4)
-                      .map((c) => `${c.name} (${normalizeSubject(c.etut.subject) || '-'})`)
-                      .join(', ')}${clashes.length > 4 ? ` +${clashes.length - 4}` : ''}.`}
-              </span>
-            </p>
-          )}
-        </FormSection>
-
-        {editScheduled ? (
-          <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[11px] text-muted flex items-center gap-1">
-            {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
-            <span className="flex-1">E-posta etüt günü güncel bilgilerle otomatik gider.</span>
-            <InfoTip text="Bu etüt kopyalanarak tanımlandı. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir." />
+            <div className="order-7 lg:order-none">
+            {editScheduled ? (
+              <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[11px] text-muted flex items-center gap-1">
+                {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+                <span className="flex-1">E-posta etüt günü güncel bilgilerle otomatik gider.</span>
+                <InfoTip text="Bu etüt kopyalanarak tanımlandı. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir." />
+              </div>
+            ) : (
+              <MailOptIn
+                id="etut-send-mail"
+                checked={sendMail}
+                onChange={setSendMail}
+                label={
+                  isEdit
+                    ? 'Değişiklikleri etüt öğretmenine e-postayla bildir'
+                    : scheduledMail
+                      ? 'Etüt gününde öğrencilere ve etüt öğretmenine otomatik e-posta gönder'
+                      : 'Öğrencilere ve etüt öğretmenine e-posta gönder'
+                }
+                hint={
+                  isEdit
+                    ? 'Tarih, saat, yer, konu veya öğretmen değişirse yalnızca öğretmene bilgi gider. Öğretmen değişirse eski öğretmene de bildirilir.'
+                    : scheduledMail
+                      ? 'Şimdi e-posta gitmez. Her etüt için, etüt gününde saat girilmişse etüt saatinden 1 saat önce, saat girilmemişse sabah 08:00\'de gider.'
+                      : 'Etüt bugün olduğu için e-posta kaydedince hemen gider: öğrencilere etüt bilgisi, öğretmene etüt bilgisi ve öğrenci listesi.'
+                }
+              />
+            )}
+            </div>
           </div>
-        ) : (
-          <MailOptIn
-            id="etut-send-mail"
-            checked={sendMail}
-            onChange={setSendMail}
-            label={
-              isEdit
-                ? 'Değişiklikleri etüt öğretmenine e-postayla bildir'
-                : scheduledMail
-                  ? 'Etüt gününde öğrencilere ve etüt öğretmenine otomatik e-posta gönder'
-                  : 'Öğrencilere ve etüt öğretmenine e-posta gönder'
-            }
-            hint={
-              isEdit
-                ? 'Tarih, saat, yer, konu veya öğretmen değişirse yalnızca öğretmene bilgi gider. Öğretmen değişirse eski öğretmene de bildirilir.'
-                : scheduledMail
-                  ? 'Şimdi e-posta gitmez. Her etüt için, etüt gününde saat girilmişse etüt saatinden 1 saat önce, saat girilmemişse sabah 08:00\'de gider.'
-                  : 'Etüt bugün olduğu için e-posta kaydedince hemen gider: öğrencilere etüt bilgisi, öğretmene etüt bilgisi ve öğrenci listesi.'
-            }
-          />
-        )}
+          <div className="order-4 lg:order-none min-w-0 lg:sticky lg:top-0">
+            <FormSection
+              title="Öğrenciler"
+              hint={<InfoTip text="Sınıf yalnızca listeyi süzer; farklı sınıflardan öğrenci seçebilirsiniz." />}
+            >
+              {/* Aşama 203: telefonda tek satır özet + Seç düğmesi; liste düğmeyle açılır */}
+              <div className="lg:hidden flex items-center gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2">
+                <Users className="w-4 h-4 text-brand-fg shrink-0" />
+                <span className="flex-1 min-w-0 text-xs text-fg-2" id="etut-student-summary">
+                  <strong className="text-fg">{selectedIds.length}</strong> öğrenci seçili
+                </span>
+                <button
+                  type="button"
+                  id="etut-student-toggle"
+                  aria-expanded={pickerOpen}
+                  onClick={() => setPickerOpen((v) => !v)}
+                  className="ui-btn ui-btn-primary ui-btn-sm h-8 w-24 min-w-0"
+                >
+                  {pickerOpen ? 'Kapat' : 'Seç'}
+                </button>
+              </div>
+              <div className={cx(!pickerOpen && 'hidden lg:block')}>
+              <StudentPicker
+                variant="filter"
+                idPrefix="etut"
+                bolum="etut"
+                classes={classes}
+                students={students}
+                classIds={filterClassIds}
+                onClassIdsChange={setFilterClassIds}
+                selectedIds={selectedIds}
+                onSelectedChange={setSelectedIds}
+                badges={konuRates}
+                listCls="max-h-56 lg:max-h-[min(28rem,55vh)]"
+              />
+              </div>
+              {copyInfo && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-surface-2 text-muted px-2.5 py-1.5 text-[11px] mt-2" id="etut-kopya-bilgi">
+                  <Copy className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>{copyInfo}</span>
+                </p>
+              )}
+              {repeats.length > 0 && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold mt-2" id="etut-tekrar-uyari">
+                  <History className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>
+                    {repeats.length === 1
+                      ? repeatText(repeats[0])
+                      : `${repeats.length} öğrenci bu dersten aynı konuda daha önce etüt almış: ${repeats
+                          .slice(0, 4)
+                          .map((r) => `${r.name} (${trDate(r.etut.date)})`)
+                          .join(', ')}${repeats.length > 4 ? ` +${repeats.length - 4}` : ''}.`}
+                  </span>
+                </p>
+              )}
+            </FormSection>
+          </div>
+        </div>
 
         {(errorText || conflicts) && (
           <div id="etut-form-alert">
