@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FileSpreadsheet,
   UserX,
@@ -34,6 +34,7 @@ import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
 import { OverlayLayer, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
+import { dersAyarOku } from '../../services/dersService'; // Aşama 230
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -181,7 +182,23 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     return { status: 'present', note: '' };
   };
 
+  // Aşama 230: kurumda ders programı (ders saatleri) kuruluysa ders yoklaması yalnız Dersler › Program'dan alınır;
+  // bu sekme (etüt yoklamasının kopyaları + eski kayıtlar) yalnız görüntülenir. Kayıtlara dokunulmaz.
+  const [salt, setSalt] = useState(false);
+  useEffect(() => {
+    let canli = true;
+    dersAyarOku()
+      .then((a) => canli && setSalt(!!a?.kayitli))
+      .catch(() => {
+        /* 217 kurulu değil: bugünkü davranış */
+      });
+    return () => {
+      canli = false;
+    };
+  }, []);
+
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
+    if (salt) return;
     const current = getStudentAttendance(studentId);
     setAttendanceMap((prev) => ({
       ...prev,
@@ -190,6 +207,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   };
 
   const handleSetAllStatus = (status: AttendanceStatus) => {
+    if (salt) return;
     const nextMap: Record<string, { status: AttendanceStatus; note: string }> = {};
     classStudents.forEach((std) => {
       const current = getStudentAttendance(std.id);
@@ -199,6 +217,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   };
 
   const handleSaveAttendance = () => runSave(async () => {
+    if (salt) throw new Error("Ders yoklaması Dersler › Program'dan alınır.");
     if (!selectedClassId || !selectedSubject) throw new Error('Önce sınıf ve ders seçin.');
     const records = classStudents.map((std) => {
       const current = getStudentAttendance(std.id);
@@ -221,6 +240,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   });
 
   const handleDeleteCurrentAttendance = async () => {
+    if (salt) return;
     if (currentAttendanceRecord) {
       await dataService.deleteAttendance(currentAttendanceRecord.id);
     } else {
@@ -230,6 +250,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   };
 
   const handleClearForm = () => {
+    if (salt) return;
     const resetMap: Record<string, { status: AttendanceStatus; note: string }> = {};
     classStudents.forEach((std) => {
       resetMap[std.id] = { status: 'present', note: '' };
@@ -545,7 +566,8 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           </div>
         ) : (
           <div className="flex items-center space-x-2">
-            {currentAttendanceRecord && (
+            {salt && <span className="text-[11px] text-muted">Yalnız görüntüleme · ders yoklaması Program'dan alınır</span>}
+            {currentAttendanceRecord && !salt && (
               <button
                 type="button"
                 onClick={() => setIsClearCurrentConfirmOpen(true)}
@@ -561,6 +583,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               type="button"
               onClick={handleSaveAttendance}
               disabled={isSaving}
+              hidden={salt}
               className="ui-btn ui-btn-success ui-btn-sm w-28"
             >
               <Save className="w-3.5 h-3.5" />
@@ -994,6 +1017,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
                 <button
                   type="button"
+                  hidden={salt}
                   onClick={() => handleSetAllStatus('present')}
                   className="ui-btn ui-btn-sm w-24 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20"
                   title="Bütün öğrencileri 'Var' yap"
@@ -1004,6 +1028,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 <button
                   type="button"
                   onClick={handleClearForm}
+                  hidden={salt}
                   className="ui-btn ui-btn-secondary ui-btn-sm w-24"
                 >
                   Sıfırla
@@ -1116,6 +1141,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                 <input
                                   type="text"
                                   value={att.note}
+                                  readOnly={salt}
                                   onChange={(e) =>
                                     setAttendanceMap((prev) => ({
                                       ...prev,
@@ -1129,6 +1155,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                               <td className="px-3 py-2.5 text-right">
                                 <button
                                   type="button"
+                                  hidden={salt}
                                   onClick={() => {
                                     setAttendanceMap((prev) => ({
                                       ...prev,
@@ -1163,6 +1190,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   <div className="flex items-center space-x-2 w-full sm:w-auto">
                     <button
                       type="button"
+                      hidden={salt}
                       onClick={() => setAttendanceMap({})}
                       className="ui-btn ui-btn-secondary ui-btn-sm flex-1 sm:flex-none sm:w-28"
                     >
@@ -1174,6 +1202,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       type="button"
                       onClick={handleSaveAttendance}
                       disabled={isSaving}
+                      hidden={salt}
                       className="ui-btn ui-btn-success ui-btn-sm flex-1 sm:flex-none sm:w-28"
                     >
                       <Save className="w-3.5 h-3.5" />
@@ -1305,6 +1334,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                             <button
                               type="button"
                               onClick={() => setAttendanceToDelete(rec)}
+                              hidden={salt}
                               className="ui-btn ui-btn-danger-soft ui-btn-icon"
                               title="Yoklamayı Sil"
                               aria-label="Yoklamayı sil"

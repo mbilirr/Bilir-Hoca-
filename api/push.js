@@ -7,6 +7,7 @@
 //  POST /api/push { action: 'unsubscribe', endpoint }     -> bu cihazın bildirimini kapatır
 //  POST /api/push { action: 'test' }                      -> kendi cihaz(lar)ına deneme bildirimi
 //  POST /api/push { action: 'notify', event, ... }        -> anlık bildirim (yeni ödev, duyuru/not, cevap, öğrenci mesajı)
+//  POST /api/push { action: 'ders-hatirlat', classId, tarih, sira } -> idare: dersin öğretmenine yoklama hatırlatması (Aşama 230)
 //
 // POST istekleri giriş yapmış kullanıcının oturum anahtarıyla gelir (Authorization: Bearer …).
 // Ayrıntılar ve ortam değişkenleri: bu dosyanın sonundaki ORTAK ÇEKİRDEK bölümü
@@ -777,6 +778,69 @@ async function tickQuestionDaily(now, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 230: ders yoklaması hatırlatma
+// Ders bitiminden 10 dk sonra yoklama alınmadıysa dersin öğretmen(ler)ine ders başına BİR KEZ (push_log).
+// Dersler veritabanında hesaplanır (sql/230 ders_hatirlat_tara, yalnız service_role). 230 SQL'i yoksa sessizce atlanır.
+const dersYok = (err) => err && (err.status === 404 || /PGRST202|42883/.test(String(err.message || '')));
+const dersSatiri = (d) => `${d.class_ad || 'Sınıf'} · ${d.sira}. ders${d.ders ? ` (${d.ders})` : ''}`;
+async function tickDersYoklama(now, deadline) {
+  let out = EMPTY;
+  let rows;
+  try {
+    rows = await rest('rpc/ders_hatirlat_tara', { token: 'service', method: 'POST', body: {} });
+  } catch (err) {
+    if (dersYok(err)) return EMPTY;
+    throw err;
+  }
+  for (const d of Array.isArray(rows) ? rows : []) {
+    if (deadline && Date.now() > deadline) break;
+    if (!d || !d.class_id || !d.tarih || !d.sira) continue;
+    const tch = await teacherAuthIds(arr(d.teacher_ids));
+    if (!tch.length) continue;
+    out = addOut(
+      out,
+      await sendToUsers(
+        tch,
+        { title: 'Ders yoklaması bekliyor', body: `${dersSatiri(d)} yoklaması bekliyor.`, url: '/#/teacher/grades', tag: `ders-${d.class_id}-${d.tarih}-${d.sira}` },
+        { dedupe: `ders-hatirlat:${d.class_id}|${d.tarih}|${d.sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
+      )
+    );
+  }
+  return out;
+}
+
+// İdare "Hatırlat" düğmesi: kurum/yetki/ders kontrolü çağıranın oturumuyla SQL'de yapılır (ders_hatirlat_hedef).
+// Aynı ders için günde en çok bir kez (push_log). Yönetici ayarı (Bildirim izinleri) burada da geçerlidir.
+async function dersHatirlatElle(caller, body, deadline) {
+  if (caller.role !== 'teacher') throw new HttpError(403, 'Yalnızca idare.');
+  const classId = String(body.classId || '');
+  const tarih = String(body.tarih || '');
+  const sira = Number(body.sira);
+  if (!classId || classId.length > 120 || !/^\d{4}-\d{2}-\d{2}$/.test(tarih) || !Number.isInteger(sira) || sira < 1 || sira > 10)
+    throw new HttpError(400, 'Geçersiz ders.');
+  let d;
+  try {
+    d = await rest('rpc/ders_hatirlat_hedef', { token: caller.token, method: 'POST', body: { p_class_id: classId, p_tarih: tarih, p_sira: sira } });
+  } catch (err) {
+    if (dersYok(err)) throw new HttpError(400, 'Önce 230 numaralı SQL dosyası çalıştırılmalı.');
+    const m = /:\s*(.+)$/.exec(String(err.message || ''));
+    throw new HttpError(err.status === 403 || err.status === 401 ? 403 : 400, (m && m[1]) || 'Hatırlatılamadı.');
+  }
+  if (!d || typeof d !== 'object') throw new HttpError(400, 'Hatırlatılamadı.');
+  if (d.alindi) return { ok: true, alindi: true, message: 'Yoklama zaten alındı.' };
+  const tch = await teacherAuthIds(arr(d.teacher_ids));
+  if (!tch.length) return { ok: false, error: 'Dersin öğretmeninin giriş hesabı yok.' };
+  const r = await sendToUsers(
+    tch,
+    { title: 'Ders yoklaması bekliyor', body: `${dersSatiri({ ...d, sira })} yoklamasını alın (idare hatırlattı).`, url: '/#/teacher/grades', tag: `ders-${classId}-${tarih}-${sira}` },
+    { dedupe: `ders-hatirlat-elle:${classId}|${tarih}|${sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
+  );
+  if (r.sent > 0) return { ok: true, ...r, message: 'Öğretmene bildirim gönderildi.' };
+  if (r.devices > 0 && r.users === 0) return { ok: true, ...r, already: true, message: 'Bugün zaten hatırlatıldı.' };
+  if (!r.devices) return { ok: false, ...r, error: 'Öğretmenin telefon bildirimi açık değil.' };
+  return { ok: false, ...r, error: 'Bildirim gönderilemedi.' };
+}
+
 export async function runPushTick(deadline) {
   const now = istanbulNow();
   const result = { ok: true, date: now.date, configured: pushConfigured(), sent: 0, failed: 0, removed: 0, errors: [] };
@@ -788,6 +852,7 @@ export async function runPushTick(deadline) {
     ['ödev', tickHomeworkDue],
     ['plan', tickPlanDaily],
     ['soru', tickQuestionDaily],
+    ['ders', tickDersYoklama], // Aşama 230
   ];
   for (const [name, fn] of jobs) {
     if (Date.now() > deadline) break;
@@ -1106,6 +1171,9 @@ export default async function handler(req, res) {
         result = { ok: true, ...result };
         break;
       }
+      case 'ders-hatirlat': // Aşama 230
+        result = await dersHatirlatElle(caller, body, deadline);
+        break;
       default:
         throw new HttpError(400, 'Bilinmeyen işlem.');
     }

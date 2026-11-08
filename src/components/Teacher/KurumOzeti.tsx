@@ -7,6 +7,7 @@ import { isEtutAttendanceMissing } from '../../lib/etutTiming';
 import { getEtutStatus, etutTeacherNames, teacherShort } from '../../lib/etutStatus';
 import { BugunOzet, dersCanliDinle, ozetBugun } from '../../services/dersService';
 import { Panel, cx } from '../ui/kit';
+import { dersHatirlat } from '../../lib/push'; // Aşama 230
 
 // ============================================================================
 // KURUM ÖZETİ — idarenin ana sayfası. Aşama 221: SADELEŞTİ (ana sayfa hafif kalsın).
@@ -91,6 +92,22 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
   const gecikenDers = ders?.gecikenler || [];
   const gecikenToplam = gecikenDers.length + etutEksik.length;
 
+  // Aşama 230: geciken ders satırında elle "Hatırlat" (dersin öğretmenine telefon bildirimi; sunucu ders başına günde bir kez gönderir)
+  const [hatirlat, setHatirlat] = useState<Record<string, { durum: 'gidiyor' | 'tamam' | 'hata'; yazi: string }>>({});
+  const [sonYazi, setSonYazi] = useState('');
+  const hatirlatGonder = async (classId: string, sira: number) => {
+    const tarih = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+    const k = `${classId}|${tarih}|${sira}`;
+    if (hatirlat[k]?.durum === 'gidiyor' || hatirlat[k]?.durum === 'tamam') return;
+    setHatirlat((m) => ({ ...m, [k]: { durum: 'gidiyor', yazi: '' } }));
+    const r = await dersHatirlat(classId, tarih, sira);
+    const yazi = r.ok ? r.message || 'Hatırlatıldı.' : r.error || 'Hatırlatılamadı.';
+    setHatirlat((m) => ({ ...m, [k]: { durum: r.ok ? 'tamam' : 'hata', yazi } }));
+    setSonYazi(`${gecikenDers.find((x) => x.classId === classId && x.sira === sira)?.classAd || ''} · ${sira}. ders: ${yazi}`);
+  };
+  const hatirlatDurum = (classId: string, sira: number) =>
+    hatirlat[`${classId}|${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date())}|${sira}`];
+
   const tiles = [
     canEtut && {
       id: 'ko-etut',
@@ -173,12 +190,14 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
               <span className="font-normal text-muted">· bitiminden {ders?.gecikmeDk || 40} dk sonra</span>
             </h3>
             <ul className="space-y-0.5">
-              {gecikenDers.slice(0, 6).map((g) => (
-                <li key={`${g.classId}-${g.sira}`}>
+              {gecikenDers.slice(0, 6).map((g) => {
+                const h = hatirlatDurum(g.classId, g.sira);
+                return (
+                <li key={`${g.classId}-${g.sira}`} className="flex items-center gap-1.5 min-w-0">
                   <button
                     type="button"
                     onClick={() => setRapor('yoklama')}
-                    className="w-full flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-surface text-left text-xs cursor-pointer min-w-0"
+                    className="flex-1 flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-surface text-left text-xs cursor-pointer min-w-0"
                   >
                     <span className="font-semibold text-fg shrink-0">
                       {g.classAd} · {g.sira}. ders
@@ -189,9 +208,26 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
                     </span>
                     <span className="ml-auto text-muted tabular-nums shrink-0">{g.bit}</span>
                   </button>
+                  {/* Aşama 230: elle hatırlatma */}
+                  <button
+                    type="button"
+                    onClick={() => void hatirlatGonder(g.classId, g.sira)}
+                    disabled={h?.durum === 'gidiyor' || h?.durum === 'tamam'}
+                    title={h?.yazi || 'Dersin öğretmenine telefon bildirimi gönderir (ders başına günde bir kez)'}
+                    aria-label={`${g.classAd} ${g.sira}. ders öğretmenine hatırlat`}
+                    className={cx('ui-btn ui-btn-sm h-8 w-24 shrink-0', h?.durum === 'hata' ? 'ui-btn-danger' : 'ui-btn-secondary')}
+                  >
+                    {h?.durum === 'gidiyor' ? 'Gönderiliyor' : h?.durum === 'tamam' ? 'Hatırlatıldı' : h?.durum === 'hata' ? 'Tekrar dene' : 'Hatırlat'}
+                  </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
+            {sonYazi && (
+              <p className="text-[11px] text-muted" aria-live="polite">
+                {sonYazi}
+              </p>
+            )}
             {gecikenDers.length > 6 && (
               <button type="button" onClick={() => setRapor('yoklama')} className="text-[11px] font-semibold text-danger-fg hover:underline cursor-pointer">
                 +{gecikenDers.length - 6} ders daha

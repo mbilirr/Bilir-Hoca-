@@ -45,8 +45,8 @@ export const POLICY_CATEGORIES: {
   },
   {
     id: 'yoklama',
-    label: 'Etüt yoklaması',
-    hint: 'Yoklama bağlantısı ve "yoklama alınmadı" uyarısı',
+    label: 'Yoklama hatırlatması', // Aşama 230: etüt + ders yoklaması (ders hatırlatması da bu izne bağlı)
+    hint: 'Etüt yoklama bağlantısı, "yoklama alınmadı" ve ders yoklaması hatırlatması (öğretmene)',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
   },
   // Aşama 223: ders yoklamasından veliye gün sonu tek özet (varsayılan kapalı)

@@ -155,3 +155,10 @@ export async function testPush(): Promise<{ ok: boolean; error?: string }> {
 export function notifyPush(event: PushEvent, payload: Record<string, string>): void {
   void post({ action: 'notify', event, ...payload }).catch(() => undefined);
 }
+
+/** Aşama 230: idare › geciken ders satırındaki "Hatırlat" (dersin öğretmenine telefon bildirimi; ders başına günde bir kez) */
+export async function dersHatirlat(classId: string, tarih: string, sira: number): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const r = await post({ action: 'ders-hatirlat', classId, tarih, sira });
+  if (r && r.ok) return { ok: true, message: r.message || 'Hatırlatıldı.' };
+  return { ok: false, error: (r && r.error) || 'Hatırlatılamadı.' };
+}
