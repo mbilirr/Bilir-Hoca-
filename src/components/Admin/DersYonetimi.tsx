@@ -9,20 +9,21 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 // ============================================================================
 
 const DersSaatleriPanel = lazyNamed(() => import('./DersSaatleriPanel'), 'DersSaatleriPanel');
+const SinifOgretmenleriPanel = lazyNamed(() => import('./SinifOgretmenleriPanel'), 'SinifOgretmenleriPanel'); // Aşama 218
 
-type Bolum = 'saatler';
+type Bolum = 'saatler' | 'ogretmenler';
 
 const STORE_KEY = 'edu_ders_yonetim_v1';
 const okunan = (): Bolum => {
   try {
     const v = window.sessionStorage.getItem(STORE_KEY);
-    return v === 'saatler' ? v : 'saatler';
+    return v === 'saatler' || v === 'ogretmenler' ? v : 'saatler';
   } catch {
     return 'saatler';
   }
 };
 
-export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> = ({ kurumId }) => {
+export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> = ({ kurumId, classes }) => {
   const [bolum, setBolumState] = useState<Bolum>(okunan);
   const setBolum = (b: Bolum) => {
     setBolumState(b);
@@ -32,12 +33,18 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       /* depolama kapalı */
     }
   };
-  const bolumler: Array<{ value: Bolum; label: string; id: string }> = [{ value: 'saatler', label: 'Ders saatleri', id: 'ders-yonetim-saatler' }];
+  const bolumler: Array<{ value: Bolum; label: string; id: string }> = [
+    { value: 'saatler', label: 'Ders saatleri', id: 'ders-yonetim-saatler' },
+    { value: 'ogretmenler', label: 'Sınıf öğretmenleri', id: 'ders-yonetim-ogretmenler' }, // Aşama 218
+  ];
 
   return (
     <div className="space-y-3" id="ders-yonetimi">
       {bolumler.length > 1 && <Segmented size="sm" value={bolum} onChange={setBolum} items={bolumler} />}
-      <Suspense fallback={<PageLoading />}>{bolum === 'saatler' && <DersSaatleriPanel kurumId={kurumId} />}</Suspense>
+      <Suspense fallback={<PageLoading />}>
+        {bolum === 'saatler' && <DersSaatleriPanel kurumId={kurumId} />}
+        {bolum === 'ogretmenler' && <SinifOgretmenleriPanel kurumId={kurumId} classes={classes} />}
+      </Suspense>
     </div>
   );
 };
