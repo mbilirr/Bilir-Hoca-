@@ -138,13 +138,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null);
   const [viewEtut, setViewEtut] = useState<Etut | null>(null); // Aşama 111: salt okunur yoklama / yorum // Aşama 21: açık etüt şeridi
   // Aşama 179: yoklama ekranında seçili etüt sayfa yenilenince korunur (yalnız bu sekmede; etüt silindiyse ilk etüt)
-  const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(() => {
-    try {
-      return sessionStorage.getItem(ATT_ETUT_KEY) || etuts[0]?.id || '';
-    } catch {
-      return etuts[0]?.id || '';
-    }
-  });
+  // Aşama 216: yoklama ekranı kapalı başlar; etüde dokununca satırın hemen altında açılır (akordeon)
+  const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>('');
   useEffect(() => {
     try {
       if (selectedAttendanceEtutId) sessionStorage.setItem(ATT_ETUT_KEY, selectedAttendanceEtutId);
@@ -156,9 +151,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   // Aşama 204: yoklama ekranında etüt seçimi kısa liste (süzgeç: null = yoklaması bekleyen varsa 'bekleyen', yoksa 'tumu')
   const [attPickFilter, setAttPickFilter] = useState<'bekleyen' | 'bugun' | 'tumu' | null>(null);
   const [attPickQuery, setAttPickQuery] = useState('');
-  const [attPickLimit, setAttPickLimit] = useState(40);
-  // Aşama 214: etüt seçilince liste kapanır, yoklama hemen altında açılır; "Değiştir" ile liste geri gelir
-  const [attPickOpen, setAttPickOpen] = useState(false);
+  const [attPickLimit, setAttPickLimit] = useState(15); // Aşama 216: liste iç kaydırmasız, 15 satır + Daha fazla
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
   useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
@@ -937,7 +930,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         // Aşama 111: yoklama yalnız düzenleyebildiği etütlerde alınır (Rehberlik başkasınınkini Takip'te görür)
         const attEtuts = listEtuts.filter((e) => canEditEtut(e));
         const currentAttendanceEtut =
-          attEtuts.find((e) => e.id === selectedAttendanceEtutId) || attEtuts[0] || null;
+          attEtuts.find((e) => e.id === selectedAttendanceEtutId) || null; // Aşama 216: seçilmeden açılmaz
 
         // Atanan öğrenciler listesi
         const assignedStudents = (() => {
@@ -1023,6 +1016,232 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           const label = status === 'present' ? 'Geldi' : status === 'absent' ? 'Gelmedi' : 'İzinli';
           setAttendanceFeedback(`✓ Tüm öğrenciler "${label}" olarak güncellendi.`);
         };
+
+        // Aşama 216: yoklama paneli seçili etüt satırının hemen altında çizilir
+        const handleSaveAndClose = () => {
+          if (!currentAttendanceEtut) return;
+          const id = currentAttendanceEtut.id;
+          if (assignedStudents.length) {
+            const map: Record<string, any> = {};
+            assignedStudents.forEach((std) => {
+              const prev = currentAttendanceEtut.studentAttendance?.[std.id];
+              map[std.id] = {
+                ...(prev || {}),
+                studentId: std.id,
+                studentName: std.name,
+                status: prev?.status || 'present',
+                note: attendanceNotes[std.id] ?? prev?.note ?? '',
+                updatedAt: new Date().toISOString(),
+              };
+            });
+            dataService.updateEtutAttendance(id, map);
+          }
+          setAttendanceFeedback('✓ Yoklama kaydedildi.');
+          setSelectedAttendanceEtutId('');
+          requestAnimationFrame(() => document.getElementById(`etut-att-pick-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+        };
+        const attendancePanel = currentAttendanceEtut ? (
+              <div className="border-b border-line bg-surface-2/40 p-3 sm:p-4 space-y-4" id="etut-att-inline">
+                {/* Aşama 216: konu ve öğretmen görüşü panelin başında */}
+                {(currentAttendanceEtut.topic || currentAttendanceEtut.teacherFeedback) && (
+                  <div className="space-y-1 text-xs">
+                    {currentAttendanceEtut.topic && <p className="text-fg-2"><span className="font-semibold text-fg">Konu:</span> {currentAttendanceEtut.topic}</p>}
+                    {currentAttendanceEtut.teacherFeedback && (
+                      <p className="text-fg-2"><span className="font-semibold text-fg">Öğretmen görüşü:</span> {currentAttendanceEtut.teacherFeedback}</p>
+                    )}
+                  </div>
+                )}
+                {/* Header & Arama */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base font-bold text-fg">
+                        Yoklama
+                      </h3>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+                        {assignedStudents.length} Kayıtlı Öğrenci
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={attendanceSearchQuery}
+                      onChange={(e) => setAttendanceSearchQuery(e.target.value)}
+                      placeholder="Öğrenci ara..."
+                      className="ui-field w-full pl-8 pr-3"
+                    />
+                  </div>
+                </div>
+
+                {/* Sayaçlar */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="p-2.5 rounded-xl bg-canvas/70 border border-line text-center">
+                    <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
+                    <span className="text-base font-bold text-fg">{assignedStudents.length}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Geldi</span>
+                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-300">{countPresent}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 block">Gelmedi</span>
+                    <span className="text-base font-bold text-rose-600 dark:text-rose-300">{countAbsent}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block">Geç Kaldı</span>
+                    <span className="text-base font-bold text-amber-700 dark:text-amber-300">{countLate}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-700 dark:text-sky-300">{countExcused}</span>
+                  </div>
+                </div>
+
+                {/* Toplu İşlem Butonları */}
+                <div className="p-3 rounded-xl bg-canvas/60 border border-line flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-fg-2">
+                    Hızlı Toplu Yoklama:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('present')}
+                      className="ui-btn ui-btn-sm bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Tümü geldi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('absent')}
+                      className="ui-btn ui-btn-sm bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 min-w-24"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Tümü gelmedi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('excused')}
+                      className="ui-btn ui-btn-sm bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      <span>Tümü izinli</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ALT ALTA SIRALI ÖĞRENCİ LİSTESİ */}
+                {assignedStudents.length === 0 ? (
+                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
+                    Bu etüte henüz öğrenci atanmamış. Etütü düzenleyerek öğrenci ekleyebilirsiniz.
+                  </div>
+                ) : displayedStudents.length === 0 ? (
+                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
+                    "{attendanceSearchQuery}" aramasına uygun öğrenci bulunamadı.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-line border border-line rounded-xl overflow-hidden bg-canvas/50">
+                    {displayedStudents.map((std, idx) => {
+                      const att = currentAttendanceEtut.studentAttendance?.[std.id];
+                      const currentStatus = att?.status || 'present';
+                      return (
+                        <div
+                          key={std.id}
+                          className="p-3 sm:p-3.5 hover:bg-surface-2/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        >
+                          {/* Öğrenci Bilgisi */}
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <span className="w-6 text-center text-xs font-mono text-muted shrink-0">
+                              {idx + 1}
+                            </span>
+                            <img
+                              src={profilResmi(std, 'student')}
+                              alt={std.name}
+                              className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-fg truncate">{std.name}</h4>
+                            </div>
+                          </div>
+
+                          {/* 4 Seçenek Butonu: GELDI, GELMEDI, GEÇ KALDI, İZİNLİ */}
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                            {/* Geldi */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'present')}
+                              className={`ui-btn ui-btn-sm ${
+                                currentStatus === 'present'
+                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                                  : 'bg-surface hover:bg-emerald-600/20 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-500/40'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Geldi</span>
+                            </button>
+
+                            {/* Gelmedi */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'absent')}
+                              className={`ui-btn ui-btn-sm ${
+                                currentStatus === 'absent'
+                                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
+                                  : 'bg-surface hover:bg-rose-600/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border border-line hover:border-rose-500/40'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Gelmedi</span>
+                            </button>
+
+                            {/* Geç Kaldı */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'late')}
+                              className={`ui-btn ui-btn-sm ${
+                                currentStatus === 'late'
+                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
+                                  : 'bg-surface hover:bg-amber-600/20 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-500/40'
+                              }`}
+                            >
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>Geç Kaldı</span>
+                            </button>
+
+                            {/* İzinli */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'excused')}
+                              className={`ui-btn ui-btn-sm ${
+                                currentStatus === 'excused'
+                                  ? 'bg-sky-600 text-white ring-2 ring-sky-400'
+                                  : 'bg-surface hover:bg-sky-600/20 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-500/40'
+                              }`}
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              <span>İzinli</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Aşama 216: Kaydet = işaretlenmeyenler "Geldi" sayılarak hepsi yazılır, panel kapanır */}
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" id="etut-att-close" className="ui-btn ui-btn-secondary ui-btn-sm w-28" onClick={() => setSelectedAttendanceEtutId('')}>
+                    Kapat
+                  </button>
+                  <button type="button" id="etut-att-save" className="ui-btn ui-btn-primary ui-btn-sm w-28" onClick={handleSaveAndClose} disabled={assignedStudents.length === 0}>
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+        ) : null;
 
         if (attEtuts.length === 0 && activeEtuts.length > 0) {
           return (
@@ -1142,8 +1361,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           aria-selected={filt === f.key}
                           onClick={() => {
                             setAttPickFilter(f.key);
-                            setAttPickLimit(40);
-                            setAttPickOpen(true);
+                            setAttPickLimit(15);
                           }}
                           className={cx(
                             'h-8 w-24 rounded-md text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
@@ -1163,8 +1381,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         value={attPickQuery}
                         onChange={(e) => {
                           setAttPickQuery(e.target.value);
-                          setAttPickLimit(40);
-                          setAttPickOpen(true);
+                          setAttPickLimit(15);
                         }}
                         placeholder="Ders, konu, sınıf, öğretmen"
                         aria-label="Etüt ara"
@@ -1173,14 +1390,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </div>
                   </div>
 
-                  {(!currentAttendanceEtut || attPickOpen) && (
-                  <div className="rounded-xl border border-line overflow-hidden max-h-80 overflow-y-auto" id="etut-att-list">
+                  <div className="rounded-xl border border-line overflow-hidden" id="etut-att-list">
                     {visible.length === 0 ? (
                       <div className="py-6 text-center text-xs text-muted">
                         {q ? `"${q}" ile eşleşen etüt yok.` : filt === 'bekleyen' ? 'Yoklaması bekleyen etüt yok.' : 'Bu süzgeçte etüt yok.'}
                       </div>
                     ) : (
-                      visible.map((e) => {
+                      (currentAttendanceEtut && !visible.some((x) => x.id === currentAttendanceEtut.id) ? [currentAttendanceEtut, ...visible] : visible).map((e) => {
                         const day = ymdOf(e);
                         const head = day !== lastDay;
                         lastDay = day;
@@ -1200,12 +1416,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               id={`etut-att-pick-${e.id}`}
                               aria-pressed={on}
                               title={e.topic || undefined}
+                              aria-expanded={on}
                               onClick={() => {
+                                // Aşama 216: aynı satır kapatır, başka satır onu açar (yoklama satırın hemen altında)
+                                if (on) {
+                                  setSelectedAttendanceEtutId('');
+                                  return;
+                                }
                                 setSelectedAttendanceEtutId(e.id);
+                                setAttendanceSearchQuery('');
                                 ackMissing([e.id]); // Aşama 33d: eksik etüt seçilince yanıp sönme durur
-                                setAttPickOpen(false); // Aşama 214
                                 requestAnimationFrame(() =>
-                                  document.getElementById('etut-att-selected')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                                  document.getElementById(`etut-att-pick-${e.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                                 );
                               }}
                               className={cx(
@@ -1223,19 +1445,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               {stt && (
                                 <span className={cx('shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full', stt.cls)}>{stt.label}</span>
                               )}
+                              <ChevronDown className={cx('w-4 h-4 shrink-0 text-muted transition-transform', on && 'rotate-180')} aria-hidden />
                             </button>
+                            {on && attendancePanel}
                           </React.Fragment>
                         );
                       })
                     )}
                   </div>
-                  )}
-                  {(!currentAttendanceEtut || attPickOpen) && shown.length > visible.length && (
+                  {shown.length > visible.length && (
                     <div className="flex justify-center">
                       <button
                         type="button"
                         id="etut-att-more"
-                        onClick={() => setAttPickLimit((l) => l + 40)}
+                        onClick={() => setAttPickLimit((l) => l + 15)}
                         className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28"
                       >
                         Daha fazla
@@ -1243,230 +1466,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </div>
                   )}
 
-                  {/* Seçili etüt: tek satır (konu burada) */}
-                  {currentAttendanceEtut && (
-                    <div className="rounded-xl bg-surface-2/70 border border-line px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1" id="etut-att-selected">
-                      <span className="text-xs font-bold text-fg">
-                        {normalizeSubject(currentAttendanceEtut.subject) || currentAttendanceEtut.subject} · {dayLabel(ymdOf(currentAttendanceEtut))}
-                        {currentAttendanceEtut.time ? ` ${currentAttendanceEtut.time}` : ''}
-                      </span>
-                      <span className="flex-1 min-w-0 text-xs text-fg-2 truncate" title={currentAttendanceEtut.topic || undefined}>
-                        {currentAttendanceEtut.topic}
-                      </span>
-                      <span className="text-[11px] text-muted">
-                        {[currentAttendanceEtut.time ? `${currentAttendanceEtut.duration} dk` : '', currentAttendanceEtut.location].filter(Boolean).join(' · ')}
-                      </span>
-                      <button
-                        type="button"
-                        id="etut-att-change"
-                        onClick={() => setAttPickOpen((v) => !v)}
-                        className="ui-btn ui-btn-secondary ui-btn-sm w-24"
-                      >
-                        {attPickOpen ? 'Listeyi kapat' : 'Değiştir'}
-                      </button>
-                      {currentAttendanceEtut.teacherFeedback && (
-                        <div className="w-full mt-2 pt-2 border-t border-line flex items-start space-x-2 text-xs text-amber-700/90 dark:text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
-                          <MessageSquareQuote className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">Öğretmen Görüş ve Düşünceleri:</strong>
-                            <span className="italic text-fg-2 font-normal">"{currentAttendanceEtut.teacherFeedback}"</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })()}
 
-            {/* 2. ETÜTTEKİ ÖĞRENCİLER VE DEVAMSIZLIK LİSTESİ */}
-            {currentAttendanceEtut && (
-              <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-                {/* Header & Arama */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-base font-bold text-fg">
-                        Etüt Öğrenci Yoklama Listesi
-                      </h3>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
-                        {assignedStudents.length} Kayıtlı Öğrenci
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted mt-0.5">
-                      Öğrencinin devamsızlık durumunu tek tıkla işaretleyin.
-                    </p>
-                  </div>
-
-                  <div className="relative w-full sm:w-64">
-                    <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={attendanceSearchQuery}
-                      onChange={(e) => setAttendanceSearchQuery(e.target.value)}
-                      placeholder="Öğrenci ara..."
-                      className="ui-field w-full pl-8 pr-3"
-                    />
-                  </div>
-                </div>
-
-                {/* Sayaçlar */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <div className="p-2.5 rounded-xl bg-canvas/70 border border-line text-center">
-                    <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
-                    <span className="text-base font-bold text-fg">{assignedStudents.length}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Geldi</span>
-                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-300">{countPresent}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 block">Gelmedi</span>
-                    <span className="text-base font-bold text-rose-600 dark:text-rose-300">{countAbsent}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block">Geç Kaldı</span>
-                    <span className="text-base font-bold text-amber-700 dark:text-amber-300">{countLate}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">İzinli</span>
-                    <span className="text-base font-bold text-sky-700 dark:text-sky-300">{countExcused}</span>
-                  </div>
-                </div>
-
-                {/* Toplu İşlem Butonları */}
-                <div className="p-3 rounded-xl bg-canvas/60 border border-line flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-fg-2">
-                    Hızlı Toplu Yoklama:
-                  </span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleBulkEtutAttendance('present')}
-                      className="ui-btn ui-btn-sm bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>✓ Tümü Geldi</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleBulkEtutAttendance('absent')}
-                      className="ui-btn ui-btn-sm bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 min-w-24"
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      <span>✕ Tümü Gelmedi</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleBulkEtutAttendance('excused')}
-                      className="ui-btn ui-btn-sm bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
-                    >
-                      <Info className="w-3.5 h-3.5" />
-                      <span>ℹ Tümü İzinli</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* ALT ALTA SIRALI ÖĞRENCİ LİSTESİ */}
-                {assignedStudents.length === 0 ? (
-                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
-                    Bu etüte henüz öğrenci atanmamış. Etütü düzenleyerek öğrenci ekleyebilirsiniz.
-                  </div>
-                ) : displayedStudents.length === 0 ? (
-                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
-                    "{attendanceSearchQuery}" aramasına uygun öğrenci bulunamadı.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-line border border-line rounded-xl overflow-hidden bg-canvas/50">
-                    {displayedStudents.map((std, idx) => {
-                      const att = currentAttendanceEtut.studentAttendance?.[std.id];
-                      const currentStatus = att?.status || 'present';
-                      return (
-                        <div
-                          key={std.id}
-                          className="p-3 sm:p-3.5 hover:bg-surface-2/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
-                        >
-                          {/* Öğrenci Bilgisi */}
-                          <div className="flex items-center space-x-3 min-w-0">
-                            <span className="w-6 text-center text-xs font-mono text-muted shrink-0">
-                              {idx + 1}
-                            </span>
-                            <img
-                              src={profilResmi(std, 'student')}
-                              alt={std.name}
-                              className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-fg truncate">{std.name}</h4>
-                            </div>
-                          </div>
-
-                          {/* 4 Seçenek Butonu: GELDI, GELMEDI, GEÇ KALDI, İZİNLİ */}
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
-                            {/* Geldi */}
-                            <button
-                              type="button"
-                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'present')}
-                              className={`ui-btn ui-btn-sm ${
-                                currentStatus === 'present'
-                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-                                  : 'bg-surface hover:bg-emerald-600/20 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-500/40'
-                              }`}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Geldi</span>
-                            </button>
-
-                            {/* Gelmedi */}
-                            <button
-                              type="button"
-                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'absent')}
-                              className={`ui-btn ui-btn-sm ${
-                                currentStatus === 'absent'
-                                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
-                                  : 'bg-surface hover:bg-rose-600/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border border-line hover:border-rose-500/40'
-                              }`}
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>Gelmedi</span>
-                            </button>
-
-                            {/* Geç Kaldı */}
-                            <button
-                              type="button"
-                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'late')}
-                              className={`ui-btn ui-btn-sm ${
-                                currentStatus === 'late'
-                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
-                                  : 'bg-surface hover:bg-amber-600/20 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-500/40'
-                              }`}
-                            >
-                              <AlertCircle className="w-3.5 h-3.5" />
-                              <span>Geç Kaldı</span>
-                            </button>
-
-                            {/* İzinli */}
-                            <button
-                              type="button"
-                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'excused')}
-                              className={`ui-btn ui-btn-sm ${
-                                currentStatus === 'excused'
-                                  ? 'bg-sky-600 text-white ring-2 ring-sky-400'
-                                  : 'bg-surface hover:bg-sky-600/20 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-500/40'
-                              }`}
-                            >
-                              <Info className="w-3.5 h-3.5" />
-                              <span>İzinli</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         );
       })()}
