@@ -13,9 +13,7 @@ import {
   ArrowRight,
   CalendarCheck,
   BarChart3,
-  Zap,
 } from 'lucide-react';
-import confetti from '../../lib/confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
@@ -112,6 +110,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   // Common notification feedback
   const [error, setError] = useState<string | null>(null);
+  // Aşama 201: giriş bilgisi hatası ilgili alanın altında (genel hatalar yine üstte)
+  const [fieldErr, setFieldErr] = useState<{ user?: string; pass?: string }>({});
+  // Aşama 201: şifre yazılırken büyük harf kilidi (Caps Lock) açıksa uyarı
+  const [capsOn, setCapsOn] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -167,6 +169,33 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const bioMode = !!activeBioProfile && !bioFallback && (bioAvailable || !bioSupport.checked);
 
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const usernameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Aşama 201: ekran açılınca (ve rol değişince) imleç ilk boş alanda. Yalnız fare / dokunmatik yüzey olan cihazlarda:
+  // telefonda kendiliğinden açılan klavye ekranın yarısını kapatırdı.
+  useEffect(() => {
+    if (bioMode || pendingBio) return;
+    let fine = false;
+    try {
+      fine = window.matchMedia('(pointer: fine)').matches;
+    } catch {
+      fine = false;
+    }
+    if (!fine) return;
+    const id = window.setTimeout(() => {
+      const target = usernameInputRef.current && !usernameInputRef.current.value ? usernameInputRef.current : passwordInputRef.current;
+      if (target && document.activeElement !== target) target.focus();
+    }, 60);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRole, bioMode, !!pendingBio]);
+  const capsOf = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    try {
+      setCapsOn(e.getModifierState('CapsLock'));
+    } catch {
+      /* eski tarayıcı: uyarı gösterilmez */
+    }
+  };
 
   // Handle role switch in login tab
   const handleSelectRole = (role: UserRole) => {
@@ -174,6 +203,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     writeLastRole(role);
     setBioFallback(false);
     setError(null);
+    setFieldErr({});
     setSuccessMsg(null);
     const rem = dataService.getRememberedUser(role);
     if (rem) {
@@ -196,6 +226,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setLoginUsername('');
     setLoginPassword('');
     setRememberMe(false);
+    setFieldErr({});
+    // Aşama 201: "Başka hesap" sonrası imleç kullanıcı adı kutusunda
+    window.setTimeout(() => usernameInputRef.current?.focus(), 30);
   };
 
   // --- ŞİFREMİ UNUTTUM ---
@@ -235,17 +268,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // Oturumu açar ve panele geçer
-  const finishLogin = (session: AuthSession, greeting: string) => {
+  // Aşama 201: konfeti ve "yönlendiriliyorsunuz" beklemesi (0,4 sn) kaldırıldı; panel hemen açılır
+  const finishLogin = (session: AuthSession) => {
     writeLastRole(session.role);
     dataService.setAuthSession(session);
-    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-    setSuccessMsg(greeting);
-    setTimeout(() => onAuthSuccess(session), 400);
+    onAuthSuccess(session);
   };
-  const greetingOf = (session: AuthSession) =>
-    session.role === 'teacher'
-      ? `Hoş geldiniz Sn. ${session.user.name}! Panele yönlendiriliyorsunuz...`
-      : `Hoş geldin ${session.user.name}! Öğrenci paneline yönlendiriliyorsunuz...`;
 
   // Kullanıcı adı + şifreyle doğrular. Başarılıysa oturum nesnesi, hatalı bilgide null döner.
   const authenticate = async (role: UserRole, cleanUser: string, cleanPass: string): Promise<AuthSession | null> => {
@@ -293,13 +321,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErr({});
     setSuccessMsg(null);
 
     const cleanUser = loginUsername.trim();
     const cleanPass = loginPassword.trim();
 
+    // Aşama 201: boş alan uyarısı o alanın altında (tarayıcının kendi "doldurun" balonu yerine; required kaldırıldı)
     if (!cleanUser || !cleanPass) {
-      setError('Lütfen kullanıcı adı ve şifrenizi giriniz.');
+      setFieldErr({
+        user: !cleanUser ? (selectedRole === 'teacher' ? 'Kullanıcı adınızı yazın.' : 'Öğrenci numaranızı yazın.') : undefined,
+        pass: !cleanPass ? 'Şifrenizi yazın.' : undefined,
+      });
+      (!cleanUser ? usernameInputRef.current : passwordInputRef.current)?.focus();
       return;
     }
 
@@ -308,14 +342,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     try {
       const session = await authenticate(selectedRole, cleanUser, cleanPass);
       if (!session) {
-        setError(
-          selectedRole === 'teacher'
-            ? cleanUser.includes('@')
-              ? 'Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.'
-              : // Aşama 172: gerçek e-postayla açılmış hesap kullanıcı adıyla bulunamaz (giriş ekranında liste boş)
-                'Kullanıcı adı veya şifre hatalı. Hesabınız e-posta adresiyle açıldıysa kutuya e-posta adresinizi yazıp tekrar deneyiniz.'
-            : 'Öğrenci numarası veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurunuz.'
-        );
+        // Aşama 201: kısa ve şifre alanının altında
+        setFieldErr({
+          pass:
+            selectedRole === 'teacher'
+              ? cleanUser.includes('@')
+                ? 'E-posta veya şifre hatalı.'
+                : // Aşama 172: gerçek e-postayla açılmış hesap kullanıcı adıyla bulunamaz (giriş ekranında liste boş)
+                  'Kullanıcı adı veya şifre hatalı. Hesabınız e-postayla açıldıysa e-posta adresinizi yazın.'
+              : 'Numara veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurun.',
+        });
+        passwordInputRef.current?.focus();
         return;
       }
       if (enableBio && bioAvailable) {
@@ -327,7 +364,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         setLoginPassword('');
         return;
       }
-      finishLogin(session, greetingOf(session));
+      finishLogin(session);
     } catch (err: any) {
       setError(err.message || 'Giriş yapılamadı.');
     } finally {
@@ -346,7 +383,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       refreshBioProfiles();
       setPendingBio(null);
       setEnableBio(false);
-      finishLogin(session, `Parmak izi girişi açıldı. ${greetingOf(session)}`);
+      finishLogin(session);
     } catch (err: any) {
       setError(`${err?.message || 'Parmak izi girişi açılamadı.'} İsterseniz "Şimdi değil" ile devam edebilirsiniz.`);
     } finally {
@@ -358,7 +395,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     const { session } = pendingBio;
     setPendingBio(null);
     setEnableBio(false);
-    finishLogin(session, greetingOf(session));
+    finishLogin(session);
   };
 
   // --- PARMAK İZİ İLE GİRİŞ ---
@@ -379,7 +416,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         setError('Şifreniz değiştiği için parmak izi girişi kapatıldı. Lütfen yeni şifrenizle girip "Parmak izi ile girişi aç" kutusunu yeniden işaretleyin.');
         return;
       }
-      finishLogin(session, greetingOf(session));
+      finishLogin(session);
     } catch (err: any) {
       // Aşama 42: parmak izi açılamadı → şifreyle girişe yönlendir (kullanıcı adı hazır gelir)
       const prof = getBiometricProfile(role);
@@ -432,7 +469,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               ))}
             </ul>
           </div>
-          <p className="hidden lg:block absolute left-0 bottom-8 text-[11px] text-white/45">© {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM</p>
+          <p className="hidden lg:block absolute left-0 bottom-8 text-[11px] text-white/70">© {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM</p>
         </section>
 
         {/* Giriş formu */}
@@ -561,69 +598,46 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   )}
 
                   {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
+                  {/* Aşama 201: tek satır — fotoğraf, ad ve "Başka hesap" (kayıtlı profili kaldırır, kutuyu boşaltır) */}
                   {!bioMode && activeRememberedUser && (
-                    <div className="p-4 rounded-2xl border transition-all bg-brand-soft border-line">
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex items-center space-x-3 min-w-0">
-                          <img
-                            src={profilResmi(activeRememberedUser, selectedRole === 'teacher' ? 'teacher' : 'student')}
-                            alt={activeRememberedUser.name}
-                            className="w-11 h-11 rounded-xl bg-surface border border-line shadow-xs object-cover shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-[11px] font-medium text-muted flex items-center space-x-1">
-                                <Zap className="w-3.5 h-3.5 text-subtle" />
-                                <span>Kayıtlı Profil:</span>
-                              </span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-surface text-brand-fg border-line">
-                                {selectedRole === 'teacher' ? 'Öğretmen Hesabı' : 'Öğrenci Hesabı'}
-                              </span>
-                            </div>
-                            <div className="text-sm sm:text-base font-bold text-fg tracking-tight truncate">
-                              {activeRememberedUser.name}
-                            </div>
-                            <div className="text-xs text-muted truncate">
-                              {activeRememberedUser.branch ||
-                                activeRememberedUser.className ||
-                                activeRememberedUser.identifier}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2 ml-auto">
-                          {/* Aşama 45: "Bu Hesapla Devam Et" kaldırıldı; kullanıcı adı zaten dolu, yalnızca şifre girilip "Giriş Yap"a basılır */}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleForgetRememberedUser}
-                            className="text-muted hover:text-red-600 dark:hover:text-red-300"
-                            title="Bu rol için kayıtlı profili kaldır"
-                          >
-                            Unut
-                          </Button>
-                        </div>
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl border bg-brand-soft border-line" id="auth-kayitli-profil">
+                      <img
+                        src={profilResmi(activeRememberedUser, selectedRole === 'teacher' ? 'teacher' : 'student')}
+                        alt=""
+                        className="w-9 h-9 rounded-xl bg-surface border border-line object-cover shrink-0"
+                      />
+                      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
+                        {activeRememberedUser.name}
+                        {(activeRememberedUser.branch || activeRememberedUser.className) && (
+                          <span className="font-normal text-muted"> · {activeRememberedUser.branch || activeRememberedUser.className}</span>
+                        )}
                       </div>
-
-                      <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-between text-[11px] text-muted">
-                        <span>Şifrenizi girip “Giriş Yap”a basın. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
-                      </div>
+                      <button
+                        type="button"
+                        id="auth-baska-hesap"
+                        onClick={handleForgetRememberedUser}
+                        title="Kayıtlı profili bu cihazdan kaldırır"
+                        className="shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold text-brand-fg hover:bg-surface-3 cursor-pointer"
+                      >
+                        Başka hesap
+                      </button>
                     </div>
                   )}
 
                   {!bioMode && (
                   <form onSubmit={handleLoginSubmit} className="space-y-4">
                     <Input
-                      label={
-                        selectedRole === 'teacher'
-                          ? 'Öğretmen Kullanıcı Adı veya E-posta *'
-                          : 'Öğrenci Numarası *'
-                      }
+                      ref={usernameInputRef}
+                      label={selectedRole === 'teacher' ? 'Kullanıcı adı veya e-posta' : 'Öğrenci numarası'}
                       type="text"
-                      required
+                      aria-required="true"
+                      autoComplete="username"
+                      error={fieldErr.user}
                       value={loginUsername}
-                      onChange={(e) => setLoginUsername(e.target.value)}
+                      onChange={(e) => {
+                        setLoginUsername(e.target.value);
+                        if (fieldErr.user || fieldErr.pass) setFieldErr({});
+                      }}
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
@@ -637,12 +651,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                     <Input
                       ref={passwordInputRef}
-                      label="Şifre *"
+                      label="Şifre"
                       type={showPassword ? 'text' : 'password'}
-                      required
+                      aria-required="true"
                       autoComplete="current-password"
+                      error={fieldErr.pass}
                       value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
+                      onChange={(e) => {
+                        setLoginPassword(e.target.value);
+                        if (fieldErr.pass) setFieldErr((f) => ({ ...f, pass: undefined }));
+                      }}
+                      onKeyDown={capsOf}
+                      onKeyUp={capsOf}
+                      onBlur={() => setCapsOn(false)}
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
@@ -652,6 +673,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       onRightIconClick={() => setShowPassword(!showPassword)}
                       rightIconLabel="Şifreyi göster/gizle"
                     />
+                    {capsOn && (
+                      <p className="-mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-300" id="auth-caps-uyari" role="status">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        Büyük harf kilidi (Caps Lock) açık
+                      </p>
+                    )}
 
                     {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -711,7 +738,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           </div>
         </main>
 
-        <footer className="lg:hidden text-center text-[11px] text-white/45">
+        <footer className="lg:hidden text-center text-[11px] text-white/70">
           © {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM
         </footer>
       </div>
