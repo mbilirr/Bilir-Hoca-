@@ -185,11 +185,13 @@ export function Segmented<T extends string>({
             onClick={() => onChange(it.value)}
             className={cx(
               'inline-flex items-center gap-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors cursor-pointer',
-              size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm',
+              // Aşama 205: sekmeler de düğmelerle aynı ölçü (h-8, 12 px yazı)
+              'h-8 text-xs',
+              size === 'sm' ? 'px-2.5' : 'px-3',
               active ? 'bg-surface text-fg shadow-card' : 'text-muted hover:text-fg'
             )}
           >
-            {Icon && <Icon className="w-4 h-4" />}
+            {Icon && <Icon className="w-3.5 h-3.5" />}
             {it.label}
             {it.badge}
           </button>
