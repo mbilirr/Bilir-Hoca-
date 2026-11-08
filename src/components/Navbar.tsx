@@ -198,10 +198,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   id="navbar-search-btn"
                   onClick={openCommandPalette}
-                  className="hidden md:flex min-w-0 shrink items-center gap-2.5 ml-2 lg:ml-6 w-52 lg:w-64 xl:w-80 px-3 py-2 rounded-xl border border-line bg-surface-2 text-sm text-subtle hover:border-line-strong hover:text-muted transition-colors cursor-pointer"
+                  className="hidden md:flex min-w-0 shrink items-center gap-2 ml-2 lg:ml-6 w-52 lg:w-64 xl:w-80 h-8 px-3 rounded-lg border border-line bg-surface-2 text-xs text-subtle hover:border-line-strong hover:text-muted transition-colors cursor-pointer"
                   title="Hızlı ara (Ctrl+K)"
                 >
-                  <Search className="w-4 h-4 shrink-0" />
+                  <Search className="w-3.5 h-3.5 shrink-0" />
                   <span className="flex-1 text-left truncate">Öğrenci, ödev, sayfa ara…</span>
                   <kbd className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-line bg-surface text-muted font-sans">Ctrl K</kbd>
                 </button>
