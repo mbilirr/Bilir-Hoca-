@@ -663,7 +663,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                               key={cls}
                               type="button"
                               onClick={() => setWeeklyPlanSelectedClass(cls)}
-                              className="px-2.5 py-1 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/60 text-xs font-medium transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-sm bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/60 min-w-24"
                             >
                               {cls}
                             </button>
@@ -781,7 +781,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     type="button"
                                     onClick={() => handleOpenDocument(doc)}
                                     disabled={openingDocId === doc.id}
-                                    className="py-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
+                                    className="ui-btn ui-btn-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white min-w-24"
                                     title="Tam Sayfa Olarak Aç ve İncele"
                                   >
                                     <Eye className="w-3.5 h-3.5" />

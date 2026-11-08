@@ -191,7 +191,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             {/* Download Button */}
             <button
               onClick={() => onDownload(document)}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium transition-colors text-xs flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
+              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
               title="Orijinal Dosyayı İndir"
             >
               <Download className="w-3.5 h-3.5" />
@@ -273,7 +273,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                     setActiveSheetIndex(sIdx);
                     setSheetSearchQuery('');
                   }}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  className={`ui-btn ui-btn-sm ${
                     activeSheetIndex === sIdx
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'bg-surface-2 text-fg-2 hover:bg-surface-3'
@@ -292,7 +292,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                 value={sheetSearchQuery}
                 onChange={(e) => setSheetSearchQuery(e.target.value)}
                 placeholder="Tabloda ara..."
-                className="w-full bg-surface-2 border border-line rounded-lg pl-8 pr-3 py-1 text-xs text-fg placeholder-subtle focus:outline-none focus:border-emerald-500"
+                className="ui-field w-full pl-8 pr-3"
               />
             </div>
           </div>
@@ -442,7 +442,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                   <p className="text-xs text-muted mb-4">{document.fileSize} • PDF Formatı</p>
                   <button
                     onClick={() => onDownload(document)}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2"
+                    className="ui-btn ui-btn-sm bg-rose-600 hover:bg-rose-500 text-white min-w-24"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>PDF Olarak İndir</span>
@@ -467,7 +467,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               type="button"
               onClick={() => onDownload(document)}
               id="btn-download-doc-modal-footer"
-              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center space-x-2 shadow-md shadow-indigo-600/30 transition-all cursor-pointer hover:scale-105"
+              className="ui-btn ui-btn-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white min-w-24"
               title="Belgeyi Bilgisayara İndir"
             >
               <Download className="w-3.5 h-3.5" />
@@ -477,7 +477,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-medium transition-colors cursor-pointer"
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
             >
               Pencereyi Kapat
             </button>
