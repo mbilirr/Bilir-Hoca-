@@ -625,9 +625,15 @@ html, body {
   --color-line-strong: rgb(255 255 255 / 0.26);
   --color-fg: #ffffff;
   --color-fg-2: rgb(255 255 255 / 0.85);
-  --color-muted: rgb(255 255 255 / 0.66);
-  --color-subtle: rgb(255 255 255 / 0.6);
+  /* Aşama 201: soluk yazılar daha okunur (koyu zeminde 4.5:1 üstü) */
+  --color-muted: rgb(255 255 255 / 0.78);
+  --color-subtle: rgb(255 255 255 / 0.72);
   color-scheme: dark;
+}
+/* Aşama 201: klavyeyle gezerken odak çerçevesi koyu yeşil zeminde net (açık turkuaz) */
+.auth-v2 :focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 2px;
 }
 .auth-v2 ::selection {
   background: rgb(217 160 102 / 0.4);
@@ -830,5 +836,18 @@ html, body {
   .auth-cta,
   .auth-seg-btn {
     transition: none;
+  }
+  .auth-cta:hover,
+  .auth-cta:active {
+    transform: none;
+  }
+}
+/* Aşama 201: telefonda, tablette ve "hareketi azalt" açık cihazlarda kartın buzlu cam bulanıklığı kapalı
+   (ekran kartını her karede yeniden hesaplatıyordu); yerine aynı tonda düz, koyu zemin */
+@media (max-width: 1023px), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .auth-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: linear-gradient(145deg, rgb(28 62 54 / 0.96), rgb(20 46 40 / 0.96));
   }
 }
