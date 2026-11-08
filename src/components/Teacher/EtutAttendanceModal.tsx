@@ -308,7 +308,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               placeholder="Öğrenci adı veya numarası ile ara..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-1.5 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-emerald-500"
+              className="ui-field w-full"
             />
           </div>
         )}
@@ -364,7 +364,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStatusChange(std.id, std.name, 'present')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`ui-btn ui-btn-sm ${
                           currentStatus === 'present'
                             ? 'bg-emerald-600 text-white shadow-sm'
                             : 'text-muted hover:text-emerald-700 dark:hover:text-emerald-400'
@@ -375,7 +375,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStatusChange(std.id, std.name, 'absent')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`ui-btn ui-btn-sm ${
                           currentStatus === 'absent'
                             ? 'bg-rose-600 text-white shadow-sm'
                             : 'text-muted hover:text-rose-600 dark:hover:text-rose-400'
@@ -414,7 +414,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       value={currentNote}
                       maxLength={500}
                       onChange={(e) => handleNoteChange(std.id, e.target.value)}
-                      className="px-2.5 py-1 bg-surface border border-line rounded-lg text-fg text-xs placeholder-subtle w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
+                      className="ui-field w-36 sm:w-44"
                     />
                     {/* Aşama 23: farklı anlatılan konu */}
                     <input
@@ -425,7 +425,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       value={attendanceMap[std.id]?.topic || ''}
                       maxLength={200}
                       onChange={(e) => handleTopicChange(std.id, e.target.value)}
-                      className="px-2.5 py-1 bg-surface border border-line rounded-lg text-fg text-xs placeholder-subtle w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
+                      className="ui-field w-36 sm:w-44"
                     />
                   </div>
                 </div>
@@ -450,7 +450,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
             >
               Vazgeç
             </button>
@@ -458,7 +458,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center space-x-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-60"
+              className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-60 min-w-24"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>

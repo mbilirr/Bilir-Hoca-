@@ -170,7 +170,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-bold cursor-pointer"
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
             >
               Kapat
             </button>

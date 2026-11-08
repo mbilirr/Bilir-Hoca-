@@ -563,7 +563,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               id="etut-list-subject"
               value={effectiveListSubject}
               onChange={(e) => setListSubject(e.target.value)}
-              className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
+              className="ui-field w-full"
             >
               <option value="all">Tüm dersler ({activeEtuts.length})</option>
               {listSubjects.map(([s, n]) => (
@@ -603,7 +603,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 id="etut-list-time"
                 value={effectiveListTime}
                 onChange={(e) => setListTime(e.target.value)}
-                className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
+                className="ui-field w-full"
               >
                 <option value="all">Tüm saatler ({timeSource.length})</option>
                 {listTimes.map(([k, v]) => (
@@ -624,7 +624,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 id="etut-list-date"
                 value={datePreset}
                 onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-                className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
+                className="ui-field w-full"
               >
                 {DATE_PRESETS.map((p) => (
                   <option key={p.value} value={p.value}>
@@ -639,11 +639,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
             <label className="text-xs text-muted">
               <span className="block font-semibold mb-1">Başlangıç</span>
-              <input type="date" id="etut-date-from" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+              <input type="date" id="etut-date-from" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="ui-field w-auto" />
             </label>
             <label className="text-xs text-muted">
               <span className="block font-semibold mb-1">Bitiş</span>
-              <input type="date" id="etut-date-to" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+              <input type="date" id="etut-date-to" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className="ui-field w-auto" />
             </label>
           </div>
         )}
@@ -1047,7 +1047,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 onClick={() => {
                   openEtutForm('create');
                 }}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
+                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>İlk Etütü Planla</span>
@@ -1164,7 +1164,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         }}
                         placeholder="Ders, konu, sınıf, öğretmen"
                         aria-label="Etüt ara"
-                        className="w-full h-8 bg-surface border border-line rounded-lg pl-8 pr-2 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+                        className="ui-field w-full pl-8 pr-2"
                       />
                     </div>
                   </div>
@@ -1287,7 +1287,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       value={attendanceSearchQuery}
                       onChange={(e) => setAttendanceSearchQuery(e.target.value)}
                       placeholder="Öğrenci ara..."
-                      className="w-full bg-canvas border border-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                      className="ui-field w-full pl-8 pr-3"
                     />
                   </div>
                 </div>
@@ -1325,7 +1325,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('present')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="ui-btn ui-btn-sm bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>✓ Tümü Geldi</span>
@@ -1333,7 +1333,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('absent')}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="ui-btn ui-btn-sm bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 min-w-24"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       <span>✕ Tümü Gelmedi</span>
@@ -1341,7 +1341,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('excused')}
-                      className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="ui-btn ui-btn-sm bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
                     >
                       <Info className="w-3.5 h-3.5" />
                       <span>ℹ Tümü İzinli</span>
@@ -1390,9 +1390,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             <button
                               type="button"
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'present')}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                              className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'present'
-                                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
+                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
                                   : 'bg-surface hover:bg-emerald-600/20 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-500/40'
                               }`}
                             >
@@ -1404,9 +1404,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             <button
                               type="button"
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'absent')}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                              className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'absent'
-                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
+                                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
                                   : 'bg-surface hover:bg-rose-600/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border border-line hover:border-rose-500/40'
                               }`}
                             >
@@ -1418,9 +1418,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             <button
                               type="button"
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'late')}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                              className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'late'
-                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
+                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
                                   : 'bg-surface hover:bg-amber-600/20 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-500/40'
                               }`}
                             >
@@ -1432,9 +1432,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             <button
                               type="button"
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'excused')}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                              className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'excused'
-                                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400'
+                                  ? 'bg-sky-600 text-white ring-2 ring-sky-400'
                                   : 'bg-surface hover:bg-sky-600/20 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-500/40'
                               }`}
                             >

@@ -291,7 +291,7 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
                 setIsOpen(false);
                 onOpenEtutsTab();
               }}
-              className="w-full py-2 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-all flex items-center justify-center space-x-1.5 border border-indigo-500/20"
+              className="ui-btn ui-btn-sm w-full text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-500/20"
             >
               <CalendarDays className="w-3.5 h-3.5" />
               <span>Tüm Etüt & Birebir Yönetimini Aç</span>

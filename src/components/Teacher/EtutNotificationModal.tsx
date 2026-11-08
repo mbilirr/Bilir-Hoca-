@@ -235,7 +235,7 @@ biliredu`.trim();
               <button
                 type="button"
                 onClick={handleCopyMessage}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs font-medium border border-line transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line min-w-24"
                 title="Tüm metni kopyala"
               >
                 {copiedKey === 'all' ? (
@@ -277,7 +277,7 @@ biliredu`.trim();
                       <button
                         type="button"
                         onClick={() => handleOpenStudentWhatsApp(std)}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-700/20 cursor-pointer"
+                        className="ui-btn ui-btn-sm bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm min-w-24"
                         title={`${std.name} için WhatsApp ile Gönder`}
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
@@ -289,7 +289,7 @@ biliredu`.trim();
                         <button
                           type="button"
                           onClick={() => handleManualEmailClient(std)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-lg text-xs font-medium border border-line transition-colors cursor-pointer"
+                          className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line min-w-24"
                           title={`${std.name} için Gmail'de Aç`}
                         >
                           <Mail className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
@@ -323,7 +323,7 @@ biliredu`.trim();
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg min-w-24"
           >
             Kapat
           </button>

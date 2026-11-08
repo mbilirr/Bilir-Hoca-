@@ -891,7 +891,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       value={trackerSearch}
                       onChange={(e) => setTrackerSearch(e.target.value)}
                       placeholder="Ödev başlığı, ders veya konu ara..."
-                      className="w-full bg-surface-2 border border-line rounded-xl pl-9 pr-8 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:bg-surface transition-colors"
+                      className="ui-field w-full pl-9 pr-8"
                     />
                     {trackerSearch && (
                       <button
@@ -916,7 +916,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         setDraftCheckStatuses({});
                         setStudentSearchInput('');
                       }}
-                      className={`bg-surface-2 border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer ${
+                      className={`ui-field w-auto font-medium cursor-pointer ${
                         effectiveClassId ? 'border-line text-fg-2' : 'border-indigo-300 dark:border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
                       }`}
                     >
@@ -937,7 +937,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       value={subjectFilter}
                       onChange={(e) => setTrackerFilterSubject(e.target.value)}
                       disabled={!currentClass}
-                      className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="ui-field w-auto text-fg-2 font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="all">Tüm Dersler</option>
                       {classSubjects.map((sub) => (
@@ -953,7 +953,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <button
                       type="button"
                       onClick={clearTrackerFilters}
-                      className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-muted text-xs font-semibold cursor-pointer transition-colors"
+                      className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-muted min-w-24"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>Filtreleri Temizle</span>
@@ -1129,7 +1129,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                 value={studentSearchInput}
                                 onChange={(e) => setStudentSearchInput(e.target.value)}
                                 placeholder="Öğrenci adı veya numarası ara..."
-                                className="w-full bg-surface-2 border border-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                className="ui-field w-full pl-8 pr-3"
                               />
                             </div>
                           </div>
@@ -1171,35 +1171,35 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('yapti')}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all cursor-pointer"
+                                className="ui-btn ui-btn-sm bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
                               >
                                 ✓ Tümünü Yaptı
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('yapmadi')}
-                                className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer"
+                                className="ui-btn ui-btn-sm bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 min-w-24"
                               >
                                 ✕ Tümünü Yapmadı
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('eksik')}
-                                className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all cursor-pointer"
+                                className="ui-btn ui-btn-sm bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 min-w-24"
                               >
                                 ⚠ Tümünü Eksik
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('izinli')}
-                                className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 text-xs font-bold transition-all cursor-pointer"
+                                className="ui-btn ui-btn-sm bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
                               >
                                 ℹ Tümünü İzinli
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('gelmedi')}
-                                className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all cursor-pointer"
+                                className="ui-btn ui-btn-sm bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 min-w-24"
                               >
                                 ○ Tümünü Gelmedi
                               </button>
@@ -1266,7 +1266,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStatusClick(std.id, 'yapti')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'yapti'
                                             ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
                                             : 'bg-surface-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-300 dark:hover:border-emerald-500/30'
@@ -1280,7 +1280,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStatusClick(std.id, 'yapmadi')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'yapmadi'
                                             ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400'
                                             : 'bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-fg-2 hover:text-rose-700 dark:hover:text-rose-300 border border-line hover:border-rose-300 dark:hover:border-rose-500/30'
@@ -1294,7 +1294,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStatusClick(std.id, 'eksik')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'eksik'
                                             ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
                                             : 'bg-surface-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-300 dark:hover:border-amber-500/30'
@@ -1308,7 +1308,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStatusClick(std.id, 'izinli')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'izinli'
                                             ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400'
                                             : 'bg-surface-2 hover:bg-sky-50 dark:hover:bg-sky-500/10 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-300 dark:hover:border-sky-500/30'
@@ -1322,7 +1322,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStatusClick(std.id, 'gelmedi')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                        className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'gelmedi'
                                             ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400'
                                             : 'bg-surface-2 hover:bg-purple-50 dark:hover:bg-purple-500/10 text-fg-2 hover:text-purple-700 dark:hover:text-purple-300 border border-line hover:border-purple-300 dark:hover:border-purple-500/30'
@@ -1371,7 +1371,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       value={hwSearchQuery}
                       onChange={(e) => setHwSearchQuery(e.target.value)}
                       placeholder="Ödev başlığı, ders veya konu ara..."
-                      className="w-full bg-surface-2 border border-line rounded-xl pl-9 pr-8 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:bg-surface transition-colors"
+                      className="ui-field w-full pl-9 pr-8"
                     />
                     {hwSearchQuery && (
                       <button
@@ -1389,7 +1389,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <select
                       value={hwFilterClassId}
                       onChange={(e) => setHwFilterClassId(e.target.value)}
-                      className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer"
+                      className="ui-field w-auto text-fg-2 font-medium cursor-pointer"
                     >
                       <option value="all">Tüm Sınıflar</option>
                       {classes.map((c) => (
@@ -1408,7 +1408,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         aria-label="Öğretmene göre"
                         value={hwFilterTeacher}
                         onChange={(e) => setHwFilterTeacher(e.target.value)}
-                        className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer max-w-[12rem]"
+                        className="ui-field w-auto text-fg-2 font-medium cursor-pointer max-w-[12rem]"
                       >
                         <option value="all">Tüm Öğretmenler</option>
                         {seesOthers && <option value={MINE}>Benim ödevlerim</option>}
@@ -1429,7 +1429,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <select
                       value={hwFilterSubject}
                       onChange={(e) => setHwFilterSubject(e.target.value)}
-                      className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer"
+                      className="ui-field w-auto text-fg-2 font-medium cursor-pointer"
                     >
                       <option value="all">Tüm Dersler</option>
                       {availableSubjects.map((sub) => (
@@ -1450,7 +1450,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         setHwFilterClassId('all');
                         setHwFilterTeacher('all');
                       }}
-                      className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-muted text-xs font-semibold cursor-pointer transition-colors"
+                      className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-muted min-w-24"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>Filtreleri Temizle</span>
@@ -1470,7 +1470,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       onClick={() => {
                         openHomeworkForm('create');
                       }}
-                      className="flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-w-24"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Yeni Ödev Oluştur</span>
@@ -1495,7 +1495,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     setHwFilterSubject('all');
                     setHwFilterClassId('all');
                   }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer"
+                  className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-w-24"
                 >
                   Filtreleri Sıfırla
                 </button>
@@ -1743,7 +1743,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={closeEditResourcesModal}
-                    className="px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs font-semibold cursor-pointer"
+                    className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
                   >
                     İptal
                   </button>
@@ -1751,7 +1751,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     type="button"
                     onClick={handleSaveEditedResources}
                     disabled={isSavingResources || isEditUploadBusy}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
+                    className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 min-w-24"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>

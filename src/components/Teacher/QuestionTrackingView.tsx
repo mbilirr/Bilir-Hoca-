@@ -76,6 +76,7 @@ import {
 } from '../Student/StudentQuestionModule';
 import { StudentTargetsModal } from './StudentTargetsModal';
 import { ClassTargetsModal } from './ClassTargetsModal';
+import { MoreMenu } from '../ui/MoreMenu'; // Aşama 208
 import {
   computeWeeklyAnalytics,
   computeMonthlyAnalytics,
@@ -840,43 +841,58 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
           {/* Target Menus & Quick Action Bar */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* 1. Öğrenci Hedefleri Açılır Butonu */}
-            <button
-              type="button"
-              id="btn-open-student-targets"
-              onClick={() => setIsStudentTargetsModalOpen(true)}
-              className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-              title="Kayıtlı öğrenci soru hedeflerini görüntüle ve yönet"
-            >
-              <User className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-              <span>Öğrenci Hedefleri</span>
-              {studentTargetsCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-orange-500 text-white">
-                  {studentTargetsCount}
-                </span>
-              )}
-              <ChevronDown className="w-3.5 h-3.5 text-orange-700/70 dark:text-orange-400/70" />
-            </button>
+            {/* Aşama 208: seyrek kullanılan işlemler "Diğer ⋯" menüsünde (Aşama 207 ortak menü); açıkta yalnız hedef verme */}
+            <MoreMenu
+              id="btn-question-more"
+              label="Diğer"
+              sheetTitle="Soru takibi"
+              items={[
+                {
+                  id: 'btn-open-student-targets',
+                  label: `Öğrenci hedefleri${studentTargetsCount > 0 ? ` (${studentTargetsCount})` : ''}`,
+                  icon: User,
+                  title: 'Kayıtlı öğrenci soru hedeflerini görüntüle ve yönet',
+                  onClick: () => setIsStudentTargetsModalOpen(true),
+                },
+                {
+                  id: 'btn-open-class-targets',
+                  label: `Sınıf hedefleri${classTargetsCount > 0 ? ` (${classTargetsCount})` : ''}`,
+                  icon: Users,
+                  title: 'Kayıtlı sınıf toplu soru hedeflerini görüntüle ve yönet',
+                  onClick: () => setIsClassTargetsModalOpen(true),
+                },
+                {
+                  id: 'btn-manage-question-logs',
+                  label: 'Soru kayıtları',
+                  icon: ListOrdered,
+                  title: 'Öğrencinin tüm kayıtlı soru girişlerini listele ve yönet',
+                  show: !!activeStudent,
+                  onClick: () => setIsManageLogsModalOpen(true),
+                },
+                {
+                  id: 'btn-looker-pdf-weekly',
+                  label: 'Haftalık rapor (PDF)',
+                  icon: Download,
+                  show: !!activeStudent && activeAnalysisMode === 'weekly' && !!weeklyAnalytics,
+                  onClick: () => {
+                    if (activeStudent && weeklyAnalytics)
+                      downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) });
+                  },
+                },
+                {
+                  id: 'btn-looker-pdf-monthly',
+                  label: 'Aylık rapor (PDF)',
+                  icon: Download,
+                  show: !!activeStudent && activeAnalysisMode === 'monthly' && !!monthlyAnalytics,
+                  onClick: () => {
+                    if (activeStudent && monthlyAnalytics)
+                      downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) });
+                  },
+                },
+              ]}
+            />
 
-            {/* 2. Sınıf Hedefleri Açılır Butonu */}
-            <button
-              type="button"
-              id="btn-open-class-targets"
-              onClick={() => setIsClassTargetsModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-              title="Kayıtlı sınıf toplu soru hedeflerini görüntüle ve yönet"
-            >
-              <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Sınıf Hedefleri</span>
-              {classTargetsCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-600 text-white">
-                  {classTargetsCount}
-                </span>
-              )}
-              <ChevronDown className="w-3.5 h-3.5 text-indigo-600/70 dark:text-indigo-400/70" />
-            </button>
-
-            {/* Soru Hedefi Belirleme Butonu (Aşama 98: hedef verebilenlerde) */}
+            {/* Soru Hedefi Belirleme Butonu (Aşama 98: hedef verebilenlerde) · Aşama 208: kısa yazı, uzun açıklama title'da */}
             {dataService.canGiveTargets() && (
             <button
               type="button"
@@ -890,57 +906,26 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   openNewTarget('student');
                 }
               }}
-              className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-orange-500/20 cursor-pointer"
-              title="Soru sayısı hedefi belirle"
+              className="ui-btn ui-btn-sm w-28 bg-orange-500 hover:bg-orange-600 text-white shadow-sm"
+              title={
+                activeStudent
+                  ? myActiveTarget
+                    ? `Hedef: ${myActiveTarget.targetQuestions} soru (düzenle)`
+                    : 'Öğrenciye soru hedefi ver'
+                  : activeClass && activeClass.id !== 'all'
+                  ? 'Sınıfa toplu soru hedefi ver'
+                  : 'Soru sayısı hedefi belirle'
+              }
             >
               <Target className="w-3.5 h-3.5" />
-              <span>
-                {activeStudent
-                  ? myActiveTarget
-                    ? `Hedef: ${myActiveTarget.targetQuestions} Soru (Düzenle)`
-                    : '🎯 Öğrenci Hedefi Ver'
-                  : activeClass && activeClass.id !== 'all'
-                  ? '🎯 Sınıfa Toplu Hedef Ver'
-                  : '🎯 Soru Hedefi Belirle'}
+              <span className="truncate">
+                {activeStudent && myActiveTarget
+                  ? `Hedef: ${myActiveTarget.targetQuestions}`
+                  : activeClass && activeClass.id !== 'all' && !activeStudent
+                  ? 'Sınıfa hedef'
+                  : 'Hedef ver'}
               </span>
             </button>
-            )}
-
-            {activeStudent && (
-              <>
-                {/* Soru Kayıtları & Geçmiş Yönetimi Butonu */}
-                <button
-                  type="button"
-                  id="btn-manage-question-logs"
-                  onClick={() => setIsManageLogsModalOpen(true)}
-                  className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-line"
-                  title="Öğrencinin tüm kayıtlı soru girişlerini listele ve yönet"
-                >
-                  <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Soru Kayıtlarını Yönet</span>
-                </button>
-
-                {activeAnalysisMode === 'weekly' && weeklyAnalytics && (
-                  <button
-                    id="btn-looker-pdf-weekly"
-                    onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                    className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-orange-400" />
-                    <span>Haftalık Raporu İndir (PDF)</span>
-                  </button>
-                )}
-                {activeAnalysisMode === 'monthly' && monthlyAnalytics && (
-                  <button
-                    id="btn-looker-pdf-monthly"
-                    onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                    className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-orange-400" />
-                    <span>Aylık Raporu İndir (PDF)</span>
-                  </button>
-                )}
-              </>
             )}
           </div>
         </div>
@@ -964,13 +949,13 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </button>
               )}
             </label>
-            {/* Aşama 66: sınıf kutusu öğrenci seçimi kutusuyla aynı biçim ve boyutta (h-9, aynı kenar, ok simgesi) */}
+            {/* Aşama 66: sınıf kutusu öğrenci seçimi kutusuyla aynı biçim ve boyutta (h-9, aynı kenar, ok simgesi) · Aşama 208: ikisi de ortak ölçü h-8 */}
             <div className="relative">
             <select
               id="looker-filter-class"
               value={selectedClassId}
               onChange={(e) => handleSelectClass(e.target.value)}
-              className="w-full h-9 appearance-none bg-surface border border-line-strong text-xs font-semibold text-fg rounded-lg pl-3 pr-8 py-0 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer shadow-2xs hover:border-line-strong transition-colors truncate"
+              className="ui-field w-full appearance-none font-semibold pl-3 pr-8 cursor-pointer truncate"
             >
               <option value="">Sınıf Seçiniz</option>
               <option value="all">Tüm Sınıflar (Tüm Okul - {students.length} Öğrenci)</option>
@@ -1012,7 +997,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 setIsStudentDropdownOpen((prev) => !prev);
                 setStudentSearchQuery('');
               }}
-              className="w-full h-9 bg-surface border border-line-strong text-xs font-semibold rounded-lg pl-3 pr-3 py-0 flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
+              className="w-full h-8 bg-surface border border-line-strong text-xs font-semibold rounded-lg pl-3 pr-3 py-0 flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
             >
               {activeStudent ? (
                 <div className="flex items-center gap-1.5 truncate">
@@ -1052,14 +1037,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {/* En üstteki Yapışkan Arama Kutusu */}
                 <div className="p-2 border-b border-line bg-surface-2 sticky top-0 z-20 space-y-1.5">
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-subtle absolute left-2.5 top-2.5" />
+                    <Search className="w-3.5 h-3.5 text-subtle absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input
                       autoFocus
                       type="text"
                       placeholder="Öğrenci ara (büyük/küçük harf duyarsız)..."
                       value={studentSearchQuery}
                       onChange={(e) => setStudentSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-7 py-1.5 bg-surface border border-line-strong rounded-lg text-xs font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                      className="ui-field w-full pl-8 pr-7 font-semibold"
                     />
                     {studentSearchQuery && (
                       <button
@@ -1187,7 +1172,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('weekly')}
-                className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm h-7 flex-1 ${
                   activeAnalysisMode === 'weekly'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1198,7 +1183,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('monthly')}
-                className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm h-7 flex-1 ${
                   activeAnalysisMode === 'monthly'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1209,7 +1194,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('class_overview')}
-                className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm h-7 flex-1 ${
                   activeAnalysisMode === 'class_overview'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1257,19 +1242,20 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       setIsStudentDropdownOpen(true);
                       setStudentSearchQuery('');
                     }}
-                    className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    className="ui-btn ui-btn-sm w-28 bg-orange-500 hover:bg-orange-600 text-white"
+                    title="Öğrenci seçip incele"
                   >
                     <User className="w-3.5 h-3.5" />
-                    <span>Öğrenci Seçip İncele</span>
+                    <span>Öğrenci seç</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectClass('')}
-                    className="px-3 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                    className="ui-btn ui-btn-secondary ui-btn-sm w-28"
                     title="Sınıf seçimini temizle"
                   >
                     <X className="w-3.5 h-3.5" />
-                    <span>Sınıfı Kapat</span>
+                    <span>Sınıfı kapat</span>
                   </button>
                 </div>
               </div>
@@ -1442,7 +1428,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                   e.stopPropagation();
                                   handleSelectStudent(row.student.id);
                                 }}
-                                className="px-3 py-1.5 bg-fg hover:bg-orange-600 text-surface rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1"
+                                className="ui-btn ui-btn-sm bg-fg hover:bg-orange-600 text-surface"
                               >
                                 <span>Analiz Aç</span>
                                 <span>→</span>
@@ -1634,7 +1620,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       id="btn-reset-current-week"
                       type="button"
                       onClick={() => setWeekOffset(0)}
-                      className="px-3 py-2 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300"
                       title="Bugünün güncel haftasına dön"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -1648,11 +1634,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedStudentId('')}
-                      className="px-3 py-2 bg-surface-2 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:border-orange-300 dark:hover:border-orange-500/30 text-fg-2 hover:text-orange-900 dark:hover:text-orange-200 border border-line rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-surface-2 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:border-orange-300 dark:hover:border-orange-500/30 text-fg-2 hover:text-orange-900 dark:hover:text-orange-200 border border-line"
                       title="Sınıfın bütün öğrencilerini ve başarı sıralamasını gör"
                     >
                       <Users className="w-3.5 h-3.5 text-orange-600 dark:text-orange-300" />
-                      <span>{activeClass.name} Sınıfının Tümünü Göster ({classStudents.length})</span>
+                      <span>Tüm sınıf ({classStudents.length})</span>
                     </button>
                   )}
                   <div className="flex items-center gap-3 bg-surface-2 px-4 py-2 rounded-xl border border-line">
@@ -1927,7 +1913,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setChartVisualType('bar')}
-                        className={`px-3 py-1 rounded-md font-bold transition-all ${
+                        className={`ui-btn ui-btn-sm h-7 ${
                           chartVisualType === 'bar'
                             ? 'bg-surface text-fg shadow-xs'
                             : 'text-muted hover:text-fg'
@@ -1938,7 +1924,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setChartVisualType('area')}
-                        className={`px-3 py-1 rounded-md font-bold transition-all ${
+                        className={`ui-btn ui-btn-sm h-7 ${
                           chartVisualType === 'area'
                             ? 'bg-surface text-fg shadow-xs'
                             : 'text-muted hover:text-fg'
@@ -2176,7 +2162,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => handleOpenPraiseModal(d)}
-                                      className="inline-flex whitespace-nowrap items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white shadow-xs hover:shadow transition-all cursor-pointer hover:scale-105"
+                                      className="ui-btn ui-btn-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
                                       title={`${activeStudent?.name} öğrencisine ${d.dayName} günü çözdüğü ${d.totalQuestions} soru için tebrik ve aferin mesajı gönder`}
                                     >
                                       <Award className="w-3.5 h-3.5 text-amber-100" />
@@ -2248,7 +2234,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="pt-3 border-t border-line">
                     <button
                       onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                      className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm"
                     >
                       <Download className="w-3.5 h-3.5 text-orange-400" />
                       <span>Haftalık Raporu PDF İndir</span>
@@ -2310,7 +2296,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       id="btn-reset-current-month"
                       type="button"
                       onClick={() => setMonthDate({ year: new Date().getFullYear(), month: new Date().getMonth() })}
-                      className="px-3 py-2 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300"
                       title="Güncel aya dön"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -2324,11 +2310,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedStudentId('')}
-                      className="px-3 py-2 bg-surface-2 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:border-orange-300 dark:hover:border-orange-500/30 text-fg-2 hover:text-orange-900 dark:hover:text-orange-200 border border-line rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-surface-2 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:border-orange-300 dark:hover:border-orange-500/30 text-fg-2 hover:text-orange-900 dark:hover:text-orange-200 border border-line"
                       title="Sınıfın bütün öğrencilerini ve başarı sıralamasını gör"
                     >
                       <Users className="w-3.5 h-3.5 text-orange-600 dark:text-orange-300" />
-                      <span>{activeClass.name} Sınıfının Tümünü Göster ({classStudents.length})</span>
+                      <span>Tüm sınıf ({classStudents.length})</span>
                     </button>
                   )}
                   <div className="flex items-center gap-3 bg-surface-2 px-4 py-2 rounded-xl border border-line">
@@ -2563,7 +2549,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="pt-3 border-t border-line">
                     <button
                       onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                      className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                      className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm"
                     >
                       <Download className="w-3.5 h-3.5 text-orange-400" />
                       <span>Aylık Raporu PDF İndir</span>
@@ -2660,7 +2646,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               setSelectedStudentId(row.student.id);
                               setActiveAnalysisMode('weekly');
                             }}
-                            className="px-3 py-1 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface"
                           >
                             Analiz Aç
                           </button>
@@ -2715,8 +2701,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsManageLogsModalOpen(false)}
-                className="p-2 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-xl transition-colors cursor-pointer shrink-0"
+                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 title="Kapat"
+                aria-label="Kapat"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2795,7 +2782,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsManageLogsModalOpen(false)}
-                className="px-4 py-2 bg-fg text-surface rounded-xl text-xs font-bold hover:bg-fg transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm bg-fg text-surface hover:bg-fg"
               >
                 Kapat
               </button>
@@ -2844,8 +2831,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 id="btn-close-week-modal"
                 onClick={() => setIsWeekModalOpen(false)}
-                className="p-2 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-xl transition-colors cursor-pointer shrink-0"
+                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 title="Kapat"
+                aria-label="Kapat"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2865,7 +2853,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setWeekOffset(0);
                     setIsWeekModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     weekOffset === 0
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -2879,7 +2867,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setWeekOffset(-1);
                     setIsWeekModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     weekOffset === -1
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -2893,7 +2881,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setWeekOffset(-2);
                     setIsWeekModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     weekOffset === -2
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -2907,7 +2895,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setWeekOffset(-3);
                     setIsWeekModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     weekOffset === -3
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -2921,7 +2909,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setWeekOffset(-4);
                     setIsWeekModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     weekOffset === -4
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -2940,7 +2928,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     value={weekSearchQuery}
                     onChange={(e) => setWeekSearchQuery(e.target.value)}
                     placeholder="Hafta veya ay ara (Örn: Eylül, Ağustos)..."
-                    className="w-full pl-9 pr-8 py-1.5 bg-surface border border-line-strong rounded-xl text-xs text-fg focus:outline-none focus:border-orange-500"
+                    className="ui-field w-full pl-9 pr-8"
                   />
                   {weekSearchQuery && (
                     <button
@@ -2957,7 +2945,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWeekFilterTab('all')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    className={`ui-btn ui-btn-sm ${
                       weekFilterTab === 'all'
                         ? 'bg-fg text-surface'
                         : 'text-muted hover:text-fg'
@@ -2968,7 +2956,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWeekFilterTab('with_questions')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                    className={`ui-btn ui-btn-sm ${
                       weekFilterTab === 'with_questions'
                         ? 'bg-orange-600 text-white'
                         : 'text-muted hover:text-fg'
@@ -3072,7 +3060,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           ) : (
                             <button
                               type="button"
-                              className="px-3 py-1.5 bg-surface hover:bg-fg text-fg-2 hover:text-surface border border-line-strong hover:border-line text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+                              className="ui-btn ui-btn-sm bg-surface hover:bg-fg text-fg-2 hover:text-surface border border-line-strong hover:border-line"
                             >
                               İncele
                             </button>
@@ -3099,16 +3087,16 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       setWeekOffset(0);
                       setIsWeekModalOpen(false);
                     }}
-                    className="px-3 py-1.5 bg-surface hover:bg-surface-2 border border-line-strong text-fg-2 font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                    className="ui-btn ui-btn-secondary ui-btn-sm w-28"
                   >
                     <RotateCcw className="w-3 h-3 text-orange-600 dark:text-orange-300" />
-                    <span>Güncel Haftaya Git</span>
+                    <span>Bu hafta</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setIsWeekModalOpen(false)}
-                  className="px-4 py-1.5 bg-fg hover:bg-fg text-surface font-bold rounded-xl transition-colors cursor-pointer"
+                  className="ui-btn ui-btn-sm w-28 bg-fg hover:bg-fg text-surface"
                 >
                   Kapat
                 </button>
@@ -3159,8 +3147,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMonthModalOpen(false)}
-                className="w-8 h-8 rounded-xl bg-fg hover:bg-fg text-surface hover:text-surface flex items-center justify-center transition-colors cursor-pointer"
+                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 title="Kapat (ESC)"
+                aria-label="Kapat"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3178,7 +3167,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
                     setIsMonthModalOpen(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`ui-btn ui-btn-sm ${
                     monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth()
                       ? 'bg-orange-600 text-white shadow-xs'
                       : 'bg-surface hover:bg-surface-2 text-fg-2 border border-line'
@@ -3194,7 +3183,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
                     setIsMonthModalOpen(false);
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface hover:bg-surface-2 text-fg-2 border border-line"
+                  className="ui-btn ui-btn-sm bg-surface hover:bg-surface-2 text-fg-2 border border-line"
                 >
                   Geçen Ay
                 </button>
@@ -3206,7 +3195,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
                     setIsMonthModalOpen(false);
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface hover:bg-surface-2 text-fg-2 border border-line"
+                  className="ui-btn ui-btn-sm bg-surface hover:bg-surface-2 text-fg-2 border border-line"
                 >
                   2 Ay Önce
                 </button>
@@ -3218,7 +3207,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
                     setIsMonthModalOpen(false);
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface hover:bg-surface-2 text-fg-2 border border-line"
+                  className="ui-btn ui-btn-sm bg-surface hover:bg-surface-2 text-fg-2 border border-line"
                 >
                   3 Ay Önce
                 </button>
@@ -3233,7 +3222,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     value={monthSearchQuery}
                     onChange={(e) => setMonthSearchQuery(e.target.value)}
                     placeholder="Ay veya yıl ara (Örn: Eylül, 2026)..."
-                    className="w-full pl-9 pr-8 py-1.5 bg-surface border border-line-strong rounded-xl text-xs text-fg focus:outline-none focus:border-orange-500"
+                    className="ui-field w-full pl-9 pr-8"
                   />
                   {monthSearchQuery && (
                     <button
@@ -3250,7 +3239,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setMonthFilterTab('all')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    className={`ui-btn ui-btn-sm ${
                       monthFilterTab === 'all'
                         ? 'bg-fg text-surface'
                         : 'text-muted hover:text-fg'
@@ -3261,7 +3250,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setMonthFilterTab('with_questions')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                    className={`ui-btn ui-btn-sm ${
                       monthFilterTab === 'with_questions'
                         ? 'bg-orange-600 text-white'
                         : 'text-muted hover:text-fg'
@@ -3365,7 +3354,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           ) : (
                             <button
                               type="button"
-                              className="px-3 py-1.5 bg-surface hover:bg-fg text-fg-2 hover:text-surface border border-line-strong hover:border-line text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+                              className="ui-btn ui-btn-sm bg-surface hover:bg-fg text-fg-2 hover:text-surface border border-line-strong hover:border-line"
                             >
                               İncele
                             </button>
@@ -3393,16 +3382,16 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
                       setIsMonthModalOpen(false);
                     }}
-                    className="px-3 py-1.5 bg-surface hover:bg-surface-2 border border-line-strong text-fg-2 font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                    className="ui-btn ui-btn-secondary ui-btn-sm w-28"
                   >
                     <RotateCcw className="w-3 h-3 text-orange-600 dark:text-orange-300" />
-                    <span>Güncel Aya Git</span>
+                    <span>Bu ay</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setIsMonthModalOpen(false)}
-                  className="px-4 py-1.5 bg-fg hover:bg-fg text-surface font-bold rounded-xl transition-colors cursor-pointer"
+                  className="ui-btn ui-btn-sm w-28 bg-fg hover:bg-fg text-surface"
                 >
                   Kapat
                 </button>
@@ -3568,14 +3557,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setPraiseTargetDay(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:bg-surface-2 transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm text-muted hover:bg-surface-2"
               >
                 Vazgeç
               </button>
               <button
                 type="button"
                 onClick={handleSendPraise}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                className="ui-btn ui-btn-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
               >
                 <Award className="w-3.5 h-3.5" />
                 <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>

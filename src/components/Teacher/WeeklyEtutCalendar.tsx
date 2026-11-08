@@ -526,7 +526,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               <button type="button" onClick={goToPreviousWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Önceki hafta" aria-label="Önceki hafta">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button type="button" onClick={goToToday} className="px-2.5 py-1 text-xs font-semibold hover:bg-surface-2 text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer">
+              <button type="button" onClick={goToToday} className="ui-btn ui-btn-sm hover:bg-surface-2 text-indigo-600 dark:text-indigo-400 min-w-24">
                 Bugün
               </button>
               <button type="button" onClick={goToNextWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Sonraki hafta" aria-label="Sonraki hafta">
@@ -548,7 +548,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 aria-selected={mode === 'week'}
                 id="etut-cal-mode-week"
                 onClick={() => setMode('week')}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${mode === 'week' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
+                className={`ui-btn ui-btn-sm ${mode === 'week' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" /> Hafta
               </button>
@@ -558,7 +558,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 aria-selected={mode === 'day'}
                 id="etut-cal-mode-day"
                 onClick={() => setMode('day')}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${mode === 'day' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
+                className={`ui-btn ui-btn-sm ${mode === 'day' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
               >
                 <List className="w-3.5 h-3.5" /> Gün
               </button>
@@ -573,7 +573,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Konu, öğretmen, öğrenci ara…"
-                className="w-full sm:w-56 pl-8 pr-7 py-1.5 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                className="ui-field w-full sm:w-56 pl-8 pr-7"
               />
               {query && (
                 <button type="button" onClick={() => setQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-muted hover:text-fg cursor-pointer" aria-label="Aramayı temizle">
@@ -703,7 +703,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               <button
                 type="button"
                 onClick={() => onAddEtutForDate(selectedDay.dateKey)}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                className="ui-btn ui-btn-sm text-indigo-600 dark:text-indigo-300 border border-dashed border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 min-w-24"
               >
                 <Plus className="w-3.5 h-3.5" /> Etüt ekle
               </button>

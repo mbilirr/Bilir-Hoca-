@@ -160,7 +160,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
             <button
               type="button"
               onClick={() => setActiveTab('pending')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`ui-btn ui-btn-sm ${
                 activeTab === 'pending'
                   ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
                   : 'text-muted hover:text-fg hover:bg-surface-2'
@@ -173,9 +173,9 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
             <button
               type="button"
               onClick={() => setActiveTab('teachers')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`ui-btn ui-btn-sm ${
                 activeTab === 'teachers'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  ? 'bg-indigo-600 text-white'
                   : 'text-muted hover:text-fg hover:bg-surface-2'
               }`}
             >
@@ -188,7 +188,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
             type="button"
             onClick={handleCloudSync}
             disabled={isSyncing}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line disabled:opacity-50 min-w-24"
             title="Buluttaki güncel kayıtları hemen tara"
           >
             <RotateCw className={`w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -262,7 +262,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleApprove(t.id, t.name)}
-                        className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                        className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
                       >
                         <UserCheck className="w-3.5 h-3.5" />
                         <span>Onayla</span>
@@ -271,7 +271,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleReject(t.id, t.name)}
-                        className="flex items-center space-x-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        className="ui-btn ui-btn-sm bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 min-w-24"
                       >
                         <UserX className="w-3.5 h-3.5" />
                         <span>Reddet</span>
@@ -355,7 +355,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                         <button
                           type="button"
                           onClick={() => handleToggleAdmin(teacher)}
-                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          className={`ui-btn ui-btn-sm ${
                             teacher.isAdmin
                               ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 hover:bg-amber-200 dark:hover:bg-amber-500/20'
                               : 'bg-surface-2 text-fg-2 hover:bg-surface-3 border border-line'
@@ -407,7 +407,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg min-w-24"
           >
             Kapat
           </button>

@@ -1497,13 +1497,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           {/* Filter / Search Bar */}
           <div className="p-4 sm:p-5 border-b border-line flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface">
             <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-subtle absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-subtle absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input autoComplete="off"
                 type="text"
                 placeholder="Öğrenci adı veya numarası ile ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-sm placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="ui-field w-full pl-10 pr-3"
               />
             </div>
 
@@ -1514,7 +1514,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <select
                   value={selectedClassFilter}
                   onChange={(e) => setSelectedClassFilter(e.target.value)}
-                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  className="ui-field w-full md:w-auto min-w-0 text-fg-2 font-semibold cursor-pointer"
                 >
                   <option value="all">Tüm Sınıflar ({students.length})</option>
                   {duplicateStudentGroups.totalDuplicates > 0 && (
@@ -1537,7 +1537,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   aria-label="Cinsiyete göre süz"
                   value={genderFilter}
                   onChange={(e) => setGenderFilter(e.target.value as 'all' | 'K' | 'E' | 'none')}
-                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  className="ui-field w-full md:w-auto min-w-0 text-fg-2 font-semibold cursor-pointer"
                 >
                   <option value="all">Tümü ({students.length})</option>
                   <option value="K">Kız ({genderCounts.k})</option>
@@ -1555,7 +1555,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as any)}
-                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  className="ui-field w-full md:w-auto min-w-0 text-fg-2 font-semibold cursor-pointer"
                 >
                   <option value="default">Varsayılan Sıralama</option>
                   <option value="name-asc">Alfabetik (A → Z)</option>
@@ -1587,7 +1587,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={handleToggleSelectAll}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-fg-2 bg-surface border border-line-strong hover:bg-surface-2 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                  className="ui-btn ui-btn-sm text-fg-2 bg-surface border border-line-strong hover:bg-surface-2 min-w-24"
                 >
                   <CheckSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                   <span>{allFilteredSelected ? 'Tümünün Seçimini Kaldır' : `Tümünü Seç (${filteredStudents.length})`}</span>
@@ -1595,7 +1595,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedStudentIds([])}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-fg bg-surface border border-line hover:bg-surface-2 transition-colors shadow-2xs cursor-pointer"
+                  className="ui-btn ui-btn-sm text-muted hover:text-fg bg-surface border border-line hover:bg-surface-2 min-w-24"
                 >
                   Temizle
                 </button>
@@ -1615,7 +1615,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsBulkDeleteModalOpen(true)}
-                  className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all shadow-sm shadow-rose-600/30 cursor-pointer"
+                  className="ui-btn ui-btn-sm text-white bg-rose-600 hover:bg-rose-700 shadow-sm min-w-24"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Seçilen Öğrencileri Sil ({selectedStudentIds.length})</span>
@@ -3157,7 +3157,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={classStudentSearch}
                     onChange={(e) => setClassStudentSearch(e.target.value)}
                     placeholder="Sınıf içinde isim, no veya veli tel ara..."
-                    className="w-full bg-surface border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                    className="ui-field w-full pl-9 pr-3"
                   />
                 </div>
 
@@ -3171,7 +3171,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setStudentClassId(viewingClassStudents.id);
                       setIsAddStudentOpen(true);
                     }}
-                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
+                    className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
                     title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -3187,7 +3187,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setTransferSelectedStudentIds([]);
                       setTransferSearchTerm('');
                     }}
-                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md shadow-emerald-600/20"
+                    className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
                     title="Sistemdeki öğrencileri tek tek veya toplu olarak bu sınıfa aktar"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -3199,7 +3199,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     type="button"
                     onClick={handleCopyList}
                     disabled={classStudents.length === 0}
-                    className="px-3 py-2 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-fg hover:text-fg rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-line"
+                    className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-fg hover:text-fg border border-line min-w-24"
                     title="Öğrenci listesini kopyala"
                   >
                     <span>📋 Kopyala</span>
@@ -3212,7 +3212,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setViewingClassStudents(null);
                       setActiveTab('students');
                     }}
-                    className="px-3 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-line"
+                    className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line min-w-24"
                   >
                     <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>Tabloda Aç</span>
@@ -3241,7 +3241,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           setStudentClassId(viewingClassStudents.id);
                           setIsAddStudentOpen(true);
                         }}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center space-x-1.5"
+                        className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Yeni Öğrenci Ekle</span>
@@ -3256,7 +3256,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           setTransferSelectedStudentIds([]);
                           setTransferSearchTerm('');
                         }}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center space-x-1.5"
+                        className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
                       >
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                         <span>Sistemdeki Öğrencileri Aktar</span>
@@ -3393,7 +3393,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewingClassStudents(null)}
-                  className="px-4 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-semibold transition-colors"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
                 >
                   Kapat
                 </button>
@@ -3521,7 +3521,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       value={transferSearchTerm}
                       onChange={(e) => setTransferSearchTerm(e.target.value)}
                       placeholder="Öğrenci adı, okul no veya mevcut sınıf ara..."
-                      className="w-full bg-surface border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                      className="ui-field w-full pl-9 pr-3"
                     />
                   </div>
 
@@ -3529,7 +3529,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => setTransferOnlyUnassigned(false)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`ui-btn ui-btn-sm ${
                         !transferOnlyUnassigned
                           ? 'bg-indigo-600 text-white shadow-sm'
                           : 'text-muted hover:text-fg'
@@ -3540,7 +3540,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => setTransferOnlyUnassigned(true)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`ui-btn ui-btn-sm ${
                         transferOnlyUnassigned
                           ? 'bg-indigo-600 text-white shadow-sm'
                           : 'text-muted hover:text-fg'
@@ -3575,7 +3575,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     type="button"
                     onClick={handleTransferBulk}
                     disabled={transferSelectedStudentIds.length === 0}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs flex items-center space-x-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:cursor-not-allowed"
+                    className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white disabled:cursor-not-allowed min-w-24"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Seçilenleri Toplu Aktar ({transferSelectedStudentIds.length})</span>
@@ -3641,7 +3641,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => handleTransferSingle(std)}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+                          className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shrink-0 min-w-24"
                           title={`${std.name} adlı öğrenciyi ${transferTargetClass.name} sınıfına aktar`}
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -3661,7 +3661,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setTransferTargetClass(null)}
-                  className="px-4 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-semibold transition-colors cursor-pointer"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
                 >
                   Kapat
                 </button>

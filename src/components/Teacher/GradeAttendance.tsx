@@ -33,7 +33,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { OverlayLayer, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -387,10 +387,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         </div>
 
         {/* Class & Subject Selectors */}
-        <div className="flex items-center space-x-2.5 flex-wrap">
-          <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
             <Users className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400 shrink-0" />
             <select
+              aria-label="Sınıf"
               value={selectedClassId}
               onChange={(e) => {
                 setSelectedClassId(e.target.value);
@@ -409,9 +410,10 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1">
+          <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
             <BookOpen className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
             <select
+              aria-label="Ders"
               value={selectedSubject}
               onChange={(e) => {
                 setSelectedSubject(e.target.value);
@@ -432,7 +434,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
           {/* Aşama 98: öğretmene göre (birden fazla öğretmenin kaydı görünüyorsa) */}
           {(teacherOptions.length > 1 || teacherFilter !== 'all') && (
-            <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1">
+            <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
               <Filter className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
               <select
                 id="grades-filter-teacher"
@@ -500,68 +502,35 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         <>
       {/* PRIMARY SECTION SELECTOR (NOTLAR vs DEVAMSIZLIK) */}
       <div className="flex items-center justify-between border-b border-line pb-3 flex-wrap gap-3">
-        <div className="flex items-center space-x-2 bg-canvas/70 p-1 rounded-xl border border-line">
-          <button
-            type="button"
-            onClick={() => setActiveMainSection('grades')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeMainSection === 'grades'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-muted hover:text-fg hover:bg-surface-2/60'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5" />
-            <span>Ders Not Çizelgesi ({classGrades.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveMainSection('attendance')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeMainSection === 'attendance'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-muted hover:text-fg hover:bg-surface-2/60'
-            }`}
-          >
-            <UserX className="w-3.5 h-3.5" />
-            <span>Devamsızlık Defteri ({classAttendanceRecords.length} Oturum)</span>
-          </button>
-        </div>
+        {/* Aşama 208: bölüm seçimi ortak sekme düğmesiyle (h-8, 12 px) */}
+        <Segmented
+          size="sm"
+          value={activeMainSection}
+          onChange={(v) => setActiveMainSection(v)}
+          items={[
+            { value: 'grades', label: `Not çizelgesi (${classGrades.length})`, icon: Award, id: 'grades-tab-grades' },
+            { value: 'attendance', label: `Devamsızlık (${classAttendanceRecords.length})`, icon: UserX, id: 'grades-tab-attendance' },
+          ]}
+        />
 
         {activeMainSection === 'grades' ? (
           <div className="flex items-center space-x-2">
-            {/* View Mode Toggle */}
-            <div className="hidden sm:flex items-center space-x-1 bg-surface border border-line rounded-xl p-0.5 text-xs font-medium text-muted">
-              <button
-                type="button"
-                onClick={() => setGradeViewMode('grouped')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                  gradeViewMode === 'grouped' ? 'bg-surface-2 text-fg font-bold' : 'hover:text-fg'
-                }`}
-              >
-                Sınav Grupları (İç İçe)
-              </button>
-              <button
-                type="button"
-                onClick={() => setGradeViewMode('table')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                  gradeViewMode === 'table' ? 'bg-surface-2 text-fg font-bold' : 'hover:text-fg'
-                }`}
-              >
-                Düz Tablo
-              </button>
-              <button
-                type="button"
-                onClick={() => setGradeViewMode('batch')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 ${
-                  gradeViewMode === 'batch' ? 'bg-indigo-600 text-white font-bold' : 'hover:text-white'
-                }`}
-              >
-                <span>Toplu Not Girişi</span>
-                {batchEnteredCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                )}
-              </button>
+            {/* View Mode Toggle · Aşama 208: ortak sekme düğmesi */}
+            <div className="hidden sm:block">
+            <Segmented
+              size="sm"
+              value={gradeViewMode}
+              onChange={(v) => setGradeViewMode(v)}
+              items={[
+                { value: 'grouped', label: 'Sınav grupları' },
+                { value: 'table', label: 'Düz tablo' },
+                {
+                  value: 'batch',
+                  label: 'Toplu not',
+                  badge: batchEnteredCount > 0 ? <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" aria-hidden="true"></span> : undefined,
+                },
+              ]}
+            />
             </div>
 
             <button
@@ -570,10 +539,10 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 setGradeStudentId(classStudents[0]?.id || students[0]?.id || '');
                 setIsAddGradeOpen(true);
               }}
-              className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+              className="ui-btn ui-btn-primary ui-btn-sm w-28"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Yeni Not Ekle</span>
+              <span>Yeni not</span>
             </button>
           </div>
         ) : (
@@ -582,21 +551,22 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <button
                 type="button"
                 onClick={() => setIsClearCurrentConfirmOpen(true)}
-                className="flex items-center space-x-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-700 dark:text-rose-300 border border-rose-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                className="ui-btn ui-btn-danger-soft ui-btn-sm w-8 sm:w-28 px-0 sm:px-2.5"
                 title="Bu tarihteki yoklamayı veritabanından sil"
+                aria-label="Yoklamayı sil"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
-                <span className="hidden sm:inline">Yoklamayı Sil</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Yoklamayı sil</span>
               </button>
             )}
             <button
               type="button"
               onClick={handleSaveAttendance}
               disabled={isSaving}
-              className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+              className="ui-btn ui-btn-success ui-btn-sm w-28"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saveFeedback ? 'Yoklama Kaydedildi! ✓' : 'Yoklamayı Kaydet'}</span>
+              <span>{saveFeedback ? 'Kaydedildi ✓' : 'Kaydet'}</span>
             </button>
           </div>
         )}
@@ -647,7 +617,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               value={searchGradeStudent}
               onChange={(e) => setSearchGradeStudent(e.target.value)}
               placeholder="Öğrenci veya sınav türü ara..."
-              className="w-full bg-surface border border-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
+              className="ui-field w-full pl-9 pr-3"
             />
           </div>
 
@@ -861,7 +831,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   <select
                     value={batchExamType}
                     onChange={(e) => setBatchExamType(e.target.value)}
-                    className="px-3 py-1.5 bg-canvas border border-line-strong rounded-xl text-fg text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    className="ui-field w-auto font-semibold cursor-pointer"
                   >
                     <option value="1. Yazılı">1. Yazılı Sınav</option>
                     <option value="2. Yazılı">2. Yazılı Sınav</option>
@@ -904,7 +874,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                               placeholder="0 - 100"
                               value={entry.score}
                               onChange={(e) => handleBatchGradeChange(std.id, 'score', e.target.value)}
-                              className="w-24 px-2.5 py-1.5 bg-canvas border border-line-strong rounded-xl text-fg font-bold text-center focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                              className="ui-field w-24 font-bold text-center"
                             />
                           </td>
                           <td className="px-4 py-3">
@@ -913,7 +883,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                               placeholder="Gelişim notu veya geri bildirim..."
                               value={entry.remarks}
                               onChange={(e) => handleBatchGradeChange(std.id, 'remarks', e.target.value)}
-                              className="w-full px-3 py-1.5 bg-canvas border border-line-strong rounded-xl text-fg text-xs focus:outline-none focus:border-indigo-500"
+                              className="ui-field w-full"
                             />
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -953,7 +923,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     <button
                       type="button"
                       onClick={() => setBatchGradesMap({})}
-                      className="flex-1 sm:flex-none px-3.5 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 sm:flex-none sm:w-28"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Temizle</span>
@@ -964,18 +934,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     type="button"
                     onClick={handleSaveBatchGrades}
                     disabled={isSaving || batchEnteredCount === 0}
-                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer ${
-                      batchEnteredCount > 0
-                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.02]'
-                        : 'bg-surface-2 text-subtle cursor-not-allowed opacity-60'
-                    }`}
+                    className="ui-btn ui-btn-primary ui-btn-sm flex-1 sm:flex-none sm:w-28"
+                    title={batchEnteredCount > 0 ? `${batchEnteredCount} öğrencinin notunu kaydet` : undefined}
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>
-                      {batchEnteredCount > 0
-                        ? `Notları Kaydet (${batchEnteredCount} Öğrenci)`
-                        : 'Notları Kaydet'}
-                    </span>
+                    <span>{batchEnteredCount > 0 ? `Kaydet (${batchEnteredCount})` : 'Kaydet'}</span>
                   </button>
                 </div>
               </div>
@@ -1016,11 +979,12 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               </button>
 
               {/* Attendance Date & Fast Toggles */}
-              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                <div className="flex items-center space-x-1.5 bg-canvas border border-line-strong rounded-xl px-2.5 py-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line-strong rounded-lg px-2.5">
                   <Calendar className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400" />
                   <input
                     type="date"
+                    aria-label="Yoklama tarihi"
                     value={attendanceDate}
                     onChange={(e) => {
                       setAttendanceDate(e.target.value);
@@ -1033,15 +997,16 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSetAllStatus('present')}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                  className="ui-btn ui-btn-sm w-24 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20"
+                  title="Bütün öğrencileri 'Var' yap"
                 >
-                  Tümünü 'Var' Yap
+                  Hepsi var
                 </button>
 
                 <button
                   type="button"
                   onClick={handleClearForm}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-surface-2 text-fg-2 hover:text-fg transition-colors cursor-pointer"
+                  className="ui-btn ui-btn-secondary ui-btn-sm w-24"
                 >
                   Sıfırla
                 </button>
@@ -1049,7 +1014,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAttendanceSheetOpen(!isAttendanceSheetOpen)}
-                  className="p-1 text-muted hover:text-fg cursor-pointer"
+                  className="ui-btn ui-btn-ghost ui-btn-icon"
+                  aria-label={isAttendanceSheetOpen ? 'Formu kapat' : 'Formu aç'}
+                  aria-expanded={isAttendanceSheetOpen}
                 >
                   <ChevronDown
                     className={`w-4 h-4 transition-transform duration-200 ${
@@ -1098,7 +1065,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleStatusChange(std.id, 'present')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
                                       att.status === 'present'
                                         ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
                                         : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
@@ -1111,7 +1078,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleStatusChange(std.id, 'absent')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
                                       att.status === 'absent'
                                         ? 'bg-rose-600 border-rose-500 text-white shadow-sm'
                                         : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
@@ -1124,7 +1091,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleStatusChange(std.id, 'late')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
                                       att.status === 'late'
                                         ? 'bg-amber-600 border-amber-500 text-white shadow-sm'
                                         : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
@@ -1137,7 +1104,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleStatusChange(std.id, 'excused')}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
                                       att.status === 'excused'
                                         ? 'bg-blue-600 border-blue-500 text-white shadow-sm'
                                         : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
@@ -1158,7 +1125,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                     }))
                                   }
                                   placeholder="Gerekçe veya not..."
-                                  className="w-full px-2.5 py-1 bg-canvas border border-line rounded-lg text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+                                  className="ui-field w-full"
                                 />
                               </td>
                               <td className="px-3 py-2.5 text-right">
@@ -1199,20 +1166,20 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     <button
                       type="button"
                       onClick={() => setAttendanceMap({})}
-                      className="flex-1 sm:flex-none px-3.5 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 sm:flex-none sm:w-28"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Formu Sıfırla</span>
+                      <span>Sıfırla</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={handleSaveAttendance}
                       disabled={isSaving}
-                      className="flex-1 sm:flex-none px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2 cursor-pointer transition-all scale-[1.02]"
+                      className="ui-btn ui-btn-success ui-btn-sm flex-1 sm:flex-none sm:w-28"
                     >
                       <Save className="w-3.5 h-3.5" />
-                      <span>{saveFeedback ? 'Yoklama Kaydedildi! ✓' : 'Yoklamayı Kaydet'}</span>
+                      <span>{saveFeedback ? 'Kaydedildi ✓' : 'Kaydet'}</span>
                     </button>
                   </div>
                 </div>
@@ -1333,15 +1300,16 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                 });
                                 setAttendanceMap(nextMap);
                               }}
-                              className="px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-fg rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-sm w-24"
                             >
-                              Forma Yükle
+                              Forma yükle
                             </button>
                             <button
                               type="button"
                               onClick={() => setAttendanceToDelete(rec)}
-                              className="p-1.5 bg-surface-2 hover:bg-rose-900/40 text-muted hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-danger-soft ui-btn-icon"
                               title="Yoklamayı Sil"
+                              aria-label="Yoklamayı sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1415,7 +1383,8 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <button
                 type="button"
                 onClick={() => setIsAddGradeOpen(false)}
-                className="p-1 text-muted hover:text-fg rounded-lg cursor-pointer"
+                className="ui-btn ui-btn-ghost ui-btn-icon"
+                aria-label="Kapat"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1429,7 +1398,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   value={gradeStudentId}
                   onChange={setGradeStudentId}
                   placeholder="Öğrenci seçin"
-                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
+                  className="ui-field h-8 py-0"
                   showClass={false}
                   ariaLabel="Öğrenci"
                 />
@@ -1441,7 +1410,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   <select
                     value={examType}
                     onChange={(e) => setExamType(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
+                    className="ui-field w-full"
                   >
                     <option value="1. Yazılı">1. Yazılı Sınav</option>
                     <option value="2. Yazılı">2. Yazılı Sınav</option>
@@ -1460,7 +1429,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     required
                     value={score}
                     onChange={(e) => setScore(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500 font-bold"
+                    className="ui-field w-full font-bold"
                   />
                 </div>
               </div>
@@ -1472,15 +1441,15 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   placeholder="Başarılı çalışma, konu tekrarı önerilir..."
                   value={gradeRemarks}
                   onChange={(e) => setGradeRemarks(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
+                  className="ui-field w-full"
                 />
               </div>
 
-              <div className="pt-3 border-t border-line flex justify-end space-x-2">
+              <div className="pt-3 border-t border-line flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAddGradeOpen(false)}
-                  className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium cursor-pointer"
+                  className="ui-btn ui-btn-secondary ui-btn-sm w-28"
                 >
                   İptal
                 </button>
@@ -1488,10 +1457,10 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   type="submit"
                   id="grade-save"
                   disabled={isSaving}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center space-x-1.5 disabled:opacity-60"
+                  className="ui-btn ui-btn-primary ui-btn-sm w-28"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Notu Kaydet</span>
+                  <span>Kaydet</span>
                 </button>
               </div>
             </form>

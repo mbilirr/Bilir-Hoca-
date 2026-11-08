@@ -396,7 +396,7 @@ export const ParentAnnouncements: React.FC = () => {
               maxLength={SUBJECT_MAX}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Örn. Veli toplantısı hakkında"
-              className="w-full px-3 py-2.5 bg-surface-2 border border-line rounded-xl text-sm text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="ui-field w-full"
             />
           </div>
           <div>
@@ -438,7 +438,7 @@ export const ParentAnnouncements: React.FC = () => {
                   aria-selected={target === o.v}
                   id={`pa-target-${o.v}`}
                   onClick={() => setTarget(o.v)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${target === o.v ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
+                  className={`ui-btn ui-btn-sm ${target === o.v ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                 >
                   <o.icon className="w-3.5 h-3.5" /> {o.label}
                 </button>
@@ -460,7 +460,7 @@ export const ParentAnnouncements: React.FC = () => {
                         type="button"
                         aria-pressed={on}
                         onClick={() => setClassIds(toggle(classIds, c.id))}
-                        className={`px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-colors ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
+                        className={`ui-btn ui-btn-sm rounded-full border ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
                       >
                         {c.name} <span className={on ? 'text-white/80' : 'text-muted'}>({classSize.get(c.id)})</span>
                       </button>
@@ -485,13 +485,13 @@ export const ParentAnnouncements: React.FC = () => {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Öğrenci adı veya numarası ara…"
-                    className="w-full pl-9 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="ui-field w-full pl-9 pr-3"
                   />
                 </div>
                 <select
                   value={studentClassFilter}
                   onChange={(e) => setStudentClassFilter(e.target.value)}
-                  className="bg-surface border border-line rounded-xl px-3 py-2 text-xs text-fg"
+                  className="ui-field w-auto"
                   aria-label="Sınıfa göre süz"
                 >
                   <option value="all">Tüm sınıflar</option>
