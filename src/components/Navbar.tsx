@@ -154,8 +154,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   // Aşama 82-83: öğretmende ve öğrencide kendi kurumunun adı ve logosu görünür
+  // Aşama 228: kurum adı yoksa eski "BAŞARI & EĞİTİM" yerine marka adı bilirEdu
   const kurumBrand = dataService.getBrand();
-  const brandName = kurumBrand.name || 'BAŞARI & EĞİTİM';
+  const brandName = kurumBrand.name || 'bilirEdu';
   const brandLogo = kurumBrand.logo || '';
 
   const brand = (
