@@ -914,31 +914,7 @@ async function actionAttendanceSave(body) {
     body: { attendance_taken_by: takenBy },
     prefer: 'return=minimal',
   });
-  // Öğrencinin genel devamsızlık kaydına da yansıt (sistemdeki yoklama penceresiyle aynı kural)
-  try {
-    const first = c.students.find((s) => next[s.id]);
-    const classId = (first && first.class_id) || 'class-etut-general';
-    const subject = `${c.etut.subject} (Etüt)`;
-    const found = await rest(
-      `attendance?select=id&date=eq.${encodeURIComponent(c.etut.date)}&class_id=eq.${encodeURIComponent(classId)}&subject=eq.${encodeURIComponent(subject)}`,
-      { token: 'service' }
-    );
-    const id = (found && found[0] && found[0].id) || `att-${Date.now()}`;
-    const recs = Object.entries(next).map(([sid, v]) => ({
-      studentId: sid,
-      studentName: (v && v.studentName) || (byId.get(sid) && byId.get(sid).name) || 'Öğrenci',
-      status: v && v.status,
-      note: (v && v.note) || `Etüt: ${(v && v.topic) || c.etut.topic || c.etut.subject}`,
-    }));
-    await rest('attendance?on_conflict=id', {
-      token: 'service',
-      method: 'POST',
-      body: [{ id, class_id: classId, date: c.etut.date, subject, records: recs }],
-      prefer: 'resolution=merge-duplicates,return=minimal',
-    });
-  } catch (err) {
-    console.warn('[yoklama] genel devamsızlık kaydı yazılamadı:', err && err.message);
-  }
+  // Aşama 198: eski "attendance" tablosuna "X (Etüt)" kopyası artık yazılmaz (yoklamanın tek kaydı etut_yoklama)
   return { ok: true, saved: entries.length, at: now };
 }
 
