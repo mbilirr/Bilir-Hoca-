@@ -14,7 +14,8 @@ import {
   haftaOku,
   isoGun,
   tarihUzun,
-  tarihYaz,
+  trBugun,
+  trSaat,
 } from '../../services/dersService';
 import { DersYoklamaModal, DersYoklamaHedef } from './DersYoklamaModal';
 
@@ -31,10 +32,7 @@ type Gorunum = 'gun' | 'hafta';
 type Durum = 'alindi' | 'bekliyor' | 'sonra';
 const STORE_KEY = 'edu_ders_gorunum_v1';
 
-const simdiSaat = () => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+const simdiSaat = () => trSaat(); // Aşama 234: Türkiye saati (sunucuya göre), cihaz saati değil
 
 const ilkGorunum = (): Gorunum => {
   try {
@@ -59,7 +57,7 @@ const ALT_RENK: Record<Durum, string> = {
 
 export const DersProgramim: React.FC = () => {
   const kurumId = dataService.getMyKurum().kurumId;
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const [gorunum, setGorunumState] = useState<Gorunum>(ilkGorunum);
   const setGorunum = (g: Gorunum) => {
     setGorunumState(g);

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardCheck, ChevronRight } from 'lucide-react';
 import { dataService } from '../../services/dataService';
-import { Bekleyen, bekleyenlerim, dersCanliDinle, tarihYaz } from '../../services/dersService';
+import { Bekleyen, bekleyenlerim, dersCanliDinle, trBugun } from '../../services/dersService';
 
 // ============================================================================
 // Aşama 220: ÖĞRETMEN ANA SAYFASI — tek satır "8C · 3. ders yoklaması bekliyor".
@@ -38,7 +38,7 @@ export const DersBekleyenSatiri: React.FC<{ onAc: (b: Bekleyen) => void }> = ({ 
 
   if (!liste.length) return null;
   const ilk = liste[0];
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const gunYazi = ilk.tarih === bugun ? '' : ' (önceki gün)';
   const diger = liste.length - 1;
 

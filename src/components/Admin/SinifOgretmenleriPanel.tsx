@@ -13,7 +13,7 @@ import {
   sinifDersOgretmenCikar,
   sinifDersOgretmenEkle,
   sinifDersOgretmenleri,
-  tarihYaz,
+  trBugun,
 } from '../../services/dersService';
 
 // ============================================================================
@@ -76,7 +76,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
 
   const yukle = useCallback(async () => {
     try {
-      const [l, p] = await Promise.all([sinifDersOgretmenleri(kurumId), guncelProgram(kurumId, tarihYaz(new Date()))]);
+      const [l, p] = await Promise.all([sinifDersOgretmenleri(kurumId), guncelProgram(kurumId, trBugun())]);
       setListe(l);
       setProgram(p);
       setHata(null);

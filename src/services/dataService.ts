@@ -58,6 +58,7 @@ import {
 import { newId } from '../lib/ids';
 import { cleanParents } from '../lib/parents';
 import { setKurumBrand } from '../lib/kurumBrand';
+import { sunucuSaatiAyarla } from '../lib/trSaat'; // Aşama 234
 import { loadOgrBolumCache, resetOgrBolum, syncOgrBolum } from '../lib/ogrenciBolum';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
@@ -4752,6 +4753,74 @@ class DataService {
   private myKurum: MyKurumState = { ...EMPTY_KURUM_STATE, ...loadMyKurumCache() };
 
   // ===========================================================================
+  // Aşama 234: DERSLER SAYFASI ERİŞİMİ. Ders programında dersi (ya da vekilliği) olan öğretmen ve ders saatleri
+  // kayıtlı kurumun idaresi "Dersler"i (Program + yoklama) her zaman görür; "Notlar" bölümü eskisi gibi not iznine
+  // bağlıdır (canUseNotlar). Bilgi sunucudan (ders_erisimim, sql/234) girişte ve 10 dakikada bir okunur; aynı çağrı
+  // sunucu saatini de öğretir (lib/trSaat). SQL kurulu değilse eski davranış sürer.
+  // ===========================================================================
+  private static DERS_ERISIM_KEY = 'edu_ders_erisim_v1';
+  private dersErisim: { kurumId: string | null; program: boolean; yonetici: boolean; at: number } = (() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(DataService.DERS_ERISIM_KEY) || 'null');
+      if (v && typeof v === 'object') return { kurumId: v.kurumId || null, program: v.program === true, yonetici: v.yonetici === true, at: 0 };
+    } catch {}
+    return { kurumId: null, program: false, yonetici: false, at: 0 };
+  })();
+  private dersErisimSuruyor = false;
+
+  private async refreshDersErisim(): Promise<void> {
+    const kurumId = this.myKurum.kurumId || null;
+    if (this.getAuthSession()?.role !== 'teacher' || !kurumId || this.isHeadAdmin()) {
+      if (this.dersErisim.program || this.dersErisim.yonetici) {
+        this.dersErisim = { kurumId: null, program: false, yonetici: false, at: Date.now() };
+        this.notify();
+      }
+      return;
+    }
+    if (this.dersErisimSuruyor) return;
+    if (this.dersErisim.kurumId === kurumId && Date.now() - this.dersErisim.at < 10 * 60_000) return;
+    this.dersErisimSuruyor = true;
+    try {
+      const gonder = Date.now();
+      const { data, error } = await supabase.rpc('ders_erisimim');
+      const alindi = Date.now();
+      let program = false;
+      let yonetici = false;
+      if (error) {
+        // 234 kurulu değilse eski davranış (yalnız not izni); bağlantı hatasında bilinen değer korunur
+        if (!(error.code === 'PGRST202' || error.code === '42883' || /ders_erisimim/.test(error.message || ''))) return;
+      } else {
+        const d: any = data || {};
+        program = d.program === true;
+        yonetici = d.yonetici === true;
+        sunucuSaatiAyarla(Number(d.simdi_ms), gonder, alindi);
+      }
+      if (this.myKurum.kurumId !== kurumId) return; // arada kurum değişti
+      const degisti = this.dersErisim.program !== program || this.dersErisim.yonetici !== yonetici || this.dersErisim.kurumId !== kurumId;
+      this.dersErisim = { kurumId, program, yonetici, at: Date.now() };
+      try {
+        sessionStorage.setItem(DataService.DERS_ERISIM_KEY, JSON.stringify({ kurumId, program, yonetici }));
+      } catch {}
+      if (degisti) this.notify();
+    } catch {
+      /* bağlantı sorunu: bir sonraki eşitlemede tekrar denenir */
+    } finally {
+      this.dersErisimSuruyor = false;
+    }
+  }
+
+  /** Aşama 234: ders programında dersi / vekilliği olan öğretmen ya da ders saatleri kayıtlı kurumun idaresi */
+  public dersProgramiErisimi(): boolean {
+    const k = this.myKurum.kurumId || null;
+    return !!k && this.dersErisim.kurumId === k && (this.dersErisim.program || this.dersErisim.yonetici);
+  }
+
+  /** Aşama 234: Dersler › Notlar bölümü (önceki "grades" izninin aynısı) */
+  public canUseNotlar(): boolean {
+    return this.canUseTabBase('grades');
+  }
+
+  // ===========================================================================
   // Aşama 43: ÖĞRENCİNİN HAFTASI — öğretmenin haftalık planı hangi günden başlıyorsa öğrencinin soru hedefi
   // ve soru kaydı haftası da o günden başlar (Soru Kaydet, Soru Takibi, özetler, grafikler, hedef formu).
   // Ölçüt: öğrenciye gönderilmiş, bugün ya da daha önce başlamış EN SON plan. Plan yoksa Pazartesi.
@@ -4931,6 +5000,7 @@ class DataService {
       sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
     } catch {}
     if (changed) this.notify();
+    void this.refreshDersErisim(); // Aşama 234 (10 dakikada bir okunur)
   }
 
   /** Görünürlüğü belirleyen kurum bilgileri (rol, bölüm izni, modül, rol anahtarı, yönetici) */
@@ -5338,6 +5408,12 @@ class DataService {
 
   // Öğretmen sekmesi bu kullanıcıya açık mı?
   public canUseTab(tab: TeacherTabType): boolean {
+    // Aşama 234: "Dersler" sekmesi ders programında dersi olan öğretmene not izninden bağımsız açılır
+    if (tab === 'grades' && this.dersProgramiErisimi()) return true;
+    return this.canUseTabBase(tab);
+  }
+
+  private canUseTabBase(tab: TeacherTabType): boolean {
     const mod = TAB_MODULES[tab];
     if (tab === 'user_management') return this.canAccessUserManagement();
     if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü
@@ -7346,6 +7422,10 @@ class DataService {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };
+    this.dersErisim = { kurumId: null, program: false, yonetici: false, at: 0 }; // Aşama 234
+    try {
+      sessionStorage.removeItem(DataService.DERS_ERISIM_KEY);
+    } catch {}
     this.studentBrand = { name: '', logo: '' };
     setKurumBrand(null);
     resetOgrBolum(); // Aşama 165

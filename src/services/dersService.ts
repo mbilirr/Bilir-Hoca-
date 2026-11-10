@@ -5,6 +5,7 @@
 // Canlı güncelleme: dersCanliDinle() yalnız açık ekran için, yalnız kendi kurumunun satırlarını dinler.
 // ============================================================================
 import { supabase } from '../lib/supabase';
+export { trBugun, trSaat } from '../lib/trSaat'; // Aşama 234: Türkiye günü / saati (sunucuya göre)
 
 export const DERS_MAX = 10;
 export const GUN_ADLARI = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] as const;

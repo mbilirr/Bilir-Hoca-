@@ -5,11 +5,14 @@ import { lazyNamed } from '../../lib/lazyLoad';
 import { useQuickFocus, setQuickFocus } from '../../lib/quickFocus';
 import { AttendanceRecord, ClassGroup, GradeRecord, Student } from '../../types';
 import { DersProgramim } from './DersProgramim';
+import { dataService } from '../../services/dataService';
 
 // ============================================================================
 // Aşama 220: DERSLER SAYFASI (eski "Not & Yoklama").
 //  * Program: öğretmenin haftalık ders programı; derse tıklayınca ders saati yoklaması (217 veritabanı).
 //  * Notlar: önceki Not & Devamsızlık ekranı aynen (GradeAttendance), yalnız ihtiyaç olunca yüklenir.
+// Aşama 234: sayfa ders programında dersi olan öğretmene not izninden bağımsız açılır; "Notlar" yalnız not izni
+// olana görünür (izni olmayan yalnız Program'ı görür).
 // ============================================================================
 
 const GradeAttendance = lazyNamed(() => import('./GradeAttendance'), 'GradeAttendance');
@@ -31,7 +34,9 @@ export const DerslerSayfasi: React.FC<{
   grades: GradeRecord[];
   attendance: AttendanceRecord[];
 }> = ({ students, classes, grades, attendance }) => {
-  const [bolum, setBolumState] = useState<Bolum>(ilkBolum);
+  const notlarAcik = dataService.canUseNotlar();
+  const [bolumSecili, setBolumState] = useState<Bolum>(ilkBolum);
+  const bolum: Bolum = notlarAcik ? bolumSecili : 'program';
   const setBolum = (b: Bolum) => {
     setBolumState(b);
     try {
@@ -48,7 +53,7 @@ export const DerslerSayfasi: React.FC<{
   const iletiyor = useRef(false);
   useQuickFocus(['teacher', 'ders'], (f) => {
     if (iletiyor.current) return;
-    setBolum(f.type === 'ders' ? 'program' : 'notlar');
+    setBolum(f.type === 'ders' || !notlarAcik ? 'program' : 'notlar');
     iletiyor.current = true;
     try {
       setQuickFocus(f.type, f.id, f.label);
@@ -63,8 +68,9 @@ export const DerslerSayfasi: React.FC<{
         icon={ClipboardCheck}
         tone="success"
         title="Dersler"
-        description="Ders programı, ders yoklaması ve notlar"
+        description={notlarAcik ? 'Ders programı, ders yoklaması ve notlar' : 'Ders programı ve ders yoklaması'}
         actions={
+          notlarAcik && (
           <Segmented
             size="sm"
             value={bolum}
@@ -74,6 +80,7 @@ export const DerslerSayfasi: React.FC<{
               { value: 'notlar', label: 'Notlar', icon: FileSpreadsheet, id: 'dersler-tab-notlar' },
             ]}
           />
+          )
         }
       />
       {bolum === 'program' ? (

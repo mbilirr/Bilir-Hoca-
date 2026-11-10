@@ -14,7 +14,7 @@ import {
   izinListesi,
   izinSil,
   tarihUzun,
-  tarihYaz,
+  trBugun,
 } from '../../services/dersService';
 
 // ============================================================================
@@ -53,7 +53,7 @@ function grupla(liste: GunIzin[]): Grup[] {
 }
 
 export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> = ({ kurumId, classes }) => {
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const siniflar = useMemo(() => {
     const granted = new Set(dataService.getMyKurum().grantedClassIds || []);
     return classes
@@ -94,7 +94,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
 
   const yukle = useCallback(async () => {
     try {
-      setListe(await izinListesi(kurumId, gunEkle(tarihYaz(new Date()), -14)));
+      setListe(await izinListesi(kurumId, gunEkle(trBugun(), -14)));
       setHata(null);
     } catch (e: any) {
       setHata(e?.message || 'Okunamadı.');

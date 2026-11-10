@@ -11,7 +11,7 @@ import {
   isoGun,
   ogrenciProgrami,
   tarihUzun,
-  tarihYaz,
+  trBugun,
 } from '../../services/dersService';
 
 // ============================================================================
@@ -29,7 +29,7 @@ const DURUM_RENK: Record<YoklamaDurum, string> = {
 };
 
 export const StudentDersProgrami: React.FC = () => {
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const [bas, setBas] = useState(() => haftaBasi(bugun));
   const [v, setV] = useState<OgrenciProgram | null | undefined>(undefined);
   const [hata, setHata] = useState<string | null>(null);

@@ -20,7 +20,7 @@ import {
   isoGun,
   ogretmenYoklamaRapor,
   tarihUzun,
-  tarihYaz,
+  trBugun,
 } from '../../services/dersService';
 import { DersYoklamaModal, DersYoklamaHedef } from './DersYoklamaModal';
 
@@ -62,7 +62,7 @@ interface Props {
 export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklama', etuts, homeworks, submissions, students, classes }) => {
   const kurumId = dataService.getMyKurum().kurumId;
   const kurumAd = dataService.getMyKurum().kurumName || '';
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const [bolum, setBolum] = useState<Bolum>(ilkBolum);
   useEffect(() => {
     if (open) setBolum(ilkBolum);
@@ -393,7 +393,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
               <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary h-8" onClick={() => (setBas(haftaBasi(bugun)), setBit(bugun))}>
                 Bu hafta
               </button>
-              <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary h-8" onClick={() => (setBas(tarihYaz(new Date(Date.now() - 29 * DAY))), setBit(bugun))}>
+              <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary h-8" onClick={() => (setBas(gunEkle(bugun, -29)), setBit(bugun))}>
                 30 gün
               </button>
             </div>

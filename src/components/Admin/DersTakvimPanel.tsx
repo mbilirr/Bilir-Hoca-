@@ -12,12 +12,12 @@ import {
   gunEkle,
   isoGun,
   tarihUzun,
-  tarihYaz,
   tatilEkle,
   tatilListesi,
   tatilSil,
   veliBildirimKaydet,
   sinirKaydet,
+  trBugun,
 } from '../../services/dersService';
 
 // ============================================================================
@@ -59,7 +59,7 @@ const VELI_SECENEK: Array<{ value: VeliBildirim; label: string; id: string }> = 
 ];
 
 export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
-  const bugun = tarihYaz(new Date());
+  const bugun = trBugun(); // Aşama 234: Türkiye günü (sunucu saati)
   const [liste, setListe] = useState<Tatil[] | null>(null);
   const [veli, setVeli] = useState<VeliBildirim | null>(null);
   const [kayitli, setKayitli] = useState(false);
