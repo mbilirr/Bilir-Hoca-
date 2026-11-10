@@ -1,30 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FileSpreadsheet,
-  UserX,
   Plus,
-  Check,
-  Calendar,
   Save,
   Search,
   Award,
   Trash2,
   RotateCcw,
-  History,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
-  ChevronsUpDown,
   BookOpen,
   Filter,
   Users,
-  Clock,
   X,
   GraduationCap,
   AlertTriangle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GradeRecord, AttendanceRecord, Student, ClassGroup, AttendanceStatus } from '../../types';
+import { GradeRecord, AttendanceRecord, Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
@@ -34,7 +27,6 @@ import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
 import { OverlayLayer, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
-import { dersAyarOku } from '../../services/dersService'; // Aşama 230
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -46,16 +38,15 @@ interface GradeAttendanceProps {
   students: Student[];
   classes: ClassGroup[];
   grades: GradeRecord[];
-  attendance: AttendanceRecord[];
+  /** Aşama 198: artık okunmaz (eski etüt kopyaları silindi); çağıranlar değişmesin diye isteğe bağlı kaldı */
+  attendance?: AttendanceRecord[];
 }
 
 export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   students,
   classes,
   grades,
-  attendance,
 }) => {
-  const [activeMainSection, setActiveMainSection] = useState<'grades' | 'attendance'>('grades');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   // Aşama 98: öğretmene göre (kaydı giren öğretmenin giriş hesabı); birden fazla öğretmenin kaydı görünüyorsa
@@ -63,24 +54,21 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   const teacherOptions = useMemo(() => {
     const ids = new Set<string>();
     for (const g of grades) if (g.createdBy) ids.add(g.createdBy);
-    for (const a of attendance) if (a.createdBy) ids.add(a.createdBy);
     return Array.from(ids)
       .map((id) => ({ id, name: dataService.teacherByAuthId(id)?.name || 'Bilinmeyen öğretmen' }))
       .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
-  }, [grades, attendance]);
+  }, [grades]);
   const byTeacher = (createdBy?: string) => teacherFilter === 'all' || createdBy === teacherFilter;
   // Kurum Özeti'nden gelen öğretmen: süzgeç seçilir, o öğretmenin en son kaydının sınıfı ve dersi açılır
   useQuickFocus(['teacher'], (f) => {
     const auth = dataService.getTeachers().find((t) => t.id === f.id)?.auth_user_id || '';
     if (!auth) return;
     setTeacherFilter(auth);
-    const last = [...grades.filter((g) => g.createdBy === auth).map((g) => ({ d: g.date, c: g.classId, s: g.subject, k: 'grades' as const })),
-      ...attendance.filter((a) => a.createdBy === auth).map((a) => ({ d: a.date, c: a.classId, s: a.subject, k: 'attendance' as const }))]
+    const last = grades.filter((g) => g.createdBy === auth).map((g) => ({ d: g.date, c: g.classId, s: g.subject }))
       .sort((a, b) => (b.d || '').localeCompare(a.d || ''))[0];
     if (last) {
       setSelectedClassId(last.c);
       setSelectedSubject(last.s);
-      setActiveMainSection(last.k);
     }
   });
 
@@ -109,18 +97,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   const [maxScore, setMaxScore] = useState<number>(100);
   const [gradeRemarks, setGradeRemarks] = useState('');
 
-  // Attendance Controls
-  const [isAttendanceSheetOpen, setIsAttendanceSheetOpen] = useState(true);
-  const [isAttendanceHistoryOpen, setIsAttendanceHistoryOpen] = useState(true);
-  const [expandedHistoryRecords, setExpandedHistoryRecords] = useState<Record<string, boolean>>({});
-
-  // Attendance Sheet State
-  const [attendanceDate, setAttendanceDate] = useState(todayLocal());
-  const [attendanceMap, setAttendanceMap] = useState<
-    Record<string, { status: AttendanceStatus; note: string }>
-  >({});
-  const [saveFeedback, setSaveFeedback] = useState(false);
-  useAutoDismiss(saveFeedback, () => setSaveFeedback(false)); // Aşama 32: 15 sn sonra kaybolur
   // Aşama 17: kaydederken düğme kilitlenir, hata ekranda gösterilir (tarayıcı uyarı penceresi yok)
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -139,8 +115,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
   // Deletion Modal States
   const [gradeToDelete, setGradeToDelete] = useState<GradeRecord | null>(null);
-  const [attendanceToDelete, setAttendanceToDelete] = useState<AttendanceRecord | null>(null);
-  const [isClearCurrentConfirmOpen, setIsClearCurrentConfirmOpen] = useState(false);
 
   // Filter students of active class
   const classStudents = students.filter((s) => s.classId === selectedClassId);
@@ -159,104 +133,10 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     subjectsForLevel(level).forEach(add);
     if (selectedClassId) {
       for (const g of grades) if (g.classId === selectedClassId) add(g.subject);
-      for (const a of attendance) if (a.classId === selectedClassId) add(a.subject);
     }
     add(selectedSubject);
     return out;
-  }, [activeClass, selectedClassId, grades, attendance, selectedSubject]);
-
-  // Attendance helpers
-  const currentAttendanceRecord = attendance.find(
-    (a) =>
-      a.date === attendanceDate &&
-      a.classId === selectedClassId &&
-      a.subject === selectedSubject
-  );
-
-  const getStudentAttendance = (studentId: string): { status: AttendanceStatus; note: string } => {
-    if (attendanceMap[studentId]) return attendanceMap[studentId];
-    if (currentAttendanceRecord) {
-      const match = currentAttendanceRecord.records.find((r) => r.studentId === studentId);
-      if (match) return { status: match.status, note: match.note || '' };
-    }
-    return { status: 'present', note: '' };
-  };
-
-  // Aşama 230: kurumda ders programı (ders saatleri) kuruluysa ders yoklaması yalnız Dersler › Program'dan alınır;
-  // bu sekme (etüt yoklamasının kopyaları + eski kayıtlar) yalnız görüntülenir. Kayıtlara dokunulmaz.
-  const [salt, setSalt] = useState(false);
-  useEffect(() => {
-    let canli = true;
-    dersAyarOku()
-      .then((a) => canli && setSalt(!!a?.kayitli))
-      .catch(() => {
-        /* 217 kurulu değil: bugünkü davranış */
-      });
-    return () => {
-      canli = false;
-    };
-  }, []);
-
-  const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
-    if (salt) return;
-    const current = getStudentAttendance(studentId);
-    setAttendanceMap((prev) => ({
-      ...prev,
-      [studentId]: { ...current, status },
-    }));
-  };
-
-  const handleSetAllStatus = (status: AttendanceStatus) => {
-    if (salt) return;
-    const nextMap: Record<string, { status: AttendanceStatus; note: string }> = {};
-    classStudents.forEach((std) => {
-      const current = getStudentAttendance(std.id);
-      nextMap[std.id] = { ...current, status };
-    });
-    setAttendanceMap(nextMap);
-  };
-
-  const handleSaveAttendance = () => runSave(async () => {
-    if (salt) throw new Error("Ders yoklaması Dersler › Program'dan alınır.");
-    if (!selectedClassId || !selectedSubject) throw new Error('Önce sınıf ve ders seçin.');
-    const records = classStudents.map((std) => {
-      const current = getStudentAttendance(std.id);
-      return {
-        studentId: std.id,
-        studentName: std.name,
-        status: current.status,
-        note: current.note,
-      };
-    });
-
-    await dataService.recordAttendance({
-      date: attendanceDate,
-      classId: selectedClassId,
-      subject: selectedSubject,
-      records,
-    });
-
-    setSaveFeedback(true);
-  });
-
-  const handleDeleteCurrentAttendance = async () => {
-    if (salt) return;
-    if (currentAttendanceRecord) {
-      await dataService.deleteAttendance(currentAttendanceRecord.id);
-    } else {
-      await dataService.deleteAttendanceForDate(attendanceDate, selectedClassId, selectedSubject);
-    }
-    setAttendanceMap({});
-  };
-
-  const handleClearForm = () => {
-    if (salt) return;
-    const resetMap: Record<string, { status: AttendanceStatus; note: string }> = {};
-    classStudents.forEach((std) => {
-      resetMap[std.id] = { status: 'present', note: '' };
-    });
-    setAttendanceMap(resetMap);
-  };
+  }, [activeClass, selectedClassId, grades, selectedSubject]);
 
   const handleSaveGrade = (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,25 +219,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     ? Math.round(classGrades.reduce((acc, g) => acc + g.score, 0) / classGrades.length)
     : 0;
 
-  // Filter attendance records
-  const classAttendanceRecords = useMemo(
-    () =>
-      attendance.filter(
-        (a) =>
-          a.classId === selectedClassId && (selectedSubject ? a.subject === selectedSubject : true) && (teacherFilter === 'all' || a.createdBy === teacherFilter)
-      ),
-    [attendance, selectedClassId, selectedSubject, teacherFilter]
-  );
-
   // Group grades by Exam Type
   const EXAM_TYPES = ['1. Yazılı', '2. Yazılı', 'Performans', 'Ödev Notu', 'Deneme Sınavı'];
 
   const toggleExamGroup = (type: string) => {
     setExpandedExamGroups((prev) => ({ ...prev, [type]: !prev[type] }));
-  };
-
-  const toggleHistoryRecord = (recordId: string) => {
-    setExpandedHistoryRecords((prev) => ({ ...prev, [recordId]: !prev[recordId] }));
   };
 
   // Filtered grades by search
@@ -390,7 +256,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-fg tracking-tight flex items-center space-x-2">
-                <span>Ders Notları & Devamsızlık Defteri</span>
+                <span>Ders Notları</span>
                 <span
                   className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
                     activeClass && selectedSubject
@@ -416,7 +282,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               value={selectedClassId}
               onChange={(e) => {
                 setSelectedClassId(e.target.value);
-                setAttendanceMap({});
               }}
               className="bg-transparent text-fg text-xs font-semibold focus:outline-none cursor-pointer"
             >
@@ -438,7 +303,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               value={selectedSubject}
               onChange={(e) => {
                 setSelectedSubject(e.target.value);
-                setAttendanceMap({});
               }}
               className="bg-transparent text-fg text-xs font-semibold focus:outline-none cursor-pointer"
             >
@@ -519,20 +383,13 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         </div>
       ) : (
         <>
-      {/* PRIMARY SECTION SELECTOR (NOTLAR vs DEVAMSIZLIK) */}
       <div className="flex items-center justify-between border-b border-line pb-3 flex-wrap gap-3">
-        {/* Aşama 208: bölüm seçimi ortak sekme düğmesiyle (h-8, 12 px) */}
-        <Segmented
-          size="sm"
-          value={activeMainSection}
-          onChange={(v) => setActiveMainSection(v)}
-          items={[
-            { value: 'grades', label: `Not çizelgesi (${classGrades.length})`, icon: Award, id: 'grades-tab-grades' },
-            { value: 'attendance', label: `Etüt yoklamaları (${classAttendanceRecords.length})` /* Aşama 220/223: bu tablo etüt yoklamasının kopyalarını tutar; ders yoklaması Program'da */, icon: UserX, id: 'grades-tab-attendance' },
-          ]}
-        />
+        {/* Aşama 198: "Etüt yoklamaları" sekmesi kalktı (eski kopyalar silindi); etüt yoklaması Etüt ekranında */}
+        <span id="grades-tab-grades" className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+          <Award className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400" />
+          Not çizelgesi ({classGrades.length})
+        </span>
 
-        {activeMainSection === 'grades' ? (
           <div className="flex items-center space-x-2">
             {/* View Mode Toggle · Aşama 208: ortak sekme düğmesi */}
             <div className="hidden sm:block">
@@ -564,39 +421,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <span>Yeni not</span>
             </button>
           </div>
-        ) : (
-          <div className="flex items-center space-x-2">
-            {salt && <span className="text-[11px] text-muted">Yalnız görüntüleme · ders yoklaması Program'dan alınır</span>}
-            {currentAttendanceRecord && !salt && (
-              <button
-                type="button"
-                onClick={() => setIsClearCurrentConfirmOpen(true)}
-                className="ui-btn ui-btn-danger-soft ui-btn-sm w-8 sm:w-28 px-0 sm:px-2.5"
-                title="Bu tarihteki yoklamayı veritabanından sil"
-                aria-label="Yoklamayı sil"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Yoklamayı sil</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSaveAttendance}
-              disabled={isSaving}
-              hidden={salt}
-              className="ui-btn ui-btn-success ui-btn-sm w-28"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{saveFeedback ? 'Kaydedildi ✓' : 'Kaydet'}</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ========================================================= */}
       {/* 1. DERS NOT ÇİZELGESİ SECTION                             */}
       {/* ========================================================= */}
-      {activeMainSection === 'grades' ? (
         <div className="space-y-4">
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -966,431 +795,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             </div>
           )}
         </div>
-      ) : (
-        /* ========================================================= */
-        /* 2. DERS DEVAMSIZLIK DEFTERİ SECTION (İÇE İÇE AÇILIR MENÜ) */
-        /* ========================================================= */
-        <div className="space-y-4">
-          {/* PANEL 1: GÜNLÜK YOKLAMA FORMU (ACCORDION) */}
-          <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
-            {/* Header / Accordion Button */}
-            <div className="p-3.5 sm:px-4 bg-surface/90 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setIsAttendanceSheetOpen(!isAttendanceSheetOpen)}
-                className="flex items-center space-x-2.5 text-left cursor-pointer"
-              >
-                <div className="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
-                  <UserX className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-fg flex items-center space-x-2">
-                    <span>Günlük Yoklama Formu</span>
-                    {currentAttendanceRecord ? (
-                      <span className="px-2 py-0.2 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
-                        Kayıtlı
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.2 rounded-md bg-surface-2 text-muted border border-line-strong text-[10px] font-medium">
-                        Yeni Giriş
-                      </span>
-                    )}
-                  </h3>
-                </div>
-              </button>
-
-              {/* Attendance Date & Fast Toggles */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line-strong rounded-lg px-2.5">
-                  <Calendar className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400" />
-                  <input
-                    type="date"
-                    aria-label="Yoklama tarihi"
-                    value={attendanceDate}
-                    onChange={(e) => {
-                      setAttendanceDate(e.target.value);
-                      setAttendanceMap({});
-                    }}
-                    className="bg-transparent text-fg text-xs font-semibold focus:outline-none cursor-pointer"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  hidden={salt}
-                  onClick={() => handleSetAllStatus('present')}
-                  className="ui-btn ui-btn-sm w-24 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20"
-                  title="Bütün öğrencileri 'Var' yap"
-                >
-                  Hepsi var
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleClearForm}
-                  hidden={salt}
-                  className="ui-btn ui-btn-secondary ui-btn-sm w-24"
-                >
-                  Sıfırla
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsAttendanceSheetOpen(!isAttendanceSheetOpen)}
-                  className="ui-btn ui-btn-ghost ui-btn-icon"
-                  aria-label={isAttendanceSheetOpen ? 'Formu kapat' : 'Formu aç'}
-                  aria-expanded={isAttendanceSheetOpen}
-                >
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      isAttendanceSheetOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            {/* Attendance Form Table Body */}
-            {isAttendanceSheetOpen && (
-              <div className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-fg-2">
-                    <thead className="bg-surface-2/50 uppercase tracking-wider text-muted border-b border-line">
-                      <tr>
-                        <th className="px-4 py-2.5 font-semibold w-24">No</th>
-                        <th className="px-4 py-2.5 font-semibold">Öğrenci Adı</th>
-                        <th className="px-4 py-2.5 font-semibold text-center w-72">Durum</th>
-                        <th className="px-4 py-2.5 font-semibold">Açıklama / Gerekçe</th>
-                        <th className="px-3 py-2.5 font-semibold text-right w-12">Sıfırla</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line">
-                      {classStudents.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-subtle">
-                            Bu sınıfta kayıtlı öğrenci bulunmuyor.
-                          </td>
-                        </tr>
-                      ) : (
-                        classStudents.map((std) => {
-                          const att = getStudentAttendance(std.id);
-                          return (
-                            <tr key={std.id} className="hover:bg-surface-2/40 transition-colors">
-                              <td className="px-4 py-2.5 font-mono text-muted">
-                                #{std.studentNumber}
-                              </td>
-                              <td className="px-4 py-2.5 font-bold text-fg">
-                                {std.name}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center justify-center space-x-1">
-                                  {/* Var */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusChange(std.id, 'present')}
-                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
-                                      att.status === 'present'
-                                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
-                                        : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
-                                    }`}
-                                  >
-                                    Var
-                                  </button>
-
-                                  {/* Yok */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusChange(std.id, 'absent')}
-                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
-                                      att.status === 'absent'
-                                        ? 'bg-rose-600 border-rose-500 text-white shadow-sm'
-                                        : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
-                                    }`}
-                                  >
-                                    Yok
-                                  </button>
-
-                                  {/* Geç */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusChange(std.id, 'late')}
-                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
-                                      att.status === 'late'
-                                        ? 'bg-amber-600 border-amber-500 text-white shadow-sm'
-                                        : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
-                                    }`}
-                                  >
-                                    Geç
-                                  </button>
-
-                                  {/* İzinli */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusChange(std.id, 'excused')}
-                                    className={`ui-btn ui-btn-sm w-12 px-0 border ${
-                                      att.status === 'excused'
-                                        ? 'bg-blue-600 border-blue-500 text-white shadow-sm'
-                                        : 'bg-surface-2 border-line-strong text-muted hover:text-fg'
-                                    }`}
-                                  >
-                                    İzinli
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <input
-                                  type="text"
-                                  value={att.note}
-                                  readOnly={salt}
-                                  onChange={(e) =>
-                                    setAttendanceMap((prev) => ({
-                                      ...prev,
-                                      [std.id]: { ...att, note: e.target.value },
-                                    }))
-                                  }
-                                  placeholder="Gerekçe veya not..."
-                                  className="ui-field w-full"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 text-right">
-                                <button
-                                  type="button"
-                                  hidden={salt}
-                                  onClick={() => {
-                                    setAttendanceMap((prev) => ({
-                                      ...prev,
-                                      [std.id]: { status: 'present', note: '' },
-                                    }));
-                                  }}
-                                  className="p-1 text-subtle hover:text-fg-2 rounded hover:bg-surface-2 transition-colors cursor-pointer"
-                                  title="Var olarak sıfırla"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* SAYFA ALTI KAYDET BUTONU FOR ATTENDANCE */}
-                <div className="p-4 bg-canvas/90 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2 text-xs">
-                    {saveFeedback && (
-                      <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                        <span>Yoklama başarıyla sisteme kaydedildi!</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center space-x-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      hidden={salt}
-                      onClick={() => setAttendanceMap({})}
-                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 sm:flex-none sm:w-28"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Sıfırla</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveAttendance}
-                      disabled={isSaving}
-                      hidden={salt}
-                      className="ui-btn ui-btn-success ui-btn-sm flex-1 sm:flex-none sm:w-28"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{saveFeedback ? 'Kaydedildi ✓' : 'Kaydet'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* PANEL 2: GEÇMİŞ YOKLAMA ARŞİVİ (TARİHE GÖRE İÇE İÇE AÇILIR MENÜ) */}
-          <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
-            <button
-              type="button"
-              onClick={() => setIsAttendanceHistoryOpen(!isAttendanceHistoryOpen)}
-              className="w-full text-left p-3.5 sm:px-4 bg-surface/90 border-b border-line flex items-center justify-between hover:bg-surface-2/60 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">
-                  <History className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-fg flex items-center space-x-2">
-                    <span>Geçmiş Yoklama Kayıtları Arşivi</span>
-                    <span className="px-2 py-0.2 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[10px] font-bold">
-                      {classAttendanceRecords.length} Oturum
-                    </span>
-                  </h3>
-                </div>
-              </div>
-
-              <ChevronDown
-                className={`w-4 h-4 text-muted transition-transform duration-200 ${
-                  isAttendanceHistoryOpen ? 'rotate-180 text-fg' : ''
-                }`}
-              />
-            </button>
-
-            {isAttendanceHistoryOpen && (
-              <div className="divide-y divide-line bg-canvas/30">
-                {classAttendanceRecords.length === 0 ? (
-                  <div className="p-8 text-center text-subtle text-xs">
-                    Bu sınıf ve ders için henüz kayıtlı geçmiş yoklama bulunmuyor.
-                  </div>
-                ) : (
-                  classAttendanceRecords.map((rec) => {
-                    const presentCount = rec.records.filter((r) => r.status === 'present').length;
-                    const absentCount = rec.records.filter((r) => r.status === 'absent').length;
-                    const lateCount = rec.records.filter((r) => r.status === 'late').length;
-                    const excusedCount = rec.records.filter((r) => r.status === 'excused').length;
-                    const isRecordExpanded = !!expandedHistoryRecords[rec.id];
-
-                    return (
-                      <div key={rec.id} className="transition-colors">
-                        {/* Nested Session Header */}
-                        <div className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-surface-2/40">
-                          {/* Left: Click to toggle nested student list */}
-                          <button
-                            type="button"
-                            onClick={() => toggleHistoryRecord(rec.id)}
-                            className="flex items-center space-x-2.5 text-left min-w-0 cursor-pointer flex-1"
-                          >
-                            <div className="w-5 h-5 rounded-md bg-surface-2 flex items-center justify-center text-muted shrink-0">
-                              <ChevronRight
-                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                                  isRecordExpanded ? 'rotate-90 text-indigo-700 dark:text-indigo-400' : ''
-                                }`}
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-xs font-bold text-fg">
-                                  {new Date(rec.date).toLocaleDateString('tr-TR', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                  })}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-                                  {rec.subject}
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-
-                          {/* Middle: Badges */}
-                          <div className="flex items-center space-x-1.5 text-[11px] shrink-0">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-bold">
-                              {presentCount} Var
-                            </span>
-                            {absentCount > 0 && (
-                              <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-bold">
-                                {absentCount} Yok
-                              </span>
-                            )}
-                            {lateCount > 0 && (
-                              <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold">
-                                {lateCount} Geç
-                              </span>
-                            )}
-                            {excusedCount > 0 && (
-                              <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 font-bold">
-                                {excusedCount} İzinli
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Right: Actions */}
-                          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAttendanceDate(rec.date);
-                                setSelectedClassId(rec.classId);
-                                setSelectedSubject(rec.subject);
-                                setIsAttendanceSheetOpen(true);
-                                const nextMap: Record<string, { status: AttendanceStatus; note: string }> = {};
-                                rec.records.forEach((r) => {
-                                  nextMap[r.studentId] = { status: r.status, note: r.note || '' };
-                                });
-                                setAttendanceMap(nextMap);
-                              }}
-                              className="ui-btn ui-btn-secondary ui-btn-sm w-24"
-                            >
-                              Forma yükle
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAttendanceToDelete(rec)}
-                              hidden={salt}
-                              className="ui-btn ui-btn-danger-soft ui-btn-icon"
-                              title="Yoklamayı Sil"
-                              aria-label="Yoklamayı sil"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Nested Dropdown Student Details */}
-                        {isRecordExpanded && (
-                          <div className="bg-canvas/60 p-3 sm:px-6 border-t border-line text-xs">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              {rec.records.map((r) => (
-                                <div
-                                  key={r.studentId}
-                                  className="p-2 rounded-lg bg-surface border border-line flex items-center justify-between"
-                                >
-                                  <span className="font-semibold text-fg truncate max-w-[130px]">
-                                    {r.studentName}
-                                  </span>
-                                  <div className="flex items-center space-x-1.5">
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${
-                                        r.status === 'present'
-                                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                                          : r.status === 'absent'
-                                          ? 'bg-rose-500/20 text-rose-700 dark:text-rose-400'
-                                          : r.status === 'late'
-                                          ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                                          : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
-                                      }`}
-                                    >
-                                      {r.status === 'present'
-                                        ? 'Var'
-                                        : r.status === 'absent'
-                                        ? 'Yok'
-                                        : r.status === 'late'
-                                        ? 'Geç'
-                                        : 'İzinli'}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
         </>
       )}
 
@@ -1509,35 +913,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         itemBadge={gradeToDelete ? `${gradeToDelete.studentName} • ${gradeToDelete.examType} (${gradeToDelete.score}/${gradeToDelete.maxScore})` : undefined}
         description="Bu öğrenciye ait girilmiş olan sınav / performans not kaydını silmek istediğinize emin misiniz?"
         confirmButtonText="Notu Sil"
-      />
-
-      {/* CONFIRM DELETE ATTENDANCE RECORD MODAL */}
-      <ConfirmDeleteModal
-        isOpen={!!attendanceToDelete}
-        onClose={() => setAttendanceToDelete(null)}
-        onConfirm={async () => {
-          if (attendanceToDelete) {
-            await dataService.deleteAttendance(attendanceToDelete.id);
-            if (attendanceToDelete.date === attendanceDate && attendanceToDelete.classId === selectedClassId) {
-              setAttendanceMap({});
-            }
-          }
-        }}
-        title="Yoklama Kaydını Sil"
-        itemBadge={attendanceToDelete ? `${attendanceToDelete.date} • ${attendanceToDelete.subject}` : undefined}
-        description="Bu tarihe ait tüm sınıf devamsızlık yoklama kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
-        confirmButtonText="Yoklamayı Sil"
-      />
-
-      {/* CONFIRM CLEAR CURRENT ATTENDANCE MODAL */}
-      <ConfirmDeleteModal
-        isOpen={isClearCurrentConfirmOpen}
-        onClose={() => setIsClearCurrentConfirmOpen(false)}
-        onConfirm={handleDeleteCurrentAttendance}
-        title="Günün Yoklamasını Sil"
-        itemBadge={`${attendanceDate} • ${selectedSubject}`}
-        description="Seçili tarihteki yoklama kaydını veritabanından kalıcı olarak silmek istediğinize emin misiniz?"
-        confirmButtonText="Evet, Yoklamayı Sil"
       />
     </div>
   );

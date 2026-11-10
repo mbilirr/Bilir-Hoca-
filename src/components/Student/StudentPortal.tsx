@@ -90,7 +90,8 @@ interface StudentPortalProps {
   homeworks: Homework[];
   etuts: Etut[];
   grades: GradeRecord[];
-  attendance: AttendanceRecord[];
+  /** Aşama 198: artık okunmaz (etüt yoklaması etütlerden sayılır); çağıranlar değişmesin diye isteğe bağlı kaldı */
+  attendance?: AttendanceRecord[];
   messages: StudentMessage[];
   submissions?: HomeworkSubmission[];
   /** Aşama 107: öğretmenin salt okunur önizlemesi (kayıt yapan düğmeler kapalı) */
@@ -102,7 +103,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   homeworks,
   etuts,
   grades,
-  attendance,
   messages,
   submissions: propSubmissions,
   preview = false,
@@ -262,20 +262,18 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Filter student grades
   const myGrades = grades.filter((g) => g.studentId === currentStudent.id);
 
-  // Calculate student attendance stats
+  // Etüt yoklaması sayıları · Aşama 198: eski "attendance" kopyaları yerine etütlerin kendi yoklamasından (etut_yoklama)
   let presentDays = 0;
   let absentDays = 0;
   let lateDays = 0;
   let excusedDays = 0;
 
-  attendance.forEach((att) => {
-    const record = att.records.find((r) => r.studentId === currentStudent.id);
-    if (record) {
-      if (record.status === 'present') presentDays++;
-      else if (record.status === 'absent') absentDays++;
-      else if (record.status === 'late') lateDays++;
-      else if (record.status === 'excused') excusedDays++;
-    }
+  myEtuts.forEach((e) => {
+    const status = e.studentAttendance?.[currentStudent.id]?.status;
+    if (status === 'present') presentDays++;
+    else if (status === 'absent') absentDays++;
+    else if (status === 'late') lateDays++;
+    else if (status === 'excused') excusedDays++;
   });
 
   // Filter messages sent by this student
@@ -854,8 +852,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <Suspense fallback={null}>
             <StudentDersDevamsizlik />
           </Suspense>
-          {/* Quick Metrics · Aşama 223: bu kutular eski "attendance" tablosundan (etüt yoklamasının kopyaları); yalnız kayıt varsa,
-              "Etüt yoklamalarım" adıyla — ders devamsızlığıyla karışmaz (üstteki bölüm yalnız ders saati yoklamasıdır) */}
+          {/* Quick Metrics · Aşama 198: etütlerin kendi yoklamasından; yalnız kayıt varsa, "Etüt yoklamalarım" adıyla.
+              Ders devamsızlığıyla karışmaz (üstteki bölüm yalnız ders saati yoklamasıdır) */}
           {presentDays + absentDays + lateDays + excusedDays > 0 && (
           <p className="text-xs font-semibold text-muted">Etüt yoklamalarım (etüt sayısı)</p>
           )}
@@ -863,19 +861,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Katılım Durumu</span>
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{presentDays} Gün Var</div>
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{presentDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Devamsızlık (Yok)</span>
-              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{absentDays} Gün</div>
+              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{absentDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Geç Kalma</span>
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{lateDays} Gün</div>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{lateDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">İzinli / Raporlu</span>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{excusedDays} Gün</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{excusedDays} etüt</div>
             </div>
           </div>
           )}

@@ -9280,35 +9280,7 @@ class DataService {
     this.etuts = this.etuts.map((e, idx) => (idx === etutIndex ? updatedEtut : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
-    // Genel devamsızlık kayıtlarına da etüt yoklamasını yansıt
-    const attendanceRecordsList = Object.entries(updatedEtut.studentAttendance || {}).map(
-      ([studentId, item]) => {
-        const std = this.students.find((s) => s.id === studentId);
-        return {
-          studentId,
-          studentName: std?.name || 'Öğrenci',
-          status: item.status,
-          note: item.note || `Etüt: ${updatedEtut.topic || updatedEtut.subject}`,
-        };
-      }
-    );
-
-    if (attendanceRecordsList.length > 0) {
-      const etutClassId =
-        this.students.find((s) => s.id === attendanceRecordsList[0]?.studentId)?.classId ||
-        'class-etut-general';
-
-      // Etüt yoklamasının asıl kaydı etütün kendisidir; genel yoklama tablosuna yazılamazsa etüt kaydı yine de devam eder
-      await this.recordAttendance(
-        {
-          date: updatedEtut.date,
-          classId: etutClassId,
-          subject: `${updatedEtut.subject} (Etüt)`,
-          records: attendanceRecordsList,
-        },
-        { silent: true }
-      );
-    }
+    // Aşama 198: etüt yoklaması yalnız etut_yoklama tablosuna yazılır; eski "attendance" tablosuna "X (Etüt)" kopyası yazılmaz
 
     this.notify();
 
