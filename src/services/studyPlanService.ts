@@ -309,6 +309,18 @@ function fail(error: any, fallback: string): never {
     );
   }
   if (code === '23505') throw new Error('Bu kayıt zaten var.');
+  // Aşama 235b: veritabanındaki çakışma engeli (aynı öğrenciye farklı günde başlayan, tarihleri çakışan plan)
+  if (/\[plan235\]/.test(msg)) {
+    const weeks = String(error?.details || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+    throw new PlanOverlapError(
+      `Çakışma var: bu tarihlerde öğrencinin başka bir haftalık planı mevcut${weeks.length ? ` (${weeks.map(planWeekText).join(', ')})` : ''}. ` +
+        `Görevleri o plana eklemek için hafta başlangıcını o planın günüyle aynı seçin ya da o haftayı açın.`,
+      {}
+    );
+  }
   throw new Error(`${fallback}${msg ? ` (${msg.slice(0, 120)})` : ''}`);
 }
 
