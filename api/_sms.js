@@ -263,6 +263,7 @@ const EVENT_TEXT = {
   'etut-no-attendance': 'Yoklaması alınmamış bir etüt var.',
   'ders-devamsizlik-ozet': 'Bugün derse gelmediği / geç kaldığı ders saati var.', // Aşama 223
   'ders-devamsizlik-ders': 'Bugün bir derse gelmedi / geç kaldı.', // Aşama 231
+  'ders-devamsizlik-sinir': 'Özürsüz devamsızlık sınıra yaklaştı / ulaştı.', // Aşama 232
   'question-target': 'Yeni soru hedefi verildi.',
   'plan-sent': 'Haftalık çalışma planı gönderildi.',
   'plan-report': 'Haftalık plan raporu hazır.',

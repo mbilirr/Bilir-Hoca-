@@ -6,6 +6,7 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 // ============================================================================
 // Aşama 217: Yönetim › Ders programı — kurulum sırası: Ders saatleri → Sınıf öğretmenleri → Program.
 // Aşama 231: Ders saatleri bölümünde tatil günleri ve veli bildirim zamanı; Program bölümünde Excel'den yükleme.
+// Aşama 232: İzinler bölümü (gün boyu izin / rapor); devamsızlık sınırı Ders saatleri altında; Program'da yazdır.
 // Yalnız açık bölüm yüklenir. Bütün veriler veritabanından (sql/217) okunur ve canlı güncellenir.
 // ============================================================================
 
@@ -13,14 +14,15 @@ const DersSaatleriPanel = lazyNamed(() => import('./DersSaatleriPanel'), 'DersSa
 const SinifOgretmenleriPanel = lazyNamed(() => import('./SinifOgretmenleriPanel'), 'SinifOgretmenleriPanel'); // Aşama 218
 const ProgramPanel = lazyNamed(() => import('./ProgramPanel'), 'ProgramPanel'); // Aşama 219
 const DersTakvimPanel = lazyNamed(() => import('./DersTakvimPanel'), 'DersTakvimPanel'); // Aşama 231: tatil + veli bildirimi
+const DersIzinPanel = lazyNamed(() => import('./DersIzinPanel'), 'DersIzinPanel'); // Aşama 232: gün boyu izin
 
-type Bolum = 'saatler' | 'ogretmenler' | 'program';
+type Bolum = 'saatler' | 'ogretmenler' | 'program' | 'izinler';
 
 const STORE_KEY = 'edu_ders_yonetim_v1';
 const okunan = (): Bolum => {
   try {
     const v = window.sessionStorage.getItem(STORE_KEY);
-    return v === 'saatler' || v === 'ogretmenler' || v === 'program' ? v : 'saatler';
+    return v === 'saatler' || v === 'ogretmenler' || v === 'program' || v === 'izinler' ? v : 'saatler';
   } catch {
     return 'saatler';
   }
@@ -40,6 +42,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     { value: 'saatler', label: 'Ders saatleri', id: 'ders-yonetim-saatler' },
     { value: 'ogretmenler', label: 'Sınıf öğretmenleri', id: 'ders-yonetim-ogretmenler' }, // Aşama 218
     { value: 'program', label: 'Program', id: 'ders-yonetim-program' }, // Aşama 219
+    { value: 'izinler', label: 'İzinler', id: 'ders-yonetim-izinler' }, // Aşama 232
   ];
 
   return (
@@ -54,6 +57,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
         )}
         {bolum === 'ogretmenler' && <SinifOgretmenleriPanel kurumId={kurumId} classes={classes} />}
         {bolum === 'program' && <ProgramPanel kurumId={kurumId} classes={classes} />}
+        {bolum === 'izinler' && <DersIzinPanel kurumId={kurumId} classes={classes} />}
       </Suspense>
     </div>
   );

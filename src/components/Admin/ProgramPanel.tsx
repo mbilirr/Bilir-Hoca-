@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, FileSpreadsheet, Plus, Users } from 'lucide-react';
+import { CalendarDays, FileSpreadsheet, Plus, Printer, Users } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import { dataService } from '../../services/dataService';
@@ -17,6 +17,7 @@ import {
   sinifDersOgretmenleri,
 } from '../../services/dersService';
 import { lazyNamed } from '../../lib/lazyLoad';
+import { tabloYazdir, YazdirTablo } from '../../lib/tabloYazdir';
 
 // Aşama 231: Excel'den program yükleme penceresi (xlsx kütüphanesiyle birlikte) yalnız açılınca iner
 const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'ProgramExcelModal');
@@ -27,6 +28,7 @@ const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'Progra
 // Kurallar veritabanında da denetlenir (öğretmen aynı saatte tek sınıf, sınıf aynı saatte tek ders).
 // Değişiklik kaydedildiği günden itibaren geçerlidir; geçmiş günler ve alınmış yoklamalar değişmez.
 // Aşama 231: bugün BAŞLAMIŞ ders saati değişmez (o saatin bir sonraki dersinden geçerli). Excel'den toplu / tek sınıf yükleme.
+// Aşama 232: Yazdır (A4 yatay): seçili sınıf / öğretmen ya da hepsi (her biri ayrı sayfa). Ekrandaki güncel program basılır.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
@@ -265,6 +267,45 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   const seciliOgretmen = ogretmenler.find((t) => t.id === teacherId);
   const seciliSinif = siniflar.find((c) => c.id === classId);
 
+  // ---------------------------------------------------------------- yazdır (Aşama 232)
+  const yazdirTablo = (g: Gorunum, id: string, baslik: string, yeniSayfa: boolean): YazdirTablo => {
+    const hucre = (gun: number, sira: number): string => {
+      if (g === 'ogretmen') {
+        const p = program.find((x) => x.teacherId === id && x.gun === gun && x.sira === sira);
+        return p ? `${p.ders} · ${sinifAd.get(p.classId) || p.classId}` : '';
+      }
+      const ps = sinifSlot.get(`${id}|${anahtar(gun, sira)}`) || [];
+      return ps.length ? `${ps[0].ders} · ${ps.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '';
+    };
+    return {
+      baslik,
+      yeniSayfa,
+      head: ['#', 'Saat', ...gunler.map((x) => GUN_ADLARI[x - 1])],
+      rows: siralar.map((s) => [s, ayar.saatler[s - 1] ? `${ayar.saatler[s - 1].bas}–${ayar.saatler[s - 1].bit}` : '', ...gunler.map((x) => hucre(x, s))]),
+    };
+  };
+  const yazdir = (hepsi: boolean) => {
+    const kurumAd = dataService.getMyKurum().kurumName || '';
+    let tablolar: YazdirTablo[];
+    let baslik: string;
+    if (gorunum === 'ogretmen') {
+      const liste = hepsi ? ogretmenler.filter((t) => program.some((p) => p.teacherId === t.id)) : seciliOgretmen ? [seciliOgretmen] : [];
+      tablolar = liste.map((t, i) => yazdirTablo('ogretmen', t.id, t.name, i > 0));
+      baslik = hepsi ? 'Öğretmen ders programları' : `Ders programı · ${seciliOgretmen?.name || ''}`;
+    } else {
+      const liste = hepsi ? siniflar.filter((c) => program.some((p) => p.classId === c.id)) : seciliSinif ? [seciliSinif] : [];
+      tablolar = liste.map((c, i) => yazdirTablo('sinif', c.id, `${c.name} sınıfı`, i > 0));
+      baslik = hepsi ? 'Sınıf ders programları' : `Ders programı · ${seciliSinif?.name || ''}`;
+    }
+    if (!tablolar.length) {
+      setHata('Yazdırılacak program yok.');
+      return;
+    }
+    if (!tabloYazdir({ kurum: kurumAd, baslik, alt: `${ayar.bugun ? `${ayar.bugun.split('-').reverse().join('.')} itibarıyla` : ''}`, tablolar, yatay: true })) {
+      setHata('Yazdırma penceresi açılamadı. Tarayıcıda açılır pencere iznini verin.');
+    }
+  };
+
   const hucreIcerik = (gun: number, sira: number) => {
     if (gorunum === 'ogretmen') {
       const p = ogretmenSlot.get(anahtar(gun, sira));
@@ -289,6 +330,18 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       actions={
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted tabular-nums">Haftada {toplam} ders</span>
+          <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => yazdir(false)} id="program-yazdir" title="Seçili programı yazdır (A4)">
+            <Printer className="w-3.5 h-3.5" /> Yazdır
+          </button>
+          <button
+            type="button"
+            className={cx(BTN, 'ui-btn-secondary')}
+            onClick={() => yazdir(true)}
+            id="program-yazdir-hepsi"
+            title={gorunum === 'ogretmen' ? 'Bütün öğretmenlerin programı, her biri ayrı sayfa' : 'Bütün sınıfların programı, her biri ayrı sayfa'}
+          >
+            <Printer className="w-3.5 h-3.5" /> Hepsini yazdır
+          </button>
           <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => setExcelAcik(true)} id="program-excel-ac">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
           </button>

@@ -24,6 +24,7 @@ import { DersYoklamaModal, DersYoklamaHedef } from './DersYoklamaModal';
 // ekran yalnız çizer. Yeşil: yoklama alındı · Turuncu: ders başladı, yoklama yok · Gri: henüz gelmedi.
 // Ortak dersin öğretmenlerinden biri kaydedince herkeste canlı yeşile döner.
 // Aşama 231: tatil günlerinde ders çıkmaz (veritabanı atlar); başlıkta "Tatil" yazar.
+// Aşama 232: vekil yazıldığım ders "Vekil" etiketiyle görünür; kendi dersime vekil yazıldıysa vekilin adı görünür.
 // ============================================================================
 
 type Gorunum = 'gun' | 'hafta';
@@ -92,7 +93,7 @@ export const DersProgramim: React.FC = () => {
 
   useEffect(() => {
     void yukle();
-    return dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil'], () => void yukle());
+    return dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil', 'ders_vekil'], () => void yukle());
   }, [kurumId, yukle]);
 
   // Ana sayfadaki "yoklama bekliyor" satırından gelindiyse o dersi aç
@@ -148,6 +149,10 @@ export const DersProgramim: React.FC = () => {
       : `${GUN_ADLARI[isoGun(gun) - 1]} ${tarihUzun(gun)}${gun === bugun ? ' · Bugün' : ''}`;
 
   const altYazi = (h: HaftaHucre, d: Durum) => {
+    const vekil = h.benimVekil ? 'Vekil · ' : h.vekilAd ? `Vekil: ${h.vekilAd} · ` : '';
+    return vekil + altYaziAsil(h, d);
+  };
+  const altYaziAsil = (h: HaftaHucre, d: Durum) => {
     if (d === 'alindi') {
       const s = h.oturum?.sayilar || {};
       const yok = (s.absent || 0) + (s.excused || 0);

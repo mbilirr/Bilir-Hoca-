@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarOff, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, BellRing, CalendarOff, Plus, Save, Trash2 } from 'lucide-react';
 import { Panel, Segmented, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact';
 import { appConfirm } from '../../lib/appDialog';
@@ -17,6 +17,7 @@ import {
   tatilListesi,
   tatilSil,
   veliBildirimKaydet,
+  sinirKaydet,
 } from '../../services/dersService';
 
 // ============================================================================
@@ -25,6 +26,7 @@ import {
 //    öğretmen ve öğrenci programında "Tatil" görünür.
 //  * Veli bildirimi: Gün sonu (tek özet) · Ders sonu (her dersten sonra) · İkisi. İzin yine Yönetim › Bildirim izinleri ›
 //    Ders devamsızlığı › Veli anahtarına bağlıdır (kapalıysa hiçbir şey gitmez).
+// Aşama 232: özürsüz devamsızlık sınırı (gün) + kaç gün kala uyarı → idareye özet, veliye e-posta / SMS (günde bir tarama).
 // Bütün yazmalar veritabanı işlevleriyle (sql/231); ekran her zaman veritabanındaki son hali gösterir.
 // ============================================================================
 
@@ -66,12 +68,18 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
   const [mesgul, setMesgul] = useState(false);
   const [tumu, setTumu] = useState(false);
   const [form, setForm] = useState({ bas: bugun, bit: bugun, aciklama: '' });
+  const [sinir, setSinir] = useState({ sinir: '10', kala: '2' });
+  const [sinirKayitli, setSinirKayitli] = useState({ sinir: 10, kala: 2 });
 
   const yukle = useCallback(async () => {
     try {
       const [a, t] = await Promise.all([dersAyarOku(), tatilListesi(kurumId)]);
       setVeli(a?.veliBildirim || 'gun_sonu');
       setKayitli(!!a?.kayitli);
+      if (a) {
+        setSinirKayitli({ sinir: a.devamsizlikSinir, kala: a.devamsizlikKala });
+        setSinir({ sinir: String(a.devamsizlikSinir), kala: String(a.devamsizlikKala) });
+      }
       setListe(t);
       setHata(null);
     } catch (e: any) {
@@ -138,6 +146,26 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
       await veliBildirimKaydet(m);
     } catch (e: any) {
       setVeli(eski);
+      setMesaj(e?.message || 'Kaydedilemedi.');
+    } finally {
+      setMesgul(false);
+    }
+  };
+
+  const sinirSayi = Number(sinir.sinir);
+  const kalaSayi = Number(sinir.kala);
+  const sinirGecerli =
+    Number.isInteger(sinirSayi) && sinirSayi >= 0 && sinirSayi <= 60 && Number.isInteger(kalaSayi) && kalaSayi >= 0 && kalaSayi <= 10;
+  const sinirDegisti = sinirSayi !== sinirKayitli.sinir || kalaSayi !== sinirKayitli.kala;
+  const sinirKaydetTik = async () => {
+    if (mesgul || !sinirGecerli) return;
+    setMesgul(true);
+    setMesaj(null);
+    try {
+      await sinirKaydet(sinirSayi, kalaSayi);
+      setSinirKayitli({ sinir: sinirSayi, kala: kalaSayi });
+      setMesaj('Devamsızlık sınırı kaydedildi.');
+    } catch (e: any) {
       setMesaj(e?.message || 'Kaydedilemedi.');
     } finally {
       setMesgul(false);
@@ -249,6 +277,62 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
             artabilir.
           </p>
         </div>
+      </Panel>
+
+      <Panel
+        title="Devamsızlık sınırı uyarısı"
+        icon={AlertTriangle}
+        id="ders-devamsizlik-sinir"
+        description="Özürsüz devamsızlık sınıra yaklaşınca ve sınıra ulaşınca idareye özet, veliye e-posta / SMS gider."
+      >
+        {!kayitli ? (
+          <p className="text-xs text-warning-fg font-semibold">Önce yukarıdaki Ders saatlerini kaydedin.</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+                Sınır (gün)
+                <input
+                  type="number"
+                  min={0}
+                  max={60}
+                  className="ui-field w-24"
+                  value={sinir.sinir}
+                  onChange={(e) => setSinir((x) => ({ ...x, sinir: e.target.value }))}
+                  id="ders-sinir-gun"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+                Kaç gün kala uyarı
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  className="ui-field w-24"
+                  value={sinir.kala}
+                  onChange={(e) => setSinir((x) => ({ ...x, kala: e.target.value }))}
+                  id="ders-sinir-kala"
+                />
+              </label>
+              <button
+                type="button"
+                className={cx(BTN, 'w-28 ui-btn-primary')}
+                onClick={() => void sinirKaydetTik()}
+                disabled={mesgul || !sinirGecerli || !sinirDegisti}
+                id="ders-sinir-kaydet"
+              >
+                <Save className="w-3.5 h-3.5" /> Kaydet
+              </button>
+              <InfoTip text="Özürsüz gün: öğrencinin o gün yoklaması alınan bütün derslerinde 'Gelmedi' olması. İzinli / raporlu / geç sayılmaz. Eğitim yılı 1 Eylül'den sayılır. Her eşik için bir kez gönderilir." />
+            </div>
+            {!sinirGecerli && <p className="text-[11px] text-danger-fg font-semibold">Sınır 0–60, uyarı 0–10 gün olmalı.</p>}
+            <p className="text-[11px] text-muted">
+              {sinirKayitli.sinir === 0
+                ? 'Kapalı (sınır 0).'
+                : `${Math.max(sinirKayitli.sinir - sinirKayitli.kala, 1)}. günde uyarı, ${sinirKayitli.sinir}. günde "sınıra ulaştı" bildirimi. Veliye gitmesi için Bildirim izinleri › Ders devamsızlığı › Veli açık olmalı.`}
+            </p>
+          </div>
+        )}
       </Panel>
 
       {mesaj && (

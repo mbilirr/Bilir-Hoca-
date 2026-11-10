@@ -33,6 +33,8 @@ export interface DersAyar {
   gecikmeDk: number;
   uyariEpostalari: string[];
   veliBildirim: VeliBildirim; // Aşama 231: veliye devamsızlık bildiriminin zamanı
+  devamsizlikSinir: number; // Aşama 232: özürsüz devamsızlık sınırı (gün, 0 = kapalı)
+  devamsizlikKala: number; // Aşama 232: sınıra kaç gün kala uyarı
   bugun: string; // YYYY-AA-GG (Türkiye saati)
   simdi: string; // SS:DD (Türkiye saati)
 }
@@ -62,6 +64,8 @@ export interface HaftaHucre {
   teacherIds: string[];
   teacherAdlari: string[];
   oturum: OturumOzet | null;
+  vekilAd: string; // Aşama 232: o güne yazılmış vekil öğretmen ('' = yok)
+  benimVekil: boolean; // Aşama 232: bu saate vekil olarak ben yazıldım
 }
 
 export interface Tatil {
@@ -99,6 +103,16 @@ export interface YoklamaOgrenci {
   no: string;
   status: YoklamaDurum | null;
   note: string;
+  izin: 'izinli' | 'raporlu' | null; // Aşama 232: gün boyu izin
+  bildirildi: boolean; // Aşama 232: veliye ders sonu bildirimi gitti
+}
+
+export interface YoklamaGecmis {
+  at: string;
+  ad: string;
+  eski: YoklamaDurum | null;
+  yeni: YoklamaDurum | null;
+  kim: string;
 }
 
 export interface YoklamaAcik {
@@ -113,6 +127,9 @@ export interface YoklamaAcik {
   oturum: OturumOzet | null;
   yazabilir: boolean;
   ogrenciler: YoklamaOgrenci[];
+  yonetici: boolean; // Aşama 232
+  vekil: { id: string; ad: string } | null; // Aşama 232
+  gecmis: YoklamaGecmis[]; // Aşama 232: değişiklik geçmişi (son 50)
 }
 
 export interface Bekleyen {
@@ -156,6 +173,8 @@ function ayarCevir(a: any): DersAyar | null {
     gecikmeDk: Number(a.gecikme_dk) || 40,
     uyariEpostalari: yaziDizisi(a.uyari_epostalari),
     veliBildirim: a.veli_bildirim === 'ders_sonu' || a.veli_bildirim === 'ikisi' ? a.veli_bildirim : 'gun_sonu',
+    devamsizlikSinir: Number.isFinite(Number(a.devamsizlik_sinir)) && a.devamsizlik_sinir != null ? Number(a.devamsizlik_sinir) : 10,
+    devamsizlikKala: Number.isFinite(Number(a.devamsizlik_kala)) && a.devamsizlik_kala != null ? Number(a.devamsizlik_kala) : 2,
     bugun: String(a.bugun || ''),
     simdi: String(a.simdi || ''),
   };
@@ -315,6 +334,8 @@ export async function haftaOku(bas: string, opts?: { teacherId?: string | null; 
         teacherIds: yaziDizisi(h.teacher_ids),
         teacherAdlari: yaziDizisi(h.teacher_adlari),
         oturum: oturumCevir(h.oturum),
+        vekilAd: String(h.vekil_ad || ''),
+        benimVekil: h.benim_vekil === true,
       }))
     : [];
   return { ayar: ayarCevir(r?.ayar), hucreler, tatiller: tatilCevir(r?.tatiller) };
@@ -354,10 +375,25 @@ export async function yoklamaAc(classId: string, tarih: string, sira: number): P
           no: String(o.no || ''),
           status: (['present', 'absent', 'late', 'excused'].includes(o.status) ? o.status : null) as YoklamaDurum | null,
           note: String(o.note || ''),
+          izin: o.izin === 'raporlu' ? 'raporlu' : o.izin === 'izinli' ? 'izinli' : null,
+          bildirildi: o.bildirildi === true,
+        }))
+      : [],
+    yonetici: r?.yonetici === true,
+    vekil: r?.vekil && r.vekil.id ? { id: String(r.vekil.id), ad: String(r.vekil.ad || '') } : null,
+    gecmis: Array.isArray(r?.gecmis)
+      ? r.gecmis.map((g: any) => ({
+          at: String(g.at || ''),
+          ad: String(g.ad || ''),
+          eski: (DURUMLAR.includes(g.eski) ? g.eski : null) as YoklamaDurum | null,
+          yeni: (DURUMLAR.includes(g.yeni) ? g.yeni : null) as YoklamaDurum | null,
+          kim: String(g.kim || ''),
         }))
       : [],
   };
 }
+
+const DURUMLAR = ['present', 'absent', 'late', 'excused'];
 
 export async function yoklamaKaydet(p: {
   classId: string;
@@ -377,7 +413,7 @@ export async function yoklamaKaydet(p: {
 }
 
 // ---------------------------------------------------------------- canlı güncelleme
-export type DersTablo = 'kurum_ders_ayar' | 'sinif_ders_ogretmen' | 'ders_programi' | 'ders_yoklama_oturum' | 'kurum_ders_tatil'; // Aşama 231: tatil
+export type DersTablo = 'kurum_ders_ayar' | 'sinif_ders_ogretmen' | 'ders_programi' | 'ders_yoklama_oturum' | 'kurum_ders_tatil' | 'ders_vekil' | 'ders_gun_izin'; // 231: tatil · 232: vekil, gün boyu izin
 
 /**
  * Açık ekran için kendi kurumunun ders tablolarını dinler. Değişiklik gelince (kısa beklemeyle tek sefer) onChange çağrılır.
@@ -724,4 +760,67 @@ export async function programTopluYukle(satirlar: TopluSatir[], opts: { deneme: 
     degismeyen: Number(r.degismeyen) || 0,
     yeniEslesme: Number(r.yeni_eslesme) || 0,
   };
+}
+
+// ============================================================================
+// Aşama 232: VEKİL ÖĞRETMEN · GÜN BOYU İZİN · DEVAMSIZLIK SINIRI
+// ============================================================================
+const SQL_EKSIK_232 = "Bu özellik veritabanında henüz kurulu değil. Supabase SQL Editor'de 232 numaralı SQL dosyasını çalıştırın.";
+
+async function rpc232<T = any>(fn: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await rpc<T>(fn, args);
+  } catch (e: any) {
+    if (e?.message === SQL_EKSIK) throw new Error(SQL_EKSIK_232);
+    throw e;
+  }
+}
+
+/** O günün o saatine vekil yazar; teacherId null = vekili kaldırır (yalnız idare). */
+export async function vekilAta(classId: string, tarih: string, sira: number, teacherId: string | null, aciklama = ''): Promise<void> {
+  await rpc232('ders_vekil_ata', { p_class_id: classId, p_tarih: tarih, p_sira: sira, p_teacher_id: teacherId, p_aciklama: aciklama });
+}
+
+export type IzinTur = 'izinli' | 'raporlu';
+export interface GunIzin {
+  studentId: string;
+  tarih: string;
+  tur: IzinTur;
+  aciklama: string;
+}
+
+/** Kurumun gün boyu izinleri (verilen tarihten sonrası) */
+export async function izinListesi(kurumId: string, bas: string): Promise<GunIzin[]> {
+  const { data, error } = await supabase
+    .from('ders_gun_izin')
+    .select('student_id,tarih,tur,aciklama')
+    .eq('kurum_id', kurumId)
+    .gte('tarih', bas)
+    .order('tarih')
+    .limit(2000);
+  if (error) {
+    const e = hata(error);
+    throw e.message === SQL_EKSIK ? new Error(SQL_EKSIK_232) : e;
+  }
+  return (data || []).map((x: any) => ({
+    studentId: String(x.student_id),
+    tarih: String(x.tarih),
+    tur: x.tur === 'raporlu' ? 'raporlu' : 'izinli',
+    aciklama: String(x.aciklama || ''),
+  }));
+}
+
+/** Seçili öğrencilere tarih aralığında gün boyu izin yazar; o günlerin "Gelmedi"leri "İzinli" olur. */
+export async function izinEkle(studentIds: string[], bas: string, bit: string, tur: IzinTur, aciklama: string): Promise<{ gun: number; duzelen: number }> {
+  const r = await rpc232<any>('ders_izin_ekle', { p_student_ids: studentIds, p_bas: bas, p_bit: bit, p_tur: tur, p_aciklama: aciklama });
+  return { gun: Number(r?.gun) || 0, duzelen: Number(r?.duzelen) || 0 };
+}
+
+export async function izinSil(studentId: string, bas: string, bit: string): Promise<number> {
+  const r = await rpc232<any>('ders_izin_sil', { p_student_id: studentId, p_bas: bas, p_bit: bit });
+  return Number(r?.gun) || 0;
+}
+
+export async function sinirKaydet(sinir: number, kala: number): Promise<void> {
+  await rpc232('ders_sinir_kaydet', { p_sinir: sinir, p_kala: kala });
 }

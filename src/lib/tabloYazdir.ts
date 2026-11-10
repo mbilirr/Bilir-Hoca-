@@ -9,6 +9,8 @@ export interface YazdirTablo {
   rows: Array<Array<string | number>>;
   /** Bu sütundan itibaren sayılar sağa yaslı */
   sayiDan?: number;
+  /** Aşama 232: tablo yeni sayfadan başlasın (ör. her sınıfın programı ayrı sayfa) */
+  yeniSayfa?: boolean;
 }
 
 const esc = (v: unknown) =>
@@ -22,6 +24,7 @@ export function tabloYazdir(p: { kurum?: string; baslik: string; alt?: string; t
   const w = window.open('', '_blank', 'width=1100,height=800');
   if (!w) return false; // açılır pencere engellendi
   const tablo = (t: YazdirTablo) => `
+    ${t.yeniSayfa ? '<div class="sb"></div>' : ''}
     ${t.baslik ? `<h2>${esc(t.baslik)}</h2>` : ''}
     <table>
       <thead><tr>${t.head.map((h, i) => `<th class="${t.sayiDan !== undefined && i >= t.sayiDan ? 'n' : ''}">${esc(h)}</th>`).join('')}</tr></thead>
@@ -49,6 +52,7 @@ export function tabloYazdir(p: { kurum?: string; baslik: string; alt?: string; t
   tr { break-inside: avoid; page-break-inside: avoid; }
   th, td { border: 0.5pt solid #666; padding: 2.5pt 4pt; text-align: left; vertical-align: top; }
   th { background: #e8e8e8; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sb { break-before: page; page-break-before: always; }
   .n { text-align: right; font-variant-numeric: tabular-nums; }
   .foot { margin-top: 6mm; border-top: 0.5pt solid #888; padding-top: 3pt; font-size: 8pt; display: flex; justify-content: space-between; }
 </style></head><body>

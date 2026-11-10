@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardCheck, RotateCcw, Users } from 'lucide-react';
+import { BellRing, ClipboardCheck, History, RotateCcw, UserCheck, Users } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import {
   YOKLAMA_ETIKET,
@@ -11,12 +11,15 @@ import {
   GUN_ADLARI,
   yoklamaAc,
   yoklamaKaydet,
+  vekilAta,
 } from '../../services/dersService';
+import { dataService } from '../../services/dataService';
 
 // ============================================================================
 // Aşama 220: DERS YOKLAMASI PENCERESİ — bir sınıfın bir gündeki bir ders saati.
 // Liste veritabanından açılır, bütün öğrenciler tek işlemle kaydedilir (yarım kayıt olmaz).
 // Ortak derste başka öğretmen kaydederse pencere haber verir (canlı).
+// Aşama 232: vekil öğretmen (idare yazar), gün boyu izin rozeti, "veliye bildirildi" rozeti, değişiklik geçmişi.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
@@ -51,6 +54,35 @@ export const DersYoklamaModal: React.FC<{
   const degistiRef = useRef(false);
   degistiRef.current = degisti;
   const benKaydettim = useRef(false);
+  const [vekilIs, setVekilIs] = useState(false);
+  const [gecmisAcik, setGecmisAcik] = useState(false);
+
+  // İdare için vekil seçimi: kurumun onaylı öğretmenleri (dersin kendi öğretmenleri hariç)
+  const vekilAdaylari = useMemo(() => {
+    if (!veri?.yonetici || !kurumId) return [];
+    const dersinkiler = new Set(veri.teacherAdlari);
+    return dataService
+      .getAllTeachersInternal()
+      .filter((t) => (t.kurumId || '') === kurumId && (t.status || 'approved') === 'approved' && !dersinkiler.has(t.name))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [veri, kurumId]);
+
+  const vekilDegistir = async (teacherId: string) => {
+    if (!hedef || vekilIs) return;
+    setVekilIs(true);
+    setHata(null);
+    try {
+      await vekilAta(hedef.classId, hedef.tarih, hedef.sira, teacherId || null);
+      const v = await yoklamaAc(hedef.classId, hedef.tarih, hedef.sira);
+      // işaretlenmiş yoklama bozulmasın: yalnız vekil bilgisini yenile
+      setVeri((cur) => (cur ? { ...cur, vekil: v.vekil } : v));
+      onSaved?.();
+    } catch (e: any) {
+      setHata(e?.message || 'Vekil kaydedilemedi.');
+    } finally {
+      setVekilIs(false);
+    }
+  };
 
   const doldur = (v: YoklamaAcik) => {
     setVeri(v);
@@ -77,6 +109,7 @@ export const DersYoklamaModal: React.FC<{
     setVeri(null);
     setDurum({});
     setKonu('');
+    setGecmisAcik(false);
     if (hedef) void yukle();
   }, [hedef, yukle]);
 
@@ -183,6 +216,38 @@ export const DersYoklamaModal: React.FC<{
               <Users className="w-3.5 h-3.5" aria-hidden="true" /> Ortak ders: {veri.teacherAdlari.join(', ')}
             </p>
           )}
+          {(veri.vekil || veri.yonetici) && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+              <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
+              {veri.yonetici ? (
+                <>
+                  <label htmlFor="ders-yoklama-vekil" className="font-semibold text-fg-2">
+                    Vekil öğretmen
+                  </label>
+                  <select
+                    id="ders-yoklama-vekil"
+                    className="ui-field h-8 w-52 text-xs"
+                    value={veri.vekil?.id || ''}
+                    disabled={vekilIs}
+                    onChange={(e) => void vekilDegistir(e.target.value)}
+                  >
+                    <option value="">Vekil yok</option>
+                    {veri.vekil && !vekilAdaylari.some((t) => t.id === veri.vekil!.id) && <option value={veri.vekil.id}>{veri.vekil.ad}</option>}
+                    {vekilAdaylari.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  {vekilIs && <span>Kaydediliyor…</span>}
+                </>
+              ) : (
+                <span>
+                  Vekil: <b className="text-fg-2">{veri.vekil?.ad}</b>
+                </span>
+              )}
+            </div>
+          )}
           {!yazabilir && <p className="text-xs font-semibold text-warning-fg">İleri tarihli dersin yoklaması alınamaz.</p>}
           {baskasi && (
             <div role="status" className="flex flex-wrap items-center gap-2 text-xs font-semibold text-info-fg">
@@ -242,6 +307,16 @@ export const DersYoklamaModal: React.FC<{
                     <span className="text-xs text-fg min-w-0 truncate">
                       {o.no && <span className="text-subtle tabular-nums mr-2">{o.no}</span>}
                       {o.ad}
+                      {o.izin && (
+                        <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-info-soft text-info-fg" title="İdare gün boyu izin yazdı">
+                          {o.izin === 'raporlu' ? 'Raporlu' : 'İzinli'} (gün boyu)
+                        </span>
+                      )}
+                      {o.bildirildi && (
+                        <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-muted" title="Veliye ders sonu bildirimi gönderildi">
+                          <BellRing className="w-3 h-3" aria-hidden="true" /> Veliye bildirildi
+                        </span>
+                      )}
                     </span>
                     <div className="flex gap-1 shrink-0" role="radiogroup" aria-label={`${o.ad} yoklama`}>
                       {DURUMLAR.map((x) => (
@@ -266,6 +341,33 @@ export const DersYoklamaModal: React.FC<{
                 );
               })}
             </ul>
+          )}
+
+          {veri.gecmis.length > 0 && (
+            <div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted hover:text-fg"
+                aria-expanded={gecmisAcik}
+                onClick={() => setGecmisAcik((x) => !x)}
+                id="ders-yoklama-gecmis"
+              >
+                <History className="w-3.5 h-3.5" aria-hidden="true" /> Değişiklik geçmişi ({veri.gecmis.length})
+              </button>
+              {gecmisAcik && (
+                <ul className="mt-1 space-y-0.5 text-[11px] text-fg-2">
+                  {veri.gecmis.map((g, i) => (
+                    <li key={i}>
+                      <span className="text-subtle tabular-nums">
+                        {new Date(g.at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>{' '}
+                      {g.ad}: {g.eski ? YOKLAMA_ETIKET[g.eski] : '—'} → <b>{g.yeni ? YOKLAMA_ETIKET[g.yeni] : '—'}</b>
+                      {g.kim && <span className="text-muted"> · {g.kim}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
       )}
