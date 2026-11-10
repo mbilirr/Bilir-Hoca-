@@ -4823,22 +4823,97 @@ class DataService {
   // ===========================================================================
   // Aşama 43: ÖĞRENCİNİN HAFTASI — öğretmenin haftalık planı hangi günden başlıyorsa öğrencinin soru hedefi
   // ve soru kaydı haftası da o günden başlar (Soru Kaydet, Soru Takibi, özetler, grafikler, hedef formu).
-  // Ölçüt: öğrenciye gönderilmiş, bugün ya da daha önce başlamış EN SON plan. Plan yoksa Pazartesi.
+  //
+  // Aşama 235: hafta artık "en son başlayan plan başlığı"ndan değil, BUGÜNÜ KAPSAYAN plan / soru hedefinden
+  // bulunur. Eski kural iki yerde yanılıyordu: (1) öğrencinin aynı haftada başka bir planı (ör. başka öğretmenin
+  // Pazartesi planı) varsa en son başlayan seçiliyor, Cuma başlayan plan yok sayılıyordu; (2) plan başlıkları
+  // arka planda okunamadığında (bağlantı / zaman aşımı) eski bilgi kalıyor, öğrenci Pazartesi'ye düşüyordu.
+  // Şimdi planın Soru Takibi'ne aktarılmış hedefi (cihazda zaten var, ayrı sorgu gerekmez) esas alınır.
+  // Öncelik (bugünü kapsayanlar arasında; aynı basamakta en son başlayan):
+  //   1) benim (öğretmen) plandan gelen hedefim   2) benim 7 günlük hedefim
+  //   3) plandan gelen herhangi bir hedef / konu kaydı   4) gönderilmiş plan başlığı   5) diğer 7 günlük hedefler
+  // Bugünü kapsayan yoksa: bugünden önce başlamış en son plan / hedefin günü (haftalık ritim sürer). Hiçbiri yoksa Pazartesi.
+  // "Soru Hedefi" kartı da önce benim hedefimi gösterdiği için sayfadaki bütün kartlar ve grafik aynı haftayı kullanır.
   // ===========================================================================
-  private static PLAN_WEEK_STARTS_KEY = 'edu_plan_week_starts_v1';
-  private planWeekStarts: Record<string, string> = (() => {
+  private static PLAN_WEEK_STARTS_KEY = 'edu_plan_week_starts_v2';
+  /** öğrenci → gönderilmiş planlarının başlangıçları (yeniden eskiye, en çok 12) */
+  private planWeekStarts: Record<string, string[]> = (() => {
     try {
       const v = JSON.parse(localStorage.getItem(DataService.PLAN_WEEK_STARTS_KEY) || '{}');
-      return v && typeof v === 'object' ? v : {};
+      if (!v || typeof v !== 'object') return {};
+      const out: Record<string, string[]> = {};
+      for (const [k, list] of Object.entries(v)) {
+        if (Array.isArray(list)) out[k] = list.map((x) => String(x || '').slice(0, 10)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+      }
+      return out;
     } catch {
       return {};
     }
   })();
-  /** Öğrencinin haftasının başladığı gün: 0 = Pazar, 1 = Pazartesi … 6 = Cumartesi */
-  public getStudentWeekStartDay(studentId?: string | null): number {
-    const ws = studentId ? this.planWeekStarts[studentId] : '';
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ws || '');
-    return m ? new Date(+m[1], +m[2] - 1, +m[3]).getDay() : 1;
+  private weekStartDayCache: { v: number; srcTargets: unknown; srcPlans: unknown; viewer: string; map: Map<string, number> } | null = null;
+
+  /** Öğrencinin haftasının başladığı gün: 0 = Pazar, 1 = Pazartesi … 6 = Cumartesi. refDate: haftası istenen gün (varsayılan bugün) */
+  public getStudentWeekStartDay(studentId?: string | null, refDate?: Date | string): number {
+    if (!studentId) return 1;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const ymdOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const parse = (s: string) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    };
+    const ref = typeof refDate === 'string' ? (/^\d{4}-\d{2}-\d{2}/.test(refDate) ? refDate.slice(0, 10) : ymdOf(new Date())) : ymdOf(refDate || new Date());
+
+    // Önbellek: aynı veri + aynı kullanıcı + aynı gün için tekrar hesaplanmaz (sınıf listesi her öğrenci için çağırır)
+    const viewer = String(this.getCurrentTeacher()?.id || this.getAuthSession()?.user?.id || '');
+    const c = this.weekStartDayCache;
+    if (!c || c.v !== this.dataVersion || c.srcTargets !== this.weeklyQuestionTargets || c.srcPlans !== this.planWeekStarts || c.viewer !== viewer) {
+      this.weekStartDayCache = { v: this.dataVersion, srcTargets: this.weeklyQuestionTargets, srcPlans: this.planWeekStarts, viewer, map: new Map() };
+    }
+    const cache = this.weekStartDayCache!.map;
+    const cacheKey = `${studentId}|${ref}`;
+    const hit = cache.get(cacheKey);
+    if (hit !== undefined) return hit;
+
+    const addDays = (s: string, n: number) => {
+      const d = parse(s);
+      if (!d) return s;
+      d.setDate(d.getDate() + n);
+      return ymdOf(d);
+    };
+    const classId = this.students.find((s) => s.id === studentId)?.classId || '';
+    type Anchor = { start: string; tier: number; covers: boolean };
+    const anchors: Anchor[] = [];
+    const push = (start: string, end: string, tier: number) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || start > ref) return; // gelecekte başlayan plan bugünün haftasını belirlemez
+      anchors.push({ start, tier, covers: ref <= end });
+    };
+
+    for (const t of this.weeklyQuestionTargets) {
+      const isClass = this.isClassQuestionTarget(t);
+      if (isClass ? !classId || t.classId !== classId : t.studentId !== studentId) continue;
+      const start = t.weekStartDate || '';
+      if (!start) continue;
+      const end = this.questionTargetEnd(t);
+      const fromPlan = !isClass && (!!t.fromPlan || isPlanTopicRecord(t));
+      const weekly = addDays(start, 6) === end; // tam 7 günlük hedef
+      if (!fromPlan && (!weekly || isPendingPlanTarget(t))) continue; // 30 günlük vb. hedefler haftanın gününü belirlemez
+      const mine = !!viewer && this.isMyQuestionTarget(t);
+      const tier = mine ? (fromPlan ? 1 : 2) : fromPlan ? 3 : 5;
+      push(start, fromPlan ? addDays(start, 6) : end, tier);
+    }
+    for (const ws of this.planWeekStarts[studentId] || []) push(ws, addDays(ws, 6), 4);
+
+    let pick: Anchor | null = null;
+    for (const a of anchors) {
+      if (!a.covers) continue;
+      if (!pick || a.tier < pick.tier || (a.tier === pick.tier && a.start > pick.start)) pick = a;
+    }
+    if (!pick) {
+      for (const a of anchors) if (!pick || a.start > pick.start) pick = a; // bugünü kapsayan yoksa en son başlayan
+    }
+    const day = pick ? parse(pick.start)?.getDay() ?? 1 : 1;
+    cache.set(cacheKey, day);
+    return day;
   }
   /** Öğrencilerin son gönderilen planlarının başlangıç günlerini veritabanından okur */
   public async syncPlanWeekStarts(): Promise<void> {
@@ -4857,10 +4932,14 @@ class DataService {
         .order('week_start', { ascending: false })
         .limit(5000);
       if (res.error || !Array.isArray(res.data)) return;
-      const next: Record<string, string> = {};
+      // Aşama 235: yalnız en son plan değil, her öğrencinin son 12 planı tutulur (bugünü kapsayan plan seçilebilsin)
+      const next: Record<string, string[]> = {};
       for (const r of res.data as any[]) {
         const sid = String(r.student_id || '');
-        if (sid && !next[sid]) next[sid] = String(r.week_start || '').slice(0, 10);
+        const ws = String(r.week_start || '').slice(0, 10);
+        if (!sid || !/^\d{4}-\d{2}-\d{2}$/.test(ws)) continue;
+        const list = next[sid] || (next[sid] = []);
+        if (list.length < 12 && !list.includes(ws)) list.push(ws);
       }
       if (JSON.stringify(next) === JSON.stringify(this.planWeekStarts)) return;
       this.planWeekStarts = next;
