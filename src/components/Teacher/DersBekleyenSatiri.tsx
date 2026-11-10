@@ -29,7 +29,7 @@ export const DersBekleyenSatiri: React.FC<{ onAc: (b: Bekleyen) => void }> = ({ 
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') void yukle();
     }, 5 * 60_000);
-    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi'], () => void yukle());
+    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_tatil'], () => void yukle()); // Aşama 231: tatil
     return () => {
       clearInterval(t);
       kapat();

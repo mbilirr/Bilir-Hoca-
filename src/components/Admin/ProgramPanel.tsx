@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Plus, Users } from 'lucide-react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, FileSpreadsheet, Plus, Users } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import { dataService } from '../../services/dataService';
@@ -16,12 +16,17 @@ import {
   programSinifAta,
   sinifDersOgretmenleri,
 } from '../../services/dersService';
+import { lazyNamed } from '../../lib/lazyLoad';
+
+// Aşama 231: Excel'den program yükleme penceresi (xlsx kütüphanesiyle birlikte) yalnız açılınca iner
+const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'ProgramExcelModal');
 
 // ============================================================================
 // Aşama 219: DERS PROGRAMI (yönetici) — öğretmene göre ya da sınıfa göre haftalık ızgara.
 // Hücreye tıklanınca seçim penceresi açılır; seçenekler yalnız "Sınıf öğretmenleri"ndeki eşleşmelerdir.
 // Kurallar veritabanında da denetlenir (öğretmen aynı saatte tek sınıf, sınıf aynı saatte tek ders).
 // Değişiklik kaydedildiği günden itibaren geçerlidir; geçmiş günler ve alınmış yoklamalar değişmez.
+// Aşama 231: bugün BAŞLAMIŞ ders saati değişmez (o saatin bir sonraki dersinden geçerli). Excel'den toplu / tek sınıf yükleme.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
@@ -148,6 +153,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   const [secTids, setSecTids] = useState<string[]>([]);
   const [kayit, setKayit] = useState(false);
   const [pHata, setPHata] = useState<string | null>(null);
+  const [excelAcik, setExcelAcik] = useState(false); // Aşama 231
 
   const ac = (h: Hucre) => {
     setPHata(null);
@@ -279,8 +285,15 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       title="Ders programı"
       icon={CalendarDays}
       id="ders-programi"
-      description="Değişiklik bugünden itibaren geçerli olur. Geçmiş günler ve alınmış yoklamalar değişmez."
-      actions={<span className="text-xs text-muted tabular-nums">Haftada {toplam} ders</span>}
+      description="Değişiklik hemen geçerli olur; bugün başlamış ders saati ise bir sonraki haftadan değişir. Geçmiş günler ve alınmış yoklamalar değişmez."
+      actions={
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted tabular-nums">Haftada {toplam} ders</span>
+          <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => setExcelAcik(true)} id="program-excel-ac">
+            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+          </button>
+        </div>
+      }
     >
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -486,6 +499,22 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
           </p>
         )}
       </Modal>
+
+      {excelAcik && (
+        <Suspense fallback={null}>
+          <ProgramExcelModal
+            open={excelAcik}
+            onClose={() => setExcelAcik(false)}
+            ayar={ayar}
+            siniflar={siniflar.map((c) => ({ id: c.id, name: c.name }))}
+            ogretmenler={ogretmenler.map((t) => ({ id: t.id, name: t.name }))}
+            program={program}
+            dersAdlari={Array.from(new Set(atamalar.map((a) => a.ders)))}
+            baslangicSinif={gorunum === 'sinif' ? classId : undefined}
+            onDone={() => void yukle()}
+          />
+        </Suspense>
+      )}
     </Panel>
   );
 };

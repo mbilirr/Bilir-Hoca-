@@ -23,6 +23,7 @@ import { DersYoklamaModal, DersYoklamaHedef } from './DersYoklamaModal';
 // Hücreler veritabanında program + yoklama kayıtları birleştirilerek gelir (ders_programi_hafta);
 // ekran yalnız çizer. Yeşil: yoklama alındı · Turuncu: ders başladı, yoklama yok · Gri: henüz gelmedi.
 // Ortak dersin öğretmenlerinden biri kaydedince herkeste canlı yeşile döner.
+// Aşama 231: tatil günlerinde ders çıkmaz (veritabanı atlar); başlıkta "Tatil" yazar.
 // ============================================================================
 
 type Gorunum = 'gun' | 'hafta';
@@ -91,7 +92,7 @@ export const DersProgramim: React.FC = () => {
 
   useEffect(() => {
     void yukle();
-    return dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar'], () => void yukle());
+    return dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil'], () => void yukle());
   }, [kurumId, yukle]);
 
   // Ana sayfadaki "yoklama bekliyor" satırından gelindiyse o dersi aç
@@ -104,6 +105,8 @@ export const DersProgramim: React.FC = () => {
   });
 
   const ayar = veri?.ayar || null;
+  // Aşama 231: tatil günleri (tarih → açıklama)
+  const tatil = useMemo(() => new Map((veri?.tatiller || []).map((t) => [t.tarih, t.aciklama])), [veri]);
   const gunler = useMemo(() => [...(ayar?.gunler || [])].sort((a, b) => a - b), [ayar]);
   const siralar = useMemo(() => Array.from({ length: ayar?.dersSayisi || 0 }, (_, i) => i + 1), [ayar]);
 
@@ -268,6 +271,7 @@ export const DersProgramim: React.FC = () => {
                   <th key={t} scope="col" className={cx('py-2 px-2 font-semibold text-left border-l border-line', t === bugun && 'text-brand-fg bg-brand-soft')}>
                     {GUN_KISA[isoGun(t) - 1]} {tarihUzun(t)}
                     {t === bugun ? ' · Bugün' : ''}
+                    {tatil.has(t) && <span className="block text-[11px] font-normal text-muted truncate">Tatil{tatil.get(t) ? ` · ${tatil.get(t)}` : ''}</span>}
                   </th>
                 ))}
               </tr>
@@ -303,6 +307,8 @@ export const DersProgramim: React.FC = () => {
         <div className="rounded-xl border border-line bg-surface divide-y divide-line" id="ders-gun">
           {!gunler.includes(isoGun(gun)) ? (
             <p className="text-xs text-muted px-3 py-4">Bu gün ders günü değil.</p>
+          ) : tatil.has(gun) && !(veri?.hucreler || []).some((h) => h.tarih === gun) ? (
+            <p className="text-xs text-muted px-3 py-4">Tatil{tatil.get(gun) ? `: ${tatil.get(gun)}` : ''}. Ders yok.</p>
           ) : (
             siralar.map((s) => {
               const sa = ayar.saatler[s - 1];

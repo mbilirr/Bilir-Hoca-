@@ -23,6 +23,8 @@ export interface DersSaati {
   bit: string; // "09:10"
 }
 
+export type VeliBildirim = 'gun_sonu' | 'ders_sonu' | 'ikisi'; // Aşama 231
+
 export interface DersAyar {
   kayitli: boolean;
   dersSayisi: number;
@@ -30,6 +32,7 @@ export interface DersAyar {
   saatler: DersSaati[];
   gecikmeDk: number;
   uyariEpostalari: string[];
+  veliBildirim: VeliBildirim; // Aşama 231: veliye devamsızlık bildiriminin zamanı
   bugun: string; // YYYY-AA-GG (Türkiye saati)
   simdi: string; // SS:DD (Türkiye saati)
 }
@@ -61,9 +64,15 @@ export interface HaftaHucre {
   oturum: OturumOzet | null;
 }
 
+export interface Tatil {
+  tarih: string;
+  aciklama: string;
+}
+
 export interface HaftaVeri {
   ayar: DersAyar | null;
   hucreler: HaftaHucre[];
+  tatiller: Tatil[]; // Aşama 231
 }
 
 export interface SinifDersOgretmen {
@@ -146,10 +155,14 @@ function ayarCevir(a: any): DersAyar | null {
     saatler: Array.isArray(a.saatler) ? a.saatler.map((s: any) => ({ bas: String(s?.bas || ''), bit: String(s?.bit || '') })) : [],
     gecikmeDk: Number(a.gecikme_dk) || 40,
     uyariEpostalari: yaziDizisi(a.uyari_epostalari),
+    veliBildirim: a.veli_bildirim === 'ders_sonu' || a.veli_bildirim === 'ikisi' ? a.veli_bildirim : 'gun_sonu',
     bugun: String(a.bugun || ''),
     simdi: String(a.simdi || ''),
   };
 }
+
+const tatilCevir = (v: unknown): Tatil[] =>
+  Array.isArray(v) ? v.map((t: any) => ({ tarih: String(t?.tarih || ''), aciklama: String(t?.aciklama || '') })).filter((t) => t.tarih) : [];
 
 function oturumCevir(o: any): OturumOzet | null {
   if (!o || typeof o !== 'object' || !o.id) return null;
@@ -252,14 +265,17 @@ export async function sinifDersOgretmenCikar(classId: string, ders: string, teac
 }
 
 // ---------------------------------------------------------------- program (Aşama 219)
-/** Bugün ve sonrası için geçerli program satırları (yönetici düzenleme ekranı) */
-export async function guncelProgram(kurumId: string, bugun: string): Promise<ProgramSatiri[]> {
+/**
+ * Yürürlükteki (ileriye dönük) program: bitiş tarihi olmayan satırlar (yönetici düzenleme ekranı).
+ * Aşama 231: başlamış bugünkü ders saati değişince yeni satır yarından başlar, eskisi bugün kapanır;
+ * ekran bu yüzden kapanmamış satırları gösterir. bugun parametresi eski çağıranlar için duruyor.
+ */
+export async function guncelProgram(kurumId: string, bugun?: string): Promise<ProgramSatiri[]> {
   const { data, error } = await supabase
     .from('ders_programi')
     .select('id,gun,sira,class_id,ders,teacher_id,gecerli_bas,gecerli_bit')
     .eq('kurum_id', kurumId)
-    .lte('gecerli_bas', bugun)
-    .or(`gecerli_bit.is.null,gecerli_bit.gte.${bugun}`);
+    .is('gecerli_bit', null);
   if (error) throw hata(error);
   return (data || []).map((r: any) => ({
     id: String(r.id),
@@ -301,7 +317,7 @@ export async function haftaOku(bas: string, opts?: { teacherId?: string | null; 
         oturum: oturumCevir(h.oturum),
       }))
     : [];
-  return { ayar: ayarCevir(r?.ayar), hucreler };
+  return { ayar: ayarCevir(r?.ayar), hucreler, tatiller: tatilCevir(r?.tatiller) };
 }
 
 export async function bekleyenlerim(): Promise<Bekleyen[]> {
@@ -361,7 +377,7 @@ export async function yoklamaKaydet(p: {
 }
 
 // ---------------------------------------------------------------- canlı güncelleme
-export type DersTablo = 'kurum_ders_ayar' | 'sinif_ders_ogretmen' | 'ders_programi' | 'ders_yoklama_oturum';
+export type DersTablo = 'kurum_ders_ayar' | 'sinif_ders_ogretmen' | 'ders_programi' | 'ders_yoklama_oturum' | 'kurum_ders_tatil'; // Aşama 231: tatil
 
 /**
  * Açık ekran için kendi kurumunun ders tablolarını dinler. Değişiklik gelince (kısa beklemeyle tek sefer) onChange çağrılır.
@@ -589,5 +605,123 @@ export async function devamsizligim(): Promise<Devamsizligim | null> {
           note: String(k.note || ''),
         }))
       : [],
+  };
+}
+
+// ============================================================================
+// Aşama 231: TATİL GÜNLERİ · VELİ BİLDİRİM ZAMANI · ÖĞRENCİ DERS PROGRAMI · EXCEL'DEN PROGRAM YÜKLEME
+// ============================================================================
+const SQL_EKSIK_231 = "Bu özellik veritabanında henüz kurulu değil. Supabase SQL Editor'de 231 numaralı SQL dosyasını çalıştırın.";
+
+async function rpc231<T = any>(fn: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await rpc<T>(fn, args);
+  } catch (e: any) {
+    if (e?.message === SQL_EKSIK) throw new Error(SQL_EKSIK_231);
+    throw e;
+  }
+}
+
+/** Kurumun tatil günleri (verilen tarihten sonrası; vars. bütün liste) */
+export async function tatilListesi(kurumId: string, bas?: string): Promise<Tatil[]> {
+  let q = supabase.from('kurum_ders_tatil').select('tarih,aciklama').eq('kurum_id', kurumId);
+  if (bas) q = q.gte('tarih', bas);
+  const { data, error } = await q.order('tarih');
+  if (error) {
+    const e = hata(error);
+    throw e.message === SQL_EKSIK ? new Error(SQL_EKSIK_231) : e;
+  }
+  return tatilCevir(data);
+}
+
+export async function tatilEkle(bas: string, bit: string, aciklama: string): Promise<number> {
+  const r = await rpc231<any>('ders_tatil_ekle', { p_bas: bas, p_bit: bit, p_aciklama: aciklama });
+  return Number(r?.gun) || 0;
+}
+
+export async function tatilSil(bas: string, bit: string): Promise<number> {
+  const r = await rpc231<any>('ders_tatil_sil', { p_bas: bas, p_bit: bit });
+  return Number(r?.gun) || 0;
+}
+
+export async function veliBildirimKaydet(mod: VeliBildirim): Promise<void> {
+  await rpc231('ders_veli_bildirim_kaydet', { p_mod: mod });
+}
+
+// ---------------------------------------------------------------- öğrenci
+export interface OgrenciHucre {
+  tarih: string;
+  sira: number;
+  ders: string;
+  teacherAdlari: string[];
+  durum: YoklamaDurum | null; // kendi yoklama durumu (alınmadıysa null)
+}
+export interface OgrenciProgram {
+  ayar: DersAyar | null;
+  classAd: string;
+  hucreler: OgrenciHucre[];
+  tatiller: Tatil[];
+}
+
+/** Öğrencinin kendi sınıfının haftası. 231 kurulu değilse ya da öğrenci değilse null (bölüm çizilmez). */
+export async function ogrenciProgrami(bas: string): Promise<OgrenciProgram | null> {
+  let r: any;
+  try {
+    r = await rpc<any>('ders_programim', { p_bas: bas });
+  } catch (e: any) {
+    if (e?.message === SQL_EKSIK) return null;
+    throw e;
+  }
+  if (!r || typeof r !== 'object') return null;
+  return {
+    ayar: ayarCevir(r.ayar),
+    classAd: String(r.class_ad || ''),
+    hucreler: Array.isArray(r.hucreler)
+      ? r.hucreler.map((h: any) => ({
+          tarih: String(h.tarih),
+          sira: Number(h.sira),
+          ders: String(h.ders || ''),
+          teacherAdlari: yaziDizisi(h.teacher_adlari).filter(Boolean),
+          durum: (['present', 'absent', 'late', 'excused'].includes(h.durum) ? h.durum : null) as YoklamaDurum | null,
+        }))
+      : [],
+    tatiller: tatilCevir(r.tatiller),
+  };
+}
+
+// ---------------------------------------------------------------- Excel'den program
+export interface TopluSatir {
+  satir: number; // Excel satır numarası (hata mesajı için)
+  classId: string;
+  gun: number;
+  sira: number;
+  ders: string;
+  teacherIds: string[];
+}
+export type TopluSonuc =
+  | { ok: true; deneme: boolean; sinif: number; eklenen: number; kaldirilan: number; degismeyen: number; yeniEslesme: number }
+  | { ok: false; hatalar: string[]; hataSayisi: number };
+
+/**
+ * Dosyadaki her sınıfın programını dosyadakiyle değiştirir (dosyada olmayan sınıflar değişmez).
+ * deneme = true: hiçbir şey yazılmaz, yalnız ne olacağı döner. Tek işlem: ya hepsi yazılır ya hiçbiri.
+ */
+export async function programTopluYukle(satirlar: TopluSatir[], opts: { deneme: boolean; ogretmenEkle?: boolean }): Promise<TopluSonuc> {
+  const r = await rpc231<any>('ders_programi_toplu_yukle', {
+    p_satirlar: satirlar.map((x) => ({ satir: x.satir, class_id: x.classId, gun: x.gun, sira: x.sira, ders: x.ders, teacher_ids: x.teacherIds })),
+    p_ogretmen_ekle: opts.ogretmenEkle !== false,
+    p_deneme: opts.deneme,
+  });
+  if (r?.ok !== true) {
+    return { ok: false, hatalar: yaziDizisi(r?.hatalar), hataSayisi: Number(r?.hata_sayisi) || yaziDizisi(r?.hatalar).length };
+  }
+  return {
+    ok: true,
+    deneme: r.deneme === true,
+    sinif: Number(r.sinif) || 0,
+    eklenen: Number(r.eklenen) || 0,
+    kaldirilan: Number(r.kaldirilan) || 0,
+    degismeyen: Number(r.degismeyen) || 0,
+    yeniEslesme: Number(r.yeni_eslesme) || 0,
   };
 }

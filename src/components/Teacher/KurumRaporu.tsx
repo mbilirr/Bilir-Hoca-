@@ -94,7 +94,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
     if (gun !== bugun) return;
     // Bugün: kayıt gelince canlı, süre dolunca (geciken) 5 dakikada bir
     const t = setInterval(() => document.visibilityState === 'visible' && void yukleGun(), 5 * 60_000);
-    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar'], () => void yukleGun());
+    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil'], () => void yukleGun());
     return () => {
       clearInterval(t);
       kapat();

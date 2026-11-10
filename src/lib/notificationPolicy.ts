@@ -49,11 +49,11 @@ export const POLICY_CATEGORIES: {
     hint: 'Etüt yoklama bağlantısı, "yoklama alınmadı" ve ders yoklaması hatırlatması (öğretmene)',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
   },
-  // Aşama 223: ders yoklamasından veliye gün sonu tek özet (varsayılan kapalı)
+  // Aşama 223: ders yoklamasından veliye gün sonu tek özet (varsayılan kapalı) · Aşama 231: ders sonu bildirimi de bu izne bağlı
   {
     id: 'devamsizlik',
     label: 'Ders devamsızlığı',
-    hint: 'Gün sonunda veliye tek özet: derse gelmedi / geç kaldı',
+    hint: 'Veliye derse gelmedi / geç kaldı bildirimi (gün sonu özeti ya da ders sonu; zamanı Yönetim › Ders programı › Ders saatleri altında seçilir)',
     channels: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] },
   },
   {

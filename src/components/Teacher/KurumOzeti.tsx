@@ -70,7 +70,7 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
     if (!canDers || !kurumId) return;
     void yukle();
     const t = setInterval(() => document.visibilityState === 'visible' && void yukle(), 5 * 60_000);
-    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar'], () => void yukle());
+    const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil'], () => void yukle());
     return () => {
       clearInterval(t);
       kapat();

@@ -9,7 +9,7 @@
 const CHANNELS = {
   etut: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
   yoklama: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
-  devamsizlik: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] }, // Aşama 223: ders devamsızlığı gün sonu özeti
+  devamsizlik: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] }, // Aşama 223: gün sonu özeti · Aşama 231: ders sonu bildirimi
   odev: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
   plan: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: ['email', 'sms', 'whatsapp'] },
   soru: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
@@ -29,6 +29,7 @@ export const MAIL_EVENT_CATEGORY = {
   'etut-attendance': 'yoklama',
   'etut-no-attendance': 'yoklama',
   'ders-devamsizlik-ozet': 'devamsizlik', // Aşama 223
+  'ders-devamsizlik-ders': 'devamsizlik', // Aşama 231: ders sonu bildirimi
   'question-target': 'soru',
   'plan-sent': 'plan',
   'plan-report': 'plan',

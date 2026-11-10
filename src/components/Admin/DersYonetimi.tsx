@@ -5,12 +5,14 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 
 // ============================================================================
 // Aşama 217: Yönetim › Ders programı — kurulum sırası: Ders saatleri → Sınıf öğretmenleri → Program.
+// Aşama 231: Ders saatleri bölümünde tatil günleri ve veli bildirim zamanı; Program bölümünde Excel'den yükleme.
 // Yalnız açık bölüm yüklenir. Bütün veriler veritabanından (sql/217) okunur ve canlı güncellenir.
 // ============================================================================
 
 const DersSaatleriPanel = lazyNamed(() => import('./DersSaatleriPanel'), 'DersSaatleriPanel');
 const SinifOgretmenleriPanel = lazyNamed(() => import('./SinifOgretmenleriPanel'), 'SinifOgretmenleriPanel'); // Aşama 218
 const ProgramPanel = lazyNamed(() => import('./ProgramPanel'), 'ProgramPanel'); // Aşama 219
+const DersTakvimPanel = lazyNamed(() => import('./DersTakvimPanel'), 'DersTakvimPanel'); // Aşama 231: tatil + veli bildirimi
 
 type Bolum = 'saatler' | 'ogretmenler' | 'program';
 
@@ -44,7 +46,12 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     <div className="space-y-3" id="ders-yonetimi">
       {bolumler.length > 1 && <Segmented size="sm" value={bolum} onChange={setBolum} items={bolumler} />}
       <Suspense fallback={<PageLoading />}>
-        {bolum === 'saatler' && <DersSaatleriPanel kurumId={kurumId} />}
+        {bolum === 'saatler' && (
+          <div className="space-y-3">
+            <DersSaatleriPanel kurumId={kurumId} />
+            <DersTakvimPanel kurumId={kurumId} />
+          </div>
+        )}
         {bolum === 'ogretmenler' && <SinifOgretmenleriPanel kurumId={kurumId} classes={classes} />}
         {bolum === 'program' && <ProgramPanel kurumId={kurumId} classes={classes} />}
       </Suspense>
