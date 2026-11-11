@@ -38,7 +38,16 @@ const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 // Aşama 237b: gün sütunu genişliği — öğretmene göre yalnız sınıf adı (kısa), sınıfa göre ders + öğretmen (uzun)
 const GUN_W = { ogretmen: 'w-24', sinif: 'w-40' } as const;
 // Dolu düğmenin en fazla genişliği (sütundan taşmasın; uzun ad kısaltılır, tamamı title'da)
-const DUGME_MAX = { ogretmen: 'max-w-20', sinif: 'max-w-36' } as const;
+const DUGME_MAX = { ogretmen: 'max-w-[5.25rem]', sinif: 'max-w-36' } as const;
+
+// Aşama 237d: ders kısaltması — çok kelimeli derste baş harfler ("Fen Bilimleri" → "F.B", "Fen Grup" → "F.G"),
+// tek kelimede ilk üç harf ("Matematik" → "Mat"). Öğretmenin iki dersi aynı kısaltmaya düşerse tam ad yazılır.
+const dersKisa = (d: string): string => {
+  const k = d.trim().split(/\s+/).filter(Boolean);
+  if (k.length > 1) return k.map((w) => w.charAt(0).toLocaleUpperCase('tr')).join('.');
+  const w = k[0] || '';
+  return w.charAt(0).toLocaleUpperCase('tr') + w.slice(1, 3);
+};
 const STORE_KEY = 'edu_ders_program_v1';
 type Gorunum = 'ogretmen' | 'sinif';
 
@@ -418,20 +427,26 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
 
   // Aşama 237: öğretmene göre görünümde dersi belli öğretmenin kutusunda yalnız sınıf adı yazar
   // (öğretmen birden çok derse yazılmışsa ders adı da yazılır, yoksa hangi ders olduğu anlaşılmaz)
-  const tekDers = new Set(atamalar.filter((a) => a.teacherId === teacherId).map((a) => a.ders)).size <= 1;
+  const ogretmenDersleri = Array.from(new Set(atamalar.filter((a) => a.teacherId === teacherId).map((a) => a.ders)));
+  const tekDers = ogretmenDersleri.length <= 1;
+  const kisaltma = (d: string) => {
+    const k = dersKisa(d);
+    return ogretmenDersleri.some((x) => x !== d && dersKisa(x) === k) ? d : k;
+  };
   const hucreIcerik = (gun: number, sira: number) => {
     if (gorunum === 'ogretmen') {
       const p = ogretmenSlot.get(anahtar(gun, sira));
       if (!p) return null;
       const ortak = (sinifSlot.get(`${p.classId}|${anahtar(gun, sira)}`) || []).filter((x) => x.teacherId !== teacherId && x.ders === p.ders);
       return {
-        ust: tekDers ? sinifAd.get(p.classId) || p.classId : `${sinifAd.get(p.classId) || p.classId} · ${p.ders}`,
+        ust: tekDers ? sinifAd.get(p.classId) || p.classId : `${sinifAd.get(p.classId) || p.classId}-${kisaltma(p.ders)}`,
+        tam: `${sinifAd.get(p.classId) || p.classId} · ${p.ders}`,
         alt: ortak.length ? `Ortak: ${ortak.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '',
       };
     }
     const ps = sinifSlot.get(`${classId}|${anahtar(gun, sira)}`) || [];
     if (!ps.length) return null;
-    return { ust: ps[0].ders, alt: ps.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ') };
+    return { ust: ps[0].ders, tam: ps[0].ders, alt: ps.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ') };
   };
 
   return (
@@ -554,8 +569,8 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                           <button
                             type="button"
                             onClick={() => ac({ gun: g, sira: s })}
-                            aria-label={`${ic ? `${etiket}: ${ic.ust}. Değiştir` : `${etiket}: boş. Ata`}${yeni ? ' (kaydedilmedi)' : ''}`}
-                            title={ic ? `${ic.ust}${ic.alt ? ` · ${ic.alt}` : ''}${yeni ? ' (kaydedilmedi)' : ''}` : yeni ? 'Kaydedilmedi' : undefined}
+                            aria-label={`${ic ? `${etiket}: ${ic.tam}. Değiştir` : `${etiket}: boş. Ata`}${yeni ? ' (kaydedilmedi)' : ''}`}
+                            title={ic ? `${ic.tam}${ic.alt ? ` · ${ic.alt}` : ''}${yeni ? ' (kaydedilmedi)' : ''}` : yeni ? 'Kaydedilmedi' : undefined}
                             className={cx(
                               'inline-flex flex-col items-center justify-center gap-0.5 align-middle rounded-lg border min-h-9',
                               'transition-[translate,scale,border-color,background-color,color] duration-150 ease-out active:scale-[0.96]',
