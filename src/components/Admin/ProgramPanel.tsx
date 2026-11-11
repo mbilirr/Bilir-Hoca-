@@ -412,13 +412,16 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     }
   };
 
+  // Aşama 237: öğretmene göre görünümde dersi belli öğretmenin kutusunda yalnız sınıf adı yazar
+  // (öğretmen birden çok derse yazılmışsa ders adı da yazılır, yoksa hangi ders olduğu anlaşılmaz)
+  const tekDers = new Set(atamalar.filter((a) => a.teacherId === teacherId).map((a) => a.ders)).size <= 1;
   const hucreIcerik = (gun: number, sira: number) => {
     if (gorunum === 'ogretmen') {
       const p = ogretmenSlot.get(anahtar(gun, sira));
       if (!p) return null;
       const ortak = (sinifSlot.get(`${p.classId}|${anahtar(gun, sira)}`) || []).filter((x) => x.teacherId !== teacherId && x.ders === p.ders);
       return {
-        ust: `${p.ders} · ${sinifAd.get(p.classId) || p.classId}`,
+        ust: tekDers ? sinifAd.get(p.classId) || p.classId : `${sinifAd.get(p.classId) || p.classId} · ${p.ders}`,
         alt: ortak.length ? `Ortak: ${ortak.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '',
       };
     }
@@ -660,7 +663,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                     secilen && 'bg-brand-soft'
                   )}
                 >
-                  <span className="block text-xs font-semibold text-fg">{o.ad}</span>
+                  <span className="block text-xs font-semibold text-fg">{tekDers ? sinifAd.get(o.classId) || o.classId : o.ad}</span>
                   <span className={cx('block text-[11px]', o.pasif ? 'text-danger-fg' : 'text-muted')}>{o.not}</span>
                 </button>
               );
