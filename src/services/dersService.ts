@@ -278,6 +278,19 @@ export async function sinifDersOgretmenEkle(classId: string, ders: string, teach
   await rpc('sinif_ders_ogretmen_ekle', { p_class_id: classId, p_ders: ders, p_teacher_id: teacherId });
 }
 
+// Aşama 238: aynı öğretmeni birden çok sınıfa tek işlemde yazar (biri hata verirse hiçbiri yazılmaz; zaten yazılı olan atlanır)
+const SQL_EKSIK_238 = "Toplu ekleme veritabanında henüz kurulu değil. Supabase SQL Editor'de 238 numaralı SQL dosyasını çalıştırın.";
+
+export async function sinifDersOgretmenTopluEkle(classIds: string[], ders: string, teacherId: string): Promise<void> {
+  const ids = Array.from(new Set(classIds.filter(Boolean)));
+  if (ids.length === 1) return sinifDersOgretmenEkle(ids[0], ders, teacherId);
+  try {
+    await rpc('sinif_ders_ogretmen_toplu_ekle', { p_class_ids: ids, p_ders: ders, p_teacher_id: teacherId });
+  } catch (e: any) {
+    throw e?.message === SQL_EKSIK ? new Error(SQL_EKSIK_238) : e;
+  }
+}
+
 /** teacherId verilmezse ders bütün öğretmenleriyle kaldırılır. Programdaki bugün ve sonraki saatler de kapanır. */
 export async function sinifDersOgretmenCikar(classId: string, ders: string, teacherId?: string | null): Promise<number> {
   const r = await rpc<any>('sinif_ders_ogretmen_cikar', { p_class_id: classId, p_ders: ders, p_teacher_id: teacherId || null });
