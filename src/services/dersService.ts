@@ -283,7 +283,8 @@ const SQL_EKSIK_238 = "Toplu ekleme veritabanında henüz kurulu değil. Supabas
 
 export async function sinifDersOgretmenTopluEkle(classIds: string[], ders: string, teacherId: string): Promise<void> {
   const ids = Array.from(new Set(classIds.filter(Boolean)));
-  if (ids.length === 1) return sinifDersOgretmenEkle(ids[0], ders, teacherId);
+  if (!ids.length) return;
+  // Aşama 239: tek sınıf da bu yoldan — derse sonradan eklenen öğretmen dersin mevcut program saatlerine de yazılır (ortak ders)
   try {
     await rpc('sinif_ders_ogretmen_toplu_ekle', { p_class_ids: ids, p_ders: ders, p_teacher_id: teacherId });
   } catch (e: any) {
