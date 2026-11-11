@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, FileSpreadsheet, Plus, Printer, Users } from 'lucide-react';
+import { CalendarDays, FileSpreadsheet, Plus, Printer } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import { dataService } from '../../services/dataService';
@@ -41,7 +41,16 @@ const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 // Aşama 237e: öğretmene göre sütun "8/D-F.S.Ç" gibi üç kelimeli kısaltmanın da sığacağı genişlikte
 const GUN_W = { ogretmen: 'w-28', sinif: 'w-40' } as const;
 // Dolu düğmenin en fazla genişliği (sütundan taşmasın; uzun ad kısaltılır, tamamı title'da)
-const DUGME_MAX = { ogretmen: 'max-w-full', sinif: 'max-w-36' } as const;
+// Aşama 239b: bir görünümdeki BÜTÜN hücre düğmeleri (dolu, ortak, boş) aynı en ve boyda — ızgara simetrik
+const DUGME_BOY = { ogretmen: 'w-[5.75rem] h-11', sinif: 'w-36 h-11' } as const;
+/** Ad baş harfleri: "Gülderen AKGÜN" → "G.A." */
+const basHarf = (ad: string) =>
+  ad
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => `${w.charAt(0).toLocaleUpperCase('tr')}.`)
+    .join('');
 
 // Aşama 237d: ders kısaltması — çok kelimeli derste baş harfler ("Fen Bilimleri" → "F.B", "Fen Grup" → "F.G"),
 // tek kelimede ilk üç harf ("Matematik" → "Mat"). Öğretmenin iki dersi aynı kısaltmaya düşerse tam ad yazılır.
@@ -455,12 +464,14 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       return {
         ust: tekDers ? sinifAd.get(p.classId) || p.classId : `${sinifAd.get(p.classId) || p.classId}-${kisaltma(p.ders)}`,
         tam: `${sinifAd.get(p.classId) || p.classId} · ${p.ders}`,
-        alt: ortak.length ? `Ortak: ${ortak.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '',
+        alt: ortak.length ? `Ortak: ${ortak.map((x) => basHarf(ogretmenAd.get(x.teacherId) || '')).join(' ')}` : '',
+        altTam: ortak.length ? `Ortak: ${ortak.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '',
       };
     }
     const ps = sinifSlot.get(`${classId}|${anahtar(gun, sira)}`) || [];
     if (!ps.length) return null;
-    return { ust: ps[0].ders, tam: ps[0].ders, alt: ps.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ') };
+    const adlar = ps.map((x) => ogretmenAd.get(x.teacherId) || '');
+    return { ust: ps[0].ders, tam: ps[0].ders, alt: adlar.length > 1 ? adlar.map(basHarf).join(' ') : adlar[0], altTam: adlar.join(', ') };
   };
 
   return (
@@ -584,27 +595,25 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                             type="button"
                             onClick={() => ac({ gun: g, sira: s })}
                             aria-label={`${ic ? `${etiket}: ${ic.tam}. Değiştir` : `${etiket}: boş. Ata`}${yeni ? ' (kaydedilmedi)' : ''}`}
-                            title={ic ? `${ic.tam}${ic.alt ? ` · ${ic.alt}` : ''}${yeni ? ' (kaydedilmedi)' : ''}` : yeni ? 'Kaydedilmedi' : undefined}
+                            title={ic ? `${ic.tam}${ic.altTam ? ` · ${ic.altTam}` : ''}${yeni ? ' (kaydedilmedi)' : ''}` : yeni ? 'Kaydedilmedi' : undefined}
                             className={cx(
-                              'inline-flex flex-col items-center justify-center gap-0.5 align-middle rounded-lg border min-h-9',
+                              'inline-flex flex-col items-center justify-center gap-0.5 align-middle rounded-lg border px-1.5',
+                              DUGME_BOY[gorunum],
                               'transition-[translate,scale,border-color,background-color,color] duration-150 ease-out active:scale-[0.96]',
                               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
                               ic
                                 ? cx(
-                                    DUGME_MAX[gorunum], 'min-w-12 px-2.5 py-1 shadow-sm',
+                                    'shadow-sm',
                                     yeni ? 'bg-brand-soft border-brand' : 'bg-surface border-line hover:border-line-strong hover:-translate-y-px'
                                   )
-                                : cx('w-12 h-9 border-dashed hover:text-fg-2 hover:border-line-strong', yeni ? 'border-brand text-brand-fg' : 'border-line text-subtle')
+                                : cx('border-dashed hover:text-fg-2 hover:border-line-strong', yeni ? 'border-brand text-brand-fg' : 'border-line text-subtle')
                             )}
                           >
                             {ic ? (
                               <>
                                 <span className={cx('text-[13px] leading-4 font-semibold truncate max-w-full', yeni ? 'text-brand-fg' : 'text-fg')}>{ic.ust}</span>
                                 {ic.alt && (
-                                  <span className="text-[11px] text-muted truncate max-w-full flex items-center gap-1">
-                                    <Users className="w-3 h-3 shrink-0" aria-hidden="true" />
-                                    <span className="truncate">{ic.alt}</span>
-                                  </span>
+                                  <span className="text-[10px] leading-3 font-medium text-muted truncate max-w-full">{ic.alt}</span>
                                 )}
                               </>
                             ) : (
