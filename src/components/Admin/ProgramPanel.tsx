@@ -35,6 +35,10 @@ const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'Progra
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
+// Aşama 237b: gün sütunu genişliği — öğretmene göre yalnız sınıf adı (kısa), sınıfa göre ders + öğretmen (uzun)
+const GUN_W = { ogretmen: 'w-24', sinif: 'w-40' } as const;
+// Dolu düğmenin en fazla genişliği (sütundan taşmasın; uzun ad kısaltılır, tamamı title'da)
+const DUGME_MAX = { ogretmen: 'max-w-20', sinif: 'max-w-36' } as const;
 const STORE_KEY = 'edu_ders_program_v1';
 type Gorunum = 'ogretmen' | 'sinif';
 
@@ -509,19 +513,21 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
           </p>
         )}
 
+        {/* Aşama 237b: ızgara içeriği kadar geniş (sayfaya yayılmaz); gün sütunları eşit ve görünüme göre dar/geniş.
+            Hücre düğmeleri yazı kadar: öğretmene göre "8/C" kısa hap, sınıfa göre ders + öğretmen. Kaydet çubuğu ızgarayla aynı genişlikte. */}
+        <div className="w-fit max-w-full space-y-3">
         <div className="overflow-x-auto rounded-xl border border-line" id="program-izgara">
-          {/* Aşama 237: table-fixed — gün sütunları eşit, dolu hücre sütunu genişletmez */}
-          <table className="w-full min-w-[640px] table-fixed border-collapse text-xs">
+          <table className="table-fixed border-collapse text-xs">
             <thead>
               <tr className="bg-surface-2 text-fg-2">
                 <th scope="col" className="w-10 py-2 font-semibold text-center">
                   #
                 </th>
-                <th scope="col" className="w-24 py-2 px-2 font-semibold text-left">
+                <th scope="col" className="w-20 py-2 px-2 font-semibold text-left">
                   Saat
                 </th>
                 {gunler.map((g) => (
-                  <th key={g} scope="col" className="py-2 px-2 font-semibold text-left border-l border-line">
+                  <th key={g} scope="col" className={cx(GUN_W[gorunum], 'py-2 px-2 font-semibold text-center border-l border-line')}>
                     <span className="hidden sm:inline">{GUN_ADLARI[g - 1]}</span>
                     <span className="sm:hidden">{GUN_KISA[g - 1]}</span>
                   </th>
@@ -544,25 +550,27 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                       const yeni = degisen.has(anahtar(g, s));
                       const etiket = `${GUN_ADLARI[g - 1]} ${s}. ders`;
                       return (
-                        <td key={g} className="p-1 border-l border-line align-middle">
+                        <td key={g} className="p-1.5 border-l border-line align-middle text-center">
                           <button
                             type="button"
                             onClick={() => ac({ gun: g, sira: s })}
                             aria-label={`${ic ? `${etiket}: ${ic.ust}. Değiştir` : `${etiket}: boş. Ata`}${yeni ? ' (kaydedilmedi)' : ''}`}
-                            title={yeni ? 'Kaydedilmedi' : undefined}
+                            title={ic ? `${ic.ust}${ic.alt ? ` · ${ic.alt}` : ''}${yeni ? ' (kaydedilmedi)' : ''}` : yeni ? 'Kaydedilmedi' : undefined}
                             className={cx(
-                              'min-h-[44px] rounded-lg px-2 py-1 text-left flex-col justify-center gap-0.5 align-middle transition-colors',
+                              'inline-flex flex-col items-center justify-center gap-0.5 align-middle rounded-lg border min-h-9',
+                              'transition-[translate,scale,border-color,background-color,color] duration-150 ease-out active:scale-[0.96]',
+                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
                               ic
-                                ? cx('inline-flex max-w-full border', yeni ? 'bg-brand-soft border-brand' : 'bg-surface border-line hover:border-line-strong')
-                                : cx(
-                                    'flex w-full border border-dashed items-center hover:text-fg-2 hover:border-line-strong',
-                                    yeni ? 'border-brand text-brand-fg' : 'border-line text-subtle'
+                                ? cx(
+                                    DUGME_MAX[gorunum], 'min-w-12 px-2.5 py-1 shadow-sm',
+                                    yeni ? 'bg-brand-soft border-brand' : 'bg-surface border-line hover:border-line-strong hover:-translate-y-px'
                                   )
+                                : cx('w-12 h-9 border-dashed hover:text-fg-2 hover:border-line-strong', yeni ? 'border-brand text-brand-fg' : 'border-line text-subtle')
                             )}
                           >
                             {ic ? (
                               <>
-                                <span className="font-semibold text-fg truncate max-w-full">{ic.ust}</span>
+                                <span className={cx('text-[13px] leading-4 font-semibold truncate max-w-full', yeni ? 'text-brand-fg' : 'text-fg')}>{ic.ust}</span>
                                 {ic.alt && (
                                   <span className="text-[11px] text-muted truncate max-w-full flex items-center gap-1">
                                     <Users className="w-3 h-3 shrink-0" aria-hidden="true" />
@@ -616,6 +624,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
               {kayit ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
+        </div>
         </div>
       </div>
 
