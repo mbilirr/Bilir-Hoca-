@@ -4,11 +4,13 @@ import type { TeacherGrades } from '../../lib/teacherGrades';
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // Aşama 102: "Görebileceği kademeler" tikleri — hesap açma ve erişim penceresinde ortak.
-// Düğmeler eşit boyda (h-8 w-24), yazıyla aynı büyüklükte.
-const tickCls = (on: boolean) =>
-  `h-8 w-24 inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50 ${
-    on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-canvas border-line text-fg-2 hover:border-indigo-400'
+// Düğmeler eşit boyda (h-8, en az w-24), yazıyla aynı büyüklükte.
+// Aşama 236: secimCls dışa açıldı; Yeni Öğretmen Hesabı penceresindeki Unvan / Rol düğmeleri de aynı ölçüde.
+export const secimCls = (on: boolean) =>
+  `h-8 min-w-24 px-3 inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+    on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2'
   }`;
+const tickCls = secimCls;
 
 export const GradeTicks: React.FC<{
   id: string;
@@ -27,7 +29,7 @@ export const GradeTicks: React.FC<{
   };
   return (
     <div className="space-y-1.5" id={id}>
-      <label className="block text-[11px] font-bold text-fg-2">Görebileceği kademeler</label>
+      <label className="block text-xs font-medium text-fg-2">Görebileceği kademeler</label>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Görebileceği kademeler">
         <button
           type="button"
@@ -59,11 +61,11 @@ export const GradeTicks: React.FC<{
         })}
       </div>
       {roleNote ? (
-        <p className="text-[10px] font-semibold text-info-fg" id={`${id}-rol`}>{roleNote}</p>
+        <p className="text-[11px] font-medium text-info-fg" id={`${id}-rol`}>{roleNote}</p>
       ) : options.length === 0 ? (
-        <p className="text-[10px] text-muted flex items-center gap-1">Kurumda henüz sınıf yok.<InfoTip text='Sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.' /></p>
+        <p className="text-[11px] text-muted flex items-center gap-1">Kurumda henüz sınıf yok.<InfoTip text='Sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.' /></p>
       ) : (
-        <p className="text-[10px] text-muted flex items-center gap-1">Kademe erişimi<InfoTip text="Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez." /></p>
+        <p className="text-[11px] text-muted flex items-center gap-1">Kademe erişimi<InfoTip text="Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez." /></p>
       )}
     </div>
   );

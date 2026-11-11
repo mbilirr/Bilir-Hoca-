@@ -43,10 +43,10 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182
 import { callMail, describeMailResult } from '../../lib/mailApi';
-import { MailOptIn } from '../Teacher/FormParts';
+import { FieldLabel, MailOptIn, SelectBox } from '../Teacher/FormParts'; // Aşama 236: FieldLabel, SelectBox
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
 import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
-import { GradeTicks } from './GradeTicks';
+import { GradeTicks, secimCls } from './GradeTicks'; // Aşama 236: secimCls
 import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 144
 import { fetchTeacherContacts, saveTeacherContact, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
@@ -69,7 +69,7 @@ const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_COD
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal, OverlayLayer } from '../ui/kit'; // Aşama 191 · Aşama 236: Modal
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -2438,102 +2438,115 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
     ? `Merhaba ${created.name},\nbiliredu öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${created.username}\nŞifre: ${created.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
     : '';
 
-  const inputCls =
-    'w-full px-3 py-2 bg-canvas border border-line rounded-xl text-fg text-xs focus:outline-none focus:border-indigo-500';
+  // Aşama 236: pencere ortak Modal kabuğunda; kutular ui-field (32 px, 12 px yazı), etiketler FieldLabel,
+  // seçim düğmeleri GradeTicks ile aynı ölçü (secimCls). Alanlar ve işlev aynı; yalnız görünüm sadeleşti.
+  const noteCls = (tone: 'ok' | 'warn' | 'info' | 'danger') =>
+    `px-3 py-2 rounded-lg text-xs font-medium ${
+      tone === 'ok'
+        ? 'bg-success-soft text-success-fg'
+        : tone === 'warn'
+          ? 'bg-warning-soft text-warning-fg'
+          : tone === 'danger'
+            ? 'bg-danger-soft text-danger-fg'
+            : 'bg-info-soft text-info-fg'
+    }`;
+  const mailTone = (t: string) => (t === 'success' ? 'ok' : t === 'danger' ? 'danger' : t === 'warning' ? 'warn' : 'info');
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center">
-      <OverlayLayer onClose={onClose} />
-      <div className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 space-y-4 my-auto">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-fg">Yeni Öğretmen Hesabı</h3>
-              <p className="text-xs text-muted">Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar.</p>
-            </div>
-          </div>
-          <button type="button" onClick={onClose} className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" aria-label="Kapat">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {created ? (
-          <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
-              Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
-            </div>
-            {contactNote && <div className="p-2.5 rounded-xl border text-xs font-semibold bg-warning-soft text-warning-fg border-warning/30">{contactNote}</div>}
-            {roleNote && (
-              <div id="teacher-create-role-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${roleNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
-                {roleNote.text}
-              </div>
-            )}
-            {gradeNote && (
-              <div id="teacher-create-grade-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${gradeNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
-                {gradeNote.text}
-              </div>
-            )}
-            {mailNotice && (
-              <div
-                id="teacher-create-mail-notice"
-                className={`p-3 rounded-xl border text-xs font-semibold ${
-                  mailNotice.tone === 'success'
-                    ? 'bg-success-soft text-success-fg border-success/30'
-                    : mailNotice.tone === 'danger'
-                      ? 'bg-danger-soft text-danger-fg border-danger/30'
-                      : mailNotice.tone === 'warning'
-                        ? 'bg-warning-soft text-warning-fg border-warning/30'
-                        : 'bg-info-soft text-info-fg border-info/30'
-                }`}
-              >
-                E-posta: {mailNotice.text}
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-lg bg-canvas border border-line">
-                <span className="block text-[10px] text-muted">Kullanıcı adı</span>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-300 select-all">{created.username}</span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-canvas border border-line">
-                <span className="block text-[10px] text-muted">Şifre</span>
-                <span className="font-mono font-bold text-amber-700 dark:text-amber-300 select-all">{created.password}</span>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(credentialText);
-                    setCopied(true);
-                  } catch {
-                    void appCopyFallback('Giriş bilgileri', credentialText);
-                  }
-                }}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg border border-line min-w-24"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>Bilgileri Kopyala</span>
-              </button>
-              <button type="button" onClick={onClose} className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24">
-                Kapat
-              </button>
-            </div>
-          </div>
+    <Modal
+      open
+      onClose={onClose}
+      id="teacher-create-modal"
+      icon={UserPlus}
+      title="Yeni Öğretmen Hesabı"
+      description="Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar."
+      size="md"
+      layerClass="z-[9999]"
+      closeOnBackdrop={false}
+      footer={
+        created ? (
+          <>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(credentialText);
+                  setCopied(true);
+                } catch {
+                  void appCopyFallback('Giriş bilgileri', credentialText);
+                }
+              }}
+              className="ui-btn ui-btn-secondary"
+            >
+              {copied ? <Check className="text-success-fg" /> : <Copy />}
+              <span>{copied ? 'Kopyalandı' : 'Bilgileri Kopyala'}</span>
+            </button>
+            <button type="button" onClick={onClose} className="ui-btn ui-btn-primary">
+              Kapat
+            </button>
+          </>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {error && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-200 text-xs flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
+          <>
+            <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary">
+              Vazgeç
+            </button>
+            <button type="submit" form="teacher-create-form" disabled={isSaving} className="ui-btn ui-btn-primary">
+              {isSaving ? 'Hesap açılıyor...' : 'Hesabı Aç'}
+            </button>
+          </>
+        )
+      }
+    >
+      {created ? (
+        <div className="space-y-3">
+          <div className={noteCls('ok')}>
+            Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="px-3 py-2 rounded-lg bg-surface-2 border border-line">
+              <span className="block text-[11px] text-muted">Kullanıcı adı</span>
+              <span className="font-mono text-sm font-semibold text-fg select-all">{created.username}</span>
+            </div>
+            <div className="px-3 py-2 rounded-lg bg-surface-2 border border-line">
+              <span className="block text-[11px] text-muted">Şifre</span>
+              <span className="font-mono text-sm font-semibold text-fg select-all">{created.password}</span>
+            </div>
+          </div>
+          {contactNote && <div className={noteCls('warn')}>{contactNote}</div>}
+          {roleNote && (
+            <div id="teacher-create-role-note" className={noteCls(roleNote.ok ? 'info' : 'warn')}>
+              {roleNote.text}
+            </div>
+          )}
+          {gradeNote && (
+            <div id="teacher-create-grade-note" className={noteCls(gradeNote.ok ? 'info' : 'warn')}>
+              {gradeNote.text}
+            </div>
+          )}
+          {mailNotice && (
+            <div id="teacher-create-mail-notice" className={noteCls(mailTone(mailNotice.tone))}>
+              E-posta: {mailNotice.text}
+            </div>
+          )}
+        </div>
+      ) : (
+        <form id="teacher-create-form" onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className={`${noteCls('danger')} flex items-start gap-2`} role="alert">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Hesap */}
+          <section className="space-y-3">
+            <h3 className="ui-eyebrow">Hesap</h3>
             <div>
-              <label className="block text-[11px] font-bold text-fg-2 mb-1">Ad Soyad *</label>
-              <input autoComplete="off"
+              <FieldLabel htmlFor="teacher-create-name">Ad Soyad *</FieldLabel>
+              <input
+                id="teacher-create-name"
+                autoComplete="off"
+                autoFocus
                 required
                 value={name}
                 onChange={(e) => {
@@ -2547,87 +2560,103 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                   }
                 }}
                 placeholder="Örn: Ayşe Demir"
-                className={inputCls}
+                className="ui-field"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-fg-2 mb-1">Kullanıcı adı * (giriş adı)</label>
-              <input autoComplete="off"
-                required
-                value={username}
-                onChange={(e) => {
-                  setUsernameTouched(true);
-                  setUsername(trFold(e.target.value)); // Aşama 154: ş→s, ı→i (giriş adı yalnız ASCII)
-                }}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder="Örn: aysedemir"
-                className={`${inputCls} font-mono`}
-              />
-              <p className="text-[10px] text-muted mt-1">Küçük harf, rakam, - ve _ (Türkçe karakter ve boşluk olmadan).</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">Branş</label>
-                <input autoComplete="off" value={branch} onChange={(e) => changeBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
+                <FieldLabel htmlFor="teacher-create-username">Kullanıcı adı *</FieldLabel>
+                <input
+                  id="teacher-create-username"
+                  autoComplete="off"
+                  required
+                  value={username}
+                  onChange={(e) => {
+                    setUsernameTouched(true);
+                    setUsername(trFold(e.target.value)); // Aşama 154: ş→s, ı→i (giriş adı yalnız ASCII)
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="Örn: aysedemir"
+                  className="ui-field font-mono"
+                />
+                <p className="text-[11px] text-muted mt-1">Küçük harf, rakam, - ve _ ; Türkçe karakter ve boşluk olmadan.</p>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">E-posta (iletişim)</label>
-                <input autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
+                <FieldLabel htmlFor="teacher-create-password">Giriş şifresi *</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="teacher-create-password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+                    className="ui-field font-mono font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPassword(dataService.generatePassword())}
+                    className="ui-btn ui-btn-secondary shrink-0"
+                    title="Yeni şifre üret"
+                  >
+                    <RefreshCw />
+                    <span>Üret</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          </section>
+
+          {/* Kişisel bilgiler */}
+          <section className="space-y-3 pt-4 border-t border-line">
+            <h3 className="ui-eyebrow">Kişisel bilgiler</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="teacher-create-gender" className="block text-[11px] font-bold text-fg-2 mb-1">Cinsiyet</label>
-                <select
+                <FieldLabel htmlFor="teacher-create-branch">Branş</FieldLabel>
+                <input id="teacher-create-branch" autoComplete="off" value={branch} onChange={(e) => changeBranch(e.target.value)} placeholder="Örn: Matematik" className="ui-field" />
+              </div>
+              <div>
+                <FieldLabel htmlFor="teacher-create-email">E-posta</FieldLabel>
+                <input id="teacher-create-email" autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className="ui-field" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <FieldLabel htmlFor="teacher-create-phone">Telefon</FieldLabel>
+                <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className="ui-field" />
+              </div>
+              <div>
+                <FieldLabel htmlFor="teacher-create-birth">Doğum tarihi</FieldLabel>
+                <input autoComplete="off" type="date" id="teacher-create-birth" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="ui-field" />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="teacher-create-gender">Cinsiyet</FieldLabel>
+                <SelectBox
                   id="teacher-create-gender"
                   value={gender}
                   onChange={(e) => {
                     genderTouched.current = true;
                     setGender(e.target.value as '' | 'K' | 'E');
                   }}
-                  className={`${inputCls} cursor-pointer`}
                 >
                   <option value="">Seçiniz</option>
                   <option value="K">Kadın</option>
                   <option value="E">Erkek</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">Telefon</label>
-                <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">Doğum tarihi</label>
-                <input autoComplete="off" type="date" id="teacher-create-birth" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={inputCls} />
+                </SelectBox>
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-fg-2 mb-1">Giriş şifresi *</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
-                  className={`${inputCls} font-mono font-bold`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setPassword(dataService.generatePassword())}
-                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300 border border-line shrink-0 min-w-24"
-                >
-                  🎲 Üret
-                </button>
-              </div>
-            </div>
+          </section>
+
+          {/* Yetki ve erişim */}
+          <section className="space-y-4 pt-4 border-t border-line">
+            <h3 className="ui-eyebrow">Yetki ve erişim</h3>
             {/* Aşama 99b: unvan / rol (kurumda) */}
             {roleUi && (
-              <div className="space-y-1.5" id="teacher-create-roles">
-                <label className="block text-[11px] font-bold text-fg-2">Unvan / Rol</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" role="group" aria-label="Unvan / Rol">
+              <div id="teacher-create-roles">
+                <FieldLabel>Unvan / Rol</FieldLabel>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Unvan / Rol">
                   {ROLE_DEFS.filter((r) => r.code !== 'mudur' || canMudur).map((r) => {
                     const on = roles.includes(r.code);
                     const locked = r.code === 'zumre_baskani' && !branch.trim();
@@ -2640,21 +2669,20 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                         disabled={locked || (r.code === 'ogretmen' && on && roles.includes('zumre_baskani'))}
                         title={locked ? 'Zümre başkanı için önce branşı yazın' : r.description}
                         onClick={() => toggleRole(r.code)}
-                        className={`ui-btn ui-btn-sm border truncate disabled:opacity-50 ${
-                          on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-canvas border-line text-fg-2 hover:border-indigo-400'
-                        }`}
+                        className={secimCls(on)}
                       >
+                        {on && <Check className="w-3.5 h-3.5" />}
                         {r.short}
                       </button>
                     );
                   })}
                 </div>
                 {rolesOff && (
-                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-create-roles-off">
+                  <p className="text-[11px] font-medium text-warning-fg mt-1.5" id="teacher-create-roles-off">
                     Kurumda rol yetkileri kapalı: roller kaydedilir, rol yetkileri açılınca uygulanır.
                   </p>
                 )}
-                <p className="text-[10px] text-muted">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
+                <p className="text-[11px] text-muted mt-1.5">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
               </div>
             )}
             <GradeTicks
@@ -2668,29 +2696,18 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               Tek tek sınıf / öğrenci erişimi
               <InfoTip text="Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız." />
             </p>
-            <MailOptIn
-              id="teacher-create-notify"
-              checked={sendMail}
-              onChange={setSendMail}
-              label="Giriş bilgilerini öğretmene e-postayla gönder"
-              hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi öğretmenin e-posta adresine gider.' : 'Göndermek için yukarıya öğretmenin e-posta adresini yazın.'}
-            />
-            <div className="flex justify-end space-x-2 pt-1">
-              <button type="button" onClick={onClose} className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24">
-                Vazgeç
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white min-w-24"
-              >
-                {isSaving ? 'Hesap açılıyor...' : 'Hesabı Aç'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          </section>
+
+          <MailOptIn
+            id="teacher-create-notify"
+            checked={sendMail}
+            onChange={setSendMail}
+            label="Giriş bilgilerini öğretmene e-postayla gönder"
+            hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi öğretmenin e-posta adresine gider.' : 'Göndermek için yukarıya öğretmenin e-posta adresini yazın.'}
+          />
+        </form>
+      )}
+    </Modal>
   );
 };
 
