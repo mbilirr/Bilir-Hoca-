@@ -7,13 +7,13 @@ import {
   DersAyar,
   GUN_ADLARI,
   GUN_KISA,
+  ProgramIslem,
   ProgramSatiri,
   SinifDersOgretmen,
   dersAyarOku,
   dersCanliDinle,
   guncelProgram,
-  programOgretmenAta,
-  programSinifAta,
+  programTopluKaydet,
   sinifDersOgretmenleri,
 } from '../../services/dersService';
 import { lazyNamed } from '../../lib/lazyLoad';
@@ -29,6 +29,9 @@ const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'Progra
 // Değişiklik kaydedildiği günden itibaren geçerlidir; geçmiş günler ve alınmış yoklamalar değişmez.
 // Aşama 231: bugün BAŞLAMIŞ ders saati değişmez (o saatin bir sonraki dersinden geçerli). Excel'den toplu / tek sınıf yükleme.
 // Aşama 232: Yazdır (A4 yatay): seçili sınıf / öğretmen ya da hepsi (her biri ayrı sayfa). Ekrandaki güncel program basılır.
+// Aşama 237: seçim tek tıkla ızgaraya işlenir (taslak); sayfa altındaki tek "Kaydet" bütün değişiklikleri
+//            tek işlemde yazar (biri hata verirse hiçbiri yazılmaz). Sınıf görünümünde dersler doğrudan listelenir.
+//            Gün sütunları eşit genişlikte; dolu hücre yazı kadar yer kaplar.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
@@ -48,6 +51,35 @@ const okunan = (): { g: Gorunum; t: string; c: string } => {
     return { g: 'ogretmen', t: '', c: '' };
   }
 };
+
+// Aşama 237: aynı hücreye (aynı öğretmen ya da aynı sınıf) yapılan son seçim öncekinin yerini alır
+const islemAnahtar = (i: ProgramIslem) => (i.tur === 'ogretmen' ? `o|${i.teacherId}|${i.gun}-${i.sira}` : `s|${i.classId}|${i.gun}-${i.sira}`);
+
+// Kaydedilmemiş seçimleri kayıtlı programın üstüne, veritabanının yapacağı sırayla uygular (ekranda görünen program)
+function taslakUygula(program: ProgramSatiri[], taslak: ProgramIslem[]): ProgramSatiri[] {
+  let rows = program;
+  taslak.forEach((i, n) => {
+    const ayni = (p: ProgramSatiri) => p.gun === i.gun && p.sira === i.sira;
+    const yeni = (classId: string, ders: string, teacherId: string, k: number): ProgramSatiri => ({
+      id: `taslak-${n}-${k}`,
+      gun: i.gun,
+      sira: i.sira,
+      classId,
+      ders,
+      teacherId,
+      gecerliBas: '',
+      gecerliBit: null,
+    });
+    if (i.tur === 'ogretmen') {
+      rows = rows.filter((p) => !(ayni(p) && p.teacherId === i.teacherId));
+      if (i.classId && i.ders) rows = [...rows, yeni(i.classId, i.ders, i.teacherId, 0)];
+    } else {
+      rows = rows.filter((p) => !(ayni(p) && p.classId === i.classId));
+      if (i.ders) rows = [...rows, ...i.teacherIds.map((t, k) => yeni(i.classId, i.ders as string, t, k))];
+    }
+  });
+  return rows;
+}
 
 export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> = ({ kurumId, classes }) => {
   const [tick, setTick] = useState(0);
@@ -84,7 +116,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   const ogretmenAd = useMemo(() => new Map(ogretmenler.map((t) => [t.id, t.name])), [ogretmenler]);
 
   const [ayar, setAyar] = useState<DersAyar | null>(null);
-  const [program, setProgram] = useState<ProgramSatiri[]>([]);
+  const [kayitli, setKayitli] = useState<ProgramSatiri[]>([]); // veritabanındaki program
   const [atamalar, setAtamalar] = useState<SinifDersOgretmen[]>([]);
   const [yuklendi, setYuklendi] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
@@ -95,7 +127,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       const bugun = a?.bugun || '';
       const [p, s] = await Promise.all([bugun ? guncelProgram(kurumId, bugun) : Promise.resolve([]), sinifDersOgretmenleri(kurumId)]);
       setAyar(a);
-      setProgram(p);
+      setKayitli(p);
       setAtamalar(s);
       setHata(null);
     } catch (e: any) {
@@ -109,6 +141,55 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     void yukle();
     return dersCanliDinle(kurumId, ['kurum_ders_ayar', 'sinif_ders_ogretmen', 'ders_programi'], () => void yukle());
   }, [kurumId, yukle]);
+
+  // ---------------------------------------------------------------- taslak (Aşama 237)
+  const [taslak, setTaslak] = useState<ProgramIslem[]>([]);
+  const [kayit, setKayit] = useState(false);
+  const [kHata, setKHata] = useState<string | null>(null);
+  const program = useMemo(() => taslakUygula(kayitli, taslak), [kayitli, taslak]); // ekranda görünen
+  // Hiçbir şeyi değiştirmeyen seçim (aynı dersi yeniden seçmek, kayıtlı hâline geri dönmek) listeye girmez
+  const taslakEkle = (i: ProgramIslem) => {
+    setKHata(null);
+    setTaslak((cur) => {
+      const digerleri = cur.filter((x) => islemAnahtar(x) !== islemAnahtar(i));
+      const sonraki = [...digerleri, i];
+      const imza = (rows: ProgramSatiri[]) =>
+        rows
+          .filter((p) => p.gun === i.gun && p.sira === i.sira)
+          .map((p) => `${p.classId}|${p.ders}|${p.teacherId}`)
+          .sort()
+          .join(',');
+      return imza(taslakUygula(kayitli, sonraki)) === imza(taslakUygula(kayitli, digerleri)) ? digerleri : sonraki;
+    });
+  };
+  const kaydet = async () => {
+    if (!taslak.length || kayit) return;
+    setKayit(true);
+    setKHata(null);
+    try {
+      await programTopluKaydet(taslak);
+      await yukle();
+      setTaslak([]);
+    } catch (e: any) {
+      setKHata(e?.message || 'Kaydedilemedi.');
+    } finally {
+      setKayit(false);
+    }
+  };
+  const vazgec = () => {
+    setTaslak([]);
+    setKHata(null);
+  };
+  // Kaydedilmemiş değişiklik varken sayfadan çıkılırsa tarayıcı uyarsın
+  useEffect(() => {
+    if (!taslak.length) return;
+    const uyar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', uyar);
+    return () => window.removeEventListener('beforeunload', uyar);
+  }, [taslak.length]);
 
   // Programı olan / ataması olan öğretmen ilk seçilsin
   useEffect(() => {
@@ -149,26 +230,46 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     [gorunum, ogretmenSlot, program, classId]
   );
 
+  // Bu görünümde kaydedilmemiş değişikliği olan hücreler (kayıtlı ile ekrandaki farklıysa)
+  const degisen = useMemo(() => {
+    const s = new Set<string>();
+    if (!taslak.length) return s;
+    const imza = (rows: ProgramSatiri[], k: string) =>
+      rows
+        .filter((p) => anahtar(p.gun, p.sira) === k && (gorunum === 'ogretmen' ? p.teacherId === teacherId : p.classId === classId))
+        .map((p) => `${p.classId}|${p.ders}|${p.teacherId}`)
+        .sort()
+        .join(',');
+    for (const i of taslak) {
+      const k = anahtar(i.gun, i.sira);
+      if (!s.has(k) && imza(kayitli, k) !== imza(program, k)) s.add(k);
+    }
+    return s;
+  }, [taslak, kayitli, program, gorunum, teacherId, classId]);
+
   // ---------------------------------------------------------------- seçim penceresi
   const [secili, setSecili] = useState<Hucre | null>(null);
-  const [secim, setSecim] = useState<string>(''); // öğretmen görünümü: "classId|ders"; sınıf görünümü: ders
+  const [acikDers, setAcikDers] = useState<string>(''); // sınıf görünümü: öğretmeni birden çok olan dersin seçimi açık
   const [secTids, setSecTids] = useState<string[]>([]);
-  const [kayit, setKayit] = useState(false);
-  const [pHata, setPHata] = useState<string | null>(null);
   const [excelAcik, setExcelAcik] = useState(false); // Aşama 231
 
   const ac = (h: Hucre) => {
-    setPHata(null);
     setSecili(h);
-    if (gorunum === 'ogretmen') {
-      const p = ogretmenSlot.get(anahtar(h.gun, h.sira));
-      setSecim(p ? `${p.classId}|${p.ders}` : '');
-    } else {
-      const ps = sinifSlot.get(`${classId}|${anahtar(h.gun, h.sira)}`) || [];
-      setSecim(ps[0]?.ders || '');
-      setSecTids(ps.map((p) => p.teacherId));
-    }
+    setAcikDers('');
+    setSecTids([]);
   };
+  const kapat = () => setSecili(null);
+
+  const seciliIcerik = useMemo(() => {
+    if (!secili) return { deger: '', dolu: false };
+    const k = anahtar(secili.gun, secili.sira);
+    if (gorunum === 'ogretmen') {
+      const p = ogretmenSlot.get(k);
+      return { deger: p ? `${p.classId}|${p.ders}` : '', dolu: !!p };
+    }
+    const ps = sinifSlot.get(`${classId}|${k}`) || [];
+    return { deger: ps[0]?.ders || '', dolu: ps.length > 0 };
+  }, [secili, gorunum, ogretmenSlot, sinifSlot, classId]);
 
   // Öğretmen görünümü seçenekleri: öğretmenin bütün sınıf+ders eşleşmeleri
   const ogretmenSecenek = useMemo(() => {
@@ -181,6 +282,8 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
         const baska = dolu.find((p) => p.ders !== a.ders);
         const ortak = dolu.filter((p) => p.ders === a.ders);
         return {
+          classId: a.classId,
+          ders: a.ders,
           deger: `${a.classId}|${a.ders}`,
           ad: `${sinifAd.get(a.classId) || a.classId} · ${a.ders}`,
           pasif: !!baska,
@@ -204,37 +307,37 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr'));
   }, [atamalar, classId]);
-  const dersOgretmenleri = useMemo(() => sinifDersleri.find(([d]) => d === secim)?.[1] || [], [sinifDersleri, secim]);
   const mesgulNot = (tid: string): string | null => {
     if (!secili) return null;
     const p = ogretmenMesgul.get(`${tid}|${anahtar(secili.gun, secili.sira)}`);
     if (!p || p.classId === classId) return null;
     return `Bu saatte ${sinifAd.get(p.classId) || 'başka sınıfta'}`;
   };
-  const dersSec = (d: string) => {
-    setSecim(d);
-    const tids = sinifDersleri.find(([x]) => x === d)?.[1] || [];
-    setSecTids(tids.filter((t) => !mesgulNot(t)));
-  };
 
-  const kaydet = async (bos: boolean) => {
-    if (!secili || kayit) return;
-    setKayit(true);
-    setPHata(null);
-    try {
-      if (gorunum === 'ogretmen') {
-        const [cid, ...dp] = bos || !secim ? [''] : secim.split('|');
-        await programOgretmenAta(teacherId, secili.gun, secili.sira, cid || null, cid ? dp.join('|') : null);
-      } else {
-        await programSinifAta(classId, secili.gun, secili.sira, bos ? null : secim || null, bos ? [] : secTids);
-      }
-      setSecili(null);
-      await yukle();
-    } catch (e: any) {
-      setPHata(e?.message || 'Kaydedilemedi.');
-    } finally {
-      setKayit(false);
+  const ogretmenSec = (cid: string | null, ders: string | null) => {
+    if (!secili) return;
+    taslakEkle({ tur: 'ogretmen', teacherId, gun: secili.gun, sira: secili.sira, classId: cid, ders });
+    kapat();
+  };
+  const sinifSec = (ders: string | null, tids: string[]) => {
+    if (!secili) return;
+    taslakEkle({ tur: 'sinif', classId, gun: secili.gun, sira: secili.sira, ders, teacherIds: ders ? tids : [] });
+    kapat();
+  };
+  // Tek öğretmenli ders tek tıkla işlenir; öğretmeni birden çok olan derste öğretmen seçimi açılır
+  const dersTikla = (d: string, tids: string[]) => {
+    const bos = tids.filter((t) => !mesgulNot(t));
+    if (tids.length === 1) {
+      if (bos.length) sinifSec(d, bos);
+      return;
     }
+    if (acikDers === d) {
+      setAcikDers('');
+      return;
+    }
+    setAcikDers(d);
+    const mevcut = seciliIcerik.deger === d && secili ? (sinifSlot.get(`${classId}|${anahtar(secili.gun, secili.sira)}`) || []).map((p) => p.teacherId) : [];
+    setSecTids(mevcut.length ? mevcut : bos);
   };
 
   // ---------------------------------------------------------------- çizim
@@ -266,15 +369,17 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   const siralar = Array.from({ length: ayar.dersSayisi }, (_, i) => i + 1);
   const seciliOgretmen = ogretmenler.find((t) => t.id === teacherId);
   const seciliSinif = siniflar.find((c) => c.id === classId);
+  const kaydedilmemis = taslak.length > 0;
+  const onceKaydet = 'Önce değişiklikleri kaydedin';
 
-  // ---------------------------------------------------------------- yazdır (Aşama 232)
+  // ---------------------------------------------------------------- yazdır (Aşama 232) — kayıtlı program basılır
   const yazdirTablo = (g: Gorunum, id: string, baslik: string, yeniSayfa: boolean): YazdirTablo => {
     const hucre = (gun: number, sira: number): string => {
       if (g === 'ogretmen') {
-        const p = program.find((x) => x.teacherId === id && x.gun === gun && x.sira === sira);
+        const p = kayitli.find((x) => x.teacherId === id && x.gun === gun && x.sira === sira);
         return p ? `${p.ders} · ${sinifAd.get(p.classId) || p.classId}` : '';
       }
-      const ps = sinifSlot.get(`${id}|${anahtar(gun, sira)}`) || [];
+      const ps = kayitli.filter((x) => x.classId === id && x.gun === gun && x.sira === sira);
       return ps.length ? `${ps[0].ders} · ${ps.map((x) => ogretmenAd.get(x.teacherId) || '').join(', ')}` : '';
     };
     return {
@@ -285,15 +390,16 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     };
   };
   const yazdir = (hepsi: boolean) => {
+    if (kaydedilmemis) return;
     const kurumAd = dataService.getMyKurum().kurumName || '';
     let tablolar: YazdirTablo[];
     let baslik: string;
     if (gorunum === 'ogretmen') {
-      const liste = hepsi ? ogretmenler.filter((t) => program.some((p) => p.teacherId === t.id)) : seciliOgretmen ? [seciliOgretmen] : [];
+      const liste = hepsi ? ogretmenler.filter((t) => kayitli.some((p) => p.teacherId === t.id)) : seciliOgretmen ? [seciliOgretmen] : [];
       tablolar = liste.map((t, i) => yazdirTablo('ogretmen', t.id, t.name, i > 0));
       baslik = hepsi ? 'Öğretmen ders programları' : `Ders programı · ${seciliOgretmen?.name || ''}`;
     } else {
-      const liste = hepsi ? siniflar.filter((c) => program.some((p) => p.classId === c.id)) : seciliSinif ? [seciliSinif] : [];
+      const liste = hepsi ? siniflar.filter((c) => kayitli.some((p) => p.classId === c.id)) : seciliSinif ? [seciliSinif] : [];
       tablolar = liste.map((c, i) => yazdirTablo('sinif', c.id, `${c.name} sınıfı`, i > 0));
       baslik = hepsi ? 'Sınıf ders programları' : `Ders programı · ${seciliSinif?.name || ''}`;
     }
@@ -326,23 +432,38 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       title="Ders programı"
       icon={CalendarDays}
       id="ders-programi"
-      description="Değişiklik hemen geçerli olur; bugün başlamış ders saati ise bir sonraki haftadan değişir. Geçmiş günler ve alınmış yoklamalar değişmez."
+      description="Hücrelere seçtiğiniz dersler alttaki Kaydet ile birlikte yazılır. Bugün başlamış ders saati bir sonraki haftadan değişir. Geçmiş günler ve alınmış yoklamalar değişmez."
       actions={
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted tabular-nums">Haftada {toplam} ders</span>
-          <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => yazdir(false)} id="program-yazdir" title="Seçili programı yazdır (A4)">
+          <button
+            type="button"
+            className={cx(BTN, 'ui-btn-secondary')}
+            onClick={() => yazdir(false)}
+            disabled={kaydedilmemis}
+            id="program-yazdir"
+            title={kaydedilmemis ? onceKaydet : 'Seçili programı yazdır (A4)'}
+          >
             <Printer className="w-3.5 h-3.5" /> Yazdır
           </button>
           <button
             type="button"
             className={cx(BTN, 'ui-btn-secondary')}
             onClick={() => yazdir(true)}
+            disabled={kaydedilmemis}
             id="program-yazdir-hepsi"
-            title={gorunum === 'ogretmen' ? 'Bütün öğretmenlerin programı, her biri ayrı sayfa' : 'Bütün sınıfların programı, her biri ayrı sayfa'}
+            title={kaydedilmemis ? onceKaydet : gorunum === 'ogretmen' ? 'Bütün öğretmenlerin programı, her biri ayrı sayfa' : 'Bütün sınıfların programı, her biri ayrı sayfa'}
           >
             <Printer className="w-3.5 h-3.5" /> Hepsini yazdır
           </button>
-          <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => setExcelAcik(true)} id="program-excel-ac">
+          <button
+            type="button"
+            className={cx(BTN, 'ui-btn-secondary')}
+            onClick={() => setExcelAcik(true)}
+            disabled={kaydedilmemis}
+            title={kaydedilmemis ? onceKaydet : undefined}
+            id="program-excel-ac"
+          >
             <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
           </button>
         </div>
@@ -386,7 +507,8 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
         )}
 
         <div className="overflow-x-auto rounded-xl border border-line" id="program-izgara">
-          <table className="w-full min-w-[640px] border-collapse text-xs">
+          {/* Aşama 237: table-fixed — gün sütunları eşit, dolu hücre sütunu genişletmez */}
+          <table className="w-full min-w-[640px] table-fixed border-collapse text-xs">
             <thead>
               <tr className="bg-surface-2 text-fg-2">
                 <th scope="col" className="w-10 py-2 font-semibold text-center">
@@ -416,25 +538,32 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                     </td>
                     {gunler.map((g) => {
                       const ic = hucreIcerik(g, s);
+                      const yeni = degisen.has(anahtar(g, s));
                       const etiket = `${GUN_ADLARI[g - 1]} ${s}. ders`;
                       return (
-                        <td key={g} className="p-1 border-l border-line align-top">
+                        <td key={g} className="p-1 border-l border-line align-middle">
                           <button
                             type="button"
                             onClick={() => ac({ gun: g, sira: s })}
-                            aria-label={ic ? `${etiket}: ${ic.ust}. Değiştir` : `${etiket}: boş. Ata`}
+                            aria-label={`${ic ? `${etiket}: ${ic.ust}. Değiştir` : `${etiket}: boş. Ata`}${yeni ? ' (kaydedilmedi)' : ''}`}
+                            title={yeni ? 'Kaydedilmedi' : undefined}
                             className={cx(
-                              'w-full min-h-[44px] rounded-lg px-2 py-1 text-left flex flex-col justify-center gap-0.5 transition-colors',
-                              ic ? 'bg-surface border border-line hover:border-line-strong' : 'border border-dashed border-line text-subtle hover:text-fg-2 hover:border-line-strong items-center'
+                              'min-h-[44px] rounded-lg px-2 py-1 text-left flex-col justify-center gap-0.5 align-middle transition-colors',
+                              ic
+                                ? cx('inline-flex max-w-full border', yeni ? 'bg-brand-soft border-brand' : 'bg-surface border-line hover:border-line-strong')
+                                : cx(
+                                    'flex w-full border border-dashed items-center hover:text-fg-2 hover:border-line-strong',
+                                    yeni ? 'border-brand text-brand-fg' : 'border-line text-subtle'
+                                  )
                             )}
                           >
                             {ic ? (
                               <>
-                                <span className="font-semibold text-fg truncate w-full">{ic.ust}</span>
+                                <span className="font-semibold text-fg truncate max-w-full">{ic.ust}</span>
                                 {ic.alt && (
-                                  <span className="text-[11px] text-muted truncate w-full flex items-center gap-1">
+                                  <span className="text-[11px] text-muted truncate max-w-full flex items-center gap-1">
                                     <Users className="w-3 h-3 shrink-0" aria-hidden="true" />
-                                    {ic.alt}
+                                    <span className="truncate">{ic.alt}</span>
                                   </span>
                                 )}
                               </>
@@ -459,11 +588,37 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
         {gorunum === 'sinif' && seciliSinif && sinifDersleri.length === 0 && (
           <p className="text-xs text-warning-fg font-semibold">{seciliSinif.name} için ders öğretmeni yazılmamış. Önce "Sınıf öğretmenleri" bölümünden ekleyin.</p>
         )}
+
+        {/* Aşama 237: sayfanın tek Kaydet çubuğu — bütün değişiklikler tek işlemde yazılır */}
+        <div
+          className={cx(
+            'sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-xl border px-3 py-2 backdrop-blur',
+            kaydedilmemis ? 'border-brand bg-surface/95 shadow-lg' : 'border-line bg-surface/80'
+          )}
+          id="program-kaydet-cubugu"
+        >
+          <span className={cx('text-xs font-semibold tabular-nums', kaydedilmemis ? 'text-brand-fg' : 'text-muted')} aria-live="polite">
+            {kaydedilmemis ? `${taslak.length} değişiklik kaydedilmedi` : 'Kaydedilmemiş değişiklik yok'}
+          </span>
+          {kHata && (
+            <span role="alert" className="text-xs font-semibold text-danger-fg min-w-0">
+              {kHata}
+            </span>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={vazgec} disabled={!kaydedilmemis || kayit} id="program-vazgec">
+              Vazgeç
+            </button>
+            <button type="button" className={cx(BTN, 'ui-btn-primary')} onClick={() => void kaydet()} disabled={!kaydedilmemis || kayit} id="program-kaydet">
+              {kayit ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+          </div>
+        </div>
       </div>
 
       <Modal
         open={!!secili}
-        onClose={() => !kayit && setSecili(null)}
+        onClose={kapat}
         size="sm"
         icon={CalendarDays}
         title={secili ? `${GUN_ADLARI[secili.gun - 1]} · ${secili.sira}. ders` : ''}
@@ -473,83 +628,99 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
             : undefined
         }
         footer={
-          <div className="flex justify-end gap-2">
-            <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => void kaydet(true)} disabled={kayit}>
-              Boş bırak
-            </button>
-            <button
-              type="button"
-              className={cx(BTN, 'ui-btn-primary')}
-              onClick={() => void kaydet(false)}
-              disabled={kayit || !secim || (gorunum === 'sinif' && secTids.length === 0)}
-            >
-              {kayit ? 'Kaydediliyor…' : 'Kaydet'}
-            </button>
-          </div>
+          seciliIcerik.dolu ? (
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={cx(BTN, 'ui-btn-secondary')}
+                onClick={() => (gorunum === 'ogretmen' ? ogretmenSec(null, null) : sinifSec(null, []))}
+                id="program-bosalt"
+              >
+                Boş bırak
+              </button>
+            </div>
+          ) : undefined
         }
       >
         {gorunum === 'ogretmen' ? (
-          <div className="space-y-1" role="radiogroup" aria-label="Sınıf ve ders">
+          <div className="space-y-1" aria-label="Sınıf ve ders">
             {ogretmenSecenek.length === 0 && <p className="text-xs text-muted">Bu öğretmen hiçbir sınıfa ders öğretmeni olarak yazılmamış.</p>}
-            {ogretmenSecenek.map((o) => (
-              <label
-                key={o.deger}
-                className={cx(
-                  'flex items-center gap-2.5 rounded-lg px-2.5 py-2',
-                  o.pasif ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-2',
-                  secim === o.deger && 'bg-brand-soft'
-                )}
-              >
-                <input type="radio" name="program-secim" value={o.deger} checked={secim === o.deger} disabled={o.pasif} onChange={() => setSecim(o.deger)} />
-                <span className="min-w-0">
+            {ogretmenSecenek.map((o) => {
+              const secilen = seciliIcerik.deger === o.deger;
+              return (
+                <button
+                  key={o.deger}
+                  type="button"
+                  disabled={o.pasif}
+                  aria-current={secilen || undefined}
+                  onClick={() => ogretmenSec(o.classId, o.ders)}
+                  className={cx(
+                    'w-full text-left rounded-lg px-2.5 py-2 transition-colors',
+                    o.pasif ? 'opacity-60 cursor-not-allowed' : 'hover:bg-surface-2',
+                    secilen && 'bg-brand-soft'
+                  )}
+                >
                   <span className="block text-xs font-semibold text-fg">{o.ad}</span>
                   <span className={cx('block text-[11px]', o.pasif ? 'text-danger-fg' : 'text-muted')}>{o.not}</span>
-                </span>
-              </label>
-            ))}
+                </button>
+              );
+            })}
           </div>
         ) : (
-          <div className="space-y-3">
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
-              Ders
-              <select className="ui-field w-full" value={secim} onChange={(e) => dersSec(e.target.value)}>
-                <option value="">Seçin</option>
-                {sinifDersleri.map(([d]) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {secim && (
-              <fieldset className="space-y-1">
-                <legend className="text-[11px] font-semibold text-fg-2 mb-1">Öğretmen(ler)</legend>
-                {dersOgretmenleri.map((tid) => {
-                  const not = mesgulNot(tid);
-                  const on = secTids.includes(tid);
-                  return (
-                    <label key={tid} className={cx('flex items-center gap-2.5 rounded-lg px-2.5 py-1.5', not ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-2')}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={!!not}
-                        onChange={() => setSecTids((cur) => (on ? cur.filter((x) => x !== tid) : [...cur, tid]))}
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-xs font-semibold text-fg">{ogretmenAd.get(tid) || 'Bilinmeyen öğretmen'}</span>
-                        {not && <span className="block text-[11px] text-danger-fg">{not}</span>}
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-            )}
+          <div className="space-y-1" role="list" aria-label="Ders">
+            {sinifDersleri.length === 0 && <p className="text-xs text-muted">Bu sınıfa ders öğretmeni yazılmamış.</p>}
+            {sinifDersleri.map(([d, tids]) => {
+              const bos = tids.filter((t) => !mesgulNot(t));
+              const pasif = bos.length === 0;
+              const secilen = seciliIcerik.deger === d;
+              const acik = acikDers === d;
+              return (
+                <div key={d} role="listitem" className={cx('rounded-lg', (secilen || acik) && 'bg-brand-soft')}>
+                  <button
+                    type="button"
+                    disabled={pasif}
+                    aria-current={secilen || undefined}
+                    aria-expanded={tids.length > 1 ? acik : undefined}
+                    onClick={() => dersTikla(d, tids)}
+                    className={cx('w-full text-left rounded-lg px-2.5 py-2 transition-colors', pasif ? 'opacity-60 cursor-not-allowed' : !secilen && !acik && 'hover:bg-surface-2')}
+                  >
+                    <span className="block text-xs font-semibold text-fg">{d}</span>
+                    <span className={cx('block text-[11px] truncate', pasif ? 'text-danger-fg' : 'text-muted')}>
+                      {pasif ? 'Öğretmeni bu saatte başka sınıfta' : tids.map((t) => ogretmenAd.get(t) || 'Bilinmeyen öğretmen').join(', ')}
+                    </span>
+                  </button>
+                  {acik && (
+                    <fieldset className="px-2.5 pb-2 space-y-1">
+                      <legend className="sr-only">{d} öğretmenleri</legend>
+                      {tids.map((tid) => {
+                        const not = mesgulNot(tid);
+                        const on = secTids.includes(tid);
+                        return (
+                          <label key={tid} className={cx('flex items-center gap-2.5 rounded-lg px-1.5 py-1', not ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer')}>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              disabled={!!not}
+                              onChange={() => setSecTids((cur) => (on ? cur.filter((x) => x !== tid) : [...cur, tid]))}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold text-fg">{ogretmenAd.get(tid) || 'Bilinmeyen öğretmen'}</span>
+                              {not && <span className="block text-[11px] text-danger-fg">{not}</span>}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      <div className="flex justify-end pt-1">
+                        <button type="button" className={cx(BTN, 'ui-btn-primary')} disabled={secTids.length === 0} onClick={() => sinifSec(d, secTids)}>
+                          Seç
+                        </button>
+                      </div>
+                    </fieldset>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
-        {pHata && (
-          <p role="alert" className="mt-3 text-xs font-semibold text-danger-fg">
-            {pHata}
-          </p>
         )}
       </Modal>
 
@@ -561,7 +732,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
             ayar={ayar}
             siniflar={siniflar.map((c) => ({ id: c.id, name: c.name }))}
             ogretmenler={ogretmenler.map((t) => ({ id: t.id, name: t.name }))}
-            program={program}
+            program={kayitli}
             dersAdlari={Array.from(new Set(atamalar.map((a) => a.ders)))}
             baslangicSinif={gorunum === 'sinif' ? classId : undefined}
             onDone={() => void yukle()}

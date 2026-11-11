@@ -317,6 +317,27 @@ export async function programSinifAta(classId: string, gun: number, sira: number
   await rpc('ders_programi_sinif_ata', { p_class_id: classId, p_gun: gun, p_sira: sira, p_ders: ders, p_teacher_ids: teacherIds });
 }
 
+// Aşama 237: ekrandaki bütün program değişiklikleri tek Kaydet ile, tek işlemde (biri hata verirse hiçbiri yazılmaz)
+export type ProgramIslem =
+  | { tur: 'ogretmen'; teacherId: string; gun: number; sira: number; classId: string | null; ders: string | null }
+  | { tur: 'sinif'; classId: string; gun: number; sira: number; ders: string | null; teacherIds: string[] };
+
+const SQL_EKSIK_237 = "Toplu kayıt veritabanında henüz kurulu değil. Supabase SQL Editor'de 237 numaralı SQL dosyasını çalıştırın.";
+
+export async function programTopluKaydet(islemler: ProgramIslem[]): Promise<void> {
+  if (!islemler.length) return;
+  const p_islemler = islemler.map((i) =>
+    i.tur === 'ogretmen'
+      ? { tur: 'ogretmen', teacher_id: i.teacherId, gun: i.gun, sira: i.sira, class_id: i.classId || '', ders: i.ders || '' }
+      : { tur: 'sinif', class_id: i.classId, gun: i.gun, sira: i.sira, ders: i.ders || '', teacher_ids: i.teacherIds }
+  );
+  try {
+    await rpc('ders_programi_toplu_kaydet', { p_islemler });
+  } catch (e: any) {
+    throw e?.message === SQL_EKSIK ? new Error(SQL_EKSIK_237) : e;
+  }
+}
+
 // ---------------------------------------------------------------- öğretmen Dersler sayfası (Aşama 220)
 export async function haftaOku(bas: string, opts?: { teacherId?: string | null; classId?: string | null }): Promise<HaftaVeri> {
   const r = await rpc<any>('ders_programi_hafta', {
