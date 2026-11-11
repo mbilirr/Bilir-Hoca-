@@ -36,9 +36,10 @@ const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'Progra
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 // Aşama 237b: gün sütunu genişliği — öğretmene göre yalnız sınıf adı (kısa), sınıfa göre ders + öğretmen (uzun)
-const GUN_W = { ogretmen: 'w-24', sinif: 'w-40' } as const;
+// Aşama 237e: öğretmene göre sütun "8/D-F.S.Ç" gibi üç kelimeli kısaltmanın da sığacağı genişlikte
+const GUN_W = { ogretmen: 'w-28', sinif: 'w-40' } as const;
 // Dolu düğmenin en fazla genişliği (sütundan taşmasın; uzun ad kısaltılır, tamamı title'da)
-const DUGME_MAX = { ogretmen: 'max-w-[5.25rem]', sinif: 'max-w-36' } as const;
+const DUGME_MAX = { ogretmen: 'max-w-full', sinif: 'max-w-36' } as const;
 
 // Aşama 237d: ders kısaltması — çok kelimeli derste baş harfler ("Fen Bilimleri" → "F.B", "Fen Grup" → "F.G"),
 // tek kelimede ilk üç harf ("Matematik" → "Mat"). Öğretmenin iki dersi aynı kısaltmaya düşerse tam ad yazılır.
