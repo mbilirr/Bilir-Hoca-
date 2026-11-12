@@ -19,6 +19,15 @@ const snoozed = () => {
     return false;
   }
 };
+/** Aşama 248: öğretmen ana sayfasındaki tek satırlık bildirim notu da aynı "şimdi değil" kaydını kullanır */
+export const pushOptInErtelendi = snoozed;
+export const pushOptInErtele = () => {
+  try {
+    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+  } catch {
+    /* depolama kapalı: yalnız bu açılışta gizlenir */
+  }
+};
 
 export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role }) => {
   const [state, setState] = useState<PushState | null>(null);
@@ -49,9 +58,7 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
   if (state !== 'on' && hidden) return null;
 
   const snooze = () => {
-    try {
-      localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
-    } catch {}
+    pushOptInErtele();
     setHidden(true);
   };
 
@@ -94,7 +101,13 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
 
   return (
     <div id="push-optin" data-state={state} className="relative rounded-2xl border border-brand/30 bg-brand-soft/60 p-4 pr-10">
-      <button type="button" onClick={snooze} aria-label="Şimdi değil" title="Şimdi değil (7 gün sonra tekrar sorulur)" className="absolute top-2 right-2 ui-btn ui-btn-ghost ui-btn-icon">
+      <button
+        type="button"
+        onClick={snooze}
+        aria-label="Şimdi değil"
+        title="Şimdi değil (7 gün sonra tekrar sorulur)"
+        className="absolute top-2 right-2 ui-btn ui-btn-ghost ui-btn-icon"
+      >
         <X className="w-4 h-4" />
       </button>
       <div className="flex items-start gap-3">
@@ -113,7 +126,9 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
               <li>
                 <PlusSquare className="inline w-3.5 h-3.5 -mt-0.5" /> <strong>Ana Ekrana Ekle</strong>'yi seçin.
               </li>
-              <li>Ana ekrandaki <strong>blrEdu</strong> simgesinden açıp giriş yapın; bu kartta "Bildirimleri aç"a dokunun.</li>
+              <li>
+                Ana ekrandaki <strong>blrEdu</strong> simgesinden açıp giriş yapın; bu kartta "Bildirimleri aç"a dokunun.
+              </li>
             </ol>
           )}
 

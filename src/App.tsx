@@ -70,6 +70,7 @@ const SistemSahibiAnaSayfa = lazyNamed(() => import('./components/Home/SistemSah
 const KurumYoneticisiAnaSayfa = lazyNamed(() => import('./components/Home/KurumYoneticisiAnaSayfa'), 'KurumYoneticisiAnaSayfa'); // Aşama 245
 const MudurAnaSayfa = lazyNamed(() => import('./components/Home/MudurAnaSayfa'), 'MudurAnaSayfa'); // Aşama 246
 const MudurYardimcisiAnaSayfa = lazyNamed(() => import('./components/Home/MudurYardimcisiAnaSayfa'), 'MudurYardimcisiAnaSayfa'); // Aşama 247
+const OgretmenAnaSayfa = lazyNamed(() => import('./components/Home/OgretmenAnaSayfa'), 'OgretmenAnaSayfa'); // Aşama 248
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -599,6 +600,22 @@ export default function App() {
               submissions={submissions}
               unreadMessages={unreadMessagesCount}
               onNavigateTab={selectTeacherTab}
+            />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'ogretmen' ? (
+          /* Aşama 248: öğretmen ana sayfası (şimdi kartı, sizi bekleyenler; kurumun açık bölümlerinden) */
+          <Suspense fallback={<PageLoading />}>
+            <OgretmenAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              homeworks={homeworks}
+              submissions={submissions}
+              etuts={etuts}
+              messages={messages}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+              onOpenStudentView={() => handleRoleChange('student')}
             />
           </Suspense>
         ) : role === 'teacher' ? (
