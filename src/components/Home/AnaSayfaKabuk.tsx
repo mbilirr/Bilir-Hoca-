@@ -132,16 +132,21 @@ export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages 
 
   return (
     <div className={(tema === 'odak' ? 'ak ak-odak' : 'ak') + (sinif ? ' ' + sinif : '')} ref={rootRef} id="ana-sayfa-kabuk">
+      {/* Aşama 250: şerit ve koyu panel sayfanın sonuna kadar uzanır; içerikleri ekranda sabit kalır (yarıda kesik görünmez) */}
       <nav className="ak-rail" aria-label="Bölümler">
-        {home && link(home, true)}
-        {yonetim && link(yonetim)}
-        {rest.length > 0 && <span className="sep" aria-hidden="true" />}
-        {rest.map((i) => link(i))}
+        <div className="ak-rail-in">
+          {home && link(home, true)}
+          {yonetim && link(yonetim)}
+          {rest.length > 0 && <span className="sep" aria-hidden="true" />}
+          {rest.map((i) => link(i))}
+        </div>
       </nav>
       {tema !== 'odak' && (
         <aside className="ak-panel" aria-label={panelLabel}>
-          <AkHalkalar />
-          {panel}
+          <div className="ak-panel-in">
+            <AkHalkalar />
+            {panel}
+          </div>
         </aside>
       )}
       <main className="ak-main">{children}</main>

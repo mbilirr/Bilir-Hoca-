@@ -39,7 +39,8 @@
 .ak-odak :focus-visible { outline-color: var(--brand); }
 
 /* ---- Sol menü (açık şerit) ---- */
-.ak-odak .ak-rail { background: var(--surface); border-right: 1px solid var(--line); gap: 0.25rem; }
+.ak-odak .ak-rail { background: var(--surface); border-right: 1px solid var(--line); }
+.ak-odak .ak-rail-in { gap: 0.25rem; }
 .ak-odak .ak-rail a, .ak-odak .ak-rail button { color: var(--muted); transition: transform .35s var(--spring), background-color .2s, color .2s; }
 .ak-odak .ak-rail [aria-current="page"] { background: var(--brand-soft); color: var(--brand-fg); box-shadow: none; }
 .ak-odak .ak-rail .badge { background: var(--danger); box-shadow: 0 0 0 0.125rem var(--surface); }
