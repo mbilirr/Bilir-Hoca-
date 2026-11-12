@@ -866,6 +866,36 @@ export interface GunIzin {
   aciklama: string;
 }
 
+/** Aşama 247: kurumun vekil dersleri (tarih aralığı). Okuma izni 232'deki kural: kurumun ders üyeleri. */
+export interface VekilKaydi {
+  tarih: string;
+  sira: number;
+  classId: string;
+  teacherId: string;
+  aciklama: string;
+}
+export async function vekilListesi(kurumId: string, bas: string, bit: string): Promise<VekilKaydi[]> {
+  const { data, error } = await supabase
+    .from('ders_vekil')
+    .select('tarih,sira,class_id,teacher_id,aciklama')
+    .eq('kurum_id', kurumId)
+    .gte('tarih', bas)
+    .lte('tarih', bit)
+    .order('tarih')
+    .limit(2000);
+  if (error) {
+    const e = hata(error);
+    throw e.message === SQL_EKSIK ? new Error(SQL_EKSIK_232) : e;
+  }
+  return (data || []).map((x: any) => ({
+    tarih: String(x.tarih),
+    sira: Number(x.sira),
+    classId: String(x.class_id),
+    teacherId: String(x.teacher_id),
+    aciklama: String(x.aciklama || ''),
+  }));
+}
+
 /** Kurumun gün boyu izinleri (verilen tarihten sonrası) */
 export async function izinListesi(kurumId: string, bas: string): Promise<GunIzin[]> {
   const { data, error } = await supabase

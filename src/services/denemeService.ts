@@ -165,6 +165,19 @@ export async function lastExamBrief(): Promise<{ id: string; name: string; examD
   return { id: r.id, name: r.name || 'Deneme', examDate: r.exam_date || '', count: Number(r.count) || 0, avgScore: num(r.avg), avgTotalNet: num(r.net) };
 }
 
+/** Aşama 247: tarih aralığındaki denemeler (yalnız ad ve tarih; taslaklar hariç) — müdür yardımcısı ana sayfası "Okulun haftası" */
+export async function denemeTarihleri(bas: string, bit: string): Promise<Array<{ id: string; name: string; examDate: string }>> {
+  const { data, error } = await supabase
+    .from('deneme_exams')
+    .select('id,name,exam_date,taslak:summary->taslak')
+    .gte('exam_date', bas)
+    .lte('exam_date', bit)
+    .order('exam_date')
+    .limit(50);
+  if (error) return [];
+  return (data || []).filter((x: any) => !x.taslak).map((x: any) => ({ id: String(x.id), name: x.name || 'Deneme', examDate: String(x.exam_date || '').slice(0, 10) }));
+}
+
 export async function getExam(id: string): Promise<DenemeExam> {
   const { data, error } = await supabase.from('deneme_exams').select('*').eq('id', id).maybeSingle();
   if (error) fail(error, 'Deneme yüklenemedi.');

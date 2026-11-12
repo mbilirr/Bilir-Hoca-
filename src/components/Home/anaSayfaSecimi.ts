@@ -7,10 +7,11 @@ import { dataService } from '../../services/dataService';
 //  - 'kurum' (Aşama 245): kurum yöneticisi kaydı olan hesap — Kurum yöneticisi portalında ya da portal seçimi yoksa.
 //             İdare / Öğretmen portalını seçen kurum yöneticisi o portalın ana sayfasını görür (yoneticiKaydi portala bakar).
 //             Genel yönetici kuruma geçince de bu sayfa açılır.
+//  - 'mudur_yrd' (Aşama 247): Müdür Yardımcısı rolü (Müdür rolü yoksa). Kurum yöneticisi de ise İdare portalında.
 //  - 'mudur' (Aşama 246): Müdür rolü (rol yetkileri açık kurumda). Kurum yöneticisi de olan müdür bu sayfayı İdare portalında görür.
 // Kabuklu ana sayfada üst menünün bölüm satırı gizlenir: menü solda (hayalet etiketli simgeler).
 // ============================================================================
-export type AnaSayfaTuru = 'sistem' | 'kurum' | 'mudur' | null;
+export type AnaSayfaTuru = 'sistem' | 'kurum' | 'mudur' | 'mudur_yrd' | null;
 
 export function anaSayfaTuru(): AnaSayfaTuru {
   if (dataService.getAuthSession()?.role !== 'teacher') return null;
@@ -18,5 +19,6 @@ export function anaSayfaTuru(): AnaSayfaTuru {
   const k = dataService.getMyKurum();
   if (k.loaded && k.supported && k.kurumId && dataService.yoneticiKaydi(dataService.getCurrentTeacher())) return 'kurum';
   if (k.loaded && k.supported && k.kurumId && dataService.hasRole('mudur')) return 'mudur';
+  if (k.loaded && k.supported && k.kurumId && dataService.hasRole('mudur_yardimcisi')) return 'mudur_yrd';
   return null;
 }

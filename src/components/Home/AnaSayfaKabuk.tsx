@@ -71,12 +71,14 @@ interface Props {
   panel?: React.ReactNode;
   /** 'yonetici' (vars.): kâğıt + koyu panel · 'odak': Odak renkleri, panelsiz */
   tema?: 'yonetici' | 'odak';
+  /** Sayfaya özel ek sınıf (taslağa özgü küçük farklar için) */
+  sinif?: string;
   children: React.ReactNode;
   /** Sağdan açılan iş paneli gibi kabuğun renklerini kullanan katmanlar */
   overlay?: React.ReactNode;
 }
 
-export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', children, overlay }) => {
+export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', sinif, children, overlay }) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(loadSerif, []);
@@ -129,7 +131,7 @@ export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages 
   };
 
   return (
-    <div className={tema === 'odak' ? 'ak ak-odak' : 'ak'} ref={rootRef} id="ana-sayfa-kabuk">
+    <div className={(tema === 'odak' ? 'ak ak-odak' : 'ak') + (sinif ? ' ' + sinif : '')} ref={rootRef} id="ana-sayfa-kabuk">
       <nav className="ak-rail" aria-label="Bölümler">
         {home && link(home, true)}
         {yonetim && link(yonetim)}

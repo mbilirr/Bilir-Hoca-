@@ -69,6 +69,7 @@ const AkademikTakvim = lazyNamed(PAGE_LOADERS.akademik_takvim, 'AkademikTakvim')
 const SistemSahibiAnaSayfa = lazyNamed(() => import('./components/Home/SistemSahibiAnaSayfa'), 'SistemSahibiAnaSayfa');
 const KurumYoneticisiAnaSayfa = lazyNamed(() => import('./components/Home/KurumYoneticisiAnaSayfa'), 'KurumYoneticisiAnaSayfa'); // Aşama 245
 const MudurAnaSayfa = lazyNamed(() => import('./components/Home/MudurAnaSayfa'), 'MudurAnaSayfa'); // Aşama 246
+const MudurYardimcisiAnaSayfa = lazyNamed(() => import('./components/Home/MudurYardimcisiAnaSayfa'), 'MudurYardimcisiAnaSayfa'); // Aşama 247
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -576,6 +577,20 @@ export default function App() {
           /* Aşama 246: müdür ana sayfası (Odak renkleri; kurumun açık bölümlerinden) */
           <Suspense fallback={<PageLoading />}>
             <MudurAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              etuts={etuts}
+              homeworks={homeworks}
+              submissions={submissions}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+            />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'mudur_yrd' ? (
+          /* Aşama 247: müdür yardımcısı ana sayfası (bugünün yoklama haritası; kurumun açık bölümlerinden) */
+          <Suspense fallback={<PageLoading />}>
+            <MudurYardimcisiAnaSayfa
               currentTeacher={currentTeacher}
               students={students}
               classes={classes}
