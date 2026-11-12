@@ -32,13 +32,16 @@ import {
 
 const BTN = 'ui-btn ui-btn-sm h-8 justify-center';
 
-export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTakvim }) => {
+/**
+ * Aşama 246: takvim kayıtlarını okuyan ortak kanca (öğretmen ana sayfası ve müdür ana sayfası aynı kaynaktan okur).
+ * acik=false iken hiç okumaz. Takvim değişince (başka sekme / başka kullanıcı) anlık yenilenir.
+ * Dönüş: null = yükleniyor ya da kapalı; dizi = bu ve gelecek eğitim yılının etkinlikleri (tarih sırasıyla)
+ */
+export function useAkademikKayitlar(acik = true): AktKayit[] | null {
   const kurumId = dataService.getMyKurumId();
   const [kayitlar, setKayitlar] = useState<AktKayit[] | null>(null);
-  const [kaydir, setKaydir] = useState(0);
-
   const yukle = useCallback(async () => {
-    if (!kurumId) return;
+    if (!kurumId || !acik) return;
     // Bu yıl ve (yaz aylarında) gelecek yıl birlikte okunur: hafta geçişi ve "sıradakiler" yıl sınırında da doğru çalışır
     const y = egitimYili();
     try {
@@ -46,11 +49,19 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
     } catch {
       setKayitlar([]); // ana sayfa bozulmasın; hata takvim sayfasında gösterilir
     }
-  }, [kurumId]);
+  }, [kurumId, acik]);
   useEffect(() => {
-    void yukle();
-  }, [yukle]);
-  useEffect(() => takvimCanliDinle(kurumId, () => void yukle()), [kurumId, yukle]);
+    if (!acik) setKayitlar(null);
+    else void yukle();
+  }, [acik, yukle]);
+  useEffect(() => (acik ? takvimCanliDinle(kurumId, () => void yukle()) : undefined), [acik, kurumId, yukle]);
+  return kurumId ? kayitlar : null;
+}
+
+export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTakvim }) => {
+  const kurumId = dataService.getMyKurumId();
+  const kayitlar = useAkademikKayitlar(true);
+  const [kaydir, setKaydir] = useState(0);
 
   const bu = bugun();
   const bugunS = tarihYaz(bu);

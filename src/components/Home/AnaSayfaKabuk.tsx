@@ -3,10 +3,12 @@ import { dataService } from '../../services/dataService';
 import { teacherNavFor } from '../Layout/navItems';
 import type { Teacher, TeacherTabType } from '../../types';
 import './anaSayfaKabuk.css';
+import './odakKabuk.css'; // Aşama 246
 
 // ============================================================================
 // Aşama 244: ANA SAYFA KABUĞU (yönetici ana sayfaları: sistem sahibi, kurum yöneticisi)
 // Taslak "Koyu panel + kâğıt": solda yalnız simge menü (üzerine gelince hayalet etiket), ortada koyu panel, sağda kâğıt.
+// Aşama 246: tema="odak" (müdür, müdür yrd., öğretmen): Odak renkleri, açık menü şeridi, koyu panel yok, içerik ortada (en çok 1240 px).
 // Menü, üst menüyle AYNI listedir (teacherNavFor + canUseTab): kapalı bölüm burada da görünmez.
 // Telefonda (900 px altı) sol menü gizlenir; alttaki menü çalışmaya devam eder.
 // ============================================================================
@@ -18,7 +20,7 @@ const loadSerif = () => {
     const link = document.createElement('link');
     link.id = SERIF_ID;
     link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap';
     document.head.appendChild(link);
   } catch {
     /* yazı tipi gelmezse başlık ve rakamlar Georgia ile görünür */
@@ -64,14 +66,17 @@ interface Props {
   currentTeacher: Teacher | null;
   unreadMessages?: number;
   onNavigate: (tab: TeacherTabType) => void;
-  panelLabel: string;
-  panel: React.ReactNode;
+  /** Koyu panel (yönetici teması). Odak temasında kullanılmaz. */
+  panelLabel?: string;
+  panel?: React.ReactNode;
+  /** 'yonetici' (vars.): kâğıt + koyu panel · 'odak': Odak renkleri, panelsiz */
+  tema?: 'yonetici' | 'odak';
   children: React.ReactNode;
   /** Sağdan açılan iş paneli gibi kabuğun renklerini kullanan katmanlar */
   overlay?: React.ReactNode;
 }
 
-export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages = 0, onNavigate, panelLabel, panel, children, overlay }) => {
+export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', children, overlay }) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(loadSerif, []);
@@ -124,17 +129,19 @@ export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages 
   };
 
   return (
-    <div className="ak" ref={rootRef} id="ana-sayfa-kabuk">
+    <div className={tema === 'odak' ? 'ak ak-odak' : 'ak'} ref={rootRef} id="ana-sayfa-kabuk">
       <nav className="ak-rail" aria-label="Bölümler">
         {home && link(home, true)}
         {yonetim && link(yonetim)}
         {rest.length > 0 && <span className="sep" aria-hidden="true" />}
         {rest.map((i) => link(i))}
       </nav>
-      <aside className="ak-panel" aria-label={panelLabel}>
-        <AkHalkalar />
-        {panel}
-      </aside>
+      {tema !== 'odak' && (
+        <aside className="ak-panel" aria-label={panelLabel}>
+          <AkHalkalar />
+          {panel}
+        </aside>
+      )}
       <main className="ak-main">{children}</main>
       {overlay}
     </div>

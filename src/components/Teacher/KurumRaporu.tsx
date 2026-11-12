@@ -4,6 +4,7 @@ import type { ClassGroup, Etut, GradeRecord, Homework, HomeworkSubmission, Stude
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented, cx } from '../ui/kit';
 import { hasEtutAttendance } from '../../lib/etutTiming';
+import { odevTeslimGruplari } from '../../lib/odevTeslim';
 import { tabloYazdir, YazdirTablo } from '../../lib/tabloYazdir';
 import {
   DersAyar,
@@ -208,47 +209,8 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
   const [odevBy, setOdevBy] = useState<'sinif' | 'ogretmen'>('sinif');
   const odevSatirlar = useMemo(() => {
     if (bolum !== 'odev') return [];
-    const classOf = new Map<string, string>();
-    const size = new Map<string, number>();
-    for (const s of students) {
-      classOf.set(s.id, s.classId);
-      size.set(s.classId, (size.get(s.classId) || 0) + 1);
-    }
-    const done = new Map<string, number>();
-    for (const s of submissions) {
-      if (s.status !== 'on_time' && s.status !== 'late') continue;
-      const k = `${s.homeworkId}|${classOf.get(s.studentId) || ''}`;
-      done.set(k, (done.get(k) || 0) + 1);
-    }
-    const grp = new Map<string, { ad: string; odev: number; exp: number; done: number }>();
-    const cName = new Map(classes.map((c) => [c.id, c.name] as const));
-    for (const h of homeworks) {
-      const d = (h.dueDate || '').slice(0, 10);
-      if (!d || d < bas || d > bit) continue;
-      const expBy = new Map<string, number>();
-      if (Array.isArray(h.assignedTo)) {
-        for (const sid of h.assignedTo) {
-          const c = classOf.get(sid);
-          if (c) expBy.set(c, (expBy.get(c) || 0) + 1);
-        }
-      } else {
-        const ids = h.targetClassIds && h.targetClassIds.length ? h.targetClassIds : h.classId ? [h.classId] : [];
-        for (const c of new Set(ids)) if (size.get(c)) expBy.set(c, size.get(c)!);
-      }
-      if (!expBy.size) continue;
-      const o = dataService.homeworkOwner(h);
-      expBy.forEach((exp, c) => {
-        const key = odevBy === 'sinif' ? c : o.id;
-        const ad = odevBy === 'sinif' ? cName.get(c) || '' : o.name;
-        if (!ad) return;
-        const g = grp.get(key) || { ad, odev: 0, exp: 0, done: 0 };
-        g.odev++;
-        g.exp += exp;
-        g.done += Math.min(exp, done.get(`${h.id}|${c}`) || 0);
-        grp.set(key, g);
-      });
-    }
-    return Array.from(grp.values())
+    // Aşama 246: hesap tek yerde (müdür ana sayfasındaki ödev teslimi de aynı hesap)
+    return Array.from(odevTeslimGruplari(homeworks, submissions, students, classes, bas, bit, odevBy).values())
       .map((g) => ({ ...g, oran: pct(g.done, g.exp) }))
       .sort((a, b) => a.oran - b.oran || trSirala(a.ad, b.ad));
   }, [bolum, homeworks, submissions, students, classes, bas, bit, odevBy]);

@@ -634,6 +634,47 @@ export async function ogretmenYoklamaRapor(bas: string, bit: string): Promise<Og
 }
 
 // ============================================================================
+// Aşama 246: DEVAMSIZLIĞI ARTANLAR (müdür ana sayfası) — yalnız idare.
+// "Özürsüz gün" = o gün alınan bütün ders yoklamalarında "Gelmedi" (devamsızlık sınırı uyarısıyla aynı tanım).
+// Aralıkta en az enAz özürsüz günü olan öğrenciler; her biri için o günler ve eğitim yılı başından bu yana toplam.
+// ============================================================================
+export interface DevamsizlikArtan {
+  studentId: string;
+  ad: string;
+  sinif: string;
+  gunler: string[]; // aralıktaki özürsüz günler (YYYY-AA-GG)
+  yilGun: number; // eğitim yılı başından aralığın sonuna kadar özürsüz gün
+}
+export interface DevamsizlikArtanlar {
+  sinir: number; // 0 = sınır kapalı
+  kala: number;
+  ogrenciler: DevamsizlikArtan[];
+}
+const SQL_EKSIK_246 = "Müdür ana sayfası veritabanında henüz kurulu değil. Supabase SQL Editor'de 246 numaralı SQL dosyasını çalıştırın.";
+
+export async function devamsizlikArtanlar(bas: string, bit: string, enAz = 2): Promise<DevamsizlikArtanlar> {
+  let r: any;
+  try {
+    r = await rpc<any>('ders_devamsizlik_artanlar', { p_bas: bas, p_bit: bit, p_en_az: enAz });
+  } catch (e: any) {
+    throw e?.message === SQL_EKSIK ? new Error(SQL_EKSIK_246) : e;
+  }
+  return {
+    sinir: Number(r?.sinir) || 0,
+    kala: Number(r?.kala) || 0,
+    ogrenciler: Array.isArray(r?.ogrenciler)
+      ? r.ogrenciler.map((x: any) => ({
+          studentId: String(x.student_id),
+          ad: String(x.ad || ''),
+          sinif: String(x.sinif || ''),
+          gunler: yaziDizisi(x.gunler).map((g) => g.slice(0, 10)),
+          yilGun: Number(x.yil_gun) || 0,
+        }))
+      : [],
+  };
+}
+
+// ============================================================================
 // Aşama 223: ÖĞRENCİNİN KENDİ DERS DEVAMSIZLIĞI (yalnız kendi kayıtları; varsayılan bu eğitim yılı)
 // ============================================================================
 export interface DevamsizligimKayit {
