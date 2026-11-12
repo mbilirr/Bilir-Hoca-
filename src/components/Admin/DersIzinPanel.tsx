@@ -22,9 +22,15 @@ import {
 //  * Seçilen öğrenciler o günlerin bütün derslerinde "İzinli" gelir; öğretmen "Gelmedi" seçse de "İzinli" kaydedilir.
 //  * Önceden alınmış "Gelmedi" kayıtları da "İzinli" olur (geçmiş 60 güne kadar). Devamsızlık sınırında sayılmaz.
 //  * Yazma yalnız veritabanı işleviyle (sql/232); liste canlı güncellenir.
+// Aşama 241: sınıf seçimi açılır liste yerine eşit boy sınıf düğmeleri (bugün izinli sayısı); öğrenciler seçilebilir
+//            satırlar (bugün izinli olan işaretli); yazılı izinler türüne göre renkli etiketle. İki panel geniş ekranda yan yana.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
+/** Sınıf düğmeleri: hepsi aynı en ve boy (Sınıf öğretmenleri ile aynı ölçü) */
+const SINIF_BTN =
+  'h-8 w-[5.5rem] px-2 inline-flex items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold tabular-nums transition-[background-color,border-color,color,scale] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+const TUR_ETIKET: Record<IzinTur, string> = { izinli: 'bg-brand-soft text-brand-fg', raporlu: 'bg-warning-soft text-warning-fg' };
 
 const TUR_SECENEK: Array<{ value: IzinTur; label: string; id: string }> = [
   { value: 'izinli', label: 'İzinli', id: 'izin-tur-izinli' },
@@ -107,6 +113,13 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
   }, [kurumId, yukle]);
 
   const gruplar = useMemo(() => grupla(liste || []), [liste]);
+  // Aşama 241: bugün izinli / raporlu öğrenciler (sınıf düğmesi sayısı ve öğrenci satırındaki etiket)
+  const bugunIzin = useMemo(() => new Map((liste || []).filter((x) => x.tarih === bugun).map((x) => [x.studentId, x.tur] as const)), [liste, bugun]);
+  const sinifIzinSay = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of ogrenciler) if (bugunIzin.has(s.id) && s.classId) m.set(s.classId, (m.get(s.classId) || 0) + 1);
+    return m;
+  }, [ogrenciler, bugunIzin]);
 
   const ekle = async () => {
     if (mesgul) return;
@@ -157,6 +170,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
 
   return (
     <div className="space-y-3">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
       <Panel
         title="Gün boyu izin / rapor"
         icon={UserX}
@@ -169,17 +183,27 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
           </p>
         ) : (
           <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sınıf" id="ders-izin-sinif">
+              {siniflar.map((c) => {
+                const on = c.id === classId;
+                const n = sinifIzinSay.get(c.id) || 0;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setClassId(c.id)}
+                    title={`${c.name}${n ? ` · bugün ${n} öğrenci izinli` : ''}`}
+                    className={cx(SINIF_BTN, on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2')}
+                  >
+                    <span className="truncate">{c.name}</span>
+                    {n > 0 && <span className={cx('shrink-0 text-[10px] font-bold', on ? 'text-white/80' : 'text-brand-fg')}>{n}</span>}
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
-                Sınıf
-                <select className="ui-field w-36" value={classId} onChange={(e) => setClassId(e.target.value)} id="ders-izin-sinif">
-                  {siniflar.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
                 Başlangıç
                 <input
@@ -218,27 +242,42 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
                 <button type="button" className="text-[11px] font-semibold text-brand-fg hover:underline mb-1" onClick={tumunuSec}>
                   {secili.size === sinifOgr.length ? 'Seçimi kaldır' : 'Tümünü seç'}
                 </button>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 border-y border-line py-1" id="ders-izin-ogrenciler">
-                  {sinifOgr.map((s) => (
-                    <li key={s.id}>
-                      <label className="flex items-center gap-2 py-1 text-xs text-fg cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={secili.has(s.id)}
-                          onChange={(e) =>
-                            setSecili((cur) => {
-                              const n = new Set(cur);
-                              if (e.target.checked) n.add(s.id);
-                              else n.delete(s.id);
-                              return n;
-                            })
-                          }
-                        />
-                        {s.studentNumber && <span className="text-subtle tabular-nums">{s.studentNumber}</span>}
-                        <span className="truncate">{s.name}</span>
-                      </label>
-                    </li>
-                  ))}
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1" id="ders-izin-ogrenciler">
+                  {sinifOgr.map((s) => {
+                    const on = secili.has(s.id);
+                    const iz = bugunIzin.get(s.id);
+                    return (
+                      <li key={s.id}>
+                        <label
+                          className={cx(
+                            'flex h-10 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 text-xs transition-colors duration-150',
+                            on ? 'border-brand bg-brand-soft' : 'border-transparent hover:bg-surface-2'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 accent-[var(--color-brand)]"
+                            checked={on}
+                            onChange={(e) =>
+                              setSecili((cur) => {
+                                const n = new Set(cur);
+                                if (e.target.checked) n.add(s.id);
+                                else n.delete(s.id);
+                                return n;
+                              })
+                            }
+                          />
+                          <span className="w-8 shrink-0 text-subtle tabular-nums">{s.studentNumber || ''}</span>
+                          <span className={cx('min-w-0 flex-1 truncate font-medium', on ? 'text-brand-fg' : 'text-fg')}>{s.name}</span>
+                          {iz && (
+                            <span className={cx('shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold', TUR_ETIKET[iz])}>
+                              Bugün {iz === 'raporlu' ? 'raporlu' : 'izinli'}
+                            </span>
+                          )}
+                        </label>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -256,18 +295,23 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
             {gruplar.map((g) => {
               const o = ogrAd.get(g.studentId);
               return (
-                <li key={`${g.studentId}-${g.bas}`} className={cx('flex items-center gap-3 py-1.5', g.bit < bugun && 'opacity-60')}>
-                  <span className="text-xs font-semibold text-fg tabular-nums min-w-[9rem]">
-                    {g.bas === g.bit ? tarihUzun(g.bas) : `${tarihUzun(g.bas)} – ${tarihUzun(g.bit)}`}
+                <li key={`${g.studentId}-${g.bas}`} className={cx('flex items-center gap-3 py-2', g.bit < bugun && 'opacity-60')}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold text-fg">
+                      {o ? o.ad : 'Öğrenci'}
+                      {o?.sinif && <span className="font-normal text-muted"> · {o.sinif}</span>}
+                    </span>
+                    <span className="block truncate text-[11px] text-muted tabular-nums">
+                      {g.bas === g.bit ? tarihUzun(g.bas) : `${tarihUzun(g.bas)} – ${tarihUzun(g.bit)}`}
+                      {g.aciklama && ` · ${g.aciklama}`}
+                    </span>
                   </span>
-                  <span className="flex-1 min-w-0 text-xs text-fg-2 truncate">
-                    {o ? `${o.ad}${o.sinif ? ` · ${o.sinif}` : ''}` : 'Öğrenci'}
-                    <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-info-soft text-info-fg">{g.tur === 'raporlu' ? 'Raporlu' : 'İzinli'}</span>
-                    {g.aciklama && <span className="text-muted"> · {g.aciklama}</span>}
+                  <span className={cx('w-16 shrink-0 rounded-md py-0.5 text-center text-[11px] font-bold', TUR_ETIKET[g.tur])}>
+                    {g.tur === 'raporlu' ? 'Raporlu' : 'İzinli'}
                   </span>
                   <button
                     type="button"
-                    className="ui-btn ui-btn-sm ui-btn-secondary ui-btn-icon"
+                    className="ui-btn ui-btn-sm ui-btn-ghost ui-btn-icon hover:text-danger-fg"
                     onClick={() => void sil(g)}
                     disabled={mesgul}
                     aria-label="İzni kaldır"
@@ -280,6 +324,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
           </ul>
         )}
       </Panel>
+      </div>
 
       {mesaj && (
         <p role="status" className="text-xs font-semibold text-fg-2">

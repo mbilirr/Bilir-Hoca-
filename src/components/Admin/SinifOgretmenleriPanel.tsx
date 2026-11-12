@@ -15,6 +15,7 @@ import {
   sinifDersOgretmenleri,
   trBugun,
 } from '../../services/dersService';
+import { basHarf, dersKisa } from '../../lib/dersKisa'; // Aşama 240
 
 // ============================================================================
 // Aşama 218: SINIF DERS ÖĞRETMENLERİ — sınıf seçilir; her ders için bir ya da birden fazla öğretmen yazılır.
@@ -22,10 +23,17 @@ import {
 // Öğretmen ya da ders çıkarılınca programdaki bugün ve sonraki saatleri de kapanır; geçmiş ve yoklamalar kalır.
 // Aşama 238: ders/öğretmen eklerken aynı öğretmen aynı kademedeki diğer sınıflara da tek seferde yazılabilir
 //            (ör. İngilizce öğretmeni bütün 8. sınıflara). Tek işlem; zaten yazılı olan sınıf işaretli ve kilitli görünür.
+// Aşama 241: sınıf seçimi açılır liste yerine sınıf düğmeleri (kaç ders tanımlı); ders satırları hizalı ızgara:
+//            ad + kısaltma / ortak ders, öğretmen kartları (baş harf), haftalık saat göstergesi.
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 const STORE_KEY = 'edu_ders_sinif_v1';
+
+/** Sınıf düğmeleri: hepsi aynı en ve boy (simetri), seçili / ders tanımsız hâlleri */
+const SINIF_BTN = 'h-8 w-[5.5rem] px-2 inline-flex items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold tabular-nums transition-[background-color,border-color,color,scale] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+const PIP = 8; // haftalık saat göstergesindeki çubuk sayısı
+const avatar = (ad: string) => basHarf(ad).replace(/\./g, '').slice(0, 2);
 
 const sinifSirala = (a: ClassGroup, b: ClassGroup) => a.name.localeCompare(b.name, 'tr', { numeric: true });
 
@@ -176,6 +184,15 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
   }, [kurumId, yukle]);
 
   const sinif = siniflar.find((c) => c.id === classId) || null;
+  // Aşama 241: sınıf düğmelerinde tanımlı ders sayısı
+  const sinifDersSay = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const r of liste || []) {
+      if (!m.has(r.classId)) m.set(r.classId, new Set());
+      m.get(r.classId)!.add(r.ders);
+    }
+    return m;
+  }, [liste]);
 
   // Seçili sınıfın dersleri (ders adına göre gruplu)
   const dersler = useMemo(() => {
@@ -315,14 +332,6 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
       description="Programda bir sınıfa yalnız buradaki öğretmenler atanabilir."
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <select className="ui-field w-36" aria-label="Sınıf" value={classId} onChange={(e) => setClassId(e.target.value)} id="sdo-sinif">
-            {siniflar.length === 0 && <option value="">Sınıf yok</option>}
-            {siniflar.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             className={cx(BTN, 'ui-btn-primary')}
@@ -340,6 +349,42 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
       }
     >
       <div className="space-y-3">
+        {/* Aşama 241: sınıf düğmeleri — hepsi aynı ölçü; altta kaç ders tanımlı */}
+        {siniflar.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sınıf" id="sdo-sinif">
+            {siniflar.map((c) => {
+              const on = c.id === classId;
+              const n = sinifDersSay.get(c.id)?.size || 0;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setClassId(c.id)}
+                  title={`${c.name} · ${n ? `${n} ders tanımlı` : 'ders tanımlı değil'}`}
+                  className={cx(
+                    SINIF_BTN,
+                    on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2'
+                  )}
+                >
+                  <span className="truncate">{c.name}</span>
+                  {liste !== null && (
+                    <span
+                      className={cx(
+                        'shrink-0 text-[10px] font-bold',
+                        on ? 'text-white/80' : n ? 'text-muted' : 'text-warning-fg'
+                      )}
+                    >
+                      {n || '!'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {yeniAcik && classId && (
           <div className="rounded-xl border border-line bg-surface-2 p-3 flex flex-wrap items-end gap-2" id="sdo-yeni">
             <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[12rem]">
@@ -406,27 +451,51 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
         ) : (
           <div className="divide-y divide-line border-y border-line" id="sdo-liste">
             {dersler.map((d) => (
-              <div key={d.ders} className="py-2">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="sm:w-48 shrink-0 text-xs font-semibold text-fg">{d.ders}</span>
-                <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                  {d.tids.map((tid) => (
-                    <span key={tid} className="ui-chip ui-chip-brand inline-flex items-center gap-1 pr-1">
-                      {ogretmenAd.get(tid) || 'Bilinmeyen öğretmen'}
-                      <button
-                        type="button"
-                        className="w-5 h-5 inline-flex items-center justify-center rounded-full hover:bg-brand/10"
-                        aria-label={`${ogretmenAd.get(tid) || 'Öğretmeni'} dersten çıkar`}
-                        onClick={() => void ogretmenCikar(d.ders, tid)}
-                        disabled={mesgul}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
+              <div key={d.ders} className="py-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_2rem] sm:grid-cols-[12rem_minmax(0,1fr)_8.5rem_2rem] items-center gap-x-4 gap-y-2">
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-fg" title={d.ders}>
+                    {d.ders}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted">
+                    {d.tids.length > 1 ? 'Ortak ders · birlikte girerler' : `Kısaltma: ${dersKisa(d.ders)}`}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-ghost ui-btn-icon justify-self-end sm:order-last"
+                  aria-label={`${d.ders} dersini kaldır`}
+                  title="Dersi kaldır"
+                  onClick={() => void dersKaldir(d.ders, d.saat)}
+                  disabled={mesgul}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <div className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-1.5 min-w-0">
+                  {d.tids.map((tid) => {
+                    const ad = ogretmenAd.get(tid) || 'Bilinmeyen öğretmen';
+                    return (
+                      <span key={tid} className="inline-flex h-8 max-w-full items-center gap-2 rounded-lg bg-surface-2 pl-1 pr-1 text-xs font-semibold text-fg">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-3 text-[10px] font-bold text-fg-2" aria-hidden="true">
+                          {avatar(ad)}
+                        </span>
+                        <span className="truncate">{ad}</span>
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-danger-soft hover:text-danger-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                          aria-label={`${ad} dersten çıkar`}
+                          title="Dersten çıkar"
+                          onClick={() => void ogretmenCikar(d.ders, tid)}
+                          disabled={mesgul}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
                   <button
                     type="button"
-                    className={cx('ui-btn ui-btn-sm ui-btn-secondary h-8 border-dashed', ekleDers === d.ders && 'border-brand text-brand-fg')}
+                    className={cx('ui-btn ui-btn-sm ui-btn-secondary h-8 w-28 justify-center border-dashed', ekleDers === d.ders && 'border-brand text-brand-fg')}
                     aria-expanded={ekleDers === d.ders}
                     onClick={() => {
                       setEkleDers(ekleDers === d.ders ? null : d.ders);
@@ -437,18 +506,14 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
                     <Plus className="w-3.5 h-3.5" /> Öğretmen
                   </button>
                 </div>
-                <span className={cx('sm:w-28 shrink-0 text-xs tabular-nums', d.saat ? 'text-fg-2' : 'text-warning-fg font-semibold')}>
-                  {d.saat ? `Programda ${d.saat} saat` : 'Programda yok'}
+                <span className="col-span-2 sm:col-span-1 text-xs tabular-nums" title={d.saat ? `Programda haftada ${d.saat} saat` : 'Programa yazılmamış'}>
+                  <span className={cx('font-semibold', d.saat ? 'text-fg-2' : 'text-warning-fg')}>{d.saat ? `Haftada ${d.saat} saat` : 'Programda yok'}</span>
+                  <span className="mt-1.5 flex gap-[3px]" aria-hidden="true">
+                    {Array.from({ length: PIP }, (_, k) => (
+                      <i key={k} className={cx('h-[5px] w-3 rounded-full', k < d.saat ? 'bg-success' : 'bg-surface-3')} />
+                    ))}
+                  </span>
                 </span>
-                <button
-                  type="button"
-                  className="ui-btn ui-btn-ghost ui-btn-icon self-end sm:self-auto"
-                  aria-label={`${d.ders} dersini kaldır`}
-                  onClick={() => void dersKaldir(d.ders, d.saat)}
-                  disabled={mesgul}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
               </div>
               {/* Aşama 238: öğretmen ekleme satırın altında; aynı öğretmen diğer sınıflara da eklenebilir */}
               {ekleDers === d.ders && sinif && (

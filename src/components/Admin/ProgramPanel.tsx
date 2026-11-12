@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, FileSpreadsheet, Plus, Printer } from 'lucide-react';
+import { CalendarDays, FileSpreadsheet, Plus, Printer, Search } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import { dataService } from '../../services/dataService';
@@ -18,6 +18,7 @@ import {
 } from '../../services/dersService';
 import { lazyNamed } from '../../lib/lazyLoad';
 import { tabloYazdir, YazdirTablo } from '../../lib/tabloYazdir';
+import { basHarf, dersKisa } from '../../lib/dersKisa'; // Aşama 240: ortak kısaltma yardımcıları
 
 // Aşama 231: Excel'den program yükleme penceresi (xlsx kütüphanesiyle birlikte) yalnız açılınca iner
 const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'ProgramExcelModal');
@@ -34,6 +35,8 @@ const ProgramExcelModal = lazyNamed(() => import('./ProgramExcelModal'), 'Progra
 //            Gün sütunları eşit genişlikte; dolu hücre yazı kadar yer kaplar.
 // Aşama 239: ortak ders — sınıfın dersine yazılı bütün öğretmenler o dersin her saatine birlikte girer
 //            (veritabanı tetiği zz239_ders_ortak + ata fonksiyonları; ekran aynı kuralla önizler).
+// Aşama 241: açılır liste yerine yan liste (öğretmen / sınıf, arama, haftalık ders sayısı, "Programsız" rozeti,
+//            kaydedilmemiş değişikliği olanlarda nokta) ve ızgara üstünde seçilenin özeti. Veri aynı (ekrandaki program).
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
@@ -43,25 +46,13 @@ const GUN_W = { ogretmen: 'w-28', sinif: 'w-40' } as const;
 // Dolu düğmenin en fazla genişliği (sütundan taşmasın; uzun ad kısaltılır, tamamı title'da)
 // Aşama 239b: bir görünümdeki BÜTÜN hücre düğmeleri (dolu, ortak, boş) aynı en ve boyda — ızgara simetrik
 const DUGME_BOY = { ogretmen: 'w-[5.75rem] h-11', sinif: 'w-36 h-11' } as const;
-/** Ad baş harfleri: "Gülderen AKGÜN" → "G.A." */
-const basHarf = (ad: string) =>
-  ad
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => `${w.charAt(0).toLocaleUpperCase('tr')}.`)
-    .join('');
-
-// Aşama 237d: ders kısaltması — çok kelimeli derste baş harfler ("Fen Bilimleri" → "F.B", "Fen Grup" → "F.G"),
-// tek kelimede ilk üç harf ("Matematik" → "Mat"). Öğretmenin iki dersi aynı kısaltmaya düşerse tam ad yazılır.
-const dersKisa = (d: string): string => {
-  const k = d.trim().split(/\s+/).filter(Boolean);
-  if (k.length > 1) return k.map((w) => w.charAt(0).toLocaleUpperCase('tr')).join('.');
-  const w = k[0] || '';
-  return w.charAt(0).toLocaleUpperCase('tr') + w.slice(1, 3);
-};
+// Aşama 237d / 239b: ders kısaltması ve baş harf artık ortak src/lib/dersKisa.ts'den (Aşama 240)
 const STORE_KEY = 'edu_ders_program_v1';
 type Gorunum = 'ogretmen' | 'sinif';
+/** Yan liste avatarı: "Mustafa BİLİR" → "MB" */
+const avatar = (ad: string) => basHarf(ad).replace(/\./g, '').slice(0, 2);
+const kucuk = (x: string) => x.toLocaleLowerCase('tr');
+const sinifAv = (ad: string) => (ad.length <= 4 ? ad : avatar(ad));
 
 interface Hucre {
   gun: number;
@@ -301,6 +292,52 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
     return s;
   }, [taslak, kayitli, program, gorunum, teacherId, classId]);
 
+  // Aşama 241: yan listede kaydedilmemiş değişikliği olan öğretmen / sınıf (kayıtlı ile ekrandaki farklı)
+  const taslakli = useMemo(() => {
+    const s = new Set<string>();
+    if (!taslak.length) return s;
+    const grupla = (rows: ProgramSatiri[]) => {
+      const m = new Map<string, string[]>();
+      for (const p of rows) {
+        const k = gorunum === 'ogretmen' ? p.teacherId : p.classId;
+        if (!m.has(k)) m.set(k, []);
+        m.get(k)!.push(`${anahtar(p.gun, p.sira)}|${p.classId}|${p.ders}|${p.teacherId}`);
+      }
+      return m;
+    };
+    const a = grupla(kayitli);
+    const b = grupla(program);
+    new Set([...a.keys(), ...b.keys()]).forEach((k) => {
+      if ((a.get(k) || []).sort().join(',') !== (b.get(k) || []).sort().join(',')) s.add(k);
+    });
+    return s;
+  }, [taslak.length, kayitli, program, gorunum]);
+
+  // Aşama 241: yan liste — haftalık ders sayısı ekrandaki programdan (kaydedilmemiş seçimler dahil)
+  const [ara, setAra] = useState('');
+  const yanListe = useMemo(() => {
+    const sayi = new Map<string, Set<string>>();
+    for (const p of program) {
+      const k = gorunum === 'ogretmen' ? p.teacherId : p.classId;
+      if (!sayi.has(k)) sayi.set(k, new Set());
+      sayi.get(k)!.add(anahtar(p.gun, p.sira));
+    }
+    const q = kucuk(ara.trim());
+    if (gorunum === 'ogretmen') {
+      return ogretmenler
+        .filter((t) => !q || kucuk(`${t.name} ${t.branch || ''}`).includes(q))
+        .map((t) => ({ id: t.id, ad: t.name, av: avatar(t.name), alt: t.branch || 'Branş yok', saat: sayi.get(t.id)?.size || 0 }));
+    }
+    const dersler = new Map<string, Set<string>>();
+    for (const a of atamalar) {
+      if (!dersler.has(a.classId)) dersler.set(a.classId, new Set());
+      dersler.get(a.classId)!.add(a.ders);
+    }
+    return siniflar
+      .filter((c) => !q || kucuk(c.name).includes(q))
+      .map((c) => ({ id: c.id, ad: c.name, av: sinifAv(c.name), alt: `${dersler.get(c.id)?.size || 0} ders tanımlı`, saat: sayi.get(c.id)?.size || 0 }));
+  }, [program, gorunum, ara, ogretmenler, siniflar, atamalar]);
+
   // ---------------------------------------------------------------- seçim penceresi
   const [secili, setSecili] = useState<Hucre | null>(null);
   const [excelAcik, setExcelAcik] = useState(false); // Aşama 231
@@ -482,7 +519,6 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       description="Hücrelere seçtiğiniz dersler alttaki Kaydet ile birlikte yazılır. Bugün başlamış ders saati bir sonraki haftadan değişir. Geçmiş günler ve alınmış yoklamalar değişmez."
       actions={
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted tabular-nums">Haftada {toplam} ders</span>
           <button
             type="button"
             className={cx(BTN, 'ui-btn-secondary')}
@@ -516,42 +552,116 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
         </div>
       }
     >
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Aşama 241: solda öğretmen / sınıf listesi, sağda seçilenin özeti + ızgara + Kaydet çubuğu */}
+      <div className="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)] xl:items-start">
+        <aside className="space-y-2.5 xl:sticky xl:top-3" aria-label={gorunum === 'ogretmen' ? 'Öğretmenler' : 'Sınıflar'}>
           <Segmented
             size="sm"
+            className="w-full [&>button]:flex-1 [&>button]:justify-center"
             value={gorunum}
-            onChange={setGorunum}
+            onChange={(g) => {
+              setGorunum(g);
+              setAra('');
+            }}
             items={[
-              { value: 'ogretmen', label: 'Öğretmene göre', id: 'program-gorunum-ogretmen' },
-              { value: 'sinif', label: 'Sınıfa göre', id: 'program-gorunum-sinif' },
+              { value: 'ogretmen', label: 'Öğretmen', id: 'program-gorunum-ogretmen' },
+              { value: 'sinif', label: 'Sınıf', id: 'program-gorunum-sinif' },
             ]}
           />
-          {gorunum === 'ogretmen' ? (
-            <select className="ui-field w-64" aria-label="Öğretmen" value={teacherId} onChange={(e) => setTeacherId(e.target.value)} id="program-ogretmen">
-              {ogretmenler.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.branch ? ` · ${t.branch}` : ''}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select className="ui-field w-40" aria-label="Sınıf" value={classId} onChange={(e) => setClassId(e.target.value)} id="program-sinif">
-              {siniflar.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+          <label className="relative block">
+            <span className="sr-only">{gorunum === 'ogretmen' ? 'Öğretmen ara' : 'Sınıf ara'}</span>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-subtle" aria-hidden="true" />
+            <input
+              type="search"
+              className="ui-field pl-8"
+              placeholder={gorunum === 'ogretmen' ? 'Öğretmen ara' : 'Sınıf ara'}
+              value={ara}
+              onChange={(e) => setAra(e.target.value)}
+              id="program-ara"
+            />
+          </label>
+          <div
+            role="listbox"
+            aria-label={gorunum === 'ogretmen' ? 'Öğretmen seç' : 'Sınıf seç'}
+            className="max-h-60 xl:max-h-[32rem] overflow-y-auto overscroll-contain -mx-1 px-1 space-y-0.5"
+            id={gorunum === 'ogretmen' ? 'program-ogretmen' : 'program-sinif'}
+          >
+            {yanListe.map((x) => {
+              const sec = x.id === (gorunum === 'ogretmen' ? teacherId : classId);
+              const kapasite = Math.max(1, ayar.gunler.length * ayar.dersSayisi);
+              return (
+                <button
+                  key={x.id}
+                  type="button"
+                  role="option"
+                  aria-selected={sec}
+                  onClick={() => (gorunum === 'ogretmen' ? setTeacherId(x.id) : setClassId(x.id))}
+                  title={`${x.ad} · haftada ${x.saat} ders${taslakli.has(x.id) ? ' (kaydedilmemiş değişiklik var)' : ''}`}
+                  className={cx(
+                    'grid w-full grid-cols-[2rem_minmax(0,1fr)_4.5rem] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left',
+                    'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                    sec ? 'bg-brand-soft' : 'hover:bg-surface-2'
+                  )}
+                >
+                  <span
+                    className={cx(
+                      'grid h-8 w-8 place-items-center rounded-lg text-[11px] font-bold tracking-tight transition-colors duration-150',
+                      sec ? 'bg-brand text-white' : 'bg-surface-3 text-fg-2'
+                    )}
+                    aria-hidden="true"
+                  >
+                    {x.av}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className={cx('truncate text-[13px] font-semibold', sec ? 'text-brand-fg' : 'text-fg')}>{x.ad}</span>
+                      {taslakli.has(x.id) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />}
+                    </span>
+                    <span className="block truncate text-[11px] text-muted">{x.alt}</span>
+                  </span>
+                  {x.saat ? (
+                    <span className="justify-self-end text-right text-xs font-bold tabular-nums text-fg-2">
+                      {x.saat}
+                      <span className="mt-1 block h-1 w-11 overflow-hidden rounded-full bg-surface-3" aria-hidden="true">
+                        <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (x.saat / kapasite) * 100)}%` }} />
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="justify-self-end rounded-md bg-warning-soft px-1.5 py-0.5 text-[10px] font-bold text-warning-fg">Programsız</span>
+                  )}
+                </button>
+              );
+            })}
+            {!yanListe.length && <p className="px-2 py-3 text-xs text-muted">Sonuç yok.</p>}
+          </div>
+        </aside>
 
-        {hata && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {hata}
-          </p>
-        )}
+        <div className="min-w-0 space-y-3">
+          {/* Seçilenin özeti */}
+          {(gorunum === 'ogretmen' ? seciliOgretmen : seciliSinif) && (
+            <div className="flex min-w-0 items-center gap-3" id="program-secilen">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand text-[13px] font-bold text-white" aria-hidden="true">
+                {gorunum === 'ogretmen' ? avatar(seciliOgretmen?.name || '') : sinifAv(seciliSinif?.name || '')}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-base font-bold text-fg">{gorunum === 'ogretmen' ? seciliOgretmen?.name : `${seciliSinif?.name} sınıfı`}</p>
+                <p
+                  className="truncate text-xs text-muted tabular-nums"
+                  title={gorunum === 'ogretmen' ? ogretmenDersleri.join(', ') : sinifDersleri.map(([d]) => d).join(', ')}
+                >
+                  {gorunum === 'ogretmen'
+                    ? [seciliOgretmen?.branch, `haftada ${toplam} ders`, ogretmenDersleri.length ? ogretmenDersleri.map(kisaltma).join(', ') : ''].filter(Boolean).join(' · ')
+                    : [`haftada ${toplam} ders`, `${sinifDersleri.length} ders`, `${new Set(sinifDersleri.flatMap(([, t]) => t)).size} öğretmen`].join(' · ')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {hata && (
+            <p role="alert" className="text-xs font-semibold text-danger-fg">
+              {hata}
+            </p>
+          )}
 
         {/* Aşama 237b: ızgara içeriği kadar geniş (sayfaya yayılmaz); gün sütunları eşit ve görünüme göre dar/geniş.
             Hücre düğmeleri yazı kadar: öğretmene göre "8/C" kısa hap, sınıfa göre ders + öğretmen. Kaydet çubuğu ızgarayla aynı genişlikte. */}
@@ -662,6 +772,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
               {kayit ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
+        </div>
         </div>
         </div>
       </div>
