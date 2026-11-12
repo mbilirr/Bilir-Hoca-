@@ -3,6 +3,7 @@ import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
 import { TeacherBottomNav } from './components/Layout/BottomNav';
+import { anaSayfaTuru } from './components/Home/anaSayfaSecimi'; // Aşama 244
 import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
 import { PortalSecimi } from './components/Auth/PortalSecimi'; // Aşama 243
@@ -64,6 +65,8 @@ const DerslerSayfasi = lazyNamed(PAGE_LOADERS.grades, 'DerslerSayfasi'); // Aşa
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
 const AkademikTakvim = lazyNamed(PAGE_LOADERS.akademik_takvim, 'AkademikTakvim'); // Aşama 242
+// Aşama 244: yeni tasarımlı ana sayfalar (sol menü + hayalet etiket). Hangisinin açılacağı anaSayfaTuru() ile seçilir.
+const SistemSahibiAnaSayfa = lazyNamed(() => import('./components/Home/SistemSahibiAnaSayfa'), 'SistemSahibiAnaSayfa');
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -404,6 +407,8 @@ export default function App() {
   const { unseen: etutNoteUnseen } = useEtutNotes();
   // Aşama 113: yalnız bana gelen ve genel okunmamış mesajlar (idarenin gördüğü başka öğretmene gelen sorular sayılmaz)
   const unreadMessagesCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages, authSession]) + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
+  // Aşama 244: yeni tasarımlı (kabuklu) ana sayfa: menü solda, üst menünün bölüm satırı gizli
+  const kabukluAnaSayfa = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' ? anaSayfaTuru() : null;
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens
@@ -545,8 +550,13 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 app-container py-4 sm:py-6">
-        {role === 'teacher' ? (
+      <main className={kabukluAnaSayfa ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
+        {role === 'teacher' && kabukluAnaSayfa === 'sistem' ? (
+          /* Aşama 244: sistem sahibi ana sayfası (tam genişlik; yedek hatırlatması ve uyarılar sayfanın içinde) */
+          <Suspense fallback={<PageLoading />}>
+            <SistemSahibiAnaSayfa currentTeacher={currentTeacher} unreadMessages={unreadMessagesCount} onNavigateTab={selectTeacherTab} />
+          </Suspense>
+        ) : role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
             {/* Kurum Yöneticisi Admin Onay Bildirimi Duvarı */}
@@ -743,7 +753,7 @@ export default function App() {
       </main>
 
       {/* Alt bilgi */}
-      <footer className="mt-10 border-t border-line py-5 text-center text-xs text-subtle">
+      <footer className={`${kabukluAnaSayfa ? '' : 'mt-10 '}border-t border-line py-5 text-center text-xs text-subtle`}>
         <div className="max-w-[120rem] mx-auto px-4 flex items-center justify-center gap-2">
           <GraduationCap className="w-4 h-4" />
           <span>biliredu · {new Date().getFullYear()}</span>

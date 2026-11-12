@@ -22,6 +22,7 @@ import { PageHeader, Segmented, cx } from '../ui/kit';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { SelectBox } from '../Teacher/FormParts';
 import type { KurumRow } from '../../lib/kurumSettings';
+import { useQuickFocus } from '../../lib/quickFocus'; // Aşama 244
 
 // ============================================================================
 // Aşama 143: YÖNETİM SAYFASI — tek uzun sayfa yerine bölümler (Örnek A, 3 Kasım 2026)
@@ -108,6 +109,11 @@ export const YonetimSayfasi: React.FC<{
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [entering, setEntering] = useState(false);
+
+  // Aşama 244: ana sayfadaki kısayol (Bildirim izinleri, Yedek ve bakım, Kendi alanım…) doğru üst bölümü açar
+  useQuickFocus(['yonetim'], (f) => {
+    if (isHead && (['kurumlar', 'bildirim', 'yedek', 'kendi'] as string[]).includes(f.id)) setUst(f.id as UstSekme);
+  });
 
   // Genel yönetici: kurum listesi (ad, rol anahtarı, rol ayarları) — bir kez okunur, değişince yenilenir
   const loadRows = useCallback(async () => {

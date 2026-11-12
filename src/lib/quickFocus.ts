@@ -6,7 +6,8 @@ import { useEffect, useRef } from 'react';
 // 'action': ana sayfadaki kısayollar (ör. id = 'homework-create' -> Ödev oluşturma penceresini aç)
 // 'teacher' (Aşama 98): Kurum Özeti'nden bir öğretmenin çalışmalarına git (Ödevler / Etütler / Not & Yoklama süzülür)
 // 'ders' (Aşama 220): ana sayfadaki "yoklama bekliyor" satırı → Dersler › Program, o dersin yoklaması açılır (id = classId|tarih|sira)
-export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher' | 'ders';
+// 'yonetim' (Aşama 244): sistem sahibi ana sayfasındaki kısayollar → Yönetim sayfasının üst bölümü (id = kurumlar | bildirim | yedek | kendi)
+export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher' | 'ders' | 'yonetim';
 
 export interface QuickFocus {
   type: QuickFocusType;

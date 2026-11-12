@@ -7,6 +7,7 @@ import { lazyNamed } from '../lib/lazyLoad';
 import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
 import { teacherNavFor } from './Layout/navItems';
+import { anaSayfaTuru } from './Home/anaSayfaSecimi'; // Aşama 244
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
 import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
@@ -123,6 +124,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
   // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
   const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
+  // Aşama 244: yeni tasarımlı ana sayfada menü solda (hayalet etiketli simgeler); geniş ekranda bu satır gizlenir
+  const kabukluAnaSayfa = isTeacherSession && activeTeacherTab === 'home' && anaSayfaTuru() !== null;
 
   // Menü dışına tıklanınca veya Esc'e basılınca kapat
   useEffect(() => {
@@ -422,7 +425,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Öğretmen bölümleri (tablet ve bilgisayar) */}
           {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
           {isTeacherSession && onSelectTeacherTab && (
-            <nav aria-label="Bölümler" className="hidden md:flex flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px">
+            <nav aria-label="Bölümler" className={cx('hidden md:flex flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px', kabukluAnaSayfa && 'min-[900px]:hidden')}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.id === activeTeacherTab;
