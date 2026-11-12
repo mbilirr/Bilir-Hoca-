@@ -171,6 +171,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     if (f.id === 'etut-create' && dataService.canPlanEtut()) {
       openEtutForm('create');
     }
+    // Aşama 249: rehberlik ana sayfası › öğrenci › "Etüt ver": öğrenci(ler) seçili yeni etüt (label = öğrenci kimlikleri, virgülle)
+    if (f.id === 'etut-create-ogrenci' && dataService.canPlanEtut()) {
+      openEtutForm('create', null, null, f.label.split(',').filter(Boolean));
+    }
   });
   const [etutToDelete, setEtutToDelete] = useState<Etut | null>(null);
   const [selectedEtutForDispatch, setSelectedEtutForDispatch] = useState<Etut | null>(null);
@@ -341,10 +345,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const pagedListEtuts = usePagedList(cardEtuts, `${effectiveListSubject}|${effectiveListTeacher}|${effectiveListTime}|${scope}|${dateBounds.join('~')}`, 30);
 
   // Etüt oluştur / düzenle penceresi (Aşama 9)
-  const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null } | null>(null);
-  const openEtutForm = (mode: 'create' | 'edit' | 'copy', source: Etut | null = null, initialDate: string | null = null) => {
+  const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null; ogrenciler?: string[] } | null>(null);
+  const openEtutForm = (mode: 'create' | 'edit' | 'copy', source: Etut | null = null, initialDate: string | null = null, ogrenciler?: string[]) => {
     if (mode !== 'edit' && !dataService.canPlanEtut()) return; // Aşama 98
-    setEtutForm({ mode, source, initialDate });
+    setEtutForm({ mode, source, initialDate, ogrenciler });
   };
   const openEdit = (etut: Etut) => openEtutForm('edit', etut);
   const openCopy = (etut: Etut) => openEtutForm('copy', etut);
@@ -1555,6 +1559,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         mode={etutForm?.mode || 'create'}
         source={etutForm?.source || null}
         initialDate={etutForm?.initialDate || null}
+        initialStudentIds={etutForm?.ogrenciler || null}
         students={students}
         classes={classes}
         etuts={dataService.getEtuts() /* Aşama 111: çakışma denetimi ortak takvim satırlarıyla birlikte */}

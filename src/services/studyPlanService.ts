@@ -1135,3 +1135,27 @@ export function sumPlanQuestionCounts(list: PlanQuestionCounts[]): PlanQuestionC
   }
   return out;
 }
+
+// ============================================================================
+// Aşama 249: REHBERLİK ANA SAYFASI — gönderilmiş çalışma planlarının öğrenci başına yapılma özeti.
+// vade = tarihi aralıkta ve bitiş gününe kadar gelmiş görev, biten = bunlardan yapılanlar,
+// kapsar = bitiş gününü kapsayan gönderilmiş planı var mı. Okuyanın kendi satır izinleri geçerlidir;
+// veritabanı da denetler: kuruma Ödev bölümü kapalıysa hiçbir bilgi dönmez.
+// ============================================================================
+export interface PlanOzeti {
+  studentId: string;
+  vade: number;
+  biten: number;
+  kapsar: boolean;
+}
+export async function rehberlikPlanOzet(bas: string, bit: string): Promise<PlanOzeti[]> {
+  const { data, error } = await supabase.rpc('rehberlik_plan_ozet', { p_bas: bas, p_bit: bit });
+  if (error) {
+    const m = error.message || '';
+    if (error.code === 'PGRST202' || error.code === '42883' || /could not find the function|schema cache/i.test(m))
+      throw new Error("Rehberlik ana sayfası veritabanında henüz kurulu değil. Supabase SQL Editor'de 249 numaralı SQL dosyasını çalıştırın.");
+    throw new Error(m || 'Planlar okunamadı.');
+  }
+  const l: any[] = Array.isArray((data as any)?.ogrenciler) ? (data as any).ogrenciler : [];
+  return l.map((x) => ({ studentId: String(x.student_id), vade: Number(x.vade) || 0, biten: Number(x.biten) || 0, kapsar: x.kapsar === true }));
+}

@@ -26,6 +26,7 @@ import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 import { profilResmi } from '../../lib/profilResmi';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { useQuickFocus } from '../../lib/quickFocus';
 
 // Aşama 111: kurumun tüm mesajlarını gören (genel yönetici, idare, Rehberlik) için süzgeçler.
 // İlk açılış "Bana gelenler + Cevapsız"; son seçim bu tarayıcıda hatırlanır.
@@ -62,6 +63,10 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   // Aşama 32: 'etutNotes' = etüt yoklamasında öğrenciye anlatılan farklı konu ve öğrenci notları
   const [section, setSection] = useHistoryState<'inbox' | 'announce' | 'parents' | 'etutNotes'>('messages.section', 'inbox'); // Aşama 52: geri tuşu
   const etutNotes = useEtutNotes();
+  // Aşama 249: rehberlik ana sayfası › "Veli duyurusu" kısayolu
+  useQuickFocus(['action'], (f) => {
+    if (f.id === 'veli-duyurusu' && dataService.canSendParentAnnouncements()) setSection('parents');
+  });
 
   const phone = useMediaQuery('(max-width: 639px)');
   const term = useDeferredValue(searchTerm.trim());

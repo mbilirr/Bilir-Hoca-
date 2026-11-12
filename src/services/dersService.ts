@@ -675,6 +675,61 @@ export async function devamsizlikArtanlar(bas: string, bit: string, enAz = 2): P
 }
 
 // ============================================================================
+// Aşama 249: REHBERLİK ANA SAYFASI — ders yoklamasının YALNIZ OKUNUR özeti (rehberlik ve idare).
+// Aralıkta derse gelmeyen / geç gelen öğrencilerin gün gün sayıları, kurumda yoklama alınmış günler,
+// eğitim yılı başından özürsüz gün (devamsızlık sınırıyla aynı tanım) ve kurumun sınır ayarı.
+// Veritabanı da denetler: kuruma Not-Devamsızlık bölümü kapalıysa hiçbir bilgi dönmez.
+// ============================================================================
+export interface RehberlikDersGun {
+  tarih: string;
+  gelmedi: number; // o gün "Gelmedi" yazılan ders sayısı
+  gec: number;
+  izinli: number;
+  ders: number; // o gün öğrenci için alınan ders yoklaması
+}
+export interface RehberlikDersOgrenci {
+  studentId: string;
+  yilGun: number;
+  kayit: RehberlikDersGun[];
+}
+export interface RehberlikDersOzet {
+  sinir: number; // 0 = sınır kapalı
+  kala: number;
+  gunler: string[]; // kurumda yoklama alınmış günler
+  ogrenciler: RehberlikDersOgrenci[];
+}
+const SQL_EKSIK_249 = "Rehberlik ana sayfası veritabanında henüz kurulu değil. Supabase SQL Editor'de 249 numaralı SQL dosyasını çalıştırın.";
+
+export async function rehberlikDersOzet(bas: string, bit: string): Promise<RehberlikDersOzet> {
+  let r: any;
+  try {
+    r = await rpc<any>('rehberlik_ders_ozet', { p_bas: bas, p_bit: bit });
+  } catch (e: any) {
+    throw e?.message === SQL_EKSIK ? new Error(SQL_EKSIK_249) : e;
+  }
+  return {
+    sinir: Number(r?.sinir) || 0,
+    kala: Number(r?.kala) || 0,
+    gunler: yaziDizisi(r?.gunler).map((g) => g.slice(0, 10)),
+    ogrenciler: Array.isArray(r?.ogrenciler)
+      ? r.ogrenciler.map((x: any) => ({
+          studentId: String(x.student_id),
+          yilGun: Number(x.yil_gun) || 0,
+          kayit: Array.isArray(x.kayit)
+            ? x.kayit.map((k: any) => ({
+                tarih: String(k?.t || '').slice(0, 10),
+                gelmedi: Number(k?.a) || 0,
+                gec: Number(k?.l) || 0,
+                izinli: Number(k?.e) || 0,
+                ders: Number(k?.n) || 0,
+              }))
+            : [],
+        }))
+      : [],
+  };
+}
+
+// ============================================================================
 // Aşama 223: ÖĞRENCİNİN KENDİ DERS DEVAMSIZLIĞI (yalnız kendi kayıtları; varsayılan bu eğitim yılı)
 // ============================================================================
 export interface DevamsizligimKayit {

@@ -393,6 +393,34 @@ export async function listResultsFor(opts: { examIds?: string[]; studentId?: str
 }
 
 /**
+ * Aşama 249: rehberlik ana sayfası için son sonuçlu denemeler (en yeni önce; taslak ve sonuçsuzlar hariç).
+ * Yalnız özet alanları okunur (soru / cevap anahtarı gelmez). Deneme bölümü kapalı kurumda veritabanı hiç satır vermez.
+ */
+export async function sonDenemeler(adet = 8): Promise<Array<{ id: string; name: string; examDate: string; grade: string; subjects: ExamSubject[]; count: number; avgTotalNet: number | null }>> {
+  const { data, error } = await supabase
+    .from('deneme_exams')
+    .select('id,name,exam_date,grade,subjects,count:summary->count,net:summary->avgTotalNet,taslak:summary->taslak')
+    .not('exam_date', 'is', null)
+    .order('exam_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(Math.max(adet * 3, 12));
+  if (error) fail(error, 'Denemeler yüklenemedi.');
+  const num = (v: any) => (v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
+  return (data || [])
+    .filter((x: any) => !x.taslak && Number(x.count) > 0)
+    .slice(0, adet)
+    .map((x: any) => ({
+      id: String(x.id),
+      name: x.name || 'Deneme',
+      examDate: String(x.exam_date || '').slice(0, 10),
+      grade: String(x.grade || ''),
+      subjects: Array.isArray(x.subjects) ? (x.subjects as ExamSubject[]) : [],
+      count: Number(x.count) || 0,
+      avgTotalNet: num(x.net),
+    }));
+}
+
+/**
  * Aşama 115: ortalama sıralama için HAFİF sonuç okuma — cevaplar ve optik bilgisi gelmez (yalnız puan, net,
  * ders netleri ve sınıf). 300 öğrenci × 5 denemede indirilen veri tam okumanın küçük bir kısmıdır.
  */

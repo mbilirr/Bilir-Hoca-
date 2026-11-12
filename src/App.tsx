@@ -71,6 +71,7 @@ const KurumYoneticisiAnaSayfa = lazyNamed(() => import('./components/Home/KurumY
 const MudurAnaSayfa = lazyNamed(() => import('./components/Home/MudurAnaSayfa'), 'MudurAnaSayfa'); // Aşama 246
 const MudurYardimcisiAnaSayfa = lazyNamed(() => import('./components/Home/MudurYardimcisiAnaSayfa'), 'MudurYardimcisiAnaSayfa'); // Aşama 247
 const OgretmenAnaSayfa = lazyNamed(() => import('./components/Home/OgretmenAnaSayfa'), 'OgretmenAnaSayfa'); // Aşama 248
+const RehberlikAnaSayfa = lazyNamed(() => import('./components/Home/RehberlikAnaSayfa'), 'RehberlikAnaSayfa'); // Aşama 249
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -598,6 +599,18 @@ export default function App() {
               etuts={etuts}
               homeworks={homeworks}
               submissions={submissions}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+            />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'rehberlik' ? (
+          /* Aşama 249: rehberlik ana sayfası (okulun nabzı, rehberlik masası; kurumun açık bölümlerinden, yoklamayı yalnız okur) */
+          <Suspense fallback={<PageLoading />}>
+            <RehberlikAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              etuts={etuts}
               unreadMessages={unreadMessagesCount}
               onNavigateTab={selectTeacherTab}
             />

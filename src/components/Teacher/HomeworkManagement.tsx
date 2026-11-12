@@ -157,8 +157,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       }
     } else if (f.id === 'homework-create' && canGive) {
       openHomeworkForm('create');
+    } else if (f.id === 'plan' || f.id === 'plan-ogrenci') {
+      // Aşama 249: rehberlik ana sayfası › "Plan" / öğrenci › "Plan hazırla": Haftalık plan sekmesi (öğrenci seçili)
+      setActiveTab('plan');
+      if (f.id === 'plan-ogrenci' && f.label) setPlanOdak({ id: f.label, at: Date.now() });
     }
   });
+  const [planOdak, setPlanOdak] = useState<{ id: string; at: number } | null>(null);
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
   const [expandedHwId, setExpandedHwId] = useState<string | null>(null);
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
@@ -708,7 +713,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
 
       {/* TAB 3: HAFTALIK ÇALIŞMA PLANI (Aşama 19) */}
-      {activeTab === 'plan' && <StudyPlanManager students={students} classes={classes} />}
+      {activeTab === 'plan' && <StudyPlanManager students={students} classes={classes} odakOgrenci={planOdak} />}
 
       {/* TAB 1: ÖDEV KONTROL — üstte arama/sınıf/ders çubuğu, altta ödev şeritleri */}
       {activeTab === 'tracker' && (() => {

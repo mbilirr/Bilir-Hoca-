@@ -146,9 +146,11 @@ type Notice = { tone: 'success' | 'warning' | 'danger' | 'info'; text: string };
 interface Props {
   students: Student[];
   classes: ClassGroup[];
+  /** Aşama 249: ana sayfadan gelen öğrenci — "Öğrenci" görünümünde o öğrencinin planı açılır */
+  odakOgrenci?: { id: string; at: number } | null;
 }
 
-export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
+export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgrenci }) => {
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
   const mySubjects = dataService.getMySubjects(); // null = tüm dersler
@@ -205,6 +207,13 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   useEffect(() => {
     writeSaved(studentId);
   }, [studentId]);
+  useEffect(() => {
+    if (!odakOgrenci || !students.some((s) => s.id === odakOgrenci.id)) return;
+    setMode('student');
+    setClassFilter('all');
+    setStudentId(odakOgrenci.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [odakOgrenci?.at]);
   const student = students.find((s) => s.id === studentId) || null;
   const studentClass = student ? classes.find((c) => c.id === student.classId) : undefined;
   // Aşama 165: Haftalık Plan bu öğrenciye kapalıysa eski planı görülür ama yeni görev eklenemez (veritabanı da reddeder)

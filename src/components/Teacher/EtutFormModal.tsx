@@ -51,6 +51,8 @@ interface Props {
   mode: 'create' | 'edit' | 'copy';
   source?: Etut | null;
   initialDate?: string | null;
+  /** Aşama 249: yeni etüt bu öğrencilerle açılır (rehberlik ana sayfası › öğrenci › Etüt ver) */
+  initialStudentIds?: string[] | null;
   students: Student[];
   classes: ClassGroup[];
   etuts: Etut[];
@@ -147,12 +149,13 @@ function writePrefs(p: ReturnType<typeof readPrefs>) {
 }
 
 export const EtutFormModal: React.FC<Props> = (props) =>
-  props.open ? <EtutFormContent key={`${props.mode}-${props.source?.id || props.initialDate || 'new'}`} {...props} /> : null;
+  props.open ? <EtutFormContent key={`${props.mode}-${props.source?.id || props.initialDate || (props.initialStudentIds || []).join(',') || 'new'}`} {...props} /> : null;
 
 const EtutFormContent: React.FC<Props> = ({
   mode,
   source,
   initialDate,
+  initialStudentIds,
   students,
   classes,
   etuts,
@@ -186,7 +189,7 @@ const EtutFormContent: React.FC<Props> = ({
       ? source.assignedStudentIds === 'all'
         ? allIds
         : (source.assignedStudentIds || []).filter((id) => allIds.includes(id))
-      : [];
+      : (initialStudentIds || []).filter((id) => allIds.includes(id));
     return {
       subject: source ? normalizeSubject(source.subject) : '',
       teacherId: source?.teacherId || '',
