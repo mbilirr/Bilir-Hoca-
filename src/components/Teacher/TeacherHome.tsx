@@ -45,6 +45,7 @@ import { DersBekleyenSatiri } from './DersBekleyenSatiri'; // Aşama 220
 // ============================================================================
 
 const KurumOzeti = lazy(() => import('./KurumOzeti').then((m) => ({ default: m.KurumOzeti })));
+const HaftaninFaaliyetleri = lazy(() => import('./HaftaninFaaliyetleri').then((m) => ({ default: m.HaftaninFaaliyetleri }))); // Aşama 242
 
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -491,6 +492,13 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
 
       {/* ===== Aşama 220: yalnız kendi dersinin yoklaması bekliyorsa tek satır (yoksa hiç görünmez) ===== */}
       {can.grades && <DersBekleyenSatiri onAc={(b) => go('grades', ['ders', `${b.classId}|${b.tarih}|${b.sira}`, `${b.classAd} · ${b.sira}. ders`])} />}
+
+      {/* ===== Aşama 242: akademik takvimden haftanın faaliyetleri (yalnız bölümü açık kurumda; başka kurumda hiç çizilmez) ===== */}
+      {dataService.canUseTab('akademik_takvim') && (
+        <Suspense fallback={null}>
+          <HaftaninFaaliyetleri onTakvim={() => go('akademik_takvim')} />
+        </Suspense>
+      )}
 
       {/* ===== Aşama 98: idare için Kurum Özeti ===== */}
       {idare && (

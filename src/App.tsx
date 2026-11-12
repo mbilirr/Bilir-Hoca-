@@ -46,6 +46,7 @@ const PAGE_LOADERS = {
   grades: () => import('./components/Teacher/DerslerSayfasi'), // Aşama 220: Dersler (Program + Notlar)
   question_tracking: () => import('./components/Teacher/QuestionTrackingView'),
   deneme: () => import('./components/Deneme/DenemeAnalizi'),
+  akademik_takvim: () => import('./components/Teacher/AkademikTakvim'), // Aşama 242
 } as const;
 const STUDENT_LOADERS = [
   () => import('./components/Student/StudentPortal'),
@@ -61,6 +62,7 @@ const TeacherDocumentsArchive = lazyNamed(PAGE_LOADERS.archive, 'TeacherDocument
 const DerslerSayfasi = lazyNamed(PAGE_LOADERS.grades, 'DerslerSayfasi'); // Aşama 220
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
+const AkademikTakvim = lazyNamed(PAGE_LOADERS.akademik_takvim, 'AkademikTakvim'); // Aşama 242
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -668,6 +670,8 @@ export default function App() {
                   )}
 
                   {teacherTab === 'deneme' && <DenemeAnalizi students={students} classes={classes} />}
+
+                  {teacherTab === 'akademik_takvim' && <AkademikTakvim />}
 
                   {/* Aşama 143: Yönetim sayfası bölümlere ayrıldı (Kurumlar · Bildirim ve SMS · Yedek ve bakım · Kendi alanım) */}
                   {teacherTab === 'user_management' && (

@@ -1,4 +1,4 @@
-import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck, BarChart3 } from 'lucide-react';
+import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck, BarChart3, CalendarRange } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { TeacherTabType } from '../../types';
 import type { Tone } from '../ui/kit';
@@ -25,6 +25,8 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   { id: 'grades', title: 'Dersler', description: 'Ders programı, yoklama ve notlar', icon: ClipboardCheck, tone: 'success', keywords: 'ders program yoklama saat not yazılı sınav puan devamsızlık' },
   { id: 'question_tracking', title: 'Soru Takibi', description: 'Çözülen soru sayıları ve analiz', icon: HelpCircle, tone: 'info', keywords: 'soru sayısı analiz hedef grafik' },
   // Aşama 47: yalnızca genel yönetici ve izinli kurum yöneticileri görür (dataService.canUseTab)
+  // Aşama 242: yalnız "Akademik takvim" bölümü açık kurumda görünür (dataService.canUseTab)
+  { id: 'akademik_takvim', title: 'Akademik Takvim', description: 'Yıllık öğrenci ve veli etkinlikleri', icon: CalendarRange, tone: 'brand', keywords: 'akademik takvim etkinlik yıllık gezi veli sergi excel' },
   { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, LGS puanı ve kazanım analizi', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },
   {
     id: 'user_management',

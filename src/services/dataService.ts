@@ -155,6 +155,8 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   { key: 'manage_students', title: 'Öğrenci ve sınıf yönetimi', description: 'Kurum yöneticisi kendi sınıf ve öğrencilerini ekler, düzenler, siler' },
   { key: 'manage_teachers', title: 'Öğretmen yönetimi', description: 'Kurum yöneticisi kendi öğretmenlerini ekler, siler ve onlara sınıf yetkisi verir' },
   { key: 'deneme', title: 'Deneme Analizi', description: 'Kurum yöneticisi optik sonuçlarını yükler, karne ve kazanım analizi çıkarır (yalnızca kurum yöneticileri)' },
+  // Aşama 242: yalnız açıldığı kurumda menüde ve ana sayfada görünür (Müdür / Müdür Yrd. yükler, herkes okur)
+  { key: 'akademik_takvim', title: 'Akademik takvim', description: 'Yıllık öğrenci ve veli etkinlikleri (Excel ile yüklenir); ana sayfada haftanın faaliyetleri' },
 ];
 
 const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
@@ -5326,10 +5328,10 @@ class DataService {
     if (roles.length === 0) return true; // rolü verilmemiş öğretmen: bugünkü gibi
     const allowed = new Set<TeacherTabType>();
     const add = (...tabs: TeacherTabType[]) => tabs.forEach((t) => allowed.add(t));
-    if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme');
-    if (roles.includes('olcme_degerlendirme')) add('home', 'students', 'messages', 'archive', 'deneme');
+    if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim');
+    if (roles.includes('olcme_degerlendirme')) add('home', 'students', 'messages', 'archive', 'deneme', 'akademik_takvim');
     if (roles.includes('ogretmen') || roles.includes('zumre_baskani'))
-      add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme');
+      add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim'); // 242: takvim okunur
     if (roles.includes('etut_ogretmeni')) add('etuts');
     return allowed.has(tab);
   }
@@ -5497,7 +5499,21 @@ class DataService {
     if (tab === 'user_management') return this.canAccessUserManagement();
     if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü
     if (tab === 'deneme') return this.canUseDeneme();
+    if (tab === 'akademik_takvim') return this.akademikTakvimAcik(); // Aşama 242
     return mod ? this.canUseModule(mod) : true;
+  }
+
+  /**
+   * Aşama 242: Akademik takvim yalnız kurum içinde ve genel yöneticinin bölümü AÇTIĞI kurumda çalışır
+   * (genel yöneticinin kendi paneli ve kurumsuz öğretmen için kapalı; kuruma geçince o kurumun anahtarına bakılır).
+   * Veritabanı da aynı kuralı uygular (sql/242: akademik_takvim_acik).
+   */
+  public akademikTakvimAcik(): boolean {
+    return this.myKurum.supported && !!this.getMyKurumId() && this.myKurum.modules?.akademik_takvim === true;
+  }
+  /** Aşama 242: takvimi yükleyip düzenleyebilir mi (kurum yöneticisi: Müdür, Müdür Yrd.) */
+  public canManageAkademikTakvim(): boolean {
+    return this.akademikTakvimAcik() && this.isKurumAdmin();
   }
 
   // Aşama 47: Deneme Analizi yalnızca genel yöneticiye ve bölümü açılmış kurumun YÖNETİCİLERİNE açıktır

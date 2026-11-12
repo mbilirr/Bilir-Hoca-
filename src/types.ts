@@ -12,6 +12,7 @@ export type TeacherTabType =
   | 'archive'
   | 'question_tracking'
   | 'deneme' // Aşama 47: Deneme Analizi (genel yönetici + izinli kurum yöneticileri)
+  | 'akademik_takvim' // Aşama 242: Akademik takvim (yalnız bölümü açık kurumda)
   | 'user_management';
 
 export interface Teacher {
@@ -511,7 +512,8 @@ export type KurumModule =
   | 'archive'
   | 'manage_students'
   | 'manage_teachers'
-  | 'deneme';
+  | 'deneme'
+  | 'akademik_takvim'; // Aşama 242: kurum bazlı, varsayılan kapalı
 
 export interface KurumInfo {
   id: string;
