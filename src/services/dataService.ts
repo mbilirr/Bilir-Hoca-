@@ -209,6 +209,21 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   grantMove: null,
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
+// Aşama 243: PORTAL SEÇİMİ. Kurum yöneticisi aynı zamanda İdare (Müdür / Müdür Yrd.) ya da Öğretmen ise girişte
+// hangi portalda çalışacağını seçer. Portal yalnız GÖRÜNÜMÜ daraltır (menü, ana sayfa, listeler); veritabanı yetkisi aynıdır.
+export type PortalKod = 'ogretmen' | 'idare' | 'yonetici';
+export const PORTAL_ADI: Record<PortalKod, string> = { ogretmen: 'Öğretmen', idare: 'İdare', yonetici: 'Kurum yöneticisi' };
+const PORTAL_KEY = 'edu_portal_v1'; // sessionStorage: bu sekmedeki seçim {tid, p}
+const PORTAL_TERCIH_KEY = 'edu_portal_tercih_v1:'; // localStorage: "seçimimi hatırla" (kişi kimliğiyle)
+const PORTAL_KODLARI: PortalKod[] = ['ogretmen', 'idare', 'yonetici'];
+function loadPortalSecim(): { tid: string; p: PortalKod } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(PORTAL_KEY) || 'null');
+    return v && typeof v.tid === 'string' && PORTAL_KODLARI.includes(v.p) ? v : null;
+  } catch {
+    return null;
+  }
+}
 function loadMyKurumCache(): Partial<MyKurumState> {
   try {
     const raw = sessionStorage.getItem(MY_KURUM_KEY);
@@ -1182,6 +1197,9 @@ class DataService {
     purgeExpiredSecureCache().catch(() => {});
     if (hasSecureKey()) this.secureRestore = this.resumeSecure();
     this.initData();
+    // Aşama 243: sayfa yenilenince seçili portal önbellekteki kurum bilgisine hemen uygulanır
+    this.portalHesapla();
+    this.myKurum = this.portalUygula(this.myKurumRaw);
     // Dosya açma/indirme hataları (görüntüleyici bileşenlerden) kullanıcıya gösterilir
     if (typeof window !== 'undefined') {
       window.addEventListener('app-file-error', (e: Event) => {
@@ -2702,7 +2720,7 @@ class DataService {
     const acc = this.myTeacherAccess;
     const k = this.myKurum;
     const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}${k.roleSettings?.olcme_ogrenci_ekle ? 1 : 0}` : '';
-    return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}|${roleKey}`;
+    return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}|${roleKey}|${this.portalAktif || ''}`;
   }
   private lastSessionRaw = '';
   private lastSessionHash = '';
@@ -4606,8 +4624,13 @@ class DataService {
         supabase.from('teacher_student_access').select('student_id').eq('teacher_auth_id', uid),
       ]);
       if (cls.error || std.error) return;
+      // Aşama 243: Öğretmen portalında ders programındaki / sınıf öğretmenliğindeki sınıflar da (243 SQL yoksa atlanır)
+      if (this.portalAktif === 'ogretmen') {
+        const pd = await supabase.rpc('portal_ders_siniflarim');
+        this.portalDersSiniflari = new Set(!pd.error && Array.isArray(pd.data) ? pd.data.map(String) : []);
+      } else this.portalDersSiniflari = new Set();
       const next = {
-        classIds: new Set((cls.data || []).map((r: any) => String(r.class_id))),
+        classIds: new Set([...(cls.data || []).map((r: any) => String(r.class_id)), ...this.portalDersSiniflari]),
         studentIds: new Set((std.data || []).map((r: any) => String(r.student_id))),
         loaded: true,
       };
@@ -4730,6 +4753,11 @@ class DataService {
   // e-postasıyla giriş yapan öğretmen. Veritabanındaki is_admin() kuralıyla aynıdır.
   public isTeacherAdmin(teacher?: Teacher | null): boolean {
     if (!teacher) return false;
+    // Aşama 243: Öğretmen portalında yönetici değil; İdare portalında Müdür gibi (kurum yöneticisi işareti sayılmaz)
+    if (this.portalAdminGizli()) {
+      const s0 = this.getAuthSession();
+      if (s0?.role === 'teacher' && s0.user?.id === teacher.id) return !!this.myKurum.kurumAdmin;
+    }
     if (teacher.isAdmin || (teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL) return true;
     // Aşama 82: Müdür / Müdür Yardımcısı rolüyle kurum yöneticisi olan oturum sahibi (veritabanı is_kurum_admin ile aynı)
     const s = this.getAuthSession();
@@ -4753,6 +4781,12 @@ class DataService {
   // gereksiz düğmeleri gizler. SQL çalıştırılmadıysa eski davranış sürer.
   // ===========================================================================
   private myKurum: MyKurumState = { ...EMPTY_KURUM_STATE, ...loadMyKurumCache() };
+  /** Aşama 243: sunucudan gelen kurum bilgisi (portal uygulanmamış). myKurum = bunun seçili portala göre daraltılmışı */
+  private myKurumRaw: MyKurumState = this.myKurum;
+  private portalSecim: { tid: string; p: PortalKod } | null = loadPortalSecim();
+  private portalAktif: PortalKod | null = null;
+  /** Aşama 243: Öğretmen portalında ders programındaki / sınıf öğretmenliğindeki sınıflar (sql/243 portal_ders_siniflarim) */
+  private portalDersSiniflari = new Set<string>();
 
   // ===========================================================================
   // Aşama 234: DERSLER SAYFASI ERİŞİMİ. Ders programında dersi (ya da vekilliği) olan öğretmen ve ders saatleri
@@ -5071,14 +5105,21 @@ class DataService {
     if (next.grantMove === null && next.kurumId === this.myKurum.kurumId && typeof this.myKurum.grantMove === 'boolean') {
       next = { ...next, grantMove: this.myKurum.grantMove };
     }
-    const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
+    // Aşama 243: önbelleğe ham bilgi yazılır; ekran seçili portala göre daraltılmış bilgiyi kullanır
+    const raw = next;
+    this.myKurumRaw = raw;
+    const oncekiPortal = this.portalAktif;
+    this.portalHesapla();
+    next = this.portalUygula(raw);
+    const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum) || oncekiPortal !== this.portalAktif;
     const accessChanged = this.myKurum.loaded && DataService.kurumAccessKey(this.myKurum) !== DataService.kurumAccessKey(next);
     this.myKurum = next;
     if (accessChanged) this.resyncAfterAccessChange();
+    if (oncekiPortal !== this.portalAktif) void this.syncMyTeacherAccess();
     // Aşama 82: kurum adı ve logosu (karne PDF'leri ve üst menü)
     setKurumBrand(next.kurumId ? { name: next.kurumName, logo: next.logo } : null);
     try {
-      sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
+      sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(raw));
     } catch {}
     if (changed) this.notify();
     void this.refreshDersErisim(); // Aşama 234 (10 dakikada bir okunur)
@@ -5108,6 +5149,108 @@ class DataService {
 
   public getMyKurum(): Readonly<MyKurumState> {
     return this.myKurum;
+  }
+
+  // ===========================================================================
+  // Aşama 243: PORTAL SEÇİMİ
+  //  - Seçim yalnız KURUM YÖNETİCİSİNDE çıkar: İdare + Kurum yöneticisi (Müdür / Müdür Yrd. rolü varsa) ya da
+  //    Öğretmen + Kurum yöneticisi (Öğretmen / Zümre Başkanı rolü varsa). İdareciye Öğretmen portalı yoktur.
+  //  - Öğretmen portalı: kişi sıradan öğretmen gibi görür (yönetim yok, yalnız kendi sınıfları).
+  //  - İdare portalı: Müdür gibi görür (kurum yöneticisine özel bölümler gizli).
+  //  - Kurum yöneticisi portalı: bugünkü tam görünüm.
+  //  Genel yönetici, kurum geçişi ve tek görevli hesaplarda hiçbir şey değişmez.
+  // ===========================================================================
+  /** Kişinin kayıtlı kurum yöneticisi işareti (portal uygulanmamış) */
+  private kendiAdminKaydi(): boolean {
+    const s = this.getAuthSession();
+    if (s?.role !== 'teacher') return false;
+    const t = (this.teachers || []).find((x) => x.id === s.user.id);
+    return !!(t ? t.isAdmin : (s.user as Teacher).isAdmin);
+  }
+  /** Bu hesabın girebileceği portallar (2'den azsa boş: seçim yok) */
+  public getPortallar(): PortalKod[] {
+    const s = this.getAuthSession();
+    const k = this.myKurumRaw;
+    if (s?.role !== 'teacher' || !k.loaded || !k.supported || k.head || !k.kurumId || !k.kurumAdmin) return [];
+    if (this.isKurumGecis() || !this.kendiAdminKaydi()) return [];
+    const r = k.rolesEnabled ? k.roles || [] : [];
+    if (r.includes('mudur') || r.includes('mudur_yardimcisi')) return ['idare', 'yonetici'];
+    if (r.includes('ogretmen') || r.includes('zumre_baskani')) return ['ogretmen', 'yonetici'];
+    return [];
+  }
+  private portalHesapla(): void {
+    const list = this.getPortallar();
+    const tid = this.getAuthSession()?.user.id || '';
+    let p: PortalKod | null = null;
+    if (list.length) {
+      if (this.portalSecim?.tid === tid && list.includes(this.portalSecim.p)) p = this.portalSecim.p;
+      else {
+        let pref: string | null = null;
+        try {
+          pref = localStorage.getItem(PORTAL_TERCIH_KEY + tid);
+        } catch {}
+        if (pref && list.includes(pref as PortalKod)) {
+          p = pref as PortalKod;
+          this.portalSecim = { tid, p };
+          try {
+            sessionStorage.setItem(PORTAL_KEY, JSON.stringify(this.portalSecim));
+          } catch {}
+        }
+      }
+    }
+    this.portalAktif = p;
+  }
+  /** Seçili portal (seçim yoksa ya da kişide tek görev varsa null) */
+  public getPortal(): PortalKod | null {
+    return this.portalAktif;
+  }
+  /** Girişten sonra portal seçim ekranı gösterilmeli mi */
+  public portalSecimiGerekli(): boolean {
+    return this.getPortallar().length > 1 && !this.portalAktif;
+  }
+  /** "Seçimimi hatırla" açık mı */
+  public portalHatirlaniyor(): boolean {
+    const tid = this.getAuthSession()?.user.id || '';
+    try {
+      return !!tid && !!localStorage.getItem(PORTAL_TERCIH_KEY + tid);
+    } catch {
+      return false;
+    }
+  }
+  /** Portalı değiştirir (çıkış yapmadan). hatirla: true = bu cihazda bir dahaki girişte sorulmaz */
+  public setPortal(p: PortalKod, hatirla?: boolean): void {
+    const tid = this.getAuthSession()?.user.id || '';
+    if (!tid || !this.getPortallar().includes(p)) return;
+    this.portalSecim = { tid, p };
+    try {
+      sessionStorage.setItem(PORTAL_KEY, JSON.stringify(this.portalSecim));
+      if (hatirla === true) localStorage.setItem(PORTAL_TERCIH_KEY + tid, p);
+      else if (hatirla === false) localStorage.removeItem(PORTAL_TERCIH_KEY + tid);
+      else if (localStorage.getItem(PORTAL_TERCIH_KEY + tid)) localStorage.setItem(PORTAL_TERCIH_KEY + tid, p);
+    } catch {}
+    const onceki = this.myKurum;
+    this.portalHesapla();
+    this.myKurum = this.portalUygula(this.myKurumRaw);
+    this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
+    this.portalDersSiniflari = new Set();
+    if (onceki.loaded && DataService.kurumAccessKey(onceki) !== DataService.kurumAccessKey(this.myKurum)) this.resyncAfterAccessChange();
+    void this.syncMyTeacherAccess();
+    this.notify();
+  }
+  /** Kurum bilgisini seçili portala göre daraltır (yalnız ekran; veritabanı yetkisi değişmez) */
+  private portalUygula(raw: MyKurumState): MyKurumState {
+    if (this.portalAktif === 'ogretmen') return { ...raw, kurumAdmin: false };
+    return raw;
+  }
+  /** Öğretmen ya da İdare portalında kişinin kendi kurum yöneticisi işareti gizlenir */
+  private portalAdminGizli(): boolean {
+    return this.portalAktif === 'ogretmen' || this.portalAktif === 'idare';
+  }
+  /** Kurum yöneticisi işareti (oturum sahibi için seçili portala göre). Ekranlar teacher.isAdmin yerine bunu kullanır */
+  public yoneticiKaydi(t?: Teacher | null): boolean {
+    if (!t?.isAdmin) return false;
+    const s = this.getAuthSession();
+    return !(s?.role === 'teacher' && s.user?.id === t.id && this.portalAdminGizli());
   }
 
   // ===========================================================================
@@ -7517,6 +7660,10 @@ class DataService {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };
+    this.myKurumRaw = this.myKurum; // Aşama 243
+    this.portalSecim = null;
+    this.portalAktif = null;
+    this.portalDersSiniflari = new Set();
     this.dersErisim = { kurumId: null, program: false, yonetici: false, at: 0 }; // Aşama 234
     try {
       sessionStorage.removeItem(DataService.DERS_ERISIM_KEY);
@@ -7526,6 +7673,7 @@ class DataService {
     resetOgrBolum(); // Aşama 165
     try {
       sessionStorage.removeItem(MY_KURUM_KEY);
+      sessionStorage.removeItem(PORTAL_KEY); // Aşama 243
       sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);
     } catch {}
     this.questionLogsFrom = null;
@@ -7567,6 +7715,7 @@ class DataService {
     // kurum bilgisiyle açılıyordu (kuruma geçen genel yönetici, Kullanıcılar listesinde kurum öğretmenlerini göremiyordu)
     try {
       sessionStorage.removeItem(MY_KURUM_KEY);
+      sessionStorage.removeItem(PORTAL_KEY); // Aşama 243
       sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);
     } catch {}
     purgePersistentPersonalData();
@@ -10403,7 +10552,7 @@ class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return [...this.grades];
+      if (this.yoneticiKaydi(teacher)) return [...this.grades]; // Aşama 243: portal
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       return this.grades.filter((g) => visibleStudents.has(g.studentId));
@@ -10425,7 +10574,7 @@ class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return [...this.attendance];
+      if (this.yoneticiKaydi(teacher)) return [...this.attendance]; // Aşama 243: portal
 
       const visibleClasses = new Set(this.getClasses(teacherId).map((c) => c.id));
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
@@ -10456,7 +10605,7 @@ class DataService {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
       // Aşama 28: öğretmenin kendi gönderdiği duyuru/notlar gelen kutusuna karışmaz (Gönderilenler'de görünür)
-      if (teacher?.isAdmin) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m));
+      if (this.yoneticiKaydi(teacher)) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m)); // Aşama 243
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       // Aşama 113: idare (Müdür / Müdür Yrd. rolüyle de) kurumdaki öğretmenlere gelen soruları veritabanından alır
@@ -10602,7 +10751,7 @@ class DataService {
     const session = this.getAuthSession();
     if (!session || session.role !== 'teacher') return [];
     const me = session.user as Teacher;
-    const isAdmin = !!this.teachers.find((t) => t.id === me.id)?.isAdmin || !!(me as Teacher).isAdmin;
+    const isAdmin = this.yoneticiKaydi(this.teachers.find((t) => t.id === me.id) || (me as Teacher)); // Aşama 243: portal
     const visible = new Set(this.getStudents().map((s) => s.id));
     return this.buildAnnouncementGroups(
       this.messages.filter((m) => this.isTeacherAuthoredMessage(m) && visible.has(m.studentId) && (isAdmin || m.senderId === me.id))
@@ -10650,7 +10799,7 @@ class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return [...this.submissions];
+      if (this.yoneticiKaydi(teacher)) return [...this.submissions]; // Aşama 243: portal
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       return this.submissions.filter((sub) => visibleStudents.has(sub.studentId));

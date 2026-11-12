@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
-  MailCheck,
+  MailCheck, GraduationCap, Building2, Check,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { lazyNamed } from '../lib/lazyLoad';
 import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
-import { dataService } from '../services/dataService';
+import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
@@ -51,6 +51,13 @@ const Avatar: React.FC<{ person?: ProfilKisi | null; rol: ProfilRol; size?: 'sm'
     <img src={profilResmi(person, rol)} alt={person?.name || ''} decoding="async" className="w-full h-full object-cover" />
   </span>
 );
+
+// Aşama 243: portal simgeleri (hesap menüsündeki "Portal" bölümü)
+const PORTAL_IKON: Record<PortalKod, React.ComponentType<{ className?: string }>> = {
+  ogretmen: GraduationCap,
+  idare: Building2,
+  yonetici: Settings2,
+};
 
 const MenuItem: React.FC<{
   icon: React.ComponentType<{ className?: string }>;
@@ -104,6 +111,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const currentTeacher = isTeacherSession ? (authSession!.user as Teacher) : null;
+  // Aşama 243: kurum yöneticisi işareti seçili portala göre (İdare / Öğretmen portalında yönetici bölümleri gizli)
+  const yoneticiGorunum = isTeacherSession && dataService.yoneticiKaydi(currentTeacher);
+  const portallar = isTeacherSession ? dataService.getPortallar() : [];
+  const aktifPortal = dataService.getPortal();
   // Aşama 171: profil resminin rolü (unvan isteği yok: branş + yönetici bilgisi yeter)
   const avatarRol: ProfilRol = currentTeacher ? ogretmenProfilRol(currentTeacher) : 'student';
   const activeStudent = isStudentSession ? (authSession!.user as Student) : currentStudent;
@@ -131,12 +142,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Yönetici: onay bekleyen öğretmen başvuruları
   useEffect(() => {
     const updatePendingCount = () => {
-      setPendingTeachersCount(isTeacherSession && currentTeacher?.isAdmin ? dataService.getPendingTeachers().length : 0);
+      setPendingTeachersCount(isTeacherSession && yoneticiGorunum ? dataService.getPendingTeachers().length : 0);
     };
     updatePendingCount();
     const unsubscribe = dataService.subscribe(updatePendingCount);
     return () => unsubscribe();
-  }, [isTeacherSession, currentTeacher?.isAdmin]);
+  }, [isTeacherSession, yoneticiGorunum]);
 
   const handleLogoutAction = () => {
     if (onLogout) onLogout();
@@ -224,7 +235,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Yönetici: onay bekleyen öğretmen başvurusu varsa görünür */}
-            {isTeacherSession && currentTeacher?.isAdmin && dataService.isHeadAdmin() && pendingTeachersCount > 0 && (
+            {isTeacherSession && yoneticiGorunum && dataService.isHeadAdmin() && pendingTeachersCount > 0 && (
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
@@ -261,7 +272,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="relative">
                     <Avatar person={isTeacherSession ? currentTeacher : activeStudent} rol={avatarRol} />
-                    {isTeacherSession && currentTeacher?.isAdmin && (
+                    {isTeacherSession && yoneticiGorunum && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-warning text-white flex items-center justify-center ring-2 ring-surface" title="Yönetici">
                         <Crown className="w-2.5 h-2.5" />
                       </span>
@@ -294,13 +305,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                             ? currentTeacher?.branch || 'Öğretmen'
                             : `${activeStudent?.className || 'Öğrenci'} · No: ${activeStudent?.studentNumber || activeStudent?.id}`}
                         </p>
-                        {isTeacherSession && currentTeacher?.isAdmin && (
+                        {isTeacherSession && yoneticiGorunum && (
                           <span className="ui-chip ui-chip-warning mt-1" id="role-chip">
                             <Crown className="w-3 h-3" /> {dataService.isHeadAdmin() ? 'Genel Yönetici' : dataService.isKurumAdmin() ? 'Kurum Yöneticisi' : 'Yönetici'}
                           </span>
                         )}
-                        {isTeacherSession && !currentTeacher?.isAdmin && dataService.getMyKurum().kurumName && (
+                        {isTeacherSession && !yoneticiGorunum && dataService.getMyKurum().kurumName && (
                           <span className="ui-chip mt-1">{dataService.getMyKurum().kurumName}</span>
+                        )}
+                        {isTeacherSession && aktifPortal && (
+                          <span className="ui-chip mt-1 ml-1" id="portal-chip">{PORTAL_ADI[aktifPortal]} portalı</span>
                         )}
                       </div>
                     </div>
@@ -323,7 +337,29 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <MenuItem icon={Mail} onClick={closeAnd(() => setIsSentCommunicationsOpen(true))}>
                           Giden E-postalar
                         </MenuItem>
-                        {currentTeacher?.isAdmin && (
+                        {/* Aşama 243: çıkış yapmadan portal değiştirme (yalnız birden çok görevi olan kurum yöneticisi) */}
+                        {portallar.length > 1 && (
+                          <>
+                            <div className="ui-divider my-1" />
+                            <p className="px-3 pt-1.5 pb-1 ui-eyebrow">Portal</p>
+                            {portallar.map((p) => (
+                              <MenuItem
+                                key={p}
+                                icon={PORTAL_IKON[p]}
+                                onClick={closeAnd(() => {
+                                  if (p !== aktifPortal) {
+                                    dataService.setPortal(p);
+                                    goTab('home');
+                                  }
+                                })}
+                                trailing={p === aktifPortal ? <Check className="w-4 h-4 text-brand-fg shrink-0" aria-label="Seçili" /> : undefined}
+                              >
+                                {PORTAL_ADI[p]}
+                              </MenuItem>
+                            ))}
+                          </>
+                        )}
+                        {yoneticiGorunum && (
                           <>
                             <div className="ui-divider my-1" />
                             <p className="px-3 pt-1.5 pb-1 ui-eyebrow">Yönetici</p>

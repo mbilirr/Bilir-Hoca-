@@ -373,7 +373,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       : dataService.canManageTeacherAccount({ id: u.id, isAdmin: u.isAdmin, kurumId: u.kurumId });
 
   // Route Guard: Sadece yöneticiler erişebilir
-  const isSuperAdmin = Boolean(currentAdmin?.isAdmin) && dataService.canAccessUserManagement();
+  const isSuperAdmin = dataService.yoneticiKaydi(currentAdmin) && dataService.canAccessUserManagement(); // Aşama 243: portal
 
   if (!isSuperAdmin) {
     return (

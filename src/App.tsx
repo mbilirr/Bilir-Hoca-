@@ -5,6 +5,7 @@ import { CommandPalette } from './components/Layout/CommandPalette';
 import { TeacherBottomNav } from './components/Layout/BottomNav';
 import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
+import { PortalSecimi } from './components/Auth/PortalSecimi'; // Aşama 243
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
@@ -449,6 +450,23 @@ export default function App() {
     );
   }
 
+  // Aşama 243: birden çok görevi olan kurum yöneticisi önce portalını seçer (seçim hatırlanıyorsa sorulmaz)
+  if (authSession.role === 'teacher' && dataService.portalSecimiGerekli()) {
+    return (
+      <div className="relative min-h-screen">
+        <NetworkSyncStatusBanner />
+        <PortalSecimi
+          ad={(authSession.user as Teacher).name}
+          onSec={() => {
+            setRole('teacher');
+            setTeacherTab('home');
+          }}
+          onCikis={handleLogout}
+        />
+      </div>
+    );
+  }
+
   // Determine active teacher info if logged in as teacher
   const activeTeacher =
     authSession.role === 'teacher' ? (authSession.user as Teacher) : null;
@@ -532,14 +550,14 @@ export default function App() {
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
             {/* Kurum Yöneticisi Admin Onay Bildirimi Duvarı */}
-            {(activeTeacher?.isAdmin || currentTeacher?.isAdmin) && dataService.isHeadAdmin() && (
+            {(dataService.yoneticiKaydi(activeTeacher) || dataService.yoneticiKaydi(currentTeacher)) && dataService.isHeadAdmin() && (
               <AdminTeacherApprovalBanner
                 onOpenFullModal={() => setIsAdminApprovalModalOpen(true)}
               />
             )}
 
             {/* Yönetici: veri yedeği hatırlatması (son yedek 7 günden eskiyse) */}
-            {activeTeacher?.isAdmin && dataService.isHeadAdmin() && teacherTab !== 'user_management' && (
+            {dataService.yoneticiKaydi(activeTeacher) && dataService.isHeadAdmin() && teacherTab !== 'user_management' && (
               <AdminBackupReminder onOpenBackup={() => setTeacherTab('user_management')} />
             )}
 
