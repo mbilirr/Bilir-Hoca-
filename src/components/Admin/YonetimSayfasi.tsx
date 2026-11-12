@@ -111,8 +111,13 @@ export const YonetimSayfasi: React.FC<{
   const [entering, setEntering] = useState(false);
 
   // Aşama 244: ana sayfadaki kısayol (Bildirim izinleri, Yedek ve bakım, Kendi alanım…) doğru üst bölümü açar
+  // Aşama 245: kurum yöneticisinin ana sayfasından kurumun alt sekmesi (Öğretmenler, Öğrenciler, Roller, Ders programı…)
   useQuickFocus(['yonetim'], (f) => {
     if (isHead && (['kurumlar', 'bildirim', 'yedek', 'kendi'] as string[]).includes(f.id)) setUst(f.id as UstSekme);
+    else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler'] as string[]).includes(f.id)) {
+      if (isHead) setUst('kurumlar');
+      setAlt(f.id as KurumSekme);
+    }
   });
 
   // Genel yönetici: kurum listesi (ad, rol anahtarı, rol ayarları) — bir kez okunur, değişince yenilenir

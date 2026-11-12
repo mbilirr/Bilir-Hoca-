@@ -67,6 +67,7 @@ const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
 const AkademikTakvim = lazyNamed(PAGE_LOADERS.akademik_takvim, 'AkademikTakvim'); // Aşama 242
 // Aşama 244: yeni tasarımlı ana sayfalar (sol menü + hayalet etiket). Hangisinin açılacağı anaSayfaTuru() ile seçilir.
 const SistemSahibiAnaSayfa = lazyNamed(() => import('./components/Home/SistemSahibiAnaSayfa'), 'SistemSahibiAnaSayfa');
+const KurumYoneticisiAnaSayfa = lazyNamed(() => import('./components/Home/KurumYoneticisiAnaSayfa'), 'KurumYoneticisiAnaSayfa'); // Aşama 245
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -555,6 +556,20 @@ export default function App() {
           /* Aşama 244: sistem sahibi ana sayfası (tam genişlik; yedek hatırlatması ve uyarılar sayfanın içinde) */
           <Suspense fallback={<PageLoading />}>
             <SistemSahibiAnaSayfa currentTeacher={currentTeacher} unreadMessages={unreadMessagesCount} onNavigateTab={selectTeacherTab} />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'kurum' ? (
+          /* Aşama 245: kurum yöneticisi ana sayfası (kurumun açık bölümlerinden; geciken yoklama ve etüt sayfanın içinde) */
+          <Suspense fallback={<PageLoading />}>
+            <KurumYoneticisiAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              etuts={etuts}
+              homeworks={homeworks}
+              submissions={submissions}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+            />
           </Suspense>
         ) : role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */

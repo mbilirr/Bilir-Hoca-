@@ -4,6 +4,7 @@ import type { ClassGroup } from '../../types';
 import { cx } from '../ui/kit';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { dataService } from '../../services/dataService';
+import { DERS_YONETIM_KEY } from '../../lib/yonetimGecis';
 import { GUN_KISA, dersAyarOku, dersCanliDinle, guncelProgram, izinListesi, sinifDersOgretmenleri } from '../../services/dersService';
 
 // ============================================================================
@@ -23,7 +24,7 @@ const DersIzinPanel = lazyNamed(() => import('./DersIzinPanel'), 'DersIzinPanel'
 
 type Bolum = 'saatler' | 'ogretmenler' | 'program' | 'izinler';
 
-const STORE_KEY = 'edu_ders_yonetim_v1';
+const STORE_KEY = DERS_YONETIM_KEY; // Aşama 245: ana sayfadaki eksik düğmeleri de bu kayıtla doğru adımı açar
 const okunan = (): Bolum => {
   try {
     const v = window.sessionStorage.getItem(STORE_KEY);
