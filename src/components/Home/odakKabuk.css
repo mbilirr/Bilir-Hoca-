@@ -95,6 +95,9 @@
 /* haftanın faaliyetleri */
 .od-wnav { display: flex; align-items: center; gap: calc(0.375 * var(--ak-rem)); }
 .od-akw-body { display: grid; grid-template-columns: minmax(0, 1fr) calc(17.5 * var(--ak-rem)); gap: calc(1.25 * var(--ak-rem)); align-items: stretch; }
+/* Aşama 268: gün kutuları yandaki "Sıradakiler" listesiyle aynı boyda (kart içinde boşluk kalmaz) */
+.od-akw-body > div:first-child { display: flex; flex-direction: column; }
+.od-akw-body > div:first-child > .od-akweek { flex: 1; }
 .od-akweek { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .62fr)); gap: calc(0.5 * var(--ak-rem)); }
 .od-akd { border-radius: var(--r-md); padding: calc(0.75 * var(--ak-rem)); min-height: calc(9.25 * var(--ak-rem)); display: flex; flex-direction: column; gap: calc(0.375 * var(--ak-rem)); background: var(--surface-2); border: 1px solid transparent; min-width: 0; transition: transform .35s var(--spring); }
 .od-akd.we { background: transparent; border: 1px dashed var(--line); }
@@ -165,7 +168,13 @@
 .od-note.alert .ic { background: var(--warning); color: #fff; }
 
 /* iki sütun + satır listeleri */
-.od-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: calc(1.25 * var(--ak-rem)); align-items: start; }
+/* Aşama 268: aynı satırdaki duvarlar EŞİT BOY (stretch); kart içi dikey akış, boş durum kalan alanı ortalar */
+.od-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: calc(1.25 * var(--ak-rem)); align-items: stretch; }
+:is(.od-grid2, .og-grid) > .od-card { display: flex; flex-direction: column; }
+:is(.od-grid2, .og-grid) > .od-card > :is(button, a) { align-self: flex-start; }
+:is(.od-grid2, .og-grid) > .od-card > :is(.od-empty, .og-empty):last-child { flex: 1; flex-direction: column; justify-content: center; text-align: center; }
+:is(.od-grid2, .og-grid) > .od-card > .od-empty:last-child { gap: calc(0.5 * var(--ak-rem)); padding: calc(1 * var(--ak-rem)) calc(1 * var(--ak-rem)) calc(0.5 * var(--ak-rem)); min-height: calc(6.5 * var(--ak-rem)); }
+:is(.od-grid2, .og-grid) > .od-card > .od-empty:last-child i { width: calc(2.25 * var(--ak-rem)); height: calc(2.25 * var(--ak-rem)); }
 .od-rows { list-style: none; margin: 0; padding: 0; }
 .od-rows li { display: flex; align-items: center; gap: calc(0.75 * var(--ak-rem)); padding: calc(0.75 * var(--ak-rem)) 0; border-top: 1px solid var(--line); font-size: calc(0.8125 * var(--ak-rem)); color: var(--fg); }
 .od-rows li:first-child { border-top: 0; }

@@ -51,6 +51,7 @@ interface Props {
   onNavigateTab: (tab: TeacherTabType) => void;
 }
 
+const MASA_ILK = 8; // Aşama 268: rehberlik masasında ilk görünen öğrenci sayısı
 const SIG_AD: Record<Sig, string> = { dev: 'Devamsızlık', gec: 'Geç gelme', etut: 'Etüt', den: 'Deneme', plan: 'Plan' };
 const SIG_SIRA: Sig[] = ['dev', 'gec', 'etut', 'den', 'plan'];
 const trSirala = (a: string, b: string) => a.localeCompare(b, 'tr', { numeric: true });
@@ -391,7 +392,8 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
   }, [S, ogrMap]);
   const gorunen = useMemo(() => masa.filter((x) => (!filt.c || sinifAd(x.s) === filt.c) && (!filt.k || x.sig[filt.k])), [masa, filt, sinifAd]);
   const secili = gorunen.find((x) => x.s.id === sec) || gorunen[0] || null;
-  const liste = hepsi ? gorunen : gorunen.slice(0, 12);
+  // Aşama 268: ana sayfada sabit boy (8 öğrenci; yandaki öğrenci kartıyla aynı boy), gerisi "Tümünü göster"le
+  const liste = hepsi ? gorunen : gorunen.slice(0, MASA_ILK);
 
   // ================================================================ ISI HARİTASI
   const isi = useMemo(() => {
@@ -929,7 +931,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
               <p>Sinyal sayısına göre sıralı ({P.ad.toLocaleLowerCase('tr')}). Bir öğrenci seçin; yanda bütün resmi ve yapabilecekleriniz açılsın.</p>
             </div>
           </div>
-          <div className={`rh-desk${secili ? '' : ' tek'}`}>
+          <div className={`rh-desk${secili ? '' : ' tek'}${hepsi ? ' acik' : ''}`}>
             <div className="od-card rh-list">
               <div className="rh-list-h">
                 <b>{filt.c || filt.k ? `${gorunen.length} öğrenci` : 'Tüm öğrenciler'}</b>
@@ -994,7 +996,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
               ) : (
                 <div className="rh-empty">{filt.c || filt.k ? 'Bu süzgeçte öğrenci yok. Güzel haber.' : `${P.ad} masada öğrenci yok. Güzel haber.`}</div>
               )}
-              {gorunen.length > 12 && (
+              {gorunen.length > MASA_ILK && (
                 <button type="button" className="rh-more" onClick={() => setHepsi((h) => !h)}>
                   {hepsi ? 'Daha az göster' : `Tümünü göster (${gorunen.length})`}
                 </button>

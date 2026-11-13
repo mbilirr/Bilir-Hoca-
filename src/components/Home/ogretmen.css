@@ -182,8 +182,13 @@
   .ak-ogrt *, .ak-ogrt *::before, .ak-ogrt *::after { animation: none !important; transition: none !important; }
 }
 
-/* ---- Aşama 250: sağ sütun (ders dışında + öğrencilerden) ve "Öğrencilerden" akışı ---- */
-.og-col { display: flex; flex-direction: column; gap: calc(1.25 * var(--ak-rem)); min-width: 0; }
+/* ---- Aşama 268: düzenli ızgara (satır satır, aynı satırda eşit boy; tek kalan duvar boydan boya) ---- */
+.og-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(1.25 * var(--ak-rem)); align-items: stretch; }
+.og-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.og-grid .og-legend { margin-top: auto; padding-top: calc(0.75 * var(--ak-rem)); } /* lejant kartın dibinde */
+@media (max-width: 900px) { .og-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Aşama 250: "Öğrencilerden" akışı ---- */
 .og-count.hi { width: auto; background: var(--brand-soft); color: var(--brand-fg); }
 .og-feed { list-style: none; margin: 0; padding: 0; }
 .og-feed li { border-top: 1px solid var(--line); animation: og-in .45s var(--out) both; }

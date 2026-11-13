@@ -80,7 +80,12 @@
 @keyframes rh-tip { from { opacity: 0; transform: translateY(calc(0.25 * var(--ak-rem))) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* ---- Rehberlik masası: liste + odak ---- */
-.rh-desk { display: grid; grid-template-columns: minmax(0, 1fr) calc(26.25 * var(--ak-rem)); gap: calc(1.25 * var(--ak-rem)); align-items: start; }
+/* Aşama 268: liste kartı yandaki öğrenci kartı boyunca uzar (alt boşluk kalmaz); öğrenci kartı yapışkan kalır */
+.rh-desk { display: grid; grid-template-columns: minmax(0, 1fr) calc(26.25 * var(--ak-rem)); gap: calc(1.25 * var(--ak-rem)); align-items: stretch; }
+.rh-desk > .rh-list { display: flex; flex-direction: column; }
+.rh-desk > .rh-list > .rh-more { margin-top: auto; }
+.rh-desk > .rh-list > .rh-empty { flex: 1; display: grid; place-items: center; }
+.rh-desk.acik > .rh-focus { align-self: start; } /* liste açıkken öğrenci kartı yapışkan; kapalıyken iki kart eşit boy */
 .rh-desk.tek { grid-template-columns: minmax(0, 1fr); }
 .ak-rhb .rh-list { padding: calc(0.5 * var(--ak-rem)); }
 .rh-list-h { display: flex; align-items: center; gap: calc(0.5 * var(--ak-rem)); flex-wrap: wrap; padding: calc(0.75 * var(--ak-rem)) calc(0.75 * var(--ak-rem)) calc(0.5 * var(--ak-rem)); min-height: calc(2.875 * var(--ak-rem)); }
