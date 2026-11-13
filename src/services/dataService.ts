@@ -5173,8 +5173,10 @@ class DataService {
     const k = this.myKurumRaw;
     if (s?.role !== 'teacher' || !k.loaded || !k.supported || k.head || !k.kurumId || !k.kurumAdmin) return [];
     if (this.isKurumGecis() || !this.kendiAdminKaydi()) return [];
-    const r = k.rolesEnabled ? k.roles || [] : [];
-    if (r.includes('mudur') || r.includes('mudur_yardimcisi')) return ['idare', 'yonetici'];
+    // Aşama 255b: Öğretmen unvanı kurumda "Rol yetkileri" kapalı olsa da sayılır (kişinin gerçek görevi; derse girer).
+    // İdare portalı rol yetkilerine dayandığı için (Müdür / Müdür Yrd. ana sayfası) yalnız rol yetkileri açıkken sunulur.
+    const r = k.roles || [];
+    if (k.rolesEnabled && (r.includes('mudur') || r.includes('mudur_yardimcisi'))) return ['idare', 'yonetici'];
     if (r.includes('ogretmen') || r.includes('zumre_baskani')) return ['ogretmen', 'yonetici'];
     return [];
   }
