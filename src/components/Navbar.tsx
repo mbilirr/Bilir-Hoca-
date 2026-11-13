@@ -139,7 +139,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       iptal = true;
     };
   }, [sahipPaneli, bagliYonet]);
-  const hesapSecimi = bagliIcinde || (sahipPaneli && bagliVar);
+  // Aşama 266: sistem sahibi kuruma geçtiyse ya da gözüyle bakıyorsa logo "kendi panelime dön" seçimini açar
+  const gecisIcinde = isTeacherSession && !!readGecis() && !bagliIcinde;
+  const hesapSecimi = bagliIcinde || gecisIcinde || (sahipPaneli && bagliVar);
   // Aşama 171: profil resminin rolü (unvan isteği yok: branş + yönetici bilgisi yeter)
   const avatarRol: ProfilRol = currentTeacher ? ogretmenProfilRol(currentTeacher) : 'student';
   const activeStudent = isStudentSession ? (authSession!.user as Student) : currentStudent;

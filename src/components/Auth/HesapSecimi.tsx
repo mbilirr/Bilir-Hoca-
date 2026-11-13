@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Crown, GraduationCap, LogOut, Check, Repeat, Link2, Trash2, Building2 } from 'lucide-react';
+import { Crown, GraduationCap, LogOut, Check, Repeat, Link2, Trash2, Building2, Eye } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import {
   bagliHesabaGec,
@@ -10,6 +10,7 @@ import {
   hesapTercihOku,
   hesapTercihYaz,
   readBagli,
+  readGecis,
   sahipKarti,
   sistemSahibineDon,
   type BagliHesap,
@@ -28,16 +29,29 @@ const SAHIP = 'sahip';
 const KART =
   'group flex flex-col gap-3 text-left bg-surface border shadow-card cursor-pointer transition-[transform,box-shadow,border-color] duration-300 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-0.5 hover:shadow-pop hover:border-line-strong active:scale-[.985] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand motion-reduce:transition-none disabled:opacity-60 disabled:cursor-wait';
 
+const GECIS = 'gecis';
+
+/** Aşama 266: sistem sahibi bir kuruma geçtiyse ya da gözüyle bakıyorsa o anki hesabın kartı (logodan geri dönüş için) */
+function gecisKarti(): { id: string; icon: React.ComponentType<{ className?: string }>; baslik: string; aciklama: string } | null {
+  const g = readGecis();
+  if (!g || g.bagli) return null;
+  if (g.gozu) return { id: GECIS, icon: Eye, baslik: `${g.gozu.kurumAd} · ${g.gozu.ad}`, aciklama: 'Bu kişinin gözüyle bakıyorsunuz. Yaptığınız işlemler kayda geçer.' };
+  if (g.active) return { id: GECIS, icon: Building2, baslik: `${g.active.name} · Kurum yöneticisi`, aciklama: 'Kuruma geçtiniz; kurum yöneticisinin ekranındasınız.' };
+  return null;
+}
+
 const HesapKartlari: React.FC<{
   liste: BagliHesap[];
-  aktif: string | null; // SAHIP | bağlı hesap kimliği
+  aktif: string | null; // SAHIP | GECIS | bağlı hesap kimliği
   busy: string | null;
   sik?: boolean;
   onSec: (id: string) => void;
 }> = ({ liste, aktif, busy, sik = false, onSec }) => {
   const sahip = sahipKarti(); // Aşama 263: sistem sahibi ya da giriş yapılan öğretmen hesabı
+  const gecis = gecisKarti();
   const secenekler = [
-    { id: SAHIP, icon: sahip.head ? Crown : Building2, baslik: sahip.baslik, aciklama: sahip.aciklama },
+    { id: SAHIP, icon: sahip.head ? Crown : Building2, baslik: sahip.head ? 'Sistem sahibi · Kendi panelim' : sahip.baslik, aciklama: sahip.aciklama },
+    ...(gecis ? [gecis] : []),
     ...liste.map((h) => ({ id: h.authUserId, icon: GraduationCap, baslik: `${h.kurumAd} · Öğretmen`, aciklama: `${h.ad} olarak öğretmen hesabınız: dersler, ödev ve etüt.` })),
   ];
   return (
@@ -137,7 +151,7 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
   const [err, setErr] = useState<string | null>(null);
   const [hatirla, setHatirla] = useState(false);
   const bagli = readBagli();
-  const aktif = bagli ? bagli.authUserId : SAHIP;
+  const aktif = bagli ? bagli.authUserId : gecisKarti() ? GECIS : SAHIP;
   useEffect(() => {
     if (!open) return;
     setErr(null);
@@ -170,13 +184,15 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
           {err}
         </p>
       )}
-      <HatirlaKutusu
-        checked={hatirla}
-        onChange={(v) => {
-          setHatirla(v);
-          hesapTercihYaz(v ? aktif : null);
-        }}
-      />
+      {aktif !== GECIS && (
+        <HatirlaKutusu
+          checked={hatirla}
+          onChange={(v) => {
+            setHatirla(v);
+            hesapTercihYaz(v ? aktif : null);
+          }}
+        />
+      )}
     </Modal>
   );
 };
