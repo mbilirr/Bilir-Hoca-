@@ -305,6 +305,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Aşama 182: TC ve şifre bölümleri kapalı satır olarak durur, yalnız gerekince açılır
   const [tcEditOpen, setTcEditOpen] = useState(false);
   const [pwEditOpen, setPwEditOpen] = useState(false);
+  // Aşama 254: yöneticinin verdiği ilk şifre (yalnız yöneticiler görür; noktalı, göz ile açılır)
+  const sifreGorebilir = dataService.isHeadAdmin() || dataService.isKurumAdmin();
+  const [kayitliSifre, setKayitliSifre] = useState<
+    { durum: 'yukleniyor' } | { durum: 'var'; sifre: string } | { durum: 'degisti' } | { durum: 'yok' } | null
+  >(null);
+  const [kayitliSifreAcik, setKayitliSifreAcik] = useState(false);
+  const [kayitliSifreKopyalandi, setKayitliSifreKopyalandi] = useState(false);
+  const kayitliSifreIstek = React.useRef(0);
   const [studentTcRemove, setStudentTcRemove] = useState(false);
   const [studentTcError, setStudentTcError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
@@ -923,6 +931,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentTcSaved(null);
     setTcEditOpen(false);
     setPwEditOpen(false);
+    setKayitliSifreAcik(false);
+    setKayitliSifreKopyalandi(false);
+    if (sifreGorebilir) {
+      const istek = ++kayitliSifreIstek.current;
+      setKayitliSifre({ durum: 'yukleniyor' });
+      void dataService
+        .getInitialCredential('student', student.id)
+        .then((c) => {
+          if (istek !== kayitliSifreIstek.current) return;
+          setKayitliSifre(!c ? { durum: 'yok' } : c.password ? { durum: 'var', sifre: c.password } : { durum: 'degisti' });
+        })
+        .catch(() => {
+          if (istek === kayitliSifreIstek.current) setKayitliSifre(null);
+        });
+    } else {
+      setKayitliSifre(null);
+    }
     if (canTc) {
       void getStudentTcHash(student.id)
         .then((h) => setStudentTcSaved(!!h))
@@ -2473,7 +2498,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <CompactRow
                   icon={Key}
                   title={editingStudent ? 'Giriş şifresi' : 'Giriş şifresi *'}
-                  info="Öğrenci, giriş ekranındaki Öğrenci Portalı'ndan öğrenci numarası ve bu şifreyle girer; ilk girişte şifresini değiştirir. Kaydedince giriş bilgilerini WhatsApp / e-posta ile iletebileceğiniz pencere açılır. Şifreler sistemde saklanmaz."
+                  info="Öğrenci, giriş ekranındaki Öğrenci Portalı'ndan öğrenci numarası ve bu şifreyle girer; ilk girişte şifresini değiştirir. Kaydedince giriş bilgilerini WhatsApp / e-posta ile iletebileceğiniz pencere açılır. Verdiğiniz şifre, öğrenci değiştirene kadar yalnız yöneticilere noktalı gösterilir; öğrencinin kendi koyduğu şifre hiçbir yerde görünmez, unutulursa Yeni şifre verilir."
                   actions={
                     pwOpen ? (
                       <>
@@ -2536,6 +2561,54 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                  ) : editingStudent && kayitliSifre ? (
+                    kayitliSifre.durum === 'var' ? (
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cx(
+                            'flex-1 min-w-0 h-9 px-3 flex items-center rounded-lg border border-line bg-surface-2 font-mono text-[13px] font-bold text-fg truncate',
+                            kayitliSifreAcik ? 'tracking-wider' : 'tracking-[0.2em]'
+                          )}
+                          aria-label={kayitliSifreAcik ? 'Giriş şifresi' : 'Giriş şifresi gizli'}
+                        >
+                          {kayitliSifreAcik ? kayitliSifre.sifre : '•'.repeat(Math.max(6, Math.min(kayitliSifre.sifre.length, 12)))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setKayitliSifreAcik((v) => !v)}
+                          className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
+                          title={kayitliSifreAcik ? 'Gizle' : 'Göster'}
+                          aria-label={kayitliSifreAcik ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                        >
+                          {kayitliSifreAcik ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(kayitliSifre.sifre).then(
+                              () => {
+                                setKayitliSifreKopyalandi(true);
+                                window.setTimeout(() => setKayitliSifreKopyalandi(false), 1600);
+                              },
+                              () => setKayitliSifreAcik(true)
+                            );
+                          }}
+                          className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
+                          title={kayitliSifreKopyalandi ? 'Kopyalandı' : 'Kopyala'}
+                          aria-label="Şifreyi kopyala"
+                        >
+                          {kayitliSifreKopyalandi ? <Check className="w-4 h-4 text-success-fg" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    ) : kayitliSifre.durum === 'yukleniyor' ? (
+                      <div className="h-9 rounded-lg bg-surface-2 animate-pulse" aria-label="Şifre yükleniyor" />
+                    ) : (
+                      <p className="text-[12px] font-semibold text-muted">
+                        {kayitliSifre.durum === 'degisti'
+                          ? 'Öğrenci şifresini değiştirdi; güvenlik gereği gösterilemez. Unuttuysa Yeni şifre verin.'
+                          : 'Kayıtlı şifre yok. Gerekirse Yeni şifre verin.'}
+                      </p>
+                    )
                   ) : null}
                 </CompactRow>
               );

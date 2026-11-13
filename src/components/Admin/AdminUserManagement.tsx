@@ -51,6 +51,7 @@ import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 144
 import { fetchTeacherContacts, saveTeacherContact, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
 import { normalizeTurkishPhone, PHONE_ERROR, trFold } from '../../lib/importNormalize';
+import { saveTeacherTc, teacherTcExists, teacherTcHash } from '../../lib/teacherTc'; // Aşama 254
 import { birthDateLabel } from '../../lib/teacherImport';
 import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 // Aşama 144: Excel ile toplu öğretmen ekleme (xlsx kütüphanesi yalnız pencere açılınca yüklenir)
@@ -2344,6 +2345,9 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [gender, setGender] = useState<'' | 'K' | 'E'>('');
   const genderTouched = React.useRef(false);
   const [contactNote, setContactNote] = useState<string | null>(null);
+  // Aşama 254: TC yalnız bu pencerede yazılır; kaydedilen yalnız geri çevrilemez parmak izidir
+  const [tc, setTc] = useState('');
+  const [tcNote, setTcNote] = useState<string | null>(null);
   const [password, setPassword] = useState(() => dataService.generatePassword());
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -2390,6 +2394,12 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
     }
     setIsSaving(true);
     try {
+      // Aşama 254: TC yazıldıysa hesap açılmadan önce denetlenir (geçersiz ya da kurumda kayıtlıysa hesap açılmaz)
+      let tcHash: string | null = null;
+      if (tc.trim()) {
+        tcHash = await teacherTcHash(tc);
+        if (await teacherTcExists(tcHash)) throw new Error('Bu TC kimlik numarasıyla kayıtlı bir öğretmen zaten var.');
+      }
       const wanted = roleUi ? roles.filter((r) => r !== 'zumre_baskani' || branch.trim()) : [];
       const res = await dataService.createTeacherAccount({ name, username, branch, email, password, gender: gender || undefined });
       // Roller hesapla birlikte verilir; verilemezse hesap yine açılmış olur (Unvanlar ve Roller'den verilir)
@@ -2418,6 +2428,14 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
           setContactNote(`Telefon / doğum tarihi kaydedilemedi (${er?.message || 'hata'}). Düzenle penceresinden yeniden girin.`);
         }
       }
+      if (tcHash) {
+        try {
+          await saveTeacherTc(res.teacher.id, tcHash);
+        } catch (er: any) {
+          setTcNote(`TC kaydedilemedi (${er?.message || 'hata'}). Hesap açıldı; TC'yi daha sonra yeniden girin.`);
+        }
+      }
+      setTc('');
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
       onCreated(res.teacher.name);
       // Hesap bilgileri öğretmenin e-posta adresine gönderilir (adres kayıttan okunur)
@@ -2513,6 +2531,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             </div>
           </div>
           {contactNote && <div className={noteCls('warn')}>{contactNote}</div>}
+          {tcNote && <div className={noteCls('warn')}>{tcNote}</div>}
           {roleNote && (
             <div id="teacher-create-role-note" className={noteCls(roleNote.ok ? 'info' : 'warn')}>
               {roleNote.text}
@@ -2622,16 +2641,36 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <input id="teacher-create-email" autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className="ui-field" />
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {/* Aşama 254: TC yalnız ilk kayıtta yazılır; parmak izi saklanır, sonra hiçbir yerde görünmez */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="teacher-create-tc">TC kimlik no</FieldLabel>
+                <input
+                  id="teacher-create-tc"
+                  inputMode="numeric"
+                  maxLength={11}
+                  value={tc}
+                  onChange={(e) => setTc(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+                  placeholder="11 hane, isteğe bağlı"
+                  aria-describedby="teacher-create-tc-help"
+                  className="ui-field font-mono tracking-wider"
+                />
+              </div>
               <div>
                 <FieldLabel htmlFor="teacher-create-phone">Telefon</FieldLabel>
                 <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className="ui-field" />
               </div>
+              <p id="teacher-create-tc-help" className="col-span-2 -mt-1.5 text-[11px] text-muted">
+                TC saklanmaz; yalnız geri çevrilemez parmak izi tutulur, kayıttan sonra görünmez.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <FieldLabel htmlFor="teacher-create-birth">Doğum tarihi</FieldLabel>
                 <input autoComplete="off" type="date" id="teacher-create-birth" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="ui-field" />
               </div>
-              <div className="col-span-2 sm:col-span-1">
+              <div>
                 <FieldLabel htmlFor="teacher-create-gender">Cinsiyet</FieldLabel>
                 <SelectBox
                   id="teacher-create-gender"

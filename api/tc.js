@@ -51,18 +51,21 @@ async function getCaller(req) {
   if (!ur.ok) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   const user = await ur.json();
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
-  const cr = await fetch(`${e.url}/rest/v1/rpc/deneme_can_manage`, {
-    method: 'POST',
-    headers: { apikey: e.anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  let can = false;
-  try {
-    can = cr.ok && (await cr.json()) === true;
-  } catch {
-    can = false;
-  }
-  if (!can) throw new HttpError(403, 'Bu işlem için Deneme Analizi yetkiniz yok.');
+  // Aşama 254: deneme yöneticileri (öğrenci TC) ve yöneticiler (öğretmen TC kaydı) parmak izi alabilir
+  const rpcTrue = async (fn) => {
+    try {
+      const r = await fetch(`${e.url}/rest/v1/rpc/${fn}`, {
+        method: 'POST',
+        headers: { apikey: e.anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      return r.ok && (await r.json()) === true;
+    } catch {
+      return false;
+    }
+  };
+  const can = (await rpcTrue('deneme_can_manage')) || (await rpcTrue('is_head_admin')) || (await rpcTrue('is_kurum_admin'));
+  if (!can) throw new HttpError(403, 'Bu işlem için yetkiniz yok (Deneme Analizi ya da yönetici).');
   return { id: user.id };
 }
 

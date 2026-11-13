@@ -6898,6 +6898,31 @@ class DataService {
     return map;
   }
 
+  // Aşama 254: tek kişinin yöneticinin verdiği ilk şifresi (öğrenci bilgi ekranında noktalı gösterilir).
+  // Yalnız yöneticiler (RLS ile aynı); kişi şifresini değiştirdiyse password boş, changedAt dolu gelir.
+  // Kayıt yoksa null. Gerçek (değiştirilmiş) şifre Supabase Auth'ta yalnız özet olarak durur, gösterilemez.
+  public async getInitialCredential(type: 'student' | 'teacher', recordId: string): Promise<InitialCredentialInfo | null> {
+    if (!this.isHeadAdmin() && !this.isKurumAdmin()) return null;
+    const { data, error } = await supabase
+      .from('initial_credentials')
+      .select('account_type,record_id,login_id,password,must_change,set_at,changed_at')
+      .eq('account_type', type)
+      .eq('record_id', recordId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const r: any = data;
+    return {
+      type: r.account_type,
+      recordId: String(r.record_id),
+      loginId: r.login_id || '',
+      password: r.password || '',
+      mustChange: r.must_change !== false,
+      setAt: r.set_at || '',
+      changedAt: r.changed_at || null,
+    };
+  }
+
   // Öğrencinin "ilk girişte şifre değiştir" zorunluluğunu yerelde kaldırır (şifre yerelde saklanmaz)
   public markStudentPasswordChanged(studentId: string): void {
     if (this.isStudentPreview()) return; // Aşama 107
