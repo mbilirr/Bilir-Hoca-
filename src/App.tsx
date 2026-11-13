@@ -107,7 +107,7 @@ export default function App() {
   );
 
   // Active view role ('teacher' or 'student') — sayfa yenilenirse önce URL hash'ine bakılır
-  const [role, setRole] = useState<UserRole>(() => {
+  const [rolSecimi, setRole] = useState<UserRole>(() => {
     const saved = dataService.getAuthSession();
     // Aşama 105: öğrenci oturumu adres ne olursa olsun öğrenci görünümünde açılır
     if (saved?.role === 'student') return 'student';
@@ -115,6 +115,11 @@ export default function App() {
     if (fromHash.role) return fromHash.role;
     return 'teacher';
   });
+  // Aşama 254: öğrenci oturumunda görünüm HER ZAMAN öğrencidir. Hiçbir düğme / adres / geri tuşu öğrenciye
+  // öğretmen panelini (eski ana sayfa) açamaz; tek yerde, oturumdan türetilir.
+  const role: UserRole = authSession?.role === 'student' ? 'student' : rolSecimi;
+  // Öğrenci oturumunda üstteki logo ("Ana Sayfa") öğrenci ana sayfasına döndürür
+  const [ogrAnaSayfaSinyal, setOgrAnaSayfaSinyal] = useState(0);
 
   const [currentStudent, setCurrentStudent] = useState<Student | null>(() => {
     const saved = dataService.getAuthSession();
@@ -501,6 +506,10 @@ export default function App() {
 
   // Üst menü, alt menü ve hızlı aramadan bölüm değiştirme
   const selectTeacherTab = (tab: TeacherTabType) => {
+    if (authSession?.role === 'student') {
+      if (tab === 'home') setOgrAnaSayfaSinyal((n) => n + 1);
+      return;
+    }
     setRole('teacher');
     // Aşama 84: yeni bölüm arka planda hazırlanır; o sırada ekran donmaz, önceki bölüm görünür kalır
     startTransition(() => setTeacherTab(tab));
@@ -842,6 +851,7 @@ export default function App() {
             <StudentPortal
               key={currentStudent.id}
               preview={authSession.role === 'teacher'}
+              anaSayfaSinyal={ogrAnaSayfaSinyal}
               currentStudent={currentStudent}
               homeworks={homeworks}
               submissions={submissions}

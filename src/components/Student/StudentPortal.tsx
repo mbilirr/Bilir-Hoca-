@@ -97,6 +97,8 @@ interface StudentPortalProps {
   submissions?: HomeworkSubmission[];
   /** Aşama 107: öğretmenin salt okunur önizlemesi (kayıt yapan düğmeler kapalı) */
   preview?: boolean;
+  /** Aşama 254: üstteki logo (Ana Sayfa) her basışta artar; öğrenci ana sayfasına dönülür */
+  anaSayfaSinyal?: number;
 }
 
 export const StudentPortal: React.FC<StudentPortalProps> = ({
@@ -107,6 +109,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   messages,
   submissions: propSubmissions,
   preview = false,
+  anaSayfaSinyal = 0,
 }) => {
   // Aktif bölüm adreste tutulur (#/student/homework gibi): böylece tarayıcının / telefonun
   // "Geri" tuşu bir önceki bölüme döner, sayfa yenilenince de aynı bölümde kalınır.
@@ -120,6 +123,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+  const ilkSinyal = React.useRef(anaSayfaSinyal);
+  useEffect(() => {
+    if (anaSayfaSinyal === ilkSinyal.current) return;
+    ilkSinyal.current = anaSayfaSinyal;
+    setActiveTab('home');
+    window.scrollTo({ top: 0 });
+  }, [anaSayfaSinyal, setActiveTab]);
   const selfList = useMemo(() => [currentStudent], [currentStudent]);
 
   // Aşama 165: öğrenci bölüm izinleri. Öğrenci: kendi geçerli bölümleri (veritabanı). Önizleme (öğretmen): aynı kural

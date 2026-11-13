@@ -409,6 +409,8 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   }, [can.ders]);
   const program = useMemo(() => {
     if (!prog || !prog.ayar?.kayitli) return null;
+    // Aşama 254: haftalık programdaki (StudentDersProgrami) kuralla aynı: sınıfın bu hafta hiç dersi ve tatili yoksa kart çıkmaz
+    if (!prog.hucreler.length && !prog.tatiller.length) return null;
     const ayar = prog.ayar;
     const tatil = prog.tatiller.find((t) => t.tarih === trGun);
     const simdiDk = simdi.getHours() * 60 + simdi.getMinutes();
