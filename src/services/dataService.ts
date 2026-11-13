@@ -158,6 +158,12 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   // Aşama 242: yalnız açıldığı kurumda menüde ve ana sayfada görünür (Müdür / Müdür Yrd. yükler, herkes okur)
   { key: 'akademik_takvim', title: 'Akademik takvim', description: 'Yıllık öğrenci ve veli etkinlikleri (Excel ile yüklenir); ana sayfada haftanın faaliyetleri' },
 ];
+/** Aşama 258: bireysel hesapta veritabanının sabit tuttuğu bölümler (öğretmen yönetimi kapalı, öğrenci yönetimi açık) */
+const BIREYSEL_SABIT_MODULLER: KurumModule[] = ['manage_teachers', 'manage_students'];
+/** Aşama 258: ekranda açılıp kapatılabilen bölümler (bireysel hesapta sabit olanlar listelenmez) */
+export const kurumModulListesi = (bireysel: boolean) => (bireysel ? KURUM_MODULES.filter((m) => !BIREYSEL_SABIT_MODULLER.includes(m.key)) : KURUM_MODULES);
+/** Aşama 258: kurum türü. 'bireysel' = tek öğretmenli koçluk hesabı (sql/258) */
+export type KurumTur = 'kurum' | 'bireysel';
 
 const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
   homework: 'homework',
@@ -189,6 +195,8 @@ interface MyKurumState {
   grantCred: boolean | null;
   /** Aşama 161: "Açılan sınıflarda sınıf değiştirme" anahtarı (kurumlar.grant_move); null = henüz bilinmiyor (161 SQL'i yok / tam okuma) */
   grantMove: boolean | null;
+  /** Aşama 258: 'bireysel' = tek öğretmenli koçluk hesabı (my_kurum.kurum_tur; 258 SQL'i yoksa 'kurum') */
+  tur: KurumTur;
 }
 const EMPTY_KURUM_STATE: MyKurumState = {
   loaded: false,
@@ -207,6 +215,7 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   sections: { allow: [], deny: [] },
   grantCred: null,
   grantMove: null,
+  tur: 'kurum',
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
 // Aşama 243 / 257: PORTAL SEÇİMİ. Kurumda birden çok görevi olan kişi (ör. Öğretmen + Rehberlik, Öğretmen + Ölçme,
@@ -5061,6 +5070,7 @@ class DataService {
       },
       grantCred: typeof d.grant_cred === 'boolean' ? d.grant_cred : null, // Aşama 158 (my_kurum_state)
       grantMove: typeof d.grant_move === 'boolean' ? d.grant_move : null, // Aşama 161 (my_kurum_state)
+      tur: d.kurum_tur === 'bireysel' ? 'bireysel' : 'kurum', // Aşama 258
     };
   }
 
@@ -5144,7 +5154,7 @@ class DataService {
 
   /** Görünürlüğü belirleyen kurum bilgileri (rol, bölüm izni, modül, rol anahtarı, yönetici) */
   private static kurumAccessKey(k: MyKurumState): string {
-    return JSON.stringify([k.head, k.kurumId, k.kurumAdmin, k.rolesEnabled, [...(k.roles || [])].sort(), k.sections, k.modules, k.grantedClassIds, k.roleSettings]);
+    return JSON.stringify([k.head, k.kurumId, k.kurumAdmin, k.rolesEnabled, [...(k.roles || [])].sort(), k.sections, k.modules, k.grantedClassIds, k.roleSettings, k.tur]);
   }
 
   /**
@@ -5190,6 +5200,7 @@ class DataService {
     const s = this.getAuthSession();
     const k = this.myKurumRaw;
     if (s?.role !== 'teacher' || !k.loaded || !k.supported || k.head || !k.kurumId || this.isKurumGecis()) return [];
+    if (k.tur === 'bireysel') return []; // Aşama 258: bireysel hesapta tek görev vardır (koçluk)
     const r = k.roles || [];
     const var_ = (p: PortalKod) => (PORTAL_ROLLERI[p] || []).some((x) => r.includes(x));
     const yonetici = !!k.kurumAdmin && this.kendiAdminKaydi();
@@ -5351,6 +5362,10 @@ class DataService {
   // Kurum yöneticisi (kendi kurumunu yönetir)
   public isKurumAdmin(): boolean {
     return this.myKurum.supported && !this.isHeadAdmin() && this.myKurum.kurumAdmin;
+  }
+  /** Aşama 258: oturumdaki kurum bireysel (koçluk) hesabı mı */
+  public isBireysel(): boolean {
+    return this.myKurum.loaded && !!this.myKurum.kurumId && this.myKurum.tur === 'bireysel';
   }
 
   // ===========================================================================
@@ -5791,10 +5806,12 @@ class DataService {
 
   public async listKurumlar(): Promise<KurumInfo[]> {
     if (!this.isHeadAdmin()) return [];
-    const [k, g] = await Promise.all([
-      supabase.from('kurumlar').select('id,name,modules,created_at').order('created_at'),
-      supabase.from('kurum_class_grants').select('kurum_id,class_id'),
-    ]);
+    // Aşama 258: tür sütunu (258 SQL'i yoksa sütunsuz okunur)
+    const oku = async () => {
+      const r = await supabase.from('kurumlar').select('id,name,modules,created_at,tur').order('created_at');
+      return r.error?.code === '42703' ? supabase.from('kurumlar').select('id,name,modules,created_at').order('created_at') : r;
+    };
+    const [k, g] = await Promise.all([oku(), supabase.from('kurum_class_grants').select('kurum_id,class_id')]);
     if (k.error) throw new Error(k.error.message?.includes('kurumlar') ? 'Kurum tablosu bulunamadı (17 numaralı SQL çalıştırılmalı).' : k.error.message);
     const grants = new Map<string, string[]>();
     (g.data || []).forEach((r: any) => {
@@ -5808,6 +5825,7 @@ class DataService {
       modules: r.modules || {},
       grantedClassIds: grants.get(r.id) || [],
       createdAt: r.created_at,
+      tur: r.tur === 'bireysel' ? 'bireysel' : 'kurum',
     }));
     let namesChanged = false;
     list.forEach((x) => {

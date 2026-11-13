@@ -521,4 +521,6 @@ export interface KurumInfo {
   modules: Partial<Record<KurumModule, boolean>>;
   grantedClassIds: string[];
   createdAt?: string;
+  /** Aşama 258: 'bireysel' = tek öğretmenli koçluk hesabı */
+  tur?: 'kurum' | 'bireysel';
 }

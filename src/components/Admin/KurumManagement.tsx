@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus } from 'lucide-react';
-import { dataService, KURUM_MODULES } from '../../services/dataService';
+import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
 import { Panel, cx } from '../ui/kit';
@@ -309,7 +309,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                   <fieldset>
                     <legend className="text-xs font-bold text-fg-2 mb-2">Kullanabileceği bölümler</legend>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {KURUM_MODULES.map((m) => (
+                      {kurumModulListesi(k.tur === 'bireysel').map((m) => (
                         <label
                           key={m.key}
                           className={cx(

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
-import { dataService, KURUM_MODULES } from '../../services/dataService';
+import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
 import { SelectBox } from '../Teacher/FormParts';
 import { callMail } from '../../lib/mailApi';
@@ -103,6 +103,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
       rehberlikOgrenciEkle: my.roleSettings?.rehberlik_ogrenci_ekle === true,
       olcmeOgrenciEkle: my.roleSettings?.olcme_ogrenci_ekle === true,
       idareDersVerir: my.roleSettings?.idare_ders_verir === true,
+      tur: my.tur,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHead, rows, selectedId, tick]);
@@ -457,7 +458,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                   <LayoutGrid className="w-3.5 h-3.5 text-brand-fg" /> Kurum bölümleri
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1">
-                  {KURUM_MODULES.map((m) => (
+                  {kurumModulListesi(kurum?.tur === 'bireysel').map((m) => (
                     <div key={m.key} className="flex items-center justify-between gap-2 h-8" title={m.description}>
                       <span className="text-xs text-fg-2 truncate">{m.title}</span>
                       <Switch

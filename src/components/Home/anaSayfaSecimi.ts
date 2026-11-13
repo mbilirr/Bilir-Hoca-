@@ -24,6 +24,8 @@ export function anaSayfaTuru(): AnaSayfaTuru {
   if (dataService.getAuthSession()?.role !== 'teacher') return null;
   if (dataService.isHeadAdmin()) return 'sistem';
   const k = dataService.getMyKurum();
+  // Aşama 258: bireysel (koçluk) hesabı: kişi kurumunun yöneticisi olsa da işi öğretmenliktir
+  if (k.loaded && k.supported && dataService.isBireysel()) return 'ogretmen';
   if (k.loaded && k.supported && k.kurumId && dataService.yoneticiKaydi(dataService.getCurrentTeacher())) return 'kurum';
   if (k.loaded && k.supported && k.kurumId && dataService.hasRole('mudur')) return 'mudur';
   if (k.loaded && k.supported && k.kurumId && dataService.hasRole('mudur_yardimcisi')) return 'mudur_yrd';

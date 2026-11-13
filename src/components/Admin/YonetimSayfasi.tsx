@@ -17,7 +17,7 @@ import {
   Info,
 } from 'lucide-react';
 import type { ClassGroup, Teacher } from '../../types';
-import { dataService, KURUM_MODULES } from '../../services/dataService';
+import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import { PageHeader, Segmented, cx } from '../ui/kit';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { SelectBox } from '../Teacher/FormParts';
@@ -145,6 +145,8 @@ export const YonetimSayfasi: React.FC<{
   const row = isHead ? (rows || []).find((r) => r.id === kurumId) || null : null;
   const kurumName = isHead ? row?.name || '' : my.kurumName || 'Kurumum';
   const rolesEnabled = isHead ? row?.rolesEnabled === true : my.rolesEnabled === true;
+  // Aşama 258: bireysel (koçluk) hesabı: öğretmen, rol ve ders programı bölümleri yoktur
+  const bireysel = isHead ? row?.tur === 'bireysel' : my.tur === 'bireysel';
   const roleSettings = isHead
     ? row
       ? { rehberlik_ogrenci_ekle: row.rehberlikOgrenciEkle, olcme_ogrenci_ekle: row.olcmeOgrenciEkle }
@@ -165,7 +167,7 @@ export const YonetimSayfasi: React.FC<{
     return { teachers: teachers.length - pending, pending, students, sinif, yonetici };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, kurumId, classes, isHead]);
-  const acikBolum = isHead ? null : KURUM_MODULES.filter((m) => (my.modules as any)?.[m.key] === true).length;
+  const acikBolum = isHead ? null : kurumModulListesi(bireysel).filter((m) => (my.modules as any)?.[m.key] === true).length;
 
   const enter = async () => {
     if (!kurumId || entering) return;
@@ -180,7 +182,7 @@ export const YonetimSayfasi: React.FC<{
     }
   };
 
-  const altSekmeler: Array<{ value: KurumSekme; label: string; id: string }> = [
+  const tumAltSekmeler: Array<{ value: KurumSekme; label: string; id: string }> = [
     { value: 'genel', label: 'Genel', id: 'yonetim-alt-genel' },
     { value: 'ogretmen', label: `Öğretmenler${counts.pending ? ` (${counts.pending} bekleyen)` : ''}`, id: 'yonetim-alt-ogretmen' },
     { value: 'ogrenci', label: 'Öğrenciler', id: 'yonetim-alt-ogrenci' },
@@ -188,10 +190,29 @@ export const YonetimSayfasi: React.FC<{
     { value: 'bolumler', label: 'Bölümler ve sınıflar', id: 'yonetim-alt-bolumler' },
     { value: 'dersler', label: 'Ders programı', id: 'yonetim-alt-dersler' }, // Aşama 217
   ];
+  const BIREYSEL_SEKMELER: KurumSekme[] = ['genel', 'ogrenci', 'bolumler'];
+  const altSekmeler = bireysel ? tumAltSekmeler.filter((x) => BIREYSEL_SEKMELER.includes(x.value)) : tumAltSekmeler;
+  // Kayıtlı / kısayoldan gelen sekme bu hesapta yoksa Öğrenciler açılır
+  const altAktif: KurumSekme = altSekmeler.some((x) => x.value === alt) ? alt : 'ogrenci';
 
   // ---------------------------------------------------------------- kurumun içeriği (alt sekmeler)
   const kurumIcerik = (kid: string) => (
     <div className="space-y-3" id="yonetim-kurum">
+      {bireysel ? (
+        // Aşama 258: bireysel hesap: öğretmen / onay sayıları yerine yalnız anlamlı iki sayı
+        <div className="grid grid-cols-2 gap-2.5" id="yonetim-bireysel-sayilar">
+          {isHead ? (
+            <Sayi icon={UserRound} tone="bg-brand-soft text-brand-fg" value="Bireysel" label="Koçluk hesabı" />
+          ) : (
+            <Sayi icon={Users} tone="bg-info-soft text-info-fg" value={counts.students ?? '—'} label="Öğrenci" id="yonetim-sayi-ogrenci" />
+          )}
+          {isHead ? (
+            <Sayi icon={GraduationCap} tone="bg-success-soft text-success-fg" value={counts.yonetici || '—'} label="Hesap sahibi" />
+          ) : (
+            <Sayi icon={School} tone="bg-success-soft text-success-fg" value={counts.sinif ?? '—'} label={`Sınıf · ${acikBolum ?? 0} açık bölüm`} />
+          )}
+        </div>
+      ) : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <Sayi icon={GraduationCap} tone="bg-brand-soft text-brand-fg" value={counts.teachers} label="Öğretmen" id="yonetim-sayi-ogretmen" />
         {isHead ? (
@@ -206,12 +227,13 @@ export const YonetimSayfasi: React.FC<{
         )}
         <Sayi icon={UserCheck} tone="bg-warning-soft text-warning-fg" value={counts.pending} label="Onay bekleyen öğretmen" />
       </div>
+      )}
 
-      <Segmented size="sm" value={alt} onChange={setAlt} items={altSekmeler} />
+      <Segmented size="sm" value={altAktif} onChange={setAlt} items={altSekmeler} />
 
       <Suspense fallback={<PageLoading />}>
-        {alt === 'genel' && <KurumSettingsPanel kurumId={isHead ? kid : undefined} part="genel" onChanged={isHead ? loadRows : undefined} />}
-        {alt === 'ogretmen' && (
+        {altAktif === 'genel' && <KurumSettingsPanel kurumId={isHead ? kid : undefined} part="genel" onChanged={isHead ? loadRows : undefined} />}
+        {altAktif === 'ogretmen' && (
           <AdminUserManagement
             key={`t-${kid}`}
             currentAdmin={currentTeacher}
@@ -222,7 +244,7 @@ export const YonetimSayfasi: React.FC<{
             embedded
           />
         )}
-        {alt === 'ogrenci' &&
+        {altAktif === 'ogrenci' &&
           (isHead ? (
             <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-ogrenci-gecis">
               <Info className="w-5 h-5 text-info-fg shrink-0" />
@@ -241,7 +263,7 @@ export const YonetimSayfasi: React.FC<{
               <UserCredentialsExport classes={classes} />
             </div>
           ))}
-        {alt === 'roller' && (
+        {altAktif === 'roller' && (
           <div className="space-y-3">
             <KurumSettingsPanel kurumId={isHead ? kid : undefined} part="roller" onChanged={isHead ? loadRows : undefined} />
             <TeacherRolesPanel
@@ -252,7 +274,7 @@ export const YonetimSayfasi: React.FC<{
             />
           </div>
         )}
-        {alt === 'bolumler' &&
+        {altAktif === 'bolumler' &&
           (isHead ? (
             <KurumManagement classes={classes} onlyKurumId={kid} />
           ) : gecis ? (
@@ -261,7 +283,7 @@ export const YonetimSayfasi: React.FC<{
             <div className="ui-card ui-card-pad space-y-2" id="yonetim-bolumler-salt">
               <p className="text-xs font-bold text-fg">Kurumunuzun kullanabildiği bölümler</p>
               <div className="flex flex-wrap gap-1.5">
-                {KURUM_MODULES.map((m) => {
+                {kurumModulListesi(bireysel).map((m) => {
                   const on = (my.modules as any)?.[m.key] === true;
                   return (
                     <span key={m.key} className={cx('ui-chip', on ? 'ui-chip-success' : 'ui-chip-neutral')} title={m.description}>
@@ -273,7 +295,7 @@ export const YonetimSayfasi: React.FC<{
               <p className="text-[11px] text-muted">Bölümleri ve izinli sınıfları genel yönetici açar.</p>
             </div>
           ))}
-        {alt === 'dersler' &&
+        {altAktif === 'dersler' &&
           // Aşama 217: ders saatleri / sınıf öğretmenleri / program kurumun içinden düzenlenir (kurum ayrımı)
           (isHead ? (
             <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-dersler-gecis">
@@ -288,7 +310,7 @@ export const YonetimSayfasi: React.FC<{
           ) : (
             <DersYonetimi key={`d-${kid}`} kurumId={kid} classes={classes} />
           ))}
-        {alt === 'bolumler' && (
+        {altAktif === 'bolumler' && (
           // Aşama 165: öğrenci bölümleri (genel yönetici: kurum varsayılanı; kuruma geçince ve kurum yöneticisinde sınıflar da)
           <OgrenciBolumPanel
             key={`ob-${kid}`}
@@ -319,7 +341,13 @@ export const YonetimSayfasi: React.FC<{
           icon={ShieldCheck}
           tone="warning"
           title={kurumName}
-          description={gecis ? 'Bu kurumun içindesiniz. Bildirim, SMS ve yedek için üst menüden kendi panelinize dönün.' : 'Kurumunuzun öğretmenleri, öğrencileri ve yetkileri'}
+          description={
+            gecis
+              ? 'Bu kurumun içindesiniz. Bildirim, SMS ve yedek için üst menüden kendi panelinize dönün.'
+              : bireysel
+                ? 'Öğrencileriniz, sınıflarınız ve hesap bilgileriniz'
+                : 'Kurumunuzun öğretmenleri, öğrencileri ve yetkileri'
+          }
         />
         {kurumIcerik(my.kurumId || '')}
       </div>
@@ -369,7 +397,7 @@ export const YonetimSayfasi: React.FC<{
               {(rows || []).length === 0 && <option value="">{rows === null ? 'Kurumlar yükleniyor…' : 'Henüz kurum yok'}</option>}
               {(rows || []).map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.name}
+                  {r.tur === 'bireysel' ? `${r.name} · Bireysel` : r.name}
                 </option>
               ))}
             </SelectBox>

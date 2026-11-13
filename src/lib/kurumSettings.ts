@@ -15,6 +15,8 @@ export interface KurumRow {
   olcmeOgrenciEkle: boolean;
   /** Aşama 98: idare (kurum yöneticisi, Müdür, Müdür Yrd.) ödev / etüt verebilir mi */
   idareDersVerir: boolean;
+  /** Aşama 258: 'bireysel' = tek öğretmenli koçluk hesabı */
+  tur: 'kurum' | 'bireysel';
 }
 
 const setupMsg = "Kurum ayarları bulunamadı. Supabase SQL Editor'de sql/82_rol_yetkileri_kurum_kimligi.sql dosyasını çalıştırın.";
@@ -23,7 +25,11 @@ const missing = (e: { message?: string; code?: string } | null) =>
 
 /** Genel yönetici: bütün kurumlar */
 export async function fetchKurumRows(): Promise<KurumRow[]> {
-  const { data, error } = await supabase.from('kurumlar').select('id,name,logo,roles_enabled,role_settings').order('name');
+  // Aşama 258: tür sütunu (258 SQL'i yoksa sütunsuz okunur)
+  const KOLON = 'id,name,logo,roles_enabled,role_settings';
+  let res: { data: any[] | null; error: { message?: string; code?: string } | null } = await supabase.from('kurumlar').select(`${KOLON},tur`).order('name');
+  if (res.error?.code === '42703') res = await supabase.from('kurumlar').select(KOLON).order('name');
+  const { data, error } = res;
   if (error) throw new Error(missing(error) ? setupMsg : error.message);
   return (data || []).map((k: any) => ({
     id: String(k.id),
@@ -33,6 +39,7 @@ export async function fetchKurumRows(): Promise<KurumRow[]> {
     rehberlikOgrenciEkle: !!(k.role_settings && k.role_settings.rehberlik_ogrenci_ekle === true),
     olcmeOgrenciEkle: !!(k.role_settings && k.role_settings.olcme_ogrenci_ekle === true),
     idareDersVerir: !!(k.role_settings && k.role_settings.idare_ders_verir === true),
+    tur: k.tur === 'bireysel' ? 'bireysel' : 'kurum',
   }));
 }
 

@@ -1,8 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { Building2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { Modal, cx } from '../ui/kit';
-import { dataService, KURUM_MODULES } from '../../services/dataService';
+import { Building2, CheckCircle2, AlertTriangle, UserRound } from 'lucide-react';
+import { Modal, Segmented, cx } from '../ui/kit';
+import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
+import { SelectBox } from '../Teacher/FormParts';
+import { ALL_SUBJECTS } from '../../lib/subjects';
+import { roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
 import type { KurumModule } from '../../types';
 import { imageFileToLogo } from '../../lib/kurumSettings';
 import { callMail, describeMailResult } from '../../lib/mailApi';
@@ -34,8 +37,22 @@ const toUsername = (name: string) =>
     .slice(0, 30);
 
 const allModules = (): Partial<Record<KurumModule, boolean>> => Object.fromEntries(KURUM_MODULES.map((m) => [m.key, true]));
+// Aşama 258: bireysel (koçluk) hesabında başlangıçta açık bölümler: ödev, etüt, soru takibi, mesaj (öğrenci yönetimi her zaman açık)
+const BIREYSEL_ACIK: KurumModule[] = ['homework', 'etut', 'questions', 'messages'];
+const bireyselModules = (): Partial<Record<KurumModule, boolean>> => Object.fromEntries(KURUM_MODULES.map((m) => [m.key, BIREYSEL_ACIK.includes(m.key)]));
+const BRANSLAR = ALL_SUBJECTS.filter((b) => b !== 'Genel');
+const ROL_SECENEK: Array<{ value: TeacherRole; label: string }> = [
+  { value: 'ogretmen', label: 'Öğretmen' },
+  { value: 'rehberlik', label: 'Rehberlik' },
+];
 
 export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDone: () => void }> = ({ open, onClose, onDone }) => {
+  // Aşama 258: tür (Kurum | Bireysel koçluk). Bireyselde kişi öğretmen olarak kayıtlıdır: branş ve rol burada seçilir.
+  const [tur, setTur] = useState<'kurum' | 'bireysel'>('kurum');
+  const bireysel = tur === 'bireysel';
+  const [branch, setBranch] = useState('');
+  const [rol, setRol] = useState<TeacherRole>('ogretmen');
+  const [rolTouched, setRolTouched] = useState(false);
   const [kurumName, setKurumName] = useState('');
   const [adminName, setAdminName] = useState('');
   const [username, setUsername] = useState('');
@@ -53,8 +70,15 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const busy = step !== null;
-  const nMod = KURUM_MODULES.filter((m) => modules[m.key]).length;
-  const ready = kurumName.trim().length >= 2 && adminName.trim().length >= 3 && username.trim().length >= 3 && password.trim().length >= 6 && nMod > 0;
+  const modListe = kurumModulListesi(bireysel);
+  const nMod = modListe.filter((m) => modules[m.key]).length;
+  const ready =
+    kurumName.trim().length >= 2 && adminName.trim().length >= 3 && username.trim().length >= 3 && password.trim().length >= 6 && nMod > 0 && (!bireysel || !!branch);
+  const turDegis = (t: 'kurum' | 'bireysel') => {
+    setTur(t);
+    setModules(t === 'bireysel' ? bireyselModules() : allModules());
+    setErr(null);
+  };
 
   const pickLogo = async (f?: File | null) => {
     if (!f) return;
@@ -78,7 +102,10 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
       return;
     }
     try {
-      const res = await openKurum({ kurumName, adminName, username, email, password, modules, logo: logo || undefined }, setStep);
+      const res = await openKurum(
+        { kurumName, adminName, username, email, password, modules, logo: logo || undefined, ...(bireysel ? { tur: 'bireysel' as const, branch, rol } : {}) },
+        setStep
+      );
       setDone({ ...res, kurumName: kurumName.trim().replace(/\s+/g, ' ') });
       onDone();
       if (sendMail && email.trim()) {
@@ -95,7 +122,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
   };
 
   const credText = done
-    ? `Merhaba ${done.adminName},\n"${done.kurumName}" kurumunuz biliredu'da açıldı.\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${done.username}\nŞifre: ${done.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
+    ? `Merhaba ${done.adminName},\n"${done.kurumName}" ${bireysel ? 'bireysel hesabınız' : 'kurumunuz'} biliredu'da açıldı.\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${done.username}\nŞifre: ${done.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
     : '';
   const copy = async () => {
     try {
@@ -115,9 +142,11 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
       closeOnBackdrop={false}
       size="sm"
       id="yeni-kurum"
-      icon={Building2}
-      title="Yeni kurum"
-      description={done ? 'Kurum açıldı.' : 'Kurum ve kurum yöneticisi tek adımda açılır.'}
+      icon={bireysel ? UserRound : Building2}
+      title={bireysel ? 'Yeni bireysel hesap' : 'Yeni kurum'}
+      description={
+        done ? (bireysel ? 'Bireysel hesap açıldı.' : 'Kurum açıldı.') : bireysel ? 'Tek öğretmenli koçluk hesabı: öğrenci ekler, ödev, etüt ve plan verir.' : 'Kurum ve kurum yöneticisi tek adımda açılır.'
+      }
       footer={
         done ? (
           <>
@@ -134,7 +163,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
               Vazgeç
             </button>
             <button type="button" className={cx(BTN, 'ui-btn-primary')} disabled={busy || !ready} onClick={() => void run()} id="yeni-kurum-ac">
-              {busy ? 'Açılıyor…' : 'Kurumu aç'}
+              {busy ? 'Açılıyor…' : bireysel ? 'Hesabı aç' : 'Kurumu aç'}
             </button>
           </>
         )
@@ -145,7 +174,9 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
           <p className="flex items-start gap-2 rounded-lg bg-success-soft text-success-fg px-2.5 py-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>
-              "{done.kurumName}" açıldı; yöneticisi {done.adminName}. Şifre saklanmaz, pencereyi kapatmadan önce yöneticiye iletin.
+              {bireysel
+                ? `"${done.kurumName}" açıldı; hesap sahibi ${done.adminName}. Şifre saklanmaz, pencereyi kapatmadan önce kişiye iletin.`
+                : `"${done.kurumName}" açıldı; yöneticisi ${done.adminName}. Şifre saklanmaz, pencereyi kapatmadan önce yöneticiye iletin.`}
             </span>
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -171,7 +202,9 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
           ))}
           <p className="text-muted">
             {/* Aşama 187: kısaltıldı */}
-            Sonraki adım: kurum yöneticisi öğretmen, sınıf ve öğrencilerini ekler. Roller verilince "Kurum Ayarları"ndan Rol yetkilerini açın.
+            {bireysel
+              ? 'Sonraki adım: hesap sahibi Yönetim > Öğrenciler bölümünden sınıf ve öğrencilerini ekler; ödev, etüt ve haftalık planı kendi verir.'
+              : 'Sonraki adım: kurum yöneticisi öğretmen, sınıf ve öğrencilerini ekler. Roller verilince "Kurum Ayarları"ndan Rol yetkilerini açın.'}
           </p>
         </div>
       ) : (
@@ -184,16 +217,34 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
           }}
         >
           <fieldset disabled={busy} className="space-y-3">
+            <Segmented
+              size="sm"
+              className="w-full [&>*]:flex-1 [&>*]:justify-center"
+              value={tur}
+              onChange={turDegis}
+              items={[
+                { value: 'kurum', label: 'Kurum', icon: Building2, id: 'yk-tur-kurum' },
+                { value: 'bireysel', label: 'Bireysel (koçluk)', icon: UserRound, id: 'yk-tur-bireysel' },
+              ]}
+            />
             <div>
               <label className={LABEL} htmlFor="yk-ad">
-                Kurum adı
+                {bireysel ? 'Hesap adı' : 'Kurum adı'}
               </label>
-              <input id="yk-ad" type="text" className={INPUT} value={kurumName} maxLength={120} onChange={(e) => setKurumName(e.target.value)} placeholder="Örn: Işık Eğitim Kurumları" />
+              <input
+                id="yk-ad"
+                type="text"
+                className={INPUT}
+                value={kurumName}
+                maxLength={120}
+                onChange={(e) => setKurumName(e.target.value)}
+                placeholder={bireysel ? 'Örn: Ayşe Demir Koçluk' : 'Örn: Işık Eğitim Kurumları'}
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={LABEL} htmlFor="yk-yonetici">
-                  Yönetici ad soyad
+                  {bireysel ? 'Ad soyad' : 'Yönetici ad soyad'}
                 </label>
                 <input
                   id="yk-yonetici" type="text"
@@ -251,12 +302,59 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
               </div>
             </div>
 
+            {/* Aşama 258: bireyselde kişi öğretmen olarak kayıtlıdır; rolü yalnız burada seçilir (sonradan rol bölümü yoktur) */}
+            {bireysel && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={LABEL} htmlFor="yk-brans">
+                    Branş
+                  </label>
+                  <SelectBox
+                    id="yk-brans"
+                    value={branch}
+                    onChange={(e) => {
+                      setBranch(e.target.value);
+                      if (!rolTouched) setRol(roleFromBranch(e.target.value));
+                    }}
+                    className={cx(INPUT, 'cursor-pointer')}
+                  >
+                    <option value="">Seçiniz</option>
+                    {BRANSLAR.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </SelectBox>
+                </div>
+                <div>
+                  <label className={LABEL} htmlFor="yk-rol">
+                    Rol
+                  </label>
+                  <SelectBox
+                    id="yk-rol"
+                    value={rol}
+                    onChange={(e) => {
+                      setRolTouched(true);
+                      setRol(e.target.value as TeacherRole);
+                    }}
+                    className={cx(INPUT, 'cursor-pointer')}
+                  >
+                    {ROL_SECENEK.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </SelectBox>
+                </div>
+              </div>
+            )}
+
             <div>
               <span className={LABEL}>
-                Bölümler <span className="font-normal text-muted">({nMod} / {KURUM_MODULES.length})</span>
+                Bölümler <span className="font-normal text-muted">({nMod} / {modListe.length})</span>
               </span>
               <div className="grid grid-cols-2 gap-1.5">
-                {KURUM_MODULES.map((m) => (
+                {modListe.map((m) => (
                   <label
                     key={m.key}
                     title={m.description}
@@ -291,8 +389,8 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
               id="yk-mail"
               checked={sendMail}
               onChange={setSendMail}
-              label="Giriş bilgilerini yöneticiye e-postayla gönder"
-              hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi gider.' : 'Göndermek için yöneticinin e-posta adresini yazın.'}
+              label={bireysel ? 'Giriş bilgilerini hesap sahibine e-postayla gönder' : 'Giriş bilgilerini yöneticiye e-postayla gönder'}
+              hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi gider.' : `Göndermek için ${bireysel ? 'kişinin' : 'yöneticinin'} e-posta adresini yazın.`}
             />
           </fieldset>
 

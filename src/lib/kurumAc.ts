@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { dataService } from '../services/dataService';
 import { updateKurumIdentity } from './kurumSettings';
 import type { KurumModule } from '../types';
+import { saveTeacherRoles, type TeacherRole } from './teacherRoles';
 
 // ============================================================================
 // Aşama 95: YENİ KURUM AÇMA SİHİRBAZI (yalnızca genel yönetici)
@@ -13,13 +14,14 @@ import type { KurumModule } from '../types';
 // sayılır; eksik ayar "Kurumlar" bölümünden tamamlanır (sonuç ekranı bunu söyler).
 // ============================================================================
 
-export type KurumAcStep = 'hesap' | 'yetki' | 'kurum' | 'ayar' | 'logo';
+export type KurumAcStep = 'hesap' | 'yetki' | 'kurum' | 'ayar' | 'bireysel' | 'logo';
 
 export const KURUM_AC_STEPS: Record<KurumAcStep, string> = {
   hesap: 'Giriş hesabı açılıyor…',
   yetki: 'Yönetici yetkisi veriliyor…',
   kurum: 'Kurum kaydı bekleniyor…',
   ayar: 'Kurum adı ve bölümler kaydediliyor…',
+  bireysel: 'Bireysel hesap ayarlanıyor…',
   logo: 'Logo kaydediliyor…',
 };
 
@@ -31,6 +33,10 @@ export interface KurumAcInput {
   password: string;
   modules: Partial<Record<KurumModule, boolean>>;
   logo?: string; // data URL (imageFileToLogo)
+  /** Aşama 258: 'bireysel' = tek öğretmenli koçluk hesabı (kişi öğretmen olarak kayıtlı; branş ve rol burada seçilir) */
+  tur?: 'kurum' | 'bireysel';
+  branch?: string;
+  rol?: TeacherRole;
 }
 
 export interface KurumAcResult {
@@ -71,6 +77,8 @@ export async function openKurum(input: KurumAcInput, onStep: (s: KurumAcStep) =>
   if (kurumName.length < 2) throw new Error('Kurum adı en az 2 karakter olmalıdır.');
   if (kurumName.length > 120) throw new Error('Kurum adı en çok 120 karakter olabilir.');
   if (!Object.values(input.modules).some(Boolean)) throw new Error('Kurum için en az bir bölüm seçin.');
+  const bireysel = input.tur === 'bireysel';
+  if (bireysel && !(input.branch || '').trim()) throw new Error('Bireysel hesap için branş seçin.');
 
   const existing = await dataService.listKurumlar();
   if (existing.some((k) => norm(k.name) === norm(kurumName))) throw new Error(`"${kurumName}" adında bir kurum zaten var.`);
@@ -82,7 +90,7 @@ export async function openKurum(input: KurumAcInput, onStep: (s: KurumAcStep) =>
     name: input.adminName,
     username: input.username,
     email: input.email,
-    branch: 'Kurum Yöneticisi',
+    branch: bireysel ? (input.branch || '').trim() : 'Kurum Yöneticisi',
     password: input.password,
   });
 
@@ -111,6 +119,21 @@ export async function openKurum(input: KurumAcInput, onStep: (s: KurumAcStep) =>
     await dataService.saveKurum({ id: kurumId, name: kurumName, modules: input.modules, grantedClassIds: [] });
   } catch (e: any) {
     warnings.push(`Kurum adı ve bölümler kaydedilemedi (${e?.message || 'hata'}); "Kurumlar" bölümünden kaydedin.`);
+  }
+  // Aşama 258: bireysel hesap (öğretmen yönetimi ve rol yetkileri kapalı; veritabanı sabit tutar) + kişinin rolü
+  if (bireysel) {
+    onStep('bireysel');
+    try {
+      const { error } = await supabase.rpc('kurum_bireysel_yap', { p_kurum_id: kurumId });
+      if (error) throw new Error(error.message);
+    } catch (e: any) {
+      warnings.push(`Hesap bireysel yapılamadı (${e?.message || 'hata'}); 258 numaralı SQL kurulu mu bakın, sonra hesabı silip yeniden açın.`);
+    }
+    try {
+      await saveTeacherRoles(teacher.id, [input.rol || 'ogretmen']);
+    } catch (e: any) {
+      warnings.push(`Rol kaydedilemedi (${e?.message || 'hata'}).`);
+    }
   }
   // 5) logo
   if (input.logo) {
