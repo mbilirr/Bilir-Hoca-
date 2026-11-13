@@ -286,6 +286,82 @@ async function actionGozuBitir(e, body, owner) {
   return { ok: true };
 }
 
+// ============================================================================
+// Aşama 256: BAĞLI HESAP — sistem sahibinin başka kurumdaki KENDİ öğretmen hesabı
+//  bagla: kullanıcı adı (ya da e-posta) + o hesabın şifresi sunucuda doğrulanır, sonra bağ yazılır.
+//  bagliGir: yalnız bağlanmış hesaba şifresiz oturum açılır (sekme o hesapla açılır; logodan geri dönülür).
+// ============================================================================
+const baglaDenemeleri = new Map();
+function baglaSiniri(ownerId) {
+  const now = Date.now();
+  const list = (baglaDenemeleri.get(ownerId) || []).filter((t) => now - t < 10 * 60_000);
+  if (list.length >= 8) throw new HttpError(429, 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin.');
+  list.push(now);
+  baglaDenemeleri.set(ownerId, list);
+}
+
+async function actionBagla(e, body, owner) {
+  const kim = String(body.kullanici || '').trim().toLowerCase();
+  const sifre = String(body.sifre || '');
+  if (kim.length < 3 || kim.length > 200) throw new HttpError(400, 'Kullanıcı adını yazın.');
+  if (sifre.length < 6 || sifre.length > 200) throw new HttpError(400, 'O hesabın şifresini yazın.');
+  baglaSiniri(owner.id);
+  const alan = kim.includes('@') ? 'email' : 'username';
+  const rows = await rest(e, `teachers?select=id,name,kurum_id,status,auth_user_id&${alan}=eq.${encodeURIComponent(kim)}&auth_user_id=not.is.null`);
+  const t = rows[0];
+  if (!t) throw new HttpError(404, 'Bu kullanıcı adıyla bir öğretmen hesabı bulunamadı.');
+  if (t.auth_user_id === owner.id) throw new HttpError(400, 'Kendi hesabınızı bağlayamazsınız.');
+  const ur = await fetch(`${e.url}/auth/v1/admin/users/${t.auth_user_id}`, { headers: serviceHeaders(e) });
+  const authUser = await readJson(ur);
+  if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Hesabın giriş bilgisi okunamadı.');
+  if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hesap.');
+  // Şifre doğrulaması: hesabın gerçekten size ait olduğunun kanıtı. Açılan sınama oturumu hemen kapatılır.
+  const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: authUser.email, password: sifre }),
+  });
+  const ses = await readJson(vr);
+  if (!vr.ok || !ses || !ses.access_token) throw new HttpError(401, 'Şifre doğrulanamadı. O hesabın güncel şifresini yazın.');
+  await fetch(`${e.url}/auth/v1/logout?scope=local`, {
+    method: 'POST',
+    headers: { apikey: e.anon || e.service, Authorization: `Bearer ${ses.access_token}` },
+  }).catch(() => null);
+  const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
+  const kayit = { sahip_auth_id: owner.id, hedef_auth_id: t.auth_user_id, hedef_ad: t.name || '', kurum_ad: kurum ? kurum.name : 'Kendi alanım' };
+  const ins = await fetch(`${e.url}/rest/v1/bagli_hesaplar?on_conflict=sahip_auth_id,hedef_auth_id`, {
+    method: 'POST',
+    headers: { ...serviceHeaders(e), Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(kayit),
+  });
+  if (!ins.ok) throw new HttpError(502, 'Bağ kaydedilemedi. Aşama 256 SQL dosyası çalıştırıldı mı?');
+  return { ok: true, hesap: { authUserId: t.auth_user_id, ad: kayit.hedef_ad, kurumAd: kayit.kurum_ad } };
+}
+
+async function actionBagliGir(e, body, owner) {
+  const hedef = String(body.authUserId || '');
+  if (!UUID.test(hedef)) throw new HttpError(400, 'Geçersiz hesap.');
+  const bag = await rest(e, `bagli_hesaplar?select=hedef_auth_id&sahip_auth_id=eq.${owner.id}&hedef_auth_id=eq.${hedef}`);
+  if (!bag[0]) throw new HttpError(403, 'Bu hesap sizin hesabınıza bağlı değil.');
+  const [tRows, ur] = await Promise.all([
+    rest(e, `teachers?select=id,name,kurum_id,status&auth_user_id=eq.${hedef}`),
+    fetch(`${e.url}/auth/v1/admin/users/${hedef}`, { headers: serviceHeaders(e) }),
+  ]);
+  const t = tRows[0];
+  if (!t) throw new HttpError(404, 'Bağlı hesabın öğretmen kaydı bulunamadı.');
+  const authUser = await readJson(ur);
+  if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Bağlı hesabın giriş bilgisi okunamadı.');
+  if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hesap.');
+  if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
+  const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
+  const session = await magicSession(e, authUser.email, 'Hesap oturumu');
+  return {
+    ok: true,
+    hesap: { authUserId: hedef, ad: t.name || '', kurumAd: kurum ? kurum.name : 'Kendi alanım' },
+    session: { access_token: session.access_token, refresh_token: session.refresh_token },
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Yalnızca POST.' });
@@ -302,6 +378,8 @@ export default async function handler(req, res) {
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
     if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
     if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));
+    if (body.action === 'bagla') return res.status(200).json(await actionBagla(e, body, user)); // Aşama 256
+    if (body.action === 'bagliGir') return res.status(200).json(await actionBagliGir(e, body, user)); // Aşama 256
     if (arama) {
       const sonuc = await arama;
       if (sonuc.err) throw sonuc.err;

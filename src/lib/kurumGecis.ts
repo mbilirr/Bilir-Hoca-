@@ -33,6 +33,18 @@ export interface GecisState {
   active: GecisKurum | null;
   /** Aşama 252: kullanıcı gözüyle bakılıyorsa kişi ve bakış oturumu (bakış yalnız kendi panelinden açılır; active = null) */
   gozu?: (GozuKisi & { sessionId: string }) | null;
+  /** Aşama 256: sistem sahibinin bağlı (kendi) hesabındayız; liste logodaki seçim penceresi için saklanır */
+  bagli?: BagliHesap | null;
+  bagliListe?: BagliHesap[];
+  /** Aşama 256: sistem sahibinin giriş kimliği ("seçimimi hatırla" bağlı hesaptayken de onun adına yazılır) */
+  headId?: string;
+}
+
+/** Aşama 256: sistem sahibine bağlı (kendi) öğretmen hesabı */
+export interface BagliHesap {
+  authUserId: string;
+  ad: string;
+  kurumAd: string;
 }
 
 export function readGecis(): GecisState | null {
@@ -40,7 +52,7 @@ export function readGecis(): GecisState | null {
     const raw = window.sessionStorage.getItem(KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as GecisState;
-    return s && s.headRefresh && (s.active || s.gozu) ? s : null;
+    return s && s.headRefresh && (s.active || s.gozu || s.bagli) ? s : null;
   } catch {
     return null;
   }
@@ -58,7 +70,7 @@ function writeGecis(s: GecisState | null): void {
 /** Genel yönetici kendi panelinde mi, bir kurumda mı? Seçici yalnızca bu durumlarda görünür (kullanıcı gözüyle bakarken görünmez). */
 export function canUseKurumSecici(): boolean {
   const g = readGecis();
-  if (g?.gozu) return false;
+  if (g?.gozu || g?.bagli) return false;
   return dataService.isHeadAdmin() || !!g;
 }
 
@@ -265,13 +277,53 @@ function gozuBitirBildir(headToken: string, sessionId: string): Promise<unknown>
 }
 
 /** Kişi arar (yalnız genel yönetici, kendi panelinde). kurumId: '' = bütün kurumlar, 'kendi' = kendi alanı.
- *  Aşama 252b: signal ile iptal edilebilir; boş arama sunucuyu ısıtır (panel açılınca ilk arama beklemesin). */
+ *  Aşama 252c: arama doğrudan veritabanından yapılır (gozu_kisi_ara_sahip, sql/252c; yetkiyi veritabanı denetler).
+ *  Vercel sunucusu beklenmez. 252c SQL'i yoksa sunucu yolu kullanılır. 12 sn içinde yanıt yoksa açık bir hata verilir;
+ *  signal ile iptal edilebilir (yeni harf yazılınca). */
 export async function gozuKisiAra(q: string, kurumId: string, signal?: AbortSignal): Promise<GozuAday[]> {
   if (!dataService.isHeadAdmin() || readGecis()) throw new Error('Bu işlem yalnız sistem sahibinin kendi panelinde yapılır.');
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
-  const out = await kurumApi(data.session.access_token, { action: 'kisiAra', q, kurumId }, signal);
-  return (out.kisiler || []) as GozuAday[];
+  const ctrl = new AbortController();
+  let zamanAsimi = false;
+  const t = setTimeout(() => {
+    zamanAsimi = true;
+    ctrl.abort();
+  }, 12_000);
+  const disari = () => ctrl.abort();
+  signal?.addEventListener('abort', disari);
+  try {
+    const { data, error } = await supabase.rpc('gozu_kisi_ara_sahip', { p_q: q, p_kurum: kurumId }).abortSignal(ctrl.signal);
+    if (!error) {
+      const out = (data || {}) as { ogretmen?: GozuAday[]; ogrenci?: GozuAday[] };
+      return [...(out.ogretmen || []), ...(out.ogrenci || [])];
+    }
+    if (ctrl.signal.aborted) throw error;
+    const yok = error.code === 'PGRST202' || error.code === '42883' || /could not find the function/i.test(error.message || '');
+    if (!yok) throw new Error(error.message || 'Arama yapılamadı.');
+    // 252c SQL'i çalıştırılmamış: sunucu yolu
+    const { data: ses } = await supabase.auth.getSession();
+    if (!ses.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
+    const api = await kurumApi(ses.session.access_token, { action: 'kisiAra', q, kurumId }, ctrl.signal);
+    return (api.kisiler || []) as GozuAday[];
+  } catch (e: any) {
+    if (zamanAsimi) throw new Error('Arama yanıt vermedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
+    if (signal?.aborted) {
+      const err = new Error('İptal');
+      err.name = 'AbortError';
+      throw err;
+    }
+    throw e instanceof Error ? e : new Error('Arama yapılamadı.');
+  } finally {
+    clearTimeout(t);
+    signal?.removeEventListener('abort', disari);
+  }
+}
+
+/** Aşama 252c: "Bak" düğmesi beklemesin diye sunucu panel açılınca uyandırılır (sonucu kullanılmaz) */
+export function gozuSunucuIsit(): void {
+  supabase.auth
+    .getSession()
+    .then(({ data }) => (data.session ? kurumApi(data.session.access_token, { action: 'kisiAra', q: '', kurumId: '' }) : null))
+    .catch(() => null);
 }
 
 /** Kişinin gözüyle bakar: sekme o kişinin hesabıyla yeniden açılır (yalnız genel yönetici, kendi panelinden) */
@@ -297,5 +349,133 @@ export async function gozuyleBak(authUserId: string): Promise<never> {
     void authFetch('logout?scope=local', { token: out.session.access_token }).catch(() => null);
     await switchTab(head, null);
     throw e;
+  }
+}
+
+// ============================================================================
+// Aşama 256: BAĞLI HESAP (sistem sahibi ↔ başka kurumdaki kendi öğretmen hesabı)
+//  Girişte ve kurum logosundan "Sistem sahibi / <kurum> · Öğretmen" seçimi. Bağlı hesaba geçince sekme o hesapla
+//  açılır; sistem sahibinin oturum anahtarı bu sekmede saklanır, logodan tek tıkla geri dönülür (şifre sorulmaz).
+// ============================================================================
+const SECIM_TERCIH_KEY = 'edu_hesap_tercih_v1:'; // localStorage: "seçimimi hatırla" ('sahip' ya da bağlı hesap kimliği)
+// sessionStorage: bu sekmede seçim yapıldı. "edu_sys_" ile BAŞLAMAZ: hesap geçişinde sekme verileri silinirken korunur;
+// yeni girişte (handleAuthSuccess) hesapSecimiSifirla() ile silinir.
+const SECIM_YAPILDI_KEY = 'edu_hesap_secildi_v1';
+
+/** Bağlı hesaptaysak o hesap */
+export function readBagli(): BagliHesap | null {
+  return readGecis()?.bagli || null;
+}
+
+/** Sistem sahibinin bağlı hesapları (yalnız kendi panelinde veritabanından; bağlı hesaptayken saklanan listeden) */
+export async function bagliHesaplar(): Promise<BagliHesap[]> {
+  const g = readGecis();
+  if (g?.bagli) return g.bagliListe || [g.bagli];
+  if (!dataService.isHeadAdmin() || g) return [];
+  const { data, error } = await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma').order('olusturma');
+  if (error) {
+    if (/bagli_hesaplar|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) return []; // 256 SQL kurulmamış
+    throw new Error(error.message);
+  }
+  return (data || []).map((r: any) => ({ authUserId: String(r.hedef_auth_id), ad: r.hedef_ad || '', kurumAd: r.kurum_ad || '' }));
+}
+
+/** Kullanıcı adı (ya da e-posta) ve o hesabın şifresiyle hesap bağlar (yalnız sistem sahibi, kendi panelinde) */
+export async function hesapBagla(kullanici: string, sifre: string): Promise<BagliHesap> {
+  if (!dataService.isHeadAdmin() || readGecis()) throw new Error('Hesap bağlama yalnız sistem sahibinin kendi panelinde yapılır.');
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
+  const out = await kurumApi(data.session.access_token, { action: 'bagla', kullanici, sifre });
+  return out.hesap as BagliHesap;
+}
+
+/** Bağı kaldırır (hesap silinmez, yalnız bağ) */
+export async function hesapBagKaldir(authUserId: string): Promise<void> {
+  const { error } = await supabase.from('bagli_hesaplar').delete().eq('hedef_auth_id', authUserId);
+  if (error) throw new Error(error.message);
+  hesapTercihYaz(null);
+}
+
+/** Bağlı hesaba geçer (sistem sahibinin panelinden, bir kurumdan ya da başka bir bağlı hesaptan) */
+export async function bagliHesabaGec(authUserId: string): Promise<never> {
+  const g = readGecis();
+  let head: { access_token: string; refresh_token: string };
+  let headName: string;
+  let liste: BagliHesap[];
+  let headId: string;
+  if (g) {
+    if (g.bagli?.authUserId === authUserId) throw new Error('Zaten bu hesaptasınız.');
+    liste = g.bagliListe || (g.bagli ? [g.bagli] : []);
+    head = await restoreHead(g);
+    headName = g.headName;
+    headId = g.headId || '';
+    if (g.gozu) void gozuBitirBildir(head.access_token, g.gozu.sessionId);
+  } else {
+    if (!dataService.isHeadAdmin()) throw new Error('Bağlı hesaba yalnız sistem sahibi geçebilir.');
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
+    head = { access_token: data.session.access_token, refresh_token: data.session.refresh_token };
+    headName = dataService.getAuthSession()?.user?.name || 'Sistem sahibi';
+    headId = data.session.user.id;
+    liste = await bagliHesaplar();
+  }
+  let out: any;
+  try {
+    out = await kurumApi(head.access_token, { action: 'bagliGir', authUserId });
+  } catch (e) {
+    if (g) await switchTab(head, null); // geçişteyken hata: sistem sahibinin paneline dönülür (yarım durum kalmaz)
+    throw e;
+  }
+  hesapSecildi();
+  return switchTab(out.session, { headRefresh: head.refresh_token, headName, kurumlar: [], active: null, gozu: null, bagli: out.hesap, bagliListe: liste, headId });
+}
+
+/** Sistem sahibinin kendi paneline döner (bağlı hesaptan) */
+export function sistemSahibineDon(): Promise<never> {
+  hesapSecildi();
+  return exitKurum();
+}
+
+/** Girişte hesap seçimi bu oturumda yapıldı mı */
+export function hesapSecimiYapildi(): boolean {
+  try {
+    return window.sessionStorage.getItem(SECIM_YAPILDI_KEY) === '1';
+  } catch {
+    return true;
+  }
+}
+export function hesapSecimiSifirla(): void {
+  try {
+    window.sessionStorage.removeItem(SECIM_YAPILDI_KEY);
+  } catch {
+    /* depolama kapalı */
+  }
+}
+export function hesapSecildi(): void {
+  try {
+    window.sessionStorage.setItem(SECIM_YAPILDI_KEY, '1');
+  } catch {
+    /* depolama kapalı */
+  }
+}
+
+/** "Seçimimi hatırla" ('sahip' | bağlı hesap kimliği | null) */
+const tercihSahibi = (): string => readGecis()?.headId || dataService.getAuthSession()?.user?.auth_user_id || '';
+export function hesapTercihOku(): string | null {
+  const id = tercihSahibi();
+  try {
+    return id ? window.localStorage.getItem(SECIM_TERCIH_KEY + id) : null;
+  } catch {
+    return null;
+  }
+}
+export function hesapTercihYaz(v: string | null): void {
+  const id = tercihSahibi();
+  if (!id) return;
+  try {
+    if (v) window.localStorage.setItem(SECIM_TERCIH_KEY + id, v);
+    else window.localStorage.removeItem(SECIM_TERCIH_KEY + id);
+  } catch {
+    /* depolama kapalı */
   }
 }

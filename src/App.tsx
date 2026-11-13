@@ -20,6 +20,8 @@ import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 const TeacherApprovalModal = lazyNamed(() => import('./components/Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
 import { supabase } from './lib/supabase';
 import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
+import { HesapSecimi } from './components/Auth/HesapSecimi'; // Aşama 256
+import { bagliHesabaGec, bagliHesaplar, hesapSecildi, hesapSecimiSifirla, hesapSecimiYapildi, hesapTercihOku, readGecis, type BagliHesap } from './lib/kurumGecis'; // Aşama 256
 import {
   Student,
   Teacher,
@@ -350,6 +352,10 @@ export default function App() {
 
   // Handle successful login or registration from AuthPortal
   const handleAuthSuccess = async (session: AuthSession) => {
+    // Aşama 256: yeni girişte hesap seçimi yeniden sorulur
+    hesapSecimiSifirla();
+    setHesapSecimBitti(false);
+    setHesapListe(null);
     setAuthSession(session);
     setTeacherTab('home');
 
@@ -471,6 +477,40 @@ export default function App() {
     dataService.setStudentPreview(studentPreview);
   }, [studentPreview]);
 
+  // Aşama 256: sistem sahibi girişte "Sistem sahibi / bağlı öğretmen hesabı" seçer (bağlı hesap yoksa sorulmaz).
+  // Seçim bu oturumda bir kez yapılır; "hatırla" seçiliyse sorulmadan o hesap açılır.
+  const hesapSecimAday = authSession?.role === 'teacher' && dataService.isHeadAdmin() && !readGecis() && !hesapSecimiYapildi();
+  const [hesapListe, setHesapListe] = useState<BagliHesap[] | null>(null);
+  const [hesapSecimBitti, setHesapSecimBitti] = useState(false);
+  useEffect(() => {
+    if (!hesapSecimAday || hesapSecimBitti) return;
+    let iptal = false;
+    const bitir = () => {
+      hesapSecildi();
+      if (!iptal) setHesapSecimBitti(true);
+    };
+    bagliHesaplar()
+      .then(async (l) => {
+        if (iptal) return;
+        if (!l.length) return bitir();
+        const tercih = hesapTercihOku();
+        if (tercih === 'sahip') return bitir();
+        if (tercih && l.some((h) => h.authUserId === tercih)) {
+          try {
+            await bagliHesabaGec(tercih);
+          } catch {
+            /* geçilemezse seçim ekranı gösterilir */
+          }
+        }
+        if (!iptal) setHesapListe(l);
+      })
+      .catch(() => bitir()); // okunamazsa sistem sahibi paneli açılır (giriş engellenmez)
+    return () => {
+      iptal = true;
+    };
+  }, [hesapSecimAday, hesapSecimBitti]);
+  const hesapSecimBekliyor = hesapSecimAday && !hesapSecimBitti;
+
   // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
   const brandTitle = authSession ? dataService.getBrand().name : '';
   useEffect(() => {
@@ -489,6 +529,29 @@ export default function App() {
           students={students}
           teachers={dataService.getTeachers()}
         />
+      </div>
+    );
+  }
+
+  // Aşama 256: sistem sahibinin hesap seçimi
+  if (hesapSecimBekliyor) {
+    return (
+      <div className="relative min-h-screen">
+        <NetworkSyncStatusBanner />
+        {hesapListe ? (
+          <HesapSecimi
+            ad={(authSession.user as Teacher).name}
+            liste={hesapListe}
+            onSahip={() => {
+              setHesapSecimBitti(true);
+              setRole('teacher');
+              setTeacherTab('home');
+            }}
+            onCikis={handleLogout}
+          />
+        ) : (
+          <PageLoading />
+        )}
       </div>
     );
   }

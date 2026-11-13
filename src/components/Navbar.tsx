@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
-  MailCheck, GraduationCap, Building2, Check, ListChecks,
+  MailCheck, GraduationCap, Building2, Check, ListChecks, Link2,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { lazyNamed } from '../lib/lazyLoad';
 import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
 import { PortalDegistirPencere } from './Auth/PortalSecimi'; // Aşama 254c
+import { HesapSecPencere, BagliHesaplarPencere } from './Auth/HesapSecimi'; // Aşama 256
+import { bagliHesaplar, readBagli, readGecis } from '../lib/kurumGecis'; // Aşama 256
 import { teacherNavFor } from './Layout/navItems';
 import { anaSayfaTuru } from './Home/anaSayfaSecimi'; // Aşama 244
 import { openCommandPalette } from './Layout/CommandPalette';
@@ -119,6 +121,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   const aktifPortal = dataService.getPortal();
   // Aşama 254c: birden çok portalı olan kişide kurum logosu portal değişim penceresini açar
   const [portalPencere, setPortalPencere] = useState(false);
+  // Aşama 256: sistem sahibinin bağlı (kendi) hesapları: logoya basınca hesap seçimi; bağlı hesaptayken geri dönüş
+  const bagliIcinde = isTeacherSession && !!readBagli();
+  const sahipPaneli = isTeacherSession && dataService.isHeadAdmin() && !readGecis();
+  const [bagliVar, setBagliVar] = useState(false);
+  const [hesapPencere, setHesapPencere] = useState(false);
+  const [bagliYonet, setBagliYonet] = useState(false);
+  useEffect(() => {
+    if (!sahipPaneli) return;
+    let iptal = false;
+    bagliHesaplar()
+      .then((l) => !iptal && setBagliVar(l.length > 0))
+      .catch(() => undefined);
+    return () => {
+      iptal = true;
+    };
+  }, [sahipPaneli, bagliYonet]);
+  const hesapSecimi = bagliIcinde || (sahipPaneli && bagliVar);
   // Aşama 171: profil resminin rolü (unvan isteği yok: branş + yönetici bilgisi yeter)
   const avatarRol: ProfilRol = currentTeacher ? ogretmenProfilRol(currentTeacher) : 'student';
   const activeStudent = isStudentSession ? (authSession!.user as Student) : currentStudent;
@@ -180,8 +199,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const brand = (
     <button
       type="button"
-      onClick={() => (portallar.length > 1 ? setPortalPencere(true) : goTab('home'))}
-      title={portallar.length > 1 ? 'Portal değiştir' : 'Ana Sayfa'}
+      onClick={() => (hesapSecimi ? setHesapPencere(true) : portallar.length > 1 ? setPortalPencere(true) : goTab('home'))}
+      title={hesapSecimi ? 'Hesap değiştir' : portallar.length > 1 ? 'Portal değiştir' : 'Ana Sayfa'}
       className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors min-w-0"
     >
       {brandLogo ? (
@@ -201,6 +220,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
+      {hesapSecimi && <HesapSecPencere open={hesapPencere} onClose={() => setHesapPencere(false)} />}
+      {sahipPaneli && <BagliHesaplarPencere open={bagliYonet} onClose={() => setBagliYonet(false)} />}
       {portallar.length > 1 && (
         <PortalDegistirPencere open={portalPencere} onClose={() => setPortalPencere(false)} onSec={() => goTab('home')} />
       )}
@@ -347,6 +368,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <MenuItem icon={Mail} onClick={closeAnd(() => setIsSentCommunicationsOpen(true))}>
                           Giden E-postalar
                         </MenuItem>
+                        {/* Aşama 256: başka kurumdaki kendi öğretmen hesabını bağlama (yalnız sistem sahibi, kendi panelinde) */}
+                        {sahipPaneli && (
+                          <MenuItem icon={Link2} onClick={closeAnd(() => setBagliYonet(true))}>
+                            Bağlı hesaplarım
+                          </MenuItem>
+                        )}
+                        {bagliIcinde && (
+                          <MenuItem icon={Crown} onClick={closeAnd(() => setHesapPencere(true))}>
+                            Sistem sahibi hesabına dön
+                          </MenuItem>
+                        )}
                         {/* Aşama 243: çıkış yapmadan portal değiştirme (yalnız birden çok görevi olan kurum yöneticisi) */}
                         {portallar.length > 1 && (
                           <>
