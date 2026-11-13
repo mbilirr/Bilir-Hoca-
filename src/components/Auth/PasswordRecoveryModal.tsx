@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { dataService } from '../../services/dataService';
-import { supabase, isPasswordRecoveryActive, onPasswordRecovery, clearPasswordRecovery } from '../../lib/supabase';
+import { supabase, isPasswordRecoveryActive, onPasswordRecovery, clearPasswordRecovery, passwordRecoveryLinkReady } from '../../lib/supabase';
 import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // "Şifremi unuttum" e-postasındaki bağlantıyla siteye gelindiğinde açılan yeni şifre belirleme penceresi.
@@ -15,6 +15,17 @@ export const PasswordRecoveryModal: React.FC = () => {
   const [done, setDone] = useState(false);
 
   useEffect(() => onPasswordRecovery(() => setOpen(true)), []);
+  // Aşama 262: kendi bağlantımızın süresi dolmuş / kullanılmışsa pencere açılır açılmaz söylenir
+  useEffect(() => {
+    if (!open) return;
+    let iptal = false;
+    void passwordRecoveryLinkReady().then((h) => {
+      if (!iptal && h) setErrorMsg(h);
+    });
+    return () => {
+      iptal = true;
+    };
+  }, [open]);
 
   if (!open) return null;
 

@@ -4745,6 +4745,133 @@ async function actionPlanReports(req, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 262: şifremi unuttum (kendi e-postamız)
+// Supabase'in kendi (İngilizce, supabase.co adresli) e-postası yerine biliredu / kurum adıyla Türkçe e-posta gider.
+// Bağlantı sitenin kendi adresidir: /?sifre=<tek kullanımlık özet>. Site bu özeti Supabase'de doğrular
+// (verifyOtp, type recovery) ve yeni şifre penceresini açar. Supabase'in sıfırlama e-postası artık hiç kullanılmaz.
+//  - Kimlik: kullanıcı adı ya da öğretmenin kayıtlı (gerçek) e-posta adresi. Bağlantı yalnız o kayıtlı adrese gider.
+//  - Aynı adrese bağlı birden çok hesap (ör. iki kurumda öğretmen) varsa tek e-postada her hesap için ayrı bağlantı.
+//  - Yanıt her durumda aynıdır: hesabın var olup olmadığı dışarıdan anlaşılmaz.
+//  - Sınır: aynı adrese saatte 3, bütün sisteme 10 dakikada 40 e-posta (mail_log üzerinden).
+const SIFRE_EVENT = 'sifre-sifirla';
+const SIFRE_KIMLIK_RE = /^[A-Za-z0-9._%+@'-]{3,120}$/;
+const SIFRE_MAX_HESAP = 4;
+const isInternalEmail = (s) => /@okul\.internal\.net$/i.test(String(s || '').trim());
+async function authAdmin(path, { method = 'GET', body } = {}) {
+  const e = env();
+  const headers = { apikey: e.service, 'Content-Type': 'application/json' };
+  if (!e.service.startsWith('sb_')) headers.Authorization = `Bearer ${e.service}`;
+  const r = await fetch(`${e.url}/auth/v1/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const text = await r.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (!r.ok) throw new Error(`Giriş sistemi isteği başarısız (${r.status})`);
+  return data;
+}
+async function sifreHesaplari(kimlik) {
+  const sel = 'id,name,username,email,auth_user_id,kurum_id,status';
+  let rows = [];
+  if (kimlik.includes('@')) {
+    // kayıtlı iletişim adresi (büyük/küçük harf duyarsız; joker karakterler JS'te elenir)
+    rows = (await rest(`teachers?select=${sel}&email=ilike.${encodeURIComponent(kimlik)}&limit=20`, { token: 'service' })) || [];
+    rows = rows.filter((t) => String(t.email || '').trim().toLowerCase() === kimlik);
+  } else {
+    rows = (await rest(`teachers?select=${sel}&username=eq.${encodeURIComponent(kimlik)}&limit=5`, { token: 'service' })) || [];
+  }
+  return rows.filter((t) => t.auth_user_id && (!t.status || t.status === 'approved') && isEmail(t.email) && !isInternalEmail(t.email)).slice(0, SIFRE_MAX_HESAP);
+}
+async function sifreSinirAsildi(to) {
+  const hourAgo = new Date(Date.now() - 3600000).toISOString();
+  const tenAgo = new Date(Date.now() - 600000).toISOString();
+  const [kisi, genel] = await Promise.all([
+    rest(`mail_log?select=id&event=eq.${SIFRE_EVENT}&recipient=eq.${encodeURIComponent(to)}&created_at=gte.${encodeURIComponent(hourAgo)}&limit=3`, { token: 'service' }),
+    rest(`mail_log?select=id&event=eq.${SIFRE_EVENT}&created_at=gte.${encodeURIComponent(tenAgo)}&limit=40`, { token: 'service' }),
+  ]);
+  return (kisi || []).length >= 3 || (genel || []).length >= 40;
+}
+function sifreMail(hesaplar, url) {
+  const tek = hesaplar.length === 1;
+  const btn = (href, label) =>
+    `<p style="margin:12px 0 4px"><a href="${esc(href)}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px">${esc(label)}</a></p>`;
+  const extraHtml = tek
+    ? ''
+    : hesaplar.map((h) => `<p style="margin:16px 0 0;font-size:13px;color:#334155"><b>${esc(h.kurum)}</b> · ${esc(h.username)}</p>${btn(h.link, 'Bu hesabın şifresini yenile')}`).join('');
+  const extraText = tek ? '' : hesaplar.map((h) => `${h.kurum} (${h.username}): ${h.link}`).join('\n');
+  return {
+    subject: 'Şifre yenileme bağlantınız',
+    ...layout({
+      heading: 'Şifrenizi yenileyin',
+      greeting: `Merhaba ${clean(hesaplar[0].name)},`,
+      intro: tek
+        ? 'Hesabınız için şifre yenileme istendi. Aşağıdaki düğmeye basıp yeni şifrenizi belirleyin.'
+        : 'Bu e-posta adresine bağlı birden çok hesabınız var. Şifresini yenilemek istediğiniz hesabın düğmesine basın.',
+      rows: tek ? [['Kurum', hesaplar[0].kurum], ['Kullanıcı adı', hesaplar[0].username]] : [],
+      extraHtml,
+      extraText,
+      buttonLabel: tek ? 'Yeni şifre belirle' : '',
+      url: tek ? hesaplar[0].link : url,
+      footer: 'Bağlantı 1 saat geçerlidir ve bir kez kullanılır. Bu isteği siz yapmadıysanız e-postayı yok sayın; şifreniz değişmez.',
+    }),
+  };
+}
+async function actionSifreSifirla(body, req, deadline) {
+  const kimlik = String(body.kimlik || '').trim().toLowerCase();
+  const sonuc = { ok: true };
+  if (!SIFRE_KIMLIK_RE.test(kimlik) || isInternalEmail(kimlik)) return sonuc;
+  const rows = await sifreHesaplari(kimlik);
+  if (!rows.length) return sonuc;
+  const to = String(rows[0].email).trim().toLowerCase();
+  const ayni = rows.filter((t) => String(t.email).trim().toLowerCase() === to);
+  if (await sifreSinirAsildi(to)) return sonuc;
+  const base = appUrl(req);
+  const hesaplar = [];
+  for (const t of ayni) {
+    try {
+      const u = await authAdmin(`admin/users/${encodeURIComponent(t.auth_user_id)}`);
+      const loginEmail = u && u.email;
+      if (!loginEmail) continue;
+      const g = await authAdmin('admin/generate_link', { method: 'POST', body: { type: 'recovery', email: loginEmail } });
+      const hash = (g && (g.hashed_token || (g.properties && g.properties.hashed_token))) || '';
+      if (!hash) continue;
+      const brand = t.kurum_id ? await kurumBrandFor(String(t.kurum_id)).catch(() => null) : null;
+      hesaplar.push({
+        name: t.name,
+        username: clean(t.username) || loginEmail,
+        kurum: (brand && brand.name) || env().schoolName,
+        kurumId: t.kurum_id ? String(t.kurum_id) : null,
+        authId: t.auth_user_id,
+        link: `${base}/?sifre=${encodeURIComponent(hash)}`,
+      });
+    } catch (err) {
+      console.error('[sifre-sifirla] bağlantı üretilemedi', err && err.message);
+    }
+  }
+  if (!hesaplar.length) return sonuc;
+  // Gönderen: hesabın kurum e-postası bağlıysa o (kurum adı ve logosuyla), yoksa sistemin e-postası
+  const e = env();
+  const ilk = hesaplar[0];
+  let sender = await kurumSender({ kurumId: ilk.kurumId, authId: ilk.authId, email: '' });
+  if (sender) sender = { ...sender, fromName: sender.brandName || e.schoolName, replyTo: null };
+  else if (e.gmailUser && e.gmailPass) {
+    sender = { via: 'okul', user: e.gmailUser, pass: e.gmailPass, fromName: e.schoolName, replyTo: null };
+    const brand = ilk.kurumId ? await kurumBrandFor(ilk.kurumId).catch(() => null) : null;
+    if (brand && (brand.name || brand.logo)) sender = { ...sender, brandName: brand.name, brandLogo: brand.logo, brandKid: ilk.kurumId };
+  }
+  if (!sender) {
+    console.error('[sifre-sifirla] gönderen e-posta hesabı yok (GMAIL_USER / kurum e-postası)');
+    return sonuc;
+  }
+  const m = sifreMail(hesaplar, base);
+  const item = { event: SIFRE_EVENT, refId: `${Date.now()}`, refTitle: 'Şifre yenileme', to, toName: ilk.name, role: 'ogretmen', ...m };
+  const s = await deliver(sender, { authId: null, name: e.schoolName }, [item], deadline);
+  if (s.failed) console.error('[sifre-sifirla] gönderilemedi', (s.errors || []).join(' | '));
+  return sonuc;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const deadline = Date.now() + TIME_BUDGET_MS;
@@ -4884,6 +5011,11 @@ export default async function handler(req, res) {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
       const r = body.action === 'attendance-get' ? await actionAttendanceGet(body) : await actionAttendanceSave(body);
       return res.status(200).json(r);
+    }
+    // Aşama 262: şifremi unuttum (giriş gerektirmez; yanıt her durumda aynı)
+    if (body.action === 'sifre-sifirla') {
+      if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
+      return res.status(200).json(await actionSifreSifirla(body, req, deadline));
     }
     const caller = await getCaller(req);
     let result;

@@ -282,8 +282,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // --- ŞİFREMİ UNUTTUM ---
-  // Gerçek e-posta ile kayıtlı hesaplara Supabase sıfırlama bağlantısı gönderilir.
-  // Sistemin ürettiği adresleri kullanan öğretmen/öğrenci hesaplarında şifreyi yönetici belirler.
+  // Aşama 262: öğretmen kullanıcı adını ya da kayıtlı e-postasını yazar; yenileme bağlantısı sitemizin kendi
+  // e-postasıyla hesabın kayıtlı adresine gider. Öğrencide şifreyi öğretmen / yönetici yeniler.
   const handleForgotPassword = async () => {
     setError(null);
     setSuccessMsg(null);
@@ -296,11 +296,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     }
 
     const ident = loginUsername.trim().toLowerCase();
-    const isRealEmail = ident.includes('@') && !ident.endsWith('@okul.internal.net');
-    if (!isRealEmail) {
-      setSuccessMsg(
-        'Öğretmen hesaplarında şifreyi yönetici yeniler; lütfen yöneticinize başvurunuz. Hesabınız gerçek bir e-posta adresiyle kayıtlıysa, e-posta adresinizi yukarıdaki kutuya yazıp tekrar "Şifremi unuttum"a basınız.'
-      );
+    if (ident.length < 3) {
+      setError('Önce kullanıcı adınızı ya da kayıtlı e-posta adresinizi yukarıdaki kutuya yazın, sonra "Şifremi unuttum"a basın.');
+      usernameInputRef.current?.focus();
       return;
     }
 
@@ -308,7 +306,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     try {
       await dataService.sendPasswordResetEmail(ident);
       setSuccessMsg(
-        'Bu e-posta adresi sistemde kayıtlıysa şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu ve gereksiz (spam) klasörünü kontrol ediniz.'
+        'Hesabınıza kayıtlı bir e-posta adresi varsa şifre yenileme bağlantısı oraya gönderildi (1 saat geçerli). Gelen kutunuzu ve gereksiz (spam) klasörünü kontrol edin. E-posta gelmezse yöneticinize başvurun.'
       );
     } catch (err: any) {
       setError(err?.message || 'Sıfırlama e-postası gönderilemedi.');

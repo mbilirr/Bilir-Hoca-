@@ -42,6 +42,7 @@ import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aş
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182
+import { KayitliSifre } from '../ui/KayitliSifre'; // Aşama 262
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { FieldLabel, MailOptIn, SelectBox } from '../Teacher/FormParts'; // Aşama 236: FieldLabel, SelectBox
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
@@ -1648,7 +1649,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   <CompactRow
                     icon={Key}
                     title="Giriş şifresi"
-                    info="Yeni şifre yazarsanız kullanıcının şifresi bununla değişir. Boş bırakırsanız şifre değişmez. Şifreler sistemde saklanmaz."
+                    info="Verdiğiniz son şifre, kişi kendisi değiştirene kadar burada noktalı görünür (göz ile açılır). Kişinin kendi belirlediği şifre kimseye görünmez; unuttuysa Yeni şifre verin."
                     actions={
                       pwOpen ? (
                         <>
@@ -1714,6 +1715,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           </button>
                         </div>
                       </div>
+                    )}
+                    {/* Aşama 262: verilen son şifre (öğrencideki gibi noktalı; yalnız yöneticiler, kendi hesabı hariç) */}
+                    {!pwOpen && editModalUser.id !== dataService.getCurrentTeacher()?.id && (
+                      <KayitliSifre tur={isTeacherAccount(editModalUser) ? 'teacher' : 'student'} kayitId={editModalUser.id} className="mb-2" />
                     )}
                     <label className="flex items-center gap-2 text-[11px] text-fg-2 cursor-pointer">
                       <input

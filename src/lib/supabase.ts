@@ -80,6 +80,35 @@ supabase.auth.onAuthStateChange((event) => {
   }
 });
 
+// Aşama 262: kendi e-postamızdaki şifre yenileme bağlantısı (/?sifre=<tek kullanımlık özet>).
+// Özet hemen adresten silinir (yenilemede tekrar denenmez), Supabase'de doğrulanır; doğrulanınca geçici oturum açılır
+// ve yeni şifre penceresi açılır. Supabase'in kendi sıfırlama e-postası kullanılmaz.
+let sifreBaglantisi: Promise<string | null> = Promise.resolve(null);
+try {
+  if (typeof window !== 'undefined') {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('sifre') || '';
+    if (token) {
+      url.searchParams.delete('sifre');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      if (/^[A-Za-z0-9_-]{10,200}$/.test(token)) {
+        passwordRecoveryActive = true;
+        sifreBaglantisi = supabase.auth
+          .verifyOtp({ type: 'recovery', token_hash: token })
+          .then(({ error }) => (error ? 'Bağlantının süresi dolmuş ya da daha önce kullanılmış. Giriş ekranından yeniden "Şifremi unuttum" isteyin.' : null))
+          .catch(() => 'Bağlantı doğrulanamadı. İnternet bağlantınızı kontrol edip sayfayı yenileyin.');
+      }
+    }
+  }
+} catch {
+  // adres okunamadı: yok say
+}
+
+/** Şifre bağlantısı doğrulandı mı? Hata varsa açıklaması, yoksa null (bağlantı yoksa hemen null) */
+export function passwordRecoveryLinkReady(): Promise<string | null> {
+  return sifreBaglantisi;
+}
+
 export function isPasswordRecoveryActive(): boolean {
   return passwordRecoveryActive;
 }

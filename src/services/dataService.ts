@@ -35,7 +35,7 @@ import {
   KurumInfo,
   TeacherTabType,
 } from '../types';
-import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
+import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery, passwordRecoveryLinkReady } from '../lib/supabase';
 import { sifreSorunu, type SifreKisi } from '../lib/sifreKurali';
 import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
 import {
@@ -7030,20 +7030,23 @@ class DataService {
     this.notify();
   }
 
-  // "Şifremi unuttum": gerçek e-posta adresine Supabase sıfırlama bağlantısı gönderir
-  public async sendPasswordResetEmail(email: string): Promise<void> {
-    const clean = (email || '').trim().toLowerCase();
-    if (!clean.includes('@') || clean.endsWith('@okul.internal.net')) {
-      throw new Error('Şifre sıfırlama bağlantısı yalnızca gerçek bir e-posta adresine gönderilebilir.');
+  // Aşama 262: "Şifremi unuttum" — kullanıcı adı ya da kayıtlı e-posta yazılır; bağlantı sitemizin kendi e-postasıyla
+  // (biliredu / kurum adıyla, Türkçe) hesabın kayıtlı adresine gider (api/mail.js sifre-sifirla). Supabase e-postası kullanılmaz.
+  // Yanıt her durumda aynıdır (hesabın var olup olmadığı anlaşılmaz).
+  public async sendPasswordResetEmail(kimlik: string): Promise<void> {
+    const clean = (kimlik || '').trim().toLowerCase();
+    if (clean.length < 3) throw new Error('Kullanıcı adınızı ya da kayıtlı e-posta adresinizi yazın.');
+    let res: Response;
+    try {
+      res = await fetch('/api/mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sifre-sifirla', kimlik: clean }),
+      });
+    } catch {
+      throw new Error('Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.');
     }
-    // Aşama 87: site eski / yedek bir Vercel adresinden açılmışsa bağlantı yine asıl adrese (www.biliredu.com) gider
-    const origin = /\.vercel\.app$/i.test(window.location.hostname) ? 'https://www.biliredu.com' : window.location.origin;
-    const { error } = await supabase.auth.resetPasswordForEmail(clean, {
-      redirectTo: `${origin}/`,
-    });
-    if (error) {
-      throw new Error(this.translatePasswordError(error.message));
-    }
+    if (!res.ok) throw new Error('Şifre yenileme e-postası şu an gönderilemiyor. Lütfen biraz sonra tekrar deneyin.');
   }
 
   // Sıfırlama bağlantısıyla gelen kullanıcının yeni şifresini kaydeder, ardından oturumu kapatır
@@ -7053,7 +7056,9 @@ class DataService {
     }
     const kuralHata = sifreSorunu(newPassword, this.oturumSifreKisi()); // Aşama 145
     if (kuralHata) throw new Error(kuralHata);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const baglantiHata = await passwordRecoveryLinkReady(); // Aşama 262: kendi bağlantımız doğrulanmış olmalı
+    if (baglantiHata) throw new Error(baglantiHata);
+    const { error } = await supabase.auth.updateUser({ password: newPassword, data: { must_change_password: false } });
     if (error) {
       throw new Error(this.translatePasswordError(error.message));
     }
