@@ -21,6 +21,7 @@ import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/da
 import { PageHeader, Segmented, cx } from '../ui/kit';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { SelectBox } from '../Teacher/FormParts';
+import { KendiAlaniTasima } from './KendiAlaniTasima'; // Aşama 259
 import type { KurumRow } from '../../lib/kurumSettings';
 import { useQuickFocus } from '../../lib/quickFocus'; // Aşama 244
 
@@ -429,6 +430,8 @@ export const YonetimSayfasi: React.FC<{
         {ust === 'yedek' && <AdminMaintenancePanel />}
         {ust === 'kendi' && (
           <div className="space-y-3">
+            {/* Aşama 259: kendi alanı yalnız yönetim merkezi; sınıflar öğrencileriyle bireysel hesaba taşınır */}
+            <KendiAlaniTasima classes={classes} />
             <AdminUserManagement key="kendi" currentAdmin={currentTeacher} onNavigateHome={onNavigateHome} kurumLock="merkez" embedded />
             <UserCredentialsExport classes={classes} />
             {/* Aşama 165: kendi (kurumsuz) sınıflarım ve kurumlara açtığım sınıflar için öğrenci bölümleri */}

@@ -165,6 +165,9 @@ export const kurumModulListesi = (bireysel: boolean) => (bireysel ? KURUM_MODULE
 /** Aşama 258: kurum türü. 'bireysel' = tek öğretmenli koçluk hesabı (sql/258) */
 export type KurumTur = 'kurum' | 'bireysel';
 
+/** Aşama 259: sistem sahibinin kendi panelinde (yönetim merkezi) açık sekmeler */
+const SISTEM_SAHIBI_SEKMELERI: TeacherTabType[] = ['home', 'user_management', 'deneme'];
+
 const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
   homework: 'homework',
   etuts: 'etut',
@@ -5363,6 +5366,22 @@ class DataService {
   public isKurumAdmin(): boolean {
     return this.myKurum.supported && !this.isHeadAdmin() && this.myKurum.kurumAdmin;
   }
+  /** Aşama 259: sistem sahibi kendi panelinde mi (yönetim merkezi: ders sekmeleri kapalı) */
+  public yonetimMerkezi(): boolean {
+    return this.isHeadAdmin() && !this.isKurumGecis();
+  }
+  /** Aşama 259: kendi alanından bireysel hesaba taşıma (sql/259). Sonuç: taşınan kayıt sayıları */
+  public async kendiAlaniTasi(kurumId: string, classIds: string[]): Promise<Record<string, number>> {
+    if (!this.yonetimMerkezi()) throw new Error('Taşımayı yalnız sistem sahibi kendi panelinde yapabilir.');
+    const { data, error } = await supabase.rpc('kendi_alani_tasi', { p_kurum_id: kurumId, p_class_ids: classIds });
+    if (error) {
+      if (error.code === 'PGRST202' || /kendi_alani_tasi/.test(error.message || '')) throw new Error("Önce Supabase'de 259 numaralı SQL'i çalıştırın.");
+      throw new Error(error.message);
+    }
+    // taşınan sınıf ve öğrenciler bu panelden çıkar: kimlikler hemen karşılaştırılır
+    this.resyncAfterAccessChange();
+    return (data && typeof data === 'object' ? data : {}) as Record<string, number>;
+  }
   /** Aşama 258: oturumdaki kurum bireysel (koçluk) hesabı mı */
   public isBireysel(): boolean {
     return this.myKurum.loaded && !!this.myKurum.kurumId && this.myKurum.tur === 'bireysel';
@@ -5685,6 +5704,9 @@ class DataService {
   }
 
   private canUseTabBase(tab: TeacherTabType): boolean {
+    // Aşama 259: sistem sahibinin kendi paneli yalnız yönetim merkezidir (ana sayfa, yönetim, deneme analizi).
+    // Ders işleri bireysel hesaptan ya da kurumdaki öğretmen hesabından yapılır; kuruma geçince o kurumun kuralları geçerlidir.
+    if (this.yonetimMerkezi() && !SISTEM_SAHIBI_SEKMELERI.includes(tab)) return false;
     const mod = TAB_MODULES[tab];
     if (tab === 'user_management') return this.canAccessUserManagement();
     if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü

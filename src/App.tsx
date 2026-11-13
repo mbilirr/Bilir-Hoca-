@@ -833,9 +833,14 @@ export default function App() {
                   {!dataService.canUseTab(teacherTab) ? (
                     <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="module-locked">
                       <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
-                      <h2 className="text-lg font-bold text-fg">{dataService.rolesActive() ? 'Bu bölüm rolünüze açık değil' : 'Bu bölüm kurumunuz için kapalı'}</h2>
+                      <h2 className="text-lg font-bold text-fg">
+                        {dataService.yonetimMerkezi() ? 'Kendi paneliniz yönetim merkezidir' : dataService.rolesActive() ? 'Bu bölüm rolünüze açık değil' : 'Bu bölüm kurumunuz için kapalı'}
+                      </h2>
                       <p className="text-sm text-muted">
-                        {dataService.rolesActive()
+                        {/* Aşama 259: sistem sahibinin kendi panelinde ders bölümleri yoktur */}
+                        {dataService.yonetimMerkezi()
+                          ? 'Ödev, etüt ve plan işleri bireysel hesabınızdan ya da kurumdaki öğretmen hesabınızdan yapılır.'
+                          : dataService.rolesActive()
                           ? `"${findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümü size verilen unvanın (rolün) yetkileri içinde değil. Gerekirse kurum yöneticinize başvurun.`
                           : `"${findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümünü kullanma izni genel yönetici tarafından verilmemiş.`}
                       </p>
