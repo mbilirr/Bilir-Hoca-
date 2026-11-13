@@ -10,7 +10,6 @@ import { PortalDegistirPencere } from './Auth/PortalSecimi'; // Aşama 254c
 import { HesapSecPencere, BagliHesaplarPencere } from './Auth/HesapSecimi'; // Aşama 256
 import { bagliHesaplar, readBagli, readGecis } from '../lib/kurumGecis'; // Aşama 256
 import { teacherNavFor } from './Layout/navItems';
-import { anaSayfaTuru } from './Home/anaSayfaSecimi'; // Aşama 244
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
 import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
@@ -149,9 +148,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
   // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
   const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
-  // Aşama 244: yeni tasarımlı ana sayfada menü solda (hayalet etiketli simgeler); geniş ekranda bu satır gizlenir
-  // Aşama 250: kurum bilgisi gelene kadar da gizli (ana sayfa o sırada yükleniyor); hangi ana sayfa açılacağı ancak o zaman bilinir
-  const kabukluAnaSayfa = isTeacherSession && activeTeacherTab === 'home' && (anaSayfaTuru() !== null || !dataService.getMyKurum().loaded);
+  // Aşama 260: geniş ekranda (901 px ve üstü) bölümler her sayfada soldaki simge menüde; bu satır yalnız tablette görünür
 
   // Menü dışına tıklanınca veya Esc'e basılınca kapat
   useEffect(() => {
@@ -477,7 +474,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Öğretmen bölümleri (tablet ve bilgisayar) */}
           {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
           {isTeacherSession && onSelectTeacherTab && (
-            <nav aria-label="Bölümler" className={cx('hidden flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px', kabukluAnaSayfa ? 'md:max-[901px]:flex' : 'md:flex')}>
+            <nav aria-label="Bölümler" className="hidden flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px md:max-[901px]:flex">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.id === activeTeacherTab;

@@ -1,0 +1,123 @@
+/* ============================================================================
+   Aşama 260: SOL SİMGE MENÜ (ana sayfa dışındaki bütün sayfalar)
+   Ana sayfa kabuğunun Odak şeridiyle birebir aynı ölçü ve davranış; renkler sitenin tokenlerinden (açık / koyu tema).
+   Ölçüler rem: sitenin yazı boyu ana sayfa birimiyle aynıdır (Aşama 251).
+   ============================================================================ */
+:root {
+  --sol-menu-en: 4.75rem;
+  --sol-menu-ust: 4rem; /* üst menünün yüksekliği (bileşen ölçüp yazar) */
+  --sol-menu-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --sol-menu-out: cubic-bezier(.22, 1, .36, 1);
+}
+
+.sol-menu { display: none; }
+
+@media (min-width: 901px) {
+  /* içerik menünün sağından başlar */
+  html.sol-menu-var .sol-menu-alan { padding-left: var(--sol-menu-en); }
+
+  .sol-menu {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: var(--sol-menu-ust);
+    bottom: 0;
+    width: var(--sol-menu-en);
+    z-index: 30;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-line);
+  }
+  .sol-menu-in {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1rem 0;
+  }
+
+  .sol-menu button {
+    position: relative;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--color-muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: transform .35s var(--sol-menu-spring), background-color .2s, color .2s;
+  }
+  .sol-menu button svg { width: 1.25rem; height: 1.25rem; }
+  .sol-menu button:active { transform: scale(.94); }
+  .sol-menu [aria-current="page"] { background: var(--color-brand-soft); color: var(--color-brand-fg); cursor: default; }
+  .sol-menu button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+  .sol-menu .badge {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: var(--color-danger);
+    color: #fff;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1rem;
+    text-align: center;
+    box-shadow: 0 0 0 0.125rem var(--color-surface);
+  }
+  .sol-menu .tnum { font-variant-numeric: tabular-nums; }
+  .sol-menu .sep { flex: none; width: 1.75rem; height: 1px; background: var(--color-line); margin: 0.375rem 0; }
+
+  /* hayalet etiket: yarı saydam açık cam, sağa açılır, küçük ok */
+  .sol-menu .tip {
+    position: absolute;
+    left: calc(100% + 0.75rem);
+    top: 50%;
+    transform: translate(-0.375rem, -50%) scale(.96);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #0f172a;
+    background: rgb(255 255 255 / .86);
+    -webkit-backdrop-filter: blur(0.75rem) saturate(1.4);
+    backdrop-filter: blur(0.75rem) saturate(1.4);
+    border: 1px solid rgb(15 23 42 / .08);
+    box-shadow: 0 0.625rem 1.875rem -0.625rem rgb(15 23 42 / .35);
+    transition: opacity .16s var(--sol-menu-out), transform .28s var(--sol-menu-spring);
+    z-index: 45;
+  }
+  .sol-menu .tip::before {
+    content: "";
+    position: absolute;
+    left: -0.3125rem;
+    top: 50%;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: inherit;
+    border-left: 1px solid rgb(15 23 42 / .08);
+    border-bottom: 1px solid rgb(15 23 42 / .08);
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .sol-menu button:focus-visible .tip { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+  .sol-menu button:hover { background: var(--color-surface-2); color: var(--color-fg); }
+  .sol-menu [aria-current="page"]:hover { background: var(--color-brand-soft); color: var(--color-brand-fg); }
+  .sol-menu button:hover .tip { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sol-menu button, .sol-menu .tip { transition: none; }
+}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { dataService } from '../../services/dataService';
-import { teacherNavFor } from '../Layout/navItems';
+import { ogretmenMenuOgeleri, SolMenuDugmeleri, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260: ortak sol menü
 import type { Teacher, TeacherTabType } from '../../types';
 import './anaSayfaKabuk.css';
 import './odakKabuk.css'; // Aşama 246
@@ -62,16 +62,8 @@ export const akBasHarf = (s: string) =>
     .join('')
     .toLocaleUpperCase('tr-TR');
 
-/** Aşama 253: öğretmen menüsü yerine verilen menü (öğrenci ana sayfası). sep = öncesine ayraç */
-export interface AkMenuOge {
-  id: string;
-  title: string;
-  icon: React.ComponentType;
-  badge?: number;
-  current?: boolean;
-  sep?: boolean;
-  onClick: () => void;
-}
+/** Aşama 253: öğretmen menüsü yerine verilen menü (öğrenci ana sayfası). Aşama 260: tanım ortak sol menüde */
+export type { AkMenuOge };
 
 interface Props {
   currentTeacher: Teacher | null;
@@ -109,83 +101,15 @@ export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, menu, unreadMes
     return () => ro.disconnect();
   }, []);
 
-  const isAdmin = dataService.isTeacherAdmin(currentTeacher);
-  const items = teacherNavFor((tab) => (tab === 'user_management' ? isAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
-  const home = items.find((i) => i.id === 'home');
-  const yonetim = items.find((i) => i.id === 'user_management');
-  const rest = items.filter((i) => i.id !== 'home' && i.id !== 'user_management');
-
-  const link = (item: (typeof items)[number], current = false) => {
-    const Icon = item.icon;
-    const badge = item.id === 'messages' && unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : String(unreadMessages)) : '';
-    return (
-      <button
-        key={item.id}
-        type="button"
-        aria-label={badge ? `${item.title} (${badge} okunmamış)` : item.title}
-        aria-current={current ? 'page' : undefined}
-        onClick={() => {
-          if (current) return;
-          onNavigate(item.id);
-          window.scrollTo({ top: 0 });
-        }}
-      >
-        <Icon />
-        {badge && (
-          <span className="badge tnum" aria-hidden="true">
-            {badge}
-          </span>
-        )}
-        <span className="tip" aria-hidden="true">
-          {item.title}
-        </span>
-      </button>
-    );
-  };
+  // Aşama 260: menü öğeleri bütün sayfalardaki sol menüyle aynı kaynaktan
+  const ogeler = menu || ogretmenMenuOgeleri(currentTeacher, 'home', onNavigate, unreadMessages);
 
   return (
     <div className={(tema === 'odak' ? 'ak ak-odak' : 'ak') + (sinif ? ' ' + sinif : '')} ref={rootRef} id="ana-sayfa-kabuk">
       {/* Aşama 250: şerit ve koyu panel sayfanın sonuna kadar uzanır; içerikleri ekranda sabit kalır (yarıda kesik görünmez) */}
       <nav className="ak-rail" aria-label="Bölümler">
         <div className="ak-rail-in">
-          {menu ? (
-            menu.map((m) => {
-              const Icon = m.icon;
-              const badge = m.badge && m.badge > 0 ? (m.badge > 99 ? '99+' : String(m.badge)) : '';
-              return (
-                <React.Fragment key={m.id}>
-                  {m.sep && <span className="sep" aria-hidden="true" />}
-                  <button
-                    type="button"
-                    id={`ak-menu-${m.id}`}
-                    aria-label={badge ? `${m.title} (${badge} yeni)` : m.title}
-                    aria-current={m.current ? 'page' : undefined}
-                    onClick={() => {
-                      if (m.current) return;
-                      m.onClick();
-                    }}
-                  >
-                    <Icon />
-                    {badge && (
-                      <span className="badge tnum" aria-hidden="true">
-                        {badge}
-                      </span>
-                    )}
-                    <span className="tip" aria-hidden="true">
-                      {m.title}
-                    </span>
-                  </button>
-                </React.Fragment>
-              );
-            })
-          ) : (
-            <>
-              {home && link(home, true)}
-              {yonetim && link(yonetim)}
-              {rest.length > 0 && <span className="sep" aria-hidden="true" />}
-              {rest.map((i) => link(i))}
-            </>
-          )}
+          <SolMenuDugmeleri ogeler={ogeler} idOnEk="ak-menu" />
         </div>
       </nav>
       {tema !== 'odak' && (

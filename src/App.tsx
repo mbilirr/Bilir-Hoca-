@@ -7,6 +7,7 @@ import { anaSayfaTuru } from './components/Home/anaSayfaSecimi'; // Aşama 244
 import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
 import { PortalSecimi } from './components/Auth/PortalSecimi'; // Aşama 243
+import { SolMenu, ogretmenMenuOgeleri } from './components/Layout/SolMenu'; // Aşama 260
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
@@ -658,6 +659,14 @@ export default function App() {
         </div>
       )}
 
+      {/* Aşama 260: ana sayfa dışındaki her öğretmen / idare / yönetici sayfasında solda simge menü (ana sayfa kabuğu kendi
+          menüsünü aynı öğelerle çizer; öğrenci portalı kendi menüsünü kurar) */}
+      {showTeacherChrome && teacherTab !== 'home' && (
+        <SolMenu ogeler={ogretmenMenuOgeleri(currentTeacher, teacherTab, selectTeacherTab, unreadMessagesCount)} />
+      )}
+
+      {/* Aşama 260: içerik ve alt bilgi sol menünün sağından başlar (menü yoksa boşluk yok) */}
+      <div className="sol-menu-alan flex-1 flex flex-col min-w-0">
       {/* Main Container */}
       {/* Aşama 253: öğrenci portalı kendi kabını kurar (ana sayfası tam genişlik kabuk, diğer bölümler app-container) */}
       <main className={kabukluAnaSayfa || (role === 'student' && currentStudent) ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
@@ -963,6 +972,7 @@ export default function App() {
           <span>biliredu · {new Date().getFullYear()}</span>
         </div>
       </footer>
+      </div>
 
       {/* Öğretmen: hızlı arama (Ctrl+K) ve telefon alt menüsü */}
       {activeTeacher && (

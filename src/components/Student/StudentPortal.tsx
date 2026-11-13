@@ -50,6 +50,7 @@ import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
+import { SolMenu, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260
 import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
@@ -74,6 +75,16 @@ const STUDENT_TILES: Array<{ tab: StudentTabType; id: string; label: string; ico
   { tab: 'grades', id: 'student-nav-grades-card-btn', label: 'Not-Devamsızlık', icon: Award, tone: 'brand' },
   { tab: 'messages', id: 'student-nav-messages-card-btn', label: 'Öğretmene Soru Sor', icon: MessageSquare, tone: 'info' },
   { tab: 'deneme', id: 'student-nav-deneme-card-btn', label: 'Deneme Sonuçlarım', icon: BarChart3, tone: 'neutral' },
+];
+
+// Aşama 260: sol simge menü (ana sayfadaki menüyle aynı ad, simge ve sıra)
+const SOL_MENU: Array<{ tab: Exclude<StudentTabType, 'home'>; title: string; icon: React.ComponentType }> = [
+  { tab: 'homework', title: 'Ödevlerim', icon: BookOpen },
+  { tab: 'etuts', title: 'Etütlerim', icon: Calendar },
+  { tab: 'questions', title: 'Soru sayım', icon: HelpCircle },
+  { tab: 'grades', title: 'Dersler ve devamsızlık', icon: Award },
+  { tab: 'deneme', title: 'Deneme sonuçlarım', icon: BarChart3 },
+  { tab: 'messages', title: 'Öğretmene soru sor', icon: MessageSquare },
 ];
 
 // Aşama 165: sekme → öğrenci bölümü
@@ -414,16 +425,35 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     }
   };
 
+  // Aşama 260: sol simge menü öğeleri (yalnız öğrenciye açık bölümler)
+  const solMenu: AkMenuOge[] = [
+    { id: 'home', title: 'Ana sayfa', icon: Home, onClick: () => setActiveTab('home') },
+    ...SOL_MENU.filter((m) => tabOpen(m.tab)).map((m, n) => ({
+      id: m.tab,
+      title: m.title,
+      icon: m.icon,
+      current: activeTab === m.tab,
+      sep: n === 0,
+      onClick: () => {
+        setActiveTab(m.tab);
+        window.scrollTo({ top: 0 });
+      },
+    })),
+    { id: 'bildirim', title: 'Bildirimler', icon: Bell, sep: true, badge: unreadNotifsCount, onClick: () => setIsNotificationModalOpen(true) },
+  ];
+
   return (
     <div
       className={`w-full min-w-0${activeTab === 'home' ? '' : ' space-y-6 app-container py-4 sm:py-6'}${preview ? ' student-preview' : ''}`}
       onClickCapture={preview ? blockWrite : undefined}
       onSubmitCapture={preview ? blockWrite : undefined}
     >
+      {/* Aşama 260: ana sayfa dışındaki bölümlerde de menü solda (geniş ekran); üst duvar yalnız tablet ve telefonda */}
+      {activeTab !== 'home' && <SolMenu ogeler={solMenu} />}
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
       {/* Aşama 253: ana sayfada bölümler soldaki menüde (telefonda alt menüde); bu üst duvar yalnız diğer bölümlerde görünür */}
       {activeTab !== 'home' && (
-      <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="@container min-[901px]:hidden static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
         <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
           {tiles.map((t) => {
