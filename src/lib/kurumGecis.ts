@@ -242,15 +242,17 @@ export interface GozuAday {
   askida: boolean;
 }
 
-async function kurumApi(token: string, body: Record<string, unknown>): Promise<any> {
+async function kurumApi(token: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
   let res: Response;
   try {
     res = await fetch('/api/kurum', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e; // Aşama 252b: yeni harf yazıldı, eski arama iptal
     throw new Error('Sunucuya ulaşılamadı.');
   }
   const out = await res.json().catch(() => null);
@@ -262,12 +264,13 @@ function gozuBitirBildir(headToken: string, sessionId: string): Promise<unknown>
   return kurumApi(headToken, { action: 'gozuBitir', sessionId }).catch(() => null);
 }
 
-/** Kişi arar (yalnız genel yönetici, kendi panelinde). kurumId: '' = bütün kurumlar, 'kendi' = kendi alanı */
-export async function gozuKisiAra(q: string, kurumId: string): Promise<GozuAday[]> {
+/** Kişi arar (yalnız genel yönetici, kendi panelinde). kurumId: '' = bütün kurumlar, 'kendi' = kendi alanı.
+ *  Aşama 252b: signal ile iptal edilebilir; boş arama sunucuyu ısıtır (panel açılınca ilk arama beklemesin). */
+export async function gozuKisiAra(q: string, kurumId: string, signal?: AbortSignal): Promise<GozuAday[]> {
   if (!dataService.isHeadAdmin() || readGecis()) throw new Error('Bu işlem yalnız sistem sahibinin kendi panelinde yapılır.');
   const { data } = await supabase.auth.getSession();
   if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
-  const out = await kurumApi(data.session.access_token, { action: 'kisiAra', q, kurumId });
+  const out = await kurumApi(data.session.access_token, { action: 'kisiAra', q, kurumId }, signal);
   return (out.kisiler || []) as GozuAday[];
 }
 

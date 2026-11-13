@@ -164,11 +164,27 @@ async function actionEnter(e, body) {
 // PostgREST süzgecini bozabilecek işaretler aramadan çıkarılır
 const temizAra = (q) => String(q || '').replace(/[,()*%\\:"'.]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
 
+// Aşama 252b: arama tek veritabanı çağrısıyla yapılır (sql/252b gozu_kisi_ara). Fonksiyon yoksa eski yol kullanılır.
 async function actionKisiAra(e, body) {
   const q = temizAra(body.q);
-  if (q.length < 2) return { ok: true, kisiler: [] };
+  if (q.length < 2) return { ok: true, kisiler: [] }; // boş arama: sunucuyu ısıtmak için de kullanılır
   const kurumId = String(body.kurumId || '');
   if (kurumId && kurumId !== 'kendi' && !UUID.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
+  const r = await fetch(`${e.url}/rest/v1/rpc/gozu_kisi_ara`, {
+    method: 'POST',
+    headers: serviceHeaders(e),
+    body: JSON.stringify({ p_q: q, p_kurum: kurumId }),
+  });
+  if (r.ok) {
+    const out = (await readJson(r)) || {};
+    return { ok: true, kisiler: [...(out.ogretmen || []), ...(out.ogrenci || [])] };
+  }
+  await r.text().catch(() => null);
+  return kisiAraEski(e, q, kurumId);
+}
+
+// 252b SQL'i çalıştırılmadıysa (eski yol: birkaç istek)
+async function kisiAraEski(e, q, kurumId) {
   const kf = kurumId === 'kendi' ? '&kurum_id=is.null' : kurumId ? `&kurum_id=eq.${kurumId}` : '';
   const like = encodeURIComponent(`*${q}*`);
   const [ogretmen, ogrenci, kurumlar] = await Promise.all([
@@ -279,12 +295,18 @@ export default async function handler(req, res) {
     const auth = String(req.headers.authorization || '');
     const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
     if (!token) throw new HttpError(401, 'Oturum bulunamadı. Lütfen yeniden giriş yapın.');
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    // Aşama 252b: kişi araması yetki denetimiyle AYNI ANDA başlar (sırayla değil); sonuç yalnız denetim geçerse döner
+    const arama = body.action === 'kisiAra' ? actionKisiAra(e, body).then((v) => ({ v }), (err) => ({ err })) : null;
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
     if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));
-    if (body.action === 'kisiAra') return res.status(200).json(await actionKisiAra(e, body));
+    if (arama) {
+      const sonuc = await arama;
+      if (sonuc.err) throw sonuc.err;
+      return res.status(200).json(sonuc.v);
+    }
     if (body.action === 'gozuyle') return res.status(200).json(await actionGozuyle(e, body, user));
     if (body.action === 'gozuBitir') return res.status(200).json(await actionGozuBitir(e, body, user));
     throw new HttpError(400, 'Bilinmeyen işlem.');

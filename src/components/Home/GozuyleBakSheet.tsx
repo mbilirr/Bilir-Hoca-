@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ROLE_BY_CODE } from '../../lib/teacherRoles';
-import type { GozuAday } from '../../lib/kurumGecis';
+import { gozuKisiAra, gozuyleBak, type GozuAday } from '../../lib/kurumGecis';
 import { AkSheet, akBasHarf } from './AnaSayfaKabuk';
 
 // ============================================================================
@@ -29,6 +29,10 @@ interface SonBakis {
   bitti: string | null;
   kullanici_gozu_islemleri: Array<{ count: number }>;
 }
+// Aşama 252b: aynı arama ikinci kez sunucuya gitmez; harf eklenince önceki sonuç hemen süzülerek gösterilir
+const anahtar = (q: string, kurum: string) => `${kurum}|${q.trim().toLocaleLowerCase('tr')}`;
+const katla = (x: string) => x.toLocaleLowerCase('tr');
+
 const saat = (iso: string) =>
   new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -45,12 +49,15 @@ export const GozuyleBakSheet: React.FC<{
   const [acilan, setAcilan] = useState('');
   const [son, setSon] = useState<SonBakis[] | null | 'yok'>(null);
   const sira = useRef(0);
+  const onbellek = useRef(new Map<string, GozuAday[]>());
 
-  // Panel her açılışta temiz başlar; son bakışlar okunur
+  // Panel her açılışta temiz başlar; son bakışlar okunur; sunucu ısıtılır (ilk aramada bekleme olmasın)
   useEffect(() => {
     if (!open) return;
     setHata('');
     setAcilan('');
+    onbellek.current.clear();
+    void gozuKisiAra('', '').catch(() => null);
     let iptal = false;
     supabase
       .from('kullanici_gozu_oturumlari')
@@ -65,7 +72,8 @@ export const GozuyleBakSheet: React.FC<{
     };
   }, [open]);
 
-  // Yazdıkça arar (350 ms bekler; eski yanıt yenisinin üstüne yazılmaz)
+  // Yazdıkça arar. Aşama 252b: önbellekte varsa beklemeden gösterir; yoksa önceki (daha kısa) aramanın sonucunu hemen
+  // süzer, 200 ms sonra sunucuya sorar. Yeni harf yazılınca eski istek iptal edilir (yanıtlar sıra bozmaz).
   useEffect(() => {
     if (!open) return;
     const metin = q.trim();
@@ -75,22 +83,44 @@ export const GozuyleBakSheet: React.FC<{
       return;
     }
     const no = ++sira.current;
+    const key = anahtar(metin, kurum);
+    const hazir = onbellek.current.get(key);
+    if (hazir) {
+      setSonuc(hazir);
+      setAraniyor(false);
+      setHata('');
+      return;
+    }
+    // Önceki kısa aramanın sonucundan anında süzme (sunucu yanıtı gelince yerine geçer)
+    const kf = katla(metin);
+    for (let n = metin.length - 1; n >= 2; n--) {
+      const onceki = onbellek.current.get(anahtar(metin.slice(0, n), kurum));
+      if (onceki) {
+        setSonuc(onceki.filter((k) => katla(k.ad).includes(kf) || katla(k.ek).includes(kf)));
+        break;
+      }
+    }
     setAraniyor(true);
+    const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
-        const { gozuKisiAra } = await import('../../lib/kurumGecis');
-        const list = await gozuKisiAra(metin, kurum);
+        const list = await gozuKisiAra(metin, kurum, ctrl.signal);
+        onbellek.current.set(key, list);
         if (no === sira.current) {
           setSonuc(list);
           setHata('');
         }
       } catch (e: any) {
+        if (e?.name === 'AbortError') return;
         if (no === sira.current) setHata(e?.message || 'Arama yapılamadı.');
       } finally {
         if (no === sira.current) setAraniyor(false);
       }
-    }, 350);
-    return () => clearTimeout(t);
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
   }, [q, kurum, open]);
 
   const bak = async (k: GozuAday) => {
@@ -98,7 +128,6 @@ export const GozuyleBakSheet: React.FC<{
     setAcilan(k.authUserId);
     setHata('');
     try {
-      const { gozuyleBak } = await import('../../lib/kurumGecis');
       await gozuyleBak(k.authUserId); // sayfa o kişinin hesabıyla yeniden açılır
     } catch (e: any) {
       setHata(e?.message || 'Açılamadı.');
