@@ -209,13 +209,30 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   grantMove: null,
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
-// Aşama 243: PORTAL SEÇİMİ. Kurum yöneticisi aynı zamanda İdare (Müdür / Müdür Yrd.) ya da Öğretmen ise girişte
-// hangi portalda çalışacağını seçer. Portal yalnız GÖRÜNÜMÜ daraltır (menü, ana sayfa, listeler); veritabanı yetkisi aynıdır.
-export type PortalKod = 'ogretmen' | 'idare' | 'yonetici';
-export const PORTAL_ADI: Record<PortalKod, string> = { ogretmen: 'Öğretmen', idare: 'İdare', yonetici: 'Kurum yöneticisi' };
+// Aşama 243 / 257: PORTAL SEÇİMİ. Kurumda birden çok görevi olan kişi (ör. Öğretmen + Rehberlik, Öğretmen + Ölçme,
+// İdare + Öğretmen, Kurum yöneticisi + Öğretmen) girişte hangi portalda çalışacağını seçer. Portal yalnız GÖRÜNÜMÜ daraltır
+// (menü, ana sayfa, listeler: o portalın rolleriyle); veritabanı yetkisi kişinin bütün rolleridir.
+export type PortalKod = 'idare' | 'rehberlik' | 'olcme' | 'ogretmen' | 'etut' | 'yonetici';
+export const PORTAL_ADI: Record<PortalKod, string> = {
+  idare: 'İdare',
+  rehberlik: 'Rehberlik',
+  olcme: 'Ölçme Değerlendirme',
+  ogretmen: 'Öğretmen',
+  etut: 'Etüt Öğretmeni',
+  yonetici: 'Kurum yöneticisi',
+};
+/** Aşama 257: her portalda geçerli roller (yonetici: hepsi). Sıra = seçim ekranındaki sıra */
+const PORTAL_ROLLERI: Record<PortalKod, readonly string[] | null> = {
+  idare: ['mudur', 'mudur_yardimcisi'],
+  rehberlik: ['rehberlik'],
+  olcme: ['olcme_degerlendirme'],
+  ogretmen: ['ogretmen', 'zumre_baskani', 'etut_ogretmeni'],
+  etut: ['etut_ogretmeni'],
+  yonetici: null,
+};
 const PORTAL_KEY = 'edu_portal_v1'; // sessionStorage: bu sekmedeki seçim {tid, p}
 const PORTAL_TERCIH_KEY = 'edu_portal_tercih_v1:'; // localStorage: "seçimimi hatırla" (kişi kimliğiyle)
-const PORTAL_KODLARI: PortalKod[] = ['ogretmen', 'idare', 'yonetici'];
+const PORTAL_KODLARI = Object.keys(PORTAL_ROLLERI) as PortalKod[];
 function loadPortalSecim(): { tid: string; p: PortalKod } | null {
   try {
     const v = JSON.parse(sessionStorage.getItem(PORTAL_KEY) || 'null');
@@ -5152,12 +5169,13 @@ class DataService {
   }
 
   // ===========================================================================
-  // Aşama 243: PORTAL SEÇİMİ
-  //  - Seçim yalnız KURUM YÖNETİCİSİNDE çıkar: İdare + Kurum yöneticisi (Müdür / Müdür Yrd. rolü varsa) ya da
-  //    Öğretmen + Kurum yöneticisi (Öğretmen / Zümre Başkanı rolü varsa). İdareciye Öğretmen portalı yoktur.
-  //  - Öğretmen portalı: kişi sıradan öğretmen gibi görür (yönetim yok, yalnız kendi sınıfları).
-  //  - İdare portalı: Müdür gibi görür (kurum yöneticisine özel bölümler gizli).
-  //  - Kurum yöneticisi portalı: bugünkü tam görünüm.
+  // Aşama 243 / 257: PORTAL SEÇİMİ
+  //  - Kurumda iki ya da daha çok görevi olan HER kişide çıkar. Görevler: İdare (Müdür / Müdür Yrd.), Rehberlik,
+  //    Ölçme Değerlendirme, Öğretmen (Öğretmen / Zümre Başkanı), Etüt Öğretmeni (yalnız öğretmen ve rehberlik değilse)
+  //    ve Kurum yöneticisi (kayıtta yönetici işareti).
+  //  - Seçilen portalda ekran yalnız o portalın rolleriyle çalışır (ana sayfa, menü, listeler). Kurum yöneticisi
+  //    portalı bugünkü tam görünümdür. İdare portalında kurum yöneticisine özel bölümler gizlidir.
+  //  - Rol yetkileri kapalı kurumda roller uygulanmadığı için seçim yalnız Kurum yöneticisi + Öğretmen içindir (255b).
   //  Genel yönetici, kurum geçişi ve tek görevli hesaplarda hiçbir şey değişmez.
   // ===========================================================================
   /** Kişinin kayıtlı kurum yöneticisi işareti (portal uygulanmamış) */
@@ -5171,14 +5189,22 @@ class DataService {
   public getPortallar(): PortalKod[] {
     const s = this.getAuthSession();
     const k = this.myKurumRaw;
-    if (s?.role !== 'teacher' || !k.loaded || !k.supported || k.head || !k.kurumId || !k.kurumAdmin) return [];
-    if (this.isKurumGecis() || !this.kendiAdminKaydi()) return [];
-    // Aşama 255b: Öğretmen unvanı kurumda "Rol yetkileri" kapalı olsa da sayılır (kişinin gerçek görevi; derse girer).
-    // İdare portalı rol yetkilerine dayandığı için (Müdür / Müdür Yrd. ana sayfası) yalnız rol yetkileri açıkken sunulur.
+    if (s?.role !== 'teacher' || !k.loaded || !k.supported || k.head || !k.kurumId || this.isKurumGecis()) return [];
     const r = k.roles || [];
-    if (k.rolesEnabled && (r.includes('mudur') || r.includes('mudur_yardimcisi'))) return ['idare', 'yonetici'];
-    if (r.includes('ogretmen') || r.includes('zumre_baskani')) return ['ogretmen', 'yonetici'];
-    return [];
+    const var_ = (p: PortalKod) => (PORTAL_ROLLERI[p] || []).some((x) => r.includes(x));
+    const yonetici = !!k.kurumAdmin && this.kendiAdminKaydi();
+    const rolOn = k.rolesEnabled === true;
+    const ogretmen = r.includes('ogretmen') || r.includes('zumre_baskani');
+    const list: PortalKod[] = [];
+    if (rolOn && var_('idare')) list.push('idare');
+    if (rolOn && var_('rehberlik')) list.push('rehberlik');
+    if (rolOn && var_('olcme')) list.push('olcme');
+    // Aşama 255b: Öğretmen unvanı rol yetkileri kapalıyken de sayılır (kurum yöneticisinin gerçek görevi; derse girer)
+    if (ogretmen && (rolOn || yonetici)) list.push('ogretmen');
+    // Etüt öğretmenliği Öğretmen ve Rehberlik portallarında zaten vardır; yalnız onlar yoksa ayrı portaldır
+    if (rolOn && r.includes('etut_ogretmeni') && !ogretmen && !r.includes('rehberlik')) list.push('etut');
+    if (yonetici) list.push('yonetici');
+    return list.length > 1 ? list : [];
   }
   private portalHesapla(): void {
     const list = this.getPortallar();
@@ -5241,12 +5267,16 @@ class DataService {
   }
   /** Kurum bilgisini seçili portala göre daraltır (yalnız ekran; veritabanı yetkisi değişmez) */
   private portalUygula(raw: MyKurumState): MyKurumState {
-    if (this.portalAktif === 'ogretmen') return { ...raw, kurumAdmin: false };
-    return raw;
+    const p = this.portalAktif;
+    const izin = p ? PORTAL_ROLLERI[p] : null;
+    if (!p || !izin) return raw; // seçim yok ya da Kurum yöneticisi portalı: tam görünüm
+    // Aşama 257: ekran yalnız bu portalın rolleriyle çalışır. İdare portalı Müdür / Müdür Yrd. gibi kurumu yönetir
+    // (kurum yöneticisine özel bölümler yoneticiKaydi ile gizli); diğer portallarda yönetim yoktur.
+    return { ...raw, roles: (raw.roles || []).filter((x) => izin.includes(x)), kurumAdmin: p === 'idare' ? raw.kurumAdmin : false };
   }
-  /** Öğretmen ya da İdare portalında kişinin kendi kurum yöneticisi işareti gizlenir */
+  /** Kurum yöneticisi portalı dışındaki her portalda kişinin kendi kurum yöneticisi işareti gizlenir */
   private portalAdminGizli(): boolean {
-    return this.portalAktif === 'ogretmen' || this.portalAktif === 'idare';
+    return !!this.portalAktif && this.portalAktif !== 'yonetici';
   }
   /** Kurum yöneticisi işareti (oturum sahibi için seçili portala göre). Ekranlar teacher.isAdmin yerine bunu kullanır */
   public yoneticiKaydi(t?: Teacher | null): boolean {

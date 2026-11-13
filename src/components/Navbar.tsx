@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
+import { LogOut, HeartHandshake, ClipboardCheck, CalendarClock, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
   MailCheck, GraduationCap, Building2, Check, ListChecks, Link2,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
@@ -58,8 +58,11 @@ const Avatar: React.FC<{ person?: ProfilKisi | null; rol: ProfilRol; size?: 'sm'
 
 // Aşama 243: portal simgeleri (hesap menüsündeki "Portal" bölümü)
 const PORTAL_IKON: Record<PortalKod, React.ComponentType<{ className?: string }>> = {
-  ogretmen: GraduationCap,
   idare: Building2,
+  rehberlik: HeartHandshake,
+  olcme: ClipboardCheck,
+  ogretmen: GraduationCap,
+  etut: CalendarClock,
   yonetici: Settings2,
 };
 
@@ -379,7 +382,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             Sistem sahibi hesabına dön
                           </MenuItem>
                         )}
-                        {/* Aşama 243: çıkış yapmadan portal değiştirme (yalnız birden çok görevi olan kurum yöneticisi) */}
+                        {/* Aşama 243 / 257: çıkış yapmadan portal değiştirme (kurumda birden çok görevi olan herkes) */}
                         {portallar.length > 1 && (
                           <>
                             <div className="ui-divider my-1" />

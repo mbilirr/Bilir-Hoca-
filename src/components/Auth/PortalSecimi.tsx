@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { GraduationCap, Building2, Settings2, LogOut, Check, Repeat } from 'lucide-react';
+import { GraduationCap, Building2, Settings2, LogOut, Check, Repeat, HeartHandshake, ClipboardCheck, CalendarClock } from 'lucide-react';
 import { Modal } from '../ui/kit';
 import { dataService, PORTAL_ADI, type PortalKod } from '../../services/dataService';
 
-// Aşama 243: birden çok görevi olan kurum yöneticisine girişte portal seçimi (İdare + Yönetici ya da Öğretmen + Yönetici)
-const PORTAL_BILGI: Record<PortalKod, { icon: React.ComponentType<{ className?: string }>; aciklama: string }> = {
-  ogretmen: { icon: GraduationCap, aciklama: 'Kendi derslerim, ödev, etüt, yoklama ve öğrencilerim.' },
+// Aşama 243 / 257: kurumda birden çok görevi olan kişiye girişte portal seçimi
+export const PORTAL_BILGI: Record<PortalKod, { icon: React.ComponentType<{ className?: string }>; aciklama: string }> = {
   idare: { icon: Building2, aciklama: 'Okul geneli, ders programı, devamsızlık ve öğretmen takibi.' },
+  rehberlik: { icon: HeartHandshake, aciklama: 'Okulun nabzı, aranacak veliler, etütler ve denemede düşenler.' },
+  olcme: { icon: ClipboardCheck, aciklama: 'Denemeler, karneler, sonuç ve kazanım analizi.' },
+  ogretmen: { icon: GraduationCap, aciklama: 'Kendi derslerim, ödev, etüt, yoklama ve öğrencilerim.' },
+  etut: { icon: CalendarClock, aciklama: 'Bana verilen etütler ve o etütteki öğrenciler.' },
   yonetici: { icon: Settings2, aciklama: 'Kurulum, hesaplar, yetkiler, kurum ayarları ve yedek.' },
 };
 
@@ -14,7 +17,12 @@ const PORTAL_BILGI: Record<PortalKod, { icon: React.ComponentType<{ className?: 
 const PortalKartlari: React.FC<{ onSec: (p: PortalKod) => void; aktif?: PortalKod | null; sik?: boolean }> = ({ onSec, aktif = null, sik = false }) => {
   const portallar = dataService.getPortallar();
   return (
-    <div className={sik ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-4 sm:grid-cols-2'}>
+    // Aşama 257: giriş ekranında 3 portal tek sırada, 2 ve 4 ikişerli; pencerede tek sayıda kalan son kart iki sütun kaplar
+    <div
+      className={`grid ${sik ? 'gap-3' : 'gap-4'} sm:grid-cols-2 ${!sik && portallar.length % 3 === 0 ? 'lg:grid-cols-3' : ''} ${
+        sik && portallar.length % 2 === 1 ? 'sm:[&>*:last-child]:col-span-2' : ''
+      }`}
+    >
       {portallar.map((p) => {
         const { icon: Icon, aciklama } = PORTAL_BILGI[p];
         const on = p === aktif;

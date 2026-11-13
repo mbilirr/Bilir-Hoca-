@@ -14,6 +14,8 @@ import { dataService } from '../../services/dataService';
 //  - 'rehberlik' (Aşama 249): Rehberlik rolü (kurum yöneticisi, Müdür, Müdür Yrd. değilse; öğretmen rolü de varsa yine bu sayfa).
 //  - 'olcme' (Aşama 253): Ölçme Değerlendirme rolü (kurum yöneticisi, Müdür, Müdür Yrd., Rehberlik değilse).
 //  - 'etut' (Aşama 253): yalnız Etüt Öğretmeni rolü olan hesap.
+// Aşama 257: birden çok görevi olan kişi portal seçince ekran yalnız o portalın rolleriyle çalışır (dataService.portalUygula);
+// bu yüzden aşağıdaki sıra seçilen portalın ana sayfasını verir (Rehberlik portalı → 'rehberlik', Öğretmen portalı → 'ogretmen').
 // Kabuklu ana sayfada üst menünün bölüm satırı gizlenir: menü solda (hayalet etiketli simgeler).
 // ============================================================================
 export type AnaSayfaTuru = 'sistem' | 'kurum' | 'mudur' | 'mudur_yrd' | 'rehberlik' | 'olcme' | 'etut' | 'ogretmen' | null;
