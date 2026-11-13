@@ -101,15 +101,38 @@ export const OgrenciBolumPanel: React.FC<{
   const classOverride = (cid: string): OgrBolumAyar | undefined => (draft[cid] !== undefined ? draft[cid] || undefined : ogrSinifAyari(cid));
   const dirty = Object.keys(draft).length > 0;
 
+  // Aşama 265: "Tüm sınıflar" satırındaki kutu o sütunu BÜTÜN sınıflarda açar / kapatır. Özel ayarlı sınıfların da
+  // o bölümü aynı değere çekilir; özel ayarı varsayılanla birebir aynı kalan sınıf "Varsayılan"a döner.
   const toggleDef = (b: OgrBolum) => {
-    const next = { ...defFull, [b]: !defFull[b] };
-    setDraft((d) => ({ ...d, [DEF_ID]: next }));
+    const val = !defFull[b];
+    const next = { ...defFull, [b]: val };
+    setDraft((d) => {
+      const n: typeof d = { ...d, [DEF_ID]: next };
+      for (const c of classes) {
+        const ov = d[c.id] !== undefined ? d[c.id] || undefined : ogrSinifAyari(c.id);
+        if (!ov) continue;
+        const cur = { ...full(ov, defFull), [b]: val };
+        const ayni = OGR_BOLUMLER.every((x) => cur[x.key] === next[x.key]);
+        if (!ayni) n[c.id] = cur;
+        else if (ogrSinifAyari(c.id)) n[c.id] = null;
+        else delete n[c.id];
+      }
+      return n;
+    });
     setMsg(null);
   };
   const toggleClass = (cid: string, b: OgrBolum) => {
     const cur = full(classOverride(cid), defFull);
     const next = { ...cur, [b]: !cur[b] };
-    setDraft((d) => ({ ...d, [cid]: next }));
+    // Aşama 265: sınıf yeniden "Tüm sınıflar" satırıyla birebir aynı olursa özel ayar kalkar (Varsayılan'a döner)
+    const ayni = OGR_BOLUMLER.every((x) => next[x.key] === defFull[x.key]);
+    setDraft((d) => {
+      const n = { ...d };
+      if (!ayni) n[cid] = next;
+      else if (ogrSinifAyari(cid)) n[cid] = null;
+      else delete n[cid];
+      return n;
+    });
     setMsg(null);
   };
   const resetClass = (cid: string) => {
@@ -173,7 +196,7 @@ export const OgrenciBolumPanel: React.FC<{
           {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
           <p className="text-[11px] text-muted flex items-center gap-1">
             Öğrencinin ekranında hangi bölümlerin açık olacağını seçin.
-            <InfoTip text="Kapalı bölümde öğretmen o sınıfa ödev, etüt, soru hedefi ve haftalık plan veremez; Not-Devamsızlık ve Deneme yalnız öğrenciden gizlenir. Sınıfsız öğrenciler varsayılanı kullanır." />
+            <InfoTip text="İlk satırdaki kutu o bölümü bütün sınıflarda açar ya da kapatır; sonra tek tek sınıflarda değiştirebilirsiniz. Kapalı bölümde öğretmen o sınıfa ödev, etüt, soru hedefi ve haftalık plan veremez; Not-Devamsızlık ve Deneme yalnız öğrenciden gizlenir. Sınıfsız öğrenciler ilk satırı kullanır." />
           </p>
         </div>
       </div>
@@ -194,7 +217,7 @@ export const OgrenciBolumPanel: React.FC<{
           </thead>
           <tbody className="divide-y divide-line">
             <tr className="bg-brand-soft/40" data-row="varsayilan">
-              <td className="px-2.5 py-1.5 font-bold text-fg whitespace-nowrap">Varsayılan (tüm sınıflar)</td>
+              <td className="px-2.5 py-1.5 font-bold text-fg whitespace-nowrap" title="Bu satırdaki kutu o bölümü bütün sınıflarda açar ya da kapatır">Tüm sınıflar</td>
               {OGR_BOLUMLER.map((b) => cell(defFull[b.key], b, () => toggleDef(b.key), `ogr-bolum-def-${b.key}`))}
               <td className="px-2.5 py-1.5 text-right whitespace-nowrap">
                 {draft[DEF_ID] !== undefined && <span className="ui-chip ui-chip-warning">Kaydedilmedi</span>}

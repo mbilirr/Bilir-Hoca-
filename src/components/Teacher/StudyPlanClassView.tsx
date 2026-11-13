@@ -394,6 +394,12 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     return set;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewStudents, classes, bolumSurum]);
+  // Aşama 265: seçili sınıfların BÜTÜN öğrencilerine plan kapalıysa görev ekleme düğmeleri hiç çıkmaz (öğrenci görünümüyle aynı)
+  const planHepsiKapali = viewStudents.length > 0 && viewStudents.every((s) => planKapali.has(s.id));
+  const kapaliSiniflar = useMemo(
+    () => classIds.filter((cid) => viewStudents.some((s) => s.classId === cid) && viewStudents.every((s) => s.classId !== cid || planKapali.has(s.id))),
+    [classIds, viewStudents, planKapali]
+  );
 
   const [taskModal, setTaskModal] = useState<{ mode: 'add' | 'edit'; day: number; group?: Group } | null>(null);
   const [taskClassIds, setTaskClassIds] = useState<string[]>([]);
@@ -713,6 +719,17 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         {weekNav({
           status: (
             <div className="flex flex-wrap items-center gap-2" id="plan-status">
+              {/* Aşama 265: plan kapalı sınıf / öğrenci (öğrenci görünümündeki uyarıyla aynı) */}
+              {planKapali.size > 0 && (
+                <span className="ui-chip ui-chip-warning" id="plan-ogr-kapali" title="Yönetim › Bölümler ve sınıflar › Öğrenci bölümlerinden açılabilir">
+                  <Lock className="w-3.5 h-3.5" />
+                  {planHepsiKapali
+                    ? `Haftalık plan ${kapaliSiniflar.length === 1 ? `${className(kapaliSiniflar[0])} sınıfına` : 'seçili sınıflara'} kapalı`
+                    : kapaliSiniflar.length
+                      ? `Haftalık plan ${kapaliSiniflar.map(className).join(', ')} sınıfına kapalı`
+                      : `Haftalık plan ${planKapali.size} öğrenciye kapalı`}
+                </span>
+              )}
               {viewStudents.length === 0 ? (
                 <span className="ui-chip ui-chip-neutral" id="plan-status-empty">
                   Önce sınıf ve öğrenci seçin
@@ -883,6 +900,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                     </p>
                     <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
                   </div>
+                  {!planHepsiKapali && (
                   <button
                     type="button"
                     id={`plan-add-${d}`}
@@ -893,6 +911,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                   >
                     <Plus className="w-4 h-4" />
                   </button>
+                  )}
                 </header>
                 <div className={PLAN_DAY_BODY_CLS}>
                   {list.length === 0 && <p className="text-xs text-subtle px-1 py-2">Görev yok</p>}

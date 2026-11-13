@@ -1520,6 +1520,8 @@ class DataService {
       if (DataService.etutYoklamaTable !== 'no') {
         list.push({ table: 'etut_yoklama', optional: true, onEvent: (p) => this.handleRemoteEtutYoklamaEvent(p), resync: () => this.syncEtutsFromSupabase(true) });
       }
+      // Aşama 265: öğrenci bölüm izni değişince hemen yenilenir (sql/265 içeriksiz sinyal; yoksa dakikalık yoklama)
+      list.push({ table: 'ogrenci_bolum_sinyal', optional: true, onEvent: () => this.scheduleOgrBolumRefresh(), resync: () => this.syncOgrenciBolum() });
       // Aşama 114: rol / bölüm / sınıf / öğrenci yetkisi değişince hemen yenilenir (öğretmen yalnız kendi satırını alır)
       for (const table of DataService.ACCESS_TABLES) {
         list.push({ table, optional: true, onEvent: () => this.scheduleAccessRefresh(), resync: () => this.refreshMyAccess() });
@@ -1533,6 +1535,8 @@ class DataService {
         onEvent: () => this.scheduleStudentRefresh(),
         resync: () => this.refreshStudentOwn(),
       });
+      // Aşama 265: bölüm izni değişince öğrencinin menüsü ve ana sayfası hemen güncellenir
+      list.push({ table: 'ogrenci_bolum_sinyal', optional: true, onEvent: () => this.scheduleOgrBolumRefresh(), resync: () => this.syncOgrenciBolum() });
     }
     return list;
   }
@@ -1558,6 +1562,15 @@ class DataService {
 
   private refreshMyAccess(): Promise<unknown> {
     return Promise.allSettled([this.syncMyKurum(), this.syncMyTeacherAccess()]);
+  }
+
+  private ogrBolumRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private scheduleOgrBolumRefresh(): void {
+    if (this.ogrBolumRefreshTimer) clearTimeout(this.ogrBolumRefreshTimer);
+    this.ogrBolumRefreshTimer = setTimeout(() => {
+      this.ogrBolumRefreshTimer = null;
+      void this.syncOgrenciBolum();
+    }, DataService.SIGNAL_DEBOUNCE_MS);
   }
 
   private scheduleStudentRefresh(): void {
