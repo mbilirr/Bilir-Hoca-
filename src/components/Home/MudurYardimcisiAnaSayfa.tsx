@@ -709,7 +709,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
             <div className="my-mapscroll">
               <div
                 className={'my-map' + (suzgec === 'late' ? ' f-late' : suzgec === 'vk' ? ' f-vk' : '')}
-                style={{ gridTemplateColumns: `5.75rem repeat(${siralar.length}, minmax(4rem, 1fr))` }}
+                style={{ gridTemplateColumns: `calc(5.75 * var(--ak-rem)) repeat(${siralar.length}, minmax(calc(4 * var(--ak-rem)), 1fr))` }}
                 aria-label="Sınıf ve ders saatine göre yoklama durumu"
               >
                 <div />

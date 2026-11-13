@@ -13,55 +13,56 @@
 @theme static {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Varsayılan değerler: AÇIK tema ("Aydınlık ve Sade") */
-  --color-canvas: #f5f6fa;
+  /* Varsayılan değerler: AÇIK tema. Aşama 251: bütün site ODAK renklerinde (ana sayfalarla aynı):
+     soğuk gri-mavi zemin, lacivert yazı ve ana düğme, indigo vurgu. */
+  --color-canvas: #f3f5f9;
   --color-surface: #ffffff;
-  --color-surface-2: #f1f3f8;
-  --color-surface-3: #e7eaf2;
-  --color-line: #e3e6ee;
-  --color-line-strong: #cfd5e2;
+  --color-surface-2: #eaeef5;
+  --color-surface-3: #e2e7f0;
+  --color-line: #e2e7f0;
+  --color-line-strong: #cdd5e2;
 
   --color-fg: #0f172a;
   --color-fg-2: #334155;
-  --color-muted: #64748b;
-  --color-subtle: #94a3b8;
+  --color-muted: #5b6679;
+  --color-subtle: #94a0b4;
 
   --color-brand: #4f46e5;
   --color-brand-hover: #4338ca;
   --color-brand-soft: #eef0ff;
   --color-brand-fg: #4338ca;
 
-  --color-success: #059669;
-  --color-success-soft: #e7f8f1;
-  --color-success-fg: #047857;
+  --color-success: #0f8a5f;
+  --color-success-soft: #dff5ec;
+  --color-success-fg: #0f7a54;
   --color-warning: #d97706;
-  --color-warning-soft: #fff4e0;
+  --color-warning-soft: #fdf1dc;
   --color-warning-fg: #b45309;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fdecec;
-  --color-danger-fg: #b91c1c;
+  --color-danger: #be123c;
+  --color-danger-soft: #fde8ee;
+  --color-danger-fg: #be123c;
   --color-info: #0284c7;
   --color-info-soft: #e6f4fb;
   --color-info-fg: #0369a1;
 
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -8px rgb(15 23 42 / 0.1);
   --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.06);
 }
 
 /* KOYU tema ("Koyu ve Odaklı") */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-canvas: #0b1020;
-  --color-surface: #121a2e;
-  --color-surface-2: #18223a;
-  --color-surface-3: #1f2a46;
-  --color-line: #24304d;
-  --color-line-strong: #33416a;
+  --color-canvas: #0b0f18;
+  --color-surface: #131926;
+  --color-surface-2: #1b2333;
+  --color-surface-3: #212a3b;
+  --color-line: #212a3b;
+  --color-line-strong: #2e3a50;
 
-  --color-fg: #e8ecf6;
-  --color-fg-2: #c3cbe0;
-  --color-muted: #93a0bd;
-  --color-subtle: #6b7899;
+  --color-fg: #e8edf7;
+  --color-fg-2: #c4ccdb;
+  --color-muted: #93a0b8;
+  --color-subtle: #64708a;
 
   --color-brand: #6366f1;
   --color-brand-hover: #7c7ff5;
@@ -75,8 +76,8 @@
   --color-warning-soft: #33270d;
   --color-warning-fg: #fbbf24;
   --color-danger: #dc2626;
-  --color-danger-soft: #3a1518;
-  --color-danger-fg: #f87171;
+  --color-danger-soft: #3a1420;
+  --color-danger-fg: #fb7185;
   --color-info: #0284c7;
   --color-info-soft: #0c2838;
   --color-info-fg: #38bdf8;
@@ -179,8 +180,9 @@
   .ui-btn-icon {
     @apply w-8 p-0 gap-0;
   }
+  /* Aşama 251: ana düğme Odak'taki gibi lacivert (koyu temada açık), beyaz yazı; indigo yalnız vurgu */
   .ui-btn-primary {
-    @apply bg-brand text-white hover:bg-brand-hover shadow-sm;
+    @apply bg-fg text-canvas shadow-sm hover:opacity-90;
   }
   .ui-btn-secondary {
     @apply bg-surface text-fg border border-line hover:bg-surface-2 hover:border-line-strong;
@@ -430,8 +432,10 @@
 /* ========================================================================= */
 /* Aşama 58: dar pencerede (tablet, küçültülmüş tarayıcı) yazı ve rem ile ölçülen her şey birlikte biraz küçülür:
    960 px altında 15 px, 1280 px'te 16 px, geniş ekranda en çok 18 px. Telefonda form kutuları 16 px kalır (iOS yakınlaştırmaz). */
+/* Aşama 251: bütün site ana sayfalarla AYNI ölçüde: 14 px (telefon) – 15 px (geniş ekran). Ana sayfaların --ak-rem
+   birimiyle aynı formül; düğme, yazı ve boşluklar her sayfada aynı oranda küçüldü. */
 html {
-  font-size: clamp(15px, 0.3125vw + 12px, 18px);
+  font-size: clamp(14px, 0.0625vw + 13.4px, 15px);
 }
 /* Aşama 58: içerik ekrandan taşıp kesilmesin
    - ızgara hücreleri içerikleri (geniş tablo, uzun yazı) yüzünden ekrandan geniş olamaz; tablolar kendi kutusunda kayar

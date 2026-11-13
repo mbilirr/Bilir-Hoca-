@@ -1475,7 +1475,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       onClick={() => {
                         openHomeworkForm('create');
                       }}
-                      className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-w-24"
+                      className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm min-w-24"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Yeni Ödev Oluştur</span>
@@ -1500,7 +1500,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     setHwFilterSubject('all');
                     setHwFilterClassId('all');
                   }}
-                  className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-w-24"
+                  className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm min-w-24"
                 >
                   Filtreleri Sıfırla
                 </button>
@@ -1757,7 +1757,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     type="button"
                     onClick={handleSaveEditedResources}
                     disabled={isSavingResources || isEditUploadBusy}
-                    className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 min-w-24"
+                    className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas disabled:opacity-60 min-w-24"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>

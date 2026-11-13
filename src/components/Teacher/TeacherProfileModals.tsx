@@ -248,7 +248,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm min-w-24"
+                      className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm min-w-24"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>Fotoğraf Yükle</span>
@@ -410,7 +410,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             <button
               type="submit"
               disabled={isSavingProfile}
-              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white min-w-24"
+              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 disabled:opacity-60 text-canvas min-w-24"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSavingProfile ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}</span>
@@ -632,7 +632,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
             )}
             <button
               type="submit"
-              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kontrol ediliyor...' : 'Şifreyi Güncelle'}</span>

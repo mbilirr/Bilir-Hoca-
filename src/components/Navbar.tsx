@@ -125,7 +125,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
   const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
   // Aşama 244: yeni tasarımlı ana sayfada menü solda (hayalet etiketli simgeler); geniş ekranda bu satır gizlenir
-  const kabukluAnaSayfa = isTeacherSession && activeTeacherTab === 'home' && anaSayfaTuru() !== null;
+  // Aşama 250: kurum bilgisi gelene kadar da gizli (ana sayfa o sırada yükleniyor); hangi ana sayfa açılacağı ancak o zaman bilinir
+  const kabukluAnaSayfa = isTeacherSession && activeTeacherTab === 'home' && (anaSayfaTuru() !== null || !dataService.getMyKurum().loaded);
 
   // Menü dışına tıklanınca veya Esc'e basılınca kapat
   useEffect(() => {
@@ -425,7 +426,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Öğretmen bölümleri (tablet ve bilgisayar) */}
           {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
           {isTeacherSession && onSelectTeacherTab && (
-            <nav aria-label="Bölümler" className={cx('hidden md:flex flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px', kabukluAnaSayfa && 'min-[900px]:hidden')}>
+            <nav aria-label="Bölümler" className={cx('hidden flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px', kabukluAnaSayfa ? 'md:max-[901px]:flex' : 'md:flex')}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.id === activeTeacherTab;

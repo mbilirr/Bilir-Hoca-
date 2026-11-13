@@ -2232,7 +2232,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={handleSaveAuthModal}
-                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+                className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Yetkileri Kaydet ve Uygula</span>

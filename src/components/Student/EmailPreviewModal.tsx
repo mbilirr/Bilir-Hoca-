@@ -231,7 +231,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
                   onClose();
                   email.onNavigateAction?.();
                 }}
-                className="ui-btn ui-btn-sm flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="ui-btn ui-btn-sm flex-1 sm:flex-none bg-fg hover:opacity-90 text-canvas"
               >
                 {email.actionLabel || 'İlgili Bölüme Git'}
               </button>

@@ -95,13 +95,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function actionEnter(e, body) {
   const kurumId = String(body.kurumId || '');
   if (!UUID.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
-  const kurum = (await rest(e, `kurumlar?select=id,name&id=eq.${kurumId}`))[0];
+  // Aşama 251: kurum ve yöneticileri aynı anda okunur (sırayla değil)
+  const [kurumlar, admins] = await Promise.all([
+    rest(e, `kurumlar?select=id,name&id=eq.${kurumId}`),
+    // Kurumun onaylı yöneticisi (birden çoksa en eskisi)
+    rest(
+      e,
+      `teachers?select=id,name,status,auth_user_id,created_at&kurum_id=eq.${kurumId}&is_admin=is.true&auth_user_id=not.is.null&order=created_at.asc`
+    ),
+  ]);
+  const kurum = kurumlar[0];
   if (!kurum) throw new HttpError(404, 'Kurum bulunamadı.');
-  // Kurumun onaylı yöneticisi (birden çoksa en eskisi)
-  const admins = await rest(
-    e,
-    `teachers?select=id,name,status,auth_user_id,created_at&kurum_id=eq.${kurumId}&is_admin=is.true&auth_user_id=not.is.null&order=created_at.asc`
-  );
   const target = admins.find((t) => !t.status || t.status === 'approved');
   if (!target) throw new HttpError(409, `"${kurum.name}" kurumunun onaylı bir yöneticisi yok. Önce kuruma yönetici atayın.`);
 

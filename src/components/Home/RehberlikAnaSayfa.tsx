@@ -641,7 +641,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
               <h5>
                 Son {son10.length} okul günü <span>bugün en sağda</span>
               </h5>
-              <div className="rh-strip" style={{ gridTemplateColumns: `2.75rem repeat(${son10.length}, minmax(0, 1fr))` }}>
+              <div className="rh-strip" style={{ gridTemplateColumns: `calc(2.75 * var(--ak-rem)) repeat(${son10.length}, minmax(0, 1fr))` }}>
                 {can.ders && (
                   <>
                     <span className="lab">Ders</span>

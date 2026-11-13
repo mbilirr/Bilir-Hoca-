@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { dataService } from '../services/dataService';
 import type { Teacher } from '../types';
 
@@ -61,9 +61,7 @@ export async function gecisKurumlari(): Promise<GecisKurum[]> {
 }
 
 /** Oturumdaki hesabın öğretmen kaydından uygulama oturumu kurulur (önbelleğe yazmadan) */
-async function teacherOfCurrentAuth(): Promise<Teacher> {
-  const { data: u } = await supabase.auth.getUser();
-  const authUser = u?.user;
+async function teacherOfAuth(authUser: { id: string; created_at: string; app_metadata?: any; user_metadata?: any } | null | undefined): Promise<Teacher> {
   if (!authUser) throw new Error('Oturum açılamadı.');
   const { data: row, error } = await supabase.from('teachers').select('*').eq('auth_user_id', authUser.id).maybeSingle();
   if (error || !row) throw new Error('Hesabın öğretmen kaydı okunamadı.');
@@ -85,12 +83,14 @@ async function teacherOfCurrentAuth(): Promise<Teacher> {
   } as Teacher;
 }
 
-/** Sekmeyi verilen oturuma geçirir ve sayfayı yeniler */
+/** Sekmeyi verilen oturuma geçirir ve sayfayı yeniler.
+ *  Aşama 251: önce yeni oturum kurulur ve öğretmen kaydı okunur; sekmedeki veriler ancak bunlar başarılıysa, yenilemeden
+ *  hemen önce silinir (hata olursa ekran boşalmaz). Kullanıcı bilgisi setSession'ın döndürdüğünden alınır (fazladan istek yok). */
 async function switchTab(tokens: { access_token: string; refresh_token: string }, next: GecisState | null): Promise<never> {
-  dataService.prepareAccountSwitch();
-  const { error } = await supabase.auth.setSession(tokens);
+  const { data, error } = await supabase.auth.setSession(tokens);
   if (error) throw new Error(`Oturum değiştirilemedi: ${error.message}`);
-  const teacher = await teacherOfCurrentAuth();
+  const teacher = await teacherOfAuth(data.session?.user || data.user);
+  dataService.prepareAccountSwitch();
   try {
     window.sessionStorage.setItem(AUTH_KEY, JSON.stringify({ role: 'teacher', user: teacher }));
   } catch {
@@ -101,12 +101,34 @@ async function switchTab(tokens: { access_token: string; refresh_token: string }
   return new Promise<never>(() => {});
 }
 
-/** Genel yöneticinin bu sekmedeki oturumunu geri alır (kurumdayken) */
+/** Supabase giriş servisine doğrudan istek (sekmedeki oturuma dokunmaz) */
+async function authFetch(path: string, init: { body?: unknown; token?: string }): Promise<any> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
+    },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+  });
+  const out = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((out && (out.error_description || out.msg || out.message)) || `Giriş servisi yanıt vermedi (${res.status}).`);
+  return out;
+}
+
+/** Genel yöneticinin oturumunu geri alır (kurumdayken).
+ *  Aşama 251: sekmedeki kurum oturumu kapatılmadan (ekran "çıkış" durumuna düşmeden) genel yöneticinin anahtarı
+ *  doğrudan yenilenir; kurum oturumu da AYNI ANDA sunucuda kapatılır (iki istek sırayla değil, birlikte). */
 async function restoreHead(g: GecisState): Promise<{ access_token: string; refresh_token: string }> {
-  await supabase.auth.signOut({ scope: 'local' }).catch(() => {}); // yalnızca bu sekmedeki kurum oturumu kapanır
-  const { data, error } = await supabase.auth.refreshSession({ refresh_token: g.headRefresh });
-  if (error || !data.session) throw new Error('Kendi oturumunuza dönülemedi; lütfen yeniden giriş yapın.');
-  return { access_token: data.session.access_token, refresh_token: data.session.refresh_token };
+  const { data: cur } = await supabase.auth.getSession();
+  const kurumToken = cur.session?.access_token || '';
+  const [head] = await Promise.all([
+    authFetch('token?grant_type=refresh_token', { body: { refresh_token: g.headRefresh } }).catch(() => null),
+    kurumToken ? authFetch('logout?scope=local', { token: kurumToken }).catch(() => null) : Promise.resolve(null),
+  ]);
+  if (!head?.access_token || !head?.refresh_token) throw new Error('Kendi oturumunuza dönülemedi; lütfen yeniden giriş yapın.');
+  return { access_token: head.access_token, refresh_token: head.refresh_token };
 }
 
 /** Bir kuruma geçer (genel yöneticiden ya da başka bir kurumdan) */
@@ -164,8 +186,8 @@ export async function exitKurum(): Promise<never> {
     return await switchTab(head, null);
   } catch (e) {
     // Dönülemezse güvenli çıkış: giriş ekranına
+    dataService.logout(); // geçiş işareti dururken: yalnız bu sekmedeki kurum oturumu kapanır
     writeGecis(null);
-    dataService.logout();
     window.location.reload();
     throw e;
   }

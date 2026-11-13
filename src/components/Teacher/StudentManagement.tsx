@@ -3175,7 +3175,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setStudentClassId(viewingClassStudents.id);
                       setIsAddStudentOpen(true);
                     }}
-                    className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+                    className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
                     title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -3245,7 +3245,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           setStudentClassId(viewingClassStudents.id);
                           setIsAddStudentOpen(true);
                         }}
-                        className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+                        className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Yeni Öğrenci Ekle</span>
@@ -3646,7 +3646,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => handleTransferSingle(std)}
-                          className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shrink-0 min-w-24"
+                          className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm shrink-0 min-w-24"
                           title={`${std.name} adlı öğrenciyi ${transferTargetClass.name} sınıfına aktar`}
                         >
                           <Plus className="w-3.5 h-3.5" />

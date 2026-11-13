@@ -191,7 +191,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             {/* Download Button */}
             <button
               onClick={() => onDownload(document)}
-              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
               title="Orijinal Dosyayı İndir"
             >
               <Download className="w-3.5 h-3.5" />

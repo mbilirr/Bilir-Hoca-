@@ -79,6 +79,13 @@ const sure = (dk: number) => {
   return k ? `${s} sa ${k} dk` : `${s} sa`;
 };
 const ymdYerel = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Aşama 251: ders adı ile branş eşleşmesi (büyük/küçük harf ve boşluk farkı yok; "Matematik" ~ "TYT Matematik")
+const dersNorm = (x: string) => (x || '').toLocaleLowerCase('tr').replace(/[^a-zçğıöşü0-9]/g, '');
+const dersUyar = (a: string, b: string) => {
+  const x = dersNorm(a);
+  const y = dersNorm(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const etutBas = (e: Etut): Date | null => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(e.date || '');
@@ -396,13 +403,6 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       )
       .map((s) => `${s.id}@${s.submittedAt || ''}`);
   }, [submissions, benimOdev, ogrIds, can.odev]);
-  const yeniTeslimSay = yeniTeslimler.filter((id) => !gorulenTeslim.has(id)).length;
-  const yeniSorular = useMemo(() => {
-    if (!can.soru) return [];
-    const sinir = Date.now() - 3 * 86400000;
-    return soruKayit.filter((l) => (l.totalQuestions || 0) > 0 && ogrIds.has(l.studentId) && new Date(l.createdAt || 0).getTime() >= sinir).map((l) => l.id);
-  }, [soruKayit, ogrIds, can.soru]);
-  const yeniSoruSay = yeniSorular.filter((id) => !gorulenSoru.has(id)).length;
 
   // Deneme (yalnız Deneme bölümü açıksa): son deneme ve bu haftanın denemeleri
   const [sonDeneme, setSonDeneme] = useState<{ id: string; name: string; examDate: string } | null>(null);
@@ -802,58 +802,140 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
     can.ogrEkle && { k: 'ogr', ikon: UserPlus, yazi: 'Öğrenci ekle', on: () => go('students', ['action', 'student-create', '']) },
     can.ders && { k: 'ders', ikon: CalendarDays, yazi: 'Ders programım', on: () => go('grades') },
     can.soru && { k: 'soru', ikon: HelpCircle, yazi: 'Soru takibi', on: () => go('question_tracking') },
+    // Aşama 250: son deneme kısayolu (eski "Yeni gelenler" satırından)
+    can.deneme &&
+      sonDeneme && {
+        k: 'deneme',
+        ikon: BarChart3,
+        yazi: `Son deneme · ${sonDeneme.examDate ? tarihUzun(sonDeneme.examDate) : sonDeneme.name}`,
+        on: () => go('deneme'),
+      },
   ].filter(Boolean) as Array<{ k: string; ikon: React.ComponentType<{ 'aria-hidden'?: boolean }>; yazi: string; on: () => void }>;
 
-  const cipler = [
-    can.odev && yeniTeslimSay > 0 && (
-      <button
-        key="t"
-        type="button"
-        className="og-chip"
-        onClick={() => {
-          teslimGoruldu(yeniTeslimler);
-          go('homework');
-        }}
-      >
-        <span className="ic ok">
-          <BookOpen aria-hidden="true" />
-        </span>
-        <b className="tnum">{yeniTeslimSay}</b> yeni teslim <span className="new">yeni</span>
-      </button>
-    ),
-    can.soru && yeniSoruSay > 0 && (
-      <button
-        key="s"
-        type="button"
-        className="og-chip"
-        onClick={() => {
-          soruGoruldu(yeniSorular);
-          go('question_tracking');
-        }}
-      >
-        <span className="ic info">
-          <HelpCircle aria-hidden="true" />
-        </span>
-        <b className="tnum">{yeniSoruSay}</b> soru girişi
-      </button>
-    ),
-    can.mesaj && okunmamis.length > 0 && (
-      <button key="m" type="button" className="og-chip" onClick={() => go('messages')}>
-        <span className="ic bad">
-          <MessageSquare aria-hidden="true" />
-        </span>
-        <b className="tnum">{okunmamis.length}</b> okunmamış mesaj
-      </button>
-    ),
-    can.deneme && sonDeneme && (
-      <button key="d" type="button" className="og-chip" onClick={() => go('deneme')} title={sonDeneme.name}>
-        <span className="ic hi">
-          <BarChart3 aria-hidden="true" />
-        </span>
-        Son deneme · <b>{sonDeneme.examDate ? tarihUzun(sonDeneme.examDate) : sonDeneme.name}</b>
-      </button>
-    ),
-  ].filter(Boolean);
+  // ================================================================ ÖĞRENCİLERDEN (Aşama 250)
+  // Eski ana sayfadaki "Teslimler / Sorular / Mesajlar" sekmelerinin karşılığı: son 3 günde öğrencilerden gelenler tek akışta,
+  // en yeni üstte. "Yeni" işareti eski ana sayfayla aynı görüldü kaydından (birinde görülen öbüründe de görülmüş sayılır).
+  type Akis = { k: string; tur: 'teslim' | 'soru' | 'mesaj'; t: number; ad: string; alt: string; yeni: boolean; ids?: string[]; on: () => void };
+  const ogrById = useMemo(() => new Map(students.map((x) => [x.id, x] as const)), [students]);
+  const akis = useMemo(() => {
+    const l: Akis[] = [];
+    const sinir = Date.now() - 3 * 86400000;
+    if (can.odev) {
+      const hw = new Map(benimOdev.map((h) => [h.id, h] as const));
+      for (const x of submissions) {
+        if (x.status !== 'on_time' && x.status !== 'late') continue;
+        const h = hw.get(x.homeworkId);
+        const o = ogrById.get(x.studentId);
+        const t = new Date(x.submittedAt || 0).getTime();
+        if (!h || !o || t < sinir) continue;
+        const id = `${x.id}@${x.submittedAt || ''}`;
+        l.push({
+          k: 't' + id,
+          tur: 'teslim',
+          t,
+          ad: o.name,
+          alt: `${sinifAd.get(o.classId) || ''}${sinifAd.get(o.classId) ? ' · ' : ''}${h.title} teslim etti${x.status === 'late' ? ' (geç)' : ''}`,
+          yeni: !gorulenTeslim.has(id),
+          on: () => {
+            teslimGoruldu([id]);
+            go('homework', ['homework', h.id, h.title]);
+          },
+        });
+      }
+    }
+    // Aşama 251: soru girişleri yalnız ÖDEV VEREN öğretmene ve yalnız KENDİ BRANŞINDA görünür. Öğretmen o öğrenciye
+    // kendi branşından ödev verdiyse öğrencinin o dersteki soruları gelir; aynı öğrencinin aynı günkü girişleri tek satırda
+    // toplanır ("+40 soru daha çözdü").
+    if (can.soru && can.odev) {
+      const bransOdev = benimOdev.filter((h) => (brans ? dersUyar(h.subject, brans) : !!h.subject));
+      const dersCache = new Map<string, string[]>();
+      const ogrDersleri = (o: (typeof students)[number]) => {
+        let d = dersCache.get(o.id);
+        if (!d) {
+          d = Array.from(new Set(bransOdev.filter((h) => dataService.isHomeworkForStudent(h, o)).map((h) => h.subject)));
+          dersCache.set(o.id, d);
+        }
+        return d;
+      };
+      const gruplar = new Map<string, Array<{ q: StudentQuestionLog; n: number; dersler: string[]; t: number }>>();
+      for (const q of soruKayit) {
+        const o = ogrById.get(q.studentId);
+        const t = new Date(q.createdAt || 0).getTime();
+        if (!o || t < sinir) continue;
+        const izinli = ogrDersleri(o);
+        if (!izinli.length) continue;
+        const uyan = (q.entries || []).filter((e) => (e.questionCount || 0) > 0 && izinli.some((d) => dersUyar(e.subject, d)));
+        const n = uyan.reduce((x, e) => x + (e.questionCount || 0), 0);
+        if (n <= 0) continue;
+        const gun = q.date || ymdYerel(new Date(t));
+        const key = `${o.id}|${gun}`;
+        const g = gruplar.get(key) || [];
+        g.push({ q, n, dersler: uyan.map((e) => e.subject), t });
+        gruplar.set(key, g);
+      }
+      for (const [key, g] of gruplar) {
+        g.sort((x, y) => x.t - y.t);
+        const o = ogrById.get(g[0].q.studentId)!;
+        const ids = g.map((x) => x.q.id);
+        const daha = g.slice(1).reduce((x, y) => x + y.n, 0);
+        const dersler = Array.from(new Set(g.flatMap((x) => x.dersler))).filter(Boolean);
+        const sinif = sinifAd.get(o.classId) || '';
+        l.push({
+          k: 's' + key,
+          tur: 'soru',
+          t: g[g.length - 1].t,
+          ad: o.name,
+          alt: `${sinif ? `${sinif} · ` : ''}${dersler.length ? `${dersler.join(', ')} · ` : ''}${g[0].n} soru çözdü${daha > 0 ? ` · +${daha} soru daha çözdü` : ''}`,
+          yeni: ids.some((id) => !gorulenSoru.has(id)),
+          ids,
+          on: () => {
+            soruGoruldu(ids);
+            go('question_tracking', ['student', o.id, o.name]);
+          },
+        });
+      }
+    }
+    if (can.mesaj) {
+      for (const m of okunmamis) {
+        l.push({
+          k: 'm' + m.id,
+          tur: 'mesaj',
+          t: new Date(m.createdAt || 0).getTime(),
+          ad: m.studentName || 'Öğrenci',
+          alt: `${m.studentClass ? `${m.studentClass} · ` : ''}${(m.subject || m.text || '').replace(/\s+/g, ' ').slice(0, 80)}`,
+          yeni: true,
+          on: () => go('messages'),
+        });
+      }
+    }
+    return l.sort((a, b) => b.t - a.t);
+  }, [
+    can.odev,
+    can.soru,
+    can.mesaj,
+    benimOdev,
+    submissions,
+    ogrById,
+    sinifAd,
+    gorulenTeslim,
+    teslimGoruldu,
+    soruKayit,
+    gorulenSoru,
+    soruGoruldu,
+    okunmamis,
+    go,
+    brans,
+  ]);
+  const akisYeni = akis.filter((a) => a.yeni && a.tur !== 'mesaj').length;
+  const [tumAkis, setTumAkis] = useState(false);
+  const akisKarti = can.odev || can.soru || can.mesaj;
+  const once = (t: number) => {
+    const dk = Math.max(0, Math.round((simdi.getTime() - t) / 60000));
+    if (dk < 1) return 'şimdi';
+    if (dk < 60) return `${dk} dk`;
+    if (dk < 24 * 60) return `${Math.floor(dk / 60)} sa`;
+    return gunFark(ymdYerel(new Date(t)), yerelBugun) === 1 ? 'dün' : `${gunFark(ymdYerel(new Date(t)), yerelBugun)} gün`;
+  };
 
   const gorunenIsler = tumIsler ? isler : isler.slice(0, 5);
 
@@ -989,165 +1071,230 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
         </article>
       )}
 
-      {/* ===== Yeni gelenler ===== */}
-      {cipler.length > 0 && (
-        <div className="og-fresh" aria-label="Yeni gelenler">
-          {cipler}
-        </div>
-      )}
-
-      {(isKarti || disKarti) && (
-        <div className={isKarti && disKarti ? 'od-grid2' : ''}>
-          {isKarti && (
-            <section className="od-card" aria-labelledby="og-h-bek">
-              <div className="od-card-h">
-                <div>
-                  <h2 id="og-h-bek">
-                    Sizi bekleyenler <span className={`og-count${isler.length ? '' : ' ok'}`}>{isler.length}</span>
-                  </h2>
-                  <p>Geciken ya da unutulan işler · yapınca kendiliğinden kaybolur</p>
-                </div>
-              </div>
-              {isler.length ? (
-                <>
-                  <ul className="og-todo">
-                    {gorunenIsler.map((x) => (
-                      <li key={x.k}>
-                        <span className={`bar${x.uyari ? ' w' : ''}`} />
-                        <span className="t">
-                          <b title={x.baslik}>{x.baslik}</b>
-                          <span title={x.alt}>{x.alt}</span>
-                        </span>
-                        <span className={`age${x.uyari ? ' w' : ''}`}>{yasYazi(x.yas)}</span>
-                        <button type="button" className={`ak-btn w-24${x.uyari ? '' : ' primary'}`} onClick={x.on}>
-                          {x.btn}
+      {/* Aşama 250: iki sütun dengeli — solda Sizi bekleyenler + Ödevlerim, sağda Bugün ders dışında + Öğrencilerden */}
+      {(isKarti || can.odev || disKarti || akisKarti) && (
+        <div className={(isKarti || can.odev) && (disKarti || akisKarti) ? 'od-grid2' : ''}>
+          {(isKarti || can.odev) && (
+            <div className="og-col">
+              {isKarti && (
+                <section className="od-card" aria-labelledby="og-h-bek">
+                  <div className="od-card-h">
+                    <div>
+                      <h2 id="og-h-bek">
+                        Sizi bekleyenler <span className={`og-count${isler.length ? '' : ' ok'}`}>{isler.length}</span>
+                      </h2>
+                      <p>Geciken ya da unutulan işler · yapınca kendiliğinden kaybolur</p>
+                    </div>
+                  </div>
+                  {isler.length ? (
+                    <>
+                      <ul className="og-todo">
+                        {gorunenIsler.map((x) => (
+                          <li key={x.k}>
+                            <span className={`bar${x.uyari ? ' w' : ''}`} />
+                            <span className="t">
+                              <b title={x.baslik}>{x.baslik}</b>
+                              <span title={x.alt}>{x.alt}</span>
+                            </span>
+                            <span className={`age${x.uyari ? ' w' : ''}`}>{yasYazi(x.yas)}</span>
+                            <button type="button" className={`ak-btn w-24${x.uyari ? '' : ' primary'}`} onClick={x.on}>
+                              {x.btn}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {isler.length > 5 && (
+                        <button type="button" className="od-link og-more" onClick={() => setTumIsler((v) => !v)}>
+                          {tumIsler ? 'Daha az göster' : `+${isler.length - 5} iş daha`}
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {isler.length > 5 && (
-                    <button type="button" className="od-link og-more" onClick={() => setTumIsler((v) => !v)}>
-                      {tumIsler ? 'Daha az göster' : `+${isler.length - 5} iş daha`}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="og-empty">
-                  <span className="ok">
-                    <Check aria-hidden="true" />
-                  </span>
-                  <b>Her şey yolunda</b>
-                  Bekleyen işiniz kalmadı. İyi dersler!
-                </div>
-              )}
-            </section>
-          )}
-
-          {disKarti && (
-            <section className="od-card" aria-labelledby="og-h-dis">
-              <div className="od-card-h">
-                <div>
-                  <h2 id="og-h-dis">Bugün ders dışında</h2>
-                  <p>Saat sırasıyla</p>
-                </div>
-              </div>
-              {disOlay.length ? (
-                <ol className="og-tl">
-                  {disOlay.map((o, i) => (
-                    <React.Fragment key={o.k}>
-                      {i === cizgiOnce && (
-                        <li className="nowline" aria-label={`Şu an ${simdiHm}`}>
-                          <span className="tnum">{simdiHm}</span>
-                          <i />
-                        </li>
                       )}
-                      <li className={o.gecti ? 'gecti' : undefined}>
-                        <span className="h tnum">{o.saat || 'Gün'}</span>
-                        <span className="node">
-                          <i className={o.tur} />
-                        </span>
-                        <button type="button" className="x" onClick={o.on}>
-                          <b>{o.b}</b>
-                          {o.alt && <span>{o.alt}</span>}
-                        </button>
-                        <span className={`og-tag ${o.tur}`}>{o.etiket}</span>
-                      </li>
-                    </React.Fragment>
-                  ))}
-                </ol>
-              ) : (
-                <div className="od-empty">
-                  <i>✓</i>
-                  Bugün ders dışında planlı işiniz yok.
-                </div>
+                    </>
+                  ) : (
+                    <div className="og-empty">
+                      <span className="ok">
+                        <Check aria-hidden="true" />
+                      </span>
+                      <b>Her şey yolunda</b>
+                      Bekleyen işiniz kalmadı. İyi dersler!
+                    </div>
+                  )}
+                </section>
               )}
-            </section>
+
+              {/* ===== Ödevlerim ===== */}
+              {can.odev && (
+                <section className="od-card" aria-labelledby="og-h-odev">
+                  <div className="od-card-h">
+                    <div>
+                      <h2 id="og-h-odev">Ödevlerim</h2>
+                      <p>
+                        {odevlerim.aktif ? `Aktif ${odevlerim.aktif} ödev` : 'Aktif ödeviniz yok'}
+                        {odevlerim.oran !== null ? ` · teslim oranı %${odevlerim.oran}` : ''}
+                      </p>
+                    </div>
+                    <button type="button" className="od-link" onClick={() => go('homework')}>
+                      Ödevler
+                      <ArrowRight aria-hidden="true" />
+                    </button>
+                  </div>
+                  {odevlerim.liste.length ? (
+                    <>
+                      <ul className="og-hw">
+                        {odevlerim.liste.map((h) => {
+                          const d = odevDurum.get(h.id) || { exp: 0, kontrol: 0, teslim: 0, teslimTum: 0, isaretsiz: 0, siniflar: '' };
+                          const gecti = odevGun(h) < yerelBugun;
+                          const yuz = (n: number) => (d.exp ? `${Math.min(100, (n / d.exp) * 100)}%` : '0%');
+                          return (
+                            <li key={h.id}>
+                              <button type="button" onClick={() => go('homework', ['homework', h.id, h.title])}>
+                                <span style={{ minWidth: 0 }}>
+                                  <b title={h.title}>{h.title}</b>
+                                  <span className={`s${gecti ? ' bad' : ''}`}>
+                                    {[d.siniflar, sonGunYazi(h), gecti && d.isaretsiz ? `${d.isaretsiz} işaretlenmedi` : ''].filter(Boolean).join(' · ')}
+                                  </span>
+                                </span>
+                                <span className="og-bar2" aria-label={`${d.exp} öğrenciden ${d.kontrol} kontrol edildi, ${d.teslim} teslim edildi`}>
+                                  <i className="a" style={{ width: yuz(d.kontrol) }} />
+                                  <i className="b" style={{ width: yuz(d.teslim) }} />
+                                </span>
+                                <span className="n tnum">
+                                  {d.kontrol + d.teslim}/{d.exp}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="og-legend" aria-hidden="true">
+                        <span>
+                          <i className="a" />
+                          Kontrol edildi
+                        </span>
+                        <span>
+                          <i className="b" />
+                          Teslim edildi
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="od-empty">
+                      <i>✓</i>
+                      Teslimi süren ödeviniz yok.
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
+          )}
+
+          {(disKarti || akisKarti) && (
+            <div className="og-col">
+              {disKarti && (
+                <section className="od-card" aria-labelledby="og-h-dis">
+                  <div className="od-card-h">
+                    <div>
+                      <h2 id="og-h-dis">Bugün ders dışında</h2>
+                      <p>Saat sırasıyla</p>
+                    </div>
+                  </div>
+                  {disOlay.length ? (
+                    <ol className="og-tl">
+                      {disOlay.map((o, i) => (
+                        <React.Fragment key={o.k}>
+                          {i === cizgiOnce && (
+                            <li className="nowline" aria-label={`Şu an ${simdiHm}`}>
+                              <span className="tnum">{simdiHm}</span>
+                              <i />
+                            </li>
+                          )}
+                          <li className={o.gecti ? 'gecti' : undefined}>
+                            <span className="h tnum">{o.saat || 'Gün'}</span>
+                            <span className="node">
+                              <i className={o.tur} />
+                            </span>
+                            <button type="button" className="x" onClick={o.on}>
+                              <b>{o.b}</b>
+                              {o.alt && <span>{o.alt}</span>}
+                            </button>
+                            <span className={`og-tag ${o.tur}`}>{o.etiket}</span>
+                          </li>
+                        </React.Fragment>
+                      ))}
+                    </ol>
+                  ) : (
+                    <div className="od-empty">
+                      <i>✓</i>
+                      Bugün ders dışında planlı işiniz yok.
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* ===== Öğrencilerden (Aşama 250) ===== */}
+              {akisKarti && (
+                <section className="od-card" aria-labelledby="og-h-akis" id="home-ogrencilerden">
+                  <div className="od-card-h">
+                    <div>
+                      <h2 id="og-h-akis">Öğrencilerden {akisYeni > 0 && <span className="og-count hi">{akisYeni} yeni</span>}</h2>
+                      <p>Son 3 gün · {[can.odev && 'teslim', can.soru && can.odev && 'branşınızda soru', can.mesaj && 'mesaj'].filter(Boolean).join(', ')}</p>
+                    </div>
+                    {akisYeni > 0 && (
+                      <button
+                        type="button"
+                        className="od-link"
+                        onClick={() => {
+                          teslimGoruldu(yeniTeslimler);
+                          soruGoruldu(akis.flatMap((a) => (a.tur === 'soru' && a.ids ? a.ids : [])));
+                        }}
+                      >
+                        Hepsini gördüm
+                      </button>
+                    )}
+                  </div>
+                  {akis.length ? (
+                    <>
+                      <ul className="og-feed">
+                        {(tumAkis ? akis : akis.slice(0, 5)).map((a) => (
+                          <li key={a.k}>
+                            <button type="button" onClick={a.on}>
+                              <span className={`ic ${a.tur}`}>
+                                {a.tur === 'teslim' ? (
+                                  <BookOpen aria-hidden="true" />
+                                ) : a.tur === 'soru' ? (
+                                  <HelpCircle aria-hidden="true" />
+                                ) : (
+                                  <MessageSquare aria-hidden="true" />
+                                )}
+                              </span>
+                              <span className="t">
+                                <b title={a.ad}>{a.ad}</b>
+                                <span title={a.alt}>{a.alt}</span>
+                              </span>
+                              <span className="tm tnum">
+                                {a.yeni && <i aria-label="yeni" />}
+                                {once(a.t)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {akis.length > 5 && (
+                        <button type="button" className="od-link og-more" onClick={() => setTumAkis((v) => !v)}>
+                          {tumAkis ? 'Daha az göster' : `+${akis.length - 5} kayıt daha`}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="od-empty">
+                      <i>✓</i>
+                      Son 3 günde öğrencilerden yeni bir şey gelmedi.
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
           )}
         </div>
-      )}
-
-      {/* ===== Ödevlerim ===== */}
-      {can.odev && (
-        <section className="od-card" aria-labelledby="og-h-odev">
-          <div className="od-card-h">
-            <div>
-              <h2 id="og-h-odev">Ödevlerim</h2>
-              <p>
-                {odevlerim.aktif ? `Aktif ${odevlerim.aktif} ödev` : 'Aktif ödeviniz yok'}
-                {odevlerim.oran !== null ? ` · teslim oranı %${odevlerim.oran}` : ''}
-              </p>
-            </div>
-            <button type="button" className="od-link" onClick={() => go('homework')}>
-              Ödevler
-              <ArrowRight aria-hidden="true" />
-            </button>
-          </div>
-          {odevlerim.liste.length ? (
-            <>
-              <ul className="og-hw">
-                {odevlerim.liste.map((h) => {
-                  const d = odevDurum.get(h.id) || { exp: 0, kontrol: 0, teslim: 0, teslimTum: 0, isaretsiz: 0, siniflar: '' };
-                  const gecti = odevGun(h) < yerelBugun;
-                  const yuz = (n: number) => (d.exp ? `${Math.min(100, (n / d.exp) * 100)}%` : '0%');
-                  return (
-                    <li key={h.id}>
-                      <button type="button" onClick={() => go('homework', ['homework', h.id, h.title])}>
-                        <span style={{ minWidth: 0 }}>
-                          <b title={h.title}>{h.title}</b>
-                          <span className={`s${gecti ? ' bad' : ''}`}>
-                            {[d.siniflar, sonGunYazi(h), gecti && d.isaretsiz ? `${d.isaretsiz} işaretlenmedi` : ''].filter(Boolean).join(' · ')}
-                          </span>
-                        </span>
-                        <span className="og-bar2" aria-label={`${d.exp} öğrenciden ${d.kontrol} kontrol edildi, ${d.teslim} teslim edildi`}>
-                          <i className="a" style={{ width: yuz(d.kontrol) }} />
-                          <i className="b" style={{ width: yuz(d.teslim) }} />
-                        </span>
-                        <span className="n tnum">
-                          {d.kontrol + d.teslim}/{d.exp}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="og-legend" aria-hidden="true">
-                <span>
-                  <i className="a" />
-                  Kontrol edildi
-                </span>
-                <span>
-                  <i className="b" />
-                  Teslim edildi
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="od-empty">
-              <i>✓</i>
-              Teslimi süren ödeviniz yok.
-            </div>
-          )}
-        </section>
       )}
 
       {/* ===== Bu hafta ===== */}

@@ -414,6 +414,16 @@ export default function App() {
   const unreadMessagesCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages, authSession]) + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
   // Aşama 244: yeni tasarımlı (kabuklu) ana sayfa: menü solda, üst menünün bölüm satırı gizli
   const kabukluAnaSayfa = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' ? anaSayfaTuru() : null;
+  // Aşama 250: kurum bilgisi (rol, bölümler) gelmeden hangi ana sayfanın açılacağı bilinmez; o ana kadar eski ana sayfa
+  // bir an görünüp yenisine dönmesin diye yükleniyor yazısı gösterilir (bağlantı yoksa 8 saniye sonra bugünkü sayfa açılır).
+  const [kurumBeklemeBitti, setKurumBeklemeBitti] = useState(false);
+  const anaSayfaBekliyor =
+    authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' && !kabukluAnaSayfa && !dataService.getMyKurum().loaded && !kurumBeklemeBitti;
+  useEffect(() => {
+    if (!anaSayfaBekliyor) return;
+    const t = setTimeout(() => setKurumBeklemeBitti(true), 8000);
+    return () => clearTimeout(t);
+  }, [anaSayfaBekliyor]);
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens
@@ -556,7 +566,9 @@ export default function App() {
 
       {/* Main Container */}
       <main className={kabukluAnaSayfa ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
-        {role === 'teacher' && kabukluAnaSayfa === 'sistem' ? (
+        {anaSayfaBekliyor ? (
+          <PageLoading />
+        ) : role === 'teacher' && kabukluAnaSayfa === 'sistem' ? (
           /* Aşama 244: sistem sahibi ana sayfası (tam genişlik; yedek hatırlatması ve uyarılar sayfanın içinde) */
           <Suspense fallback={<PageLoading />}>
             <SistemSahibiAnaSayfa currentTeacher={currentTeacher} unreadMessages={unreadMessagesCount} onNavigateTab={selectTeacherTab} />

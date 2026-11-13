@@ -1272,7 +1272,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 onClick={() => {
                   openEtutForm('create');
                 }}
-                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+                className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>İlk Etütü Planla</span>

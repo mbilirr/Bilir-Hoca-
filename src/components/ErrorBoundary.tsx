@@ -85,7 +85,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <button
                 type="button"
                 onClick={this.handleRetry}
-                className="ui-btn ui-btn-sm w-full bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="ui-btn ui-btn-sm w-full bg-fg hover:opacity-90 text-canvas"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Tekrar Dene</span>

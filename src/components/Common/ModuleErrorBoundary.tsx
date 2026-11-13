@@ -54,7 +54,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
             <button
               type="button"
               onClick={this.handleRetry}
-              className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white min-w-24"
+              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Modülü Yeniden Başlat</span>

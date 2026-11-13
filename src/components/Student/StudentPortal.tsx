@@ -1033,7 +1033,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 data-yazma
                 id="student-message-send"
                 disabled={isSendingMessage}
-                className="ui-btn ui-btn-sm w-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                className="ui-btn ui-btn-sm w-full bg-fg hover:opacity-90 text-canvas disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isSendingMessage ? 'Gönderiliyor…' : 'Öğretmene İlet'}</span>
@@ -1178,7 +1178,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmittingHw || isSubmissionUploadBusy}
-                  className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 min-w-24"
+                  className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas disabled:opacity-60 min-w-24"
                 >
                   {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
                 </button>
