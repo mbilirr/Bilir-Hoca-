@@ -7435,6 +7435,18 @@ class DataService {
       throw new Error('Bu bir öğretmen/yönetici hesabıdır. Lütfen "Öğretmen" sekmesinden giriş yapınız.');
     }
 
+    // Aşama 252: öğrenci kaydından oturum bilgisi ortak yöntemle kurulur (kullanıcı gözüyle bakışta da kullanılır)
+    try {
+      return await this.ogrenciOturumu(authUser);
+    } catch (e) {
+      await supabase.auth.signOut();
+      throw e;
+    }
+  }
+
+  /** Aşama 252: giriş hesabından öğrencinin oturum kaydını kurar (kayıt yoksa ya da askıdaysa hata verir).
+   *  Öğrenci girişi ve sistem sahibinin "kullanıcı gözüyle bak" geçişi aynı yolu kullanır. */
+  public async ogrenciOturumu(authUser: { id: string; user_metadata?: any }): Promise<Student> {
     // Öğrencinin kendi kaydını veritabanından oku (sınıf, numara, durum güncel gelir)
     // Aşama 85: iletişim bilgisi korumalı tablodan (sql/85); SQL çalıştırılmadıysa eski yol
     let first = await supabase
@@ -7462,7 +7474,6 @@ class DataService {
     }
 
     if (rowError || !row) {
-      await supabase.auth.signOut();
       throw new Error(
         rowError
           ? 'Öğrenci bilgileriniz okunamadı. Lütfen internet bağlantınızı kontrol edip tekrar deneyiniz.'
@@ -7470,7 +7481,6 @@ class DataService {
       );
     }
     if (row.status === 'suspended') {
-      await supabase.auth.signOut();
       throw new Error('Hesabınız askıya alınmıştır. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.');
     }
 

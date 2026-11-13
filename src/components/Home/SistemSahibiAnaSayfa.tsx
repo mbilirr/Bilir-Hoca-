@@ -6,6 +6,7 @@ import { setQuickFocus } from '../../lib/quickFocus';
 import { BACKUP_REMINDER_DAYS, createFullBackup, getLastBackupDate } from '../../services/maintenanceService';
 import type { KurumInfo, Teacher, TeacherTabType } from '../../types';
 import { AnaSayfaKabuk, AkSheet, akBasHarf, akSelam, akTarih } from './AnaSayfaKabuk';
+import { GozuyleBakSheet } from './GozuyleBakSheet';
 
 // ============================================================================
 // Aşama 244: SİSTEM SAHİBİ ANA SAYFASI (yalnız genel yönetici, kendi panelinde; kuruma geçince kurumun sayfası açılır)
@@ -16,6 +17,7 @@ import { AnaSayfaKabuk, AkSheet, akBasHarf, akSelam, akTarih } from './AnaSayfaK
 // Kurum ayrımı: kurumların ÖĞRENCİ bilgisi bu sayfaya inmez (yalnız öğretmen sayısı).
 // Veri: kurumlar + kurum_class_grants (listKurumlar), roles_enabled (fetchKurumRows), öğretmenler (dataService),
 //       SMS durumu (sunucu: sms-status), bugünkü e-postalar (mail_log), son yedek (backup_log). Yeni tablo / SQL yok.
+// Aşama 252: "Gözüyle bak" düğmesi: sorun yaşayan kişinin ekranını şifresiz açar (GozuyleBakSheet, sql/252).
 // ============================================================================
 
 const YeniKurumModal = lazy(() => import('../Admin/YeniKurumModal').then((m) => ({ default: m.YeniKurumModal })));
@@ -149,6 +151,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
   const [mailOpen, setMailOpen] = useState(false);
   const [yeniOpen, setYeniOpen] = useState(false);
   const [yedekOpen, setYedekOpen] = useState(false);
+  const [gozuOpen, setGozuOpen] = useState(false); // Aşama 252
   const [mesaj, setMesaj] = useState<{ ton: 'ok' | 'hata'; text: string } | null>(null);
   useEffect(() => {
     if (!mesaj) return;
@@ -286,6 +289,11 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
       overlay={
         <>
           <YedekSheet open={yedekOpen} onClose={() => setYedekOpen(false)} sonYedek={yedek} adminName={currentTeacher?.name || 'Yönetici'} />
+          <GozuyleBakSheet
+            open={gozuOpen}
+            onClose={() => setGozuOpen(false)}
+            kurumlar={kurumlar.s === 'tamam' ? [...kurumlar.v].sort((a, b) => a.name.localeCompare(b.name, 'tr')) : []}
+          />
           {mesaj && (
             <div className={'ak-toast on' + (mesaj.ton === 'hata' ? ' bad' : '')} role="status" aria-live="polite">
               {mesaj.text}
@@ -298,7 +306,10 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
         <button type="button" className="ak-btn dark w-32" onClick={() => setYeniOpen(true)}>
           + Yeni kurum
         </button>
-        <button type="button" className="ak-btn w-24" onClick={() => yonetimAc('kurumlar')}>
+        <button type="button" className="ak-btn w-32" onClick={() => setGozuOpen(true)} title="Sorun yaşayan kişinin ekranını açın">
+          Gözüyle bak
+        </button>
+        <button type="button" className="ak-btn w-32" onClick={() => yonetimAc('kurumlar')}>
           Yönetim
         </button>
       </div>

@@ -19,6 +19,7 @@ import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
 const TeacherApprovalModal = lazyNamed(() => import('./components/Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
 import { supabase } from './lib/supabase';
+import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
 import {
   Student,
   Teacher,
@@ -458,6 +459,7 @@ export default function App() {
   if (!authSession) {
     return (
       <div className="relative min-h-screen">
+        <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
         <PasswordRecoveryModal />
         <AuthPortal
@@ -474,6 +476,8 @@ export default function App() {
   if (authSession.role === 'teacher' && dataService.portalSecimiGerekli()) {
     return (
       <div className="relative min-h-screen">
+        {/* Aşama 252: kullanıcı gözüyle bakarken üstte şerit */}
+        <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
         <PortalSecimi
           ad={(authSession.user as Teacher).name}
@@ -508,6 +512,8 @@ export default function App() {
     <div
       className={`min-h-screen text-fg flex flex-col overflow-x-hidden w-full max-w-full ${showTeacherChrome || (role === 'student' && currentStudent) ? 'has-bottom-nav' : ''}`}
     >
+      {/* Aşama 252: kullanıcı gözüyle bakarken üstte şerit (bütün sayfalarda) */}
+      <KullaniciGozuSeridi />
       <NetworkSyncStatusBanner />
       {/* Top Main Navbar */}
       <Navbar

@@ -216,6 +216,13 @@
 .ak-bulk input[type=checkbox] { width: calc(1.125 * var(--ak-rem)); height: calc(1.125 * var(--ak-rem)); accent-color: var(--ink); }
 .ak-oktag { font-size: calc(0.6875 * var(--ak-rem)); font-weight: 700; color: var(--green); white-space: nowrap; }
 .ak-x2 { width: calc(2 * var(--ak-rem)); height: calc(2 * var(--ak-rem)); border-radius: calc(0.5 * var(--ak-rem)); border: 1px solid var(--line-2); background: transparent; color: var(--muted); flex-shrink: 0; display: grid; place-items: center; }
+/* Aşama 252: Gözüyle bak paneli — satırlar tek satır, sağdaki düğme ve etiket aynı genişlikte */
+.ak-gz-sel { width: 100%; }
+.ak-gz-list { transition: opacity .2s; }
+.ak-gz-list.dim { opacity: .55; }
+.ak-gz-list .w b, .ak-gz-list .w span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ak-gz-list .ak-tag { width: calc(6 * var(--ak-rem)); justify-content: center; flex-shrink: 0; }
+.ak-gz-h { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: calc(0.6875 * var(--ak-rem)); margin-top: calc(1.5 * var(--ak-rem)); }
 
 @keyframes ak-fill { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes ak-rise { from { opacity: 0; transform: translateY(calc(0.625 * var(--ak-rem))); } to { opacity: 1; transform: none; } }

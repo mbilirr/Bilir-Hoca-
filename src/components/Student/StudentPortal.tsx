@@ -35,6 +35,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
+import { readGozu } from '../../lib/kurumGecis';
 import { createGoogleCalendarUrlForHomework, createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
@@ -164,7 +165,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Aşama 145: basit şifreyle girildiyse de zorunlu (girişte işaretlenir)
   const isMandatoryPasswordChange =
     Boolean(currentStudent.mustChangePassword) || dataService.basitSifreVarMi(currentStudent.id);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange && !preview); // Aşama 107: önizlemede açılmaz
+  // Aşama 107: önizlemede açılmaz. Aşama 252: sistem sahibi öğrencinin gözüyle bakarken de açılmaz (öğrencinin şifresi değişmesin)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange && !preview && !readGozu());
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
   // Submit modal state

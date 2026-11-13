@@ -10,6 +10,13 @@
 //   * Aşama 98: oturumun KİMLİĞİ (anahtarı değil) kurum_gecis_oturumlari tablosuna yazılır. Veritabanı bu sayede
 //     "genel yönetici kuruma geçti" durumunu tanır (rol anahtarı, Müdür rolü, bölüm izinleri yalnızca o kurumda açılır).
 //     Kayıt 7 gün geçerlidir; eski kayıtlar her geçişte silinir.
+// Aşama 252: KULLANICI GÖZÜYLE BAK (yalnız genel yönetici)
+//   POST /api/kurum { action: 'kisiAra', q, kurumId }  → bütün kurumlarda (ya da kendi alanında) öğretmen/öğrenci arar
+//   POST /api/kurum { action: 'gozuyle', authUserId }  → o kişinin hesabıyla bu sekmede kullanılacak oturum üretir
+//   POST /api/kurum { action: 'gozuBitir', sessionId } → bakışın bitiş zamanını yazar
+//   * Oturumun kimliği kullanici_gozu_oturumlari tablosuna yazılır (kurum_gecis_oturumlari'na YAZILMAZ: kişi kendi
+//     yetkileriyle görür, genel yönetici yetkisi taşınmaz). Bu oturumla yapılan her yazma işlemi veritabanı tetiğiyle
+//     kullanici_gozu_islemleri tablosuna düşer (sql/252).
 // Vercel ortam değişkenleri (mevcut): SUPABASE_URL (ya da VITE_SUPABASE_URL), SUPABASE_ANON_KEY (ya da VITE_...),
 // SUPABASE_SERVICE_ROLE_KEY. Yeni ayar gerekmez.
 // ============================================================================
@@ -90,6 +97,26 @@ async function recordGecis(e, sessionId, authUserId, kurumId) {
   if (!ins.ok) throw new HttpError(502, 'Kuruma geçiş kaydedilemedi. Aşama 98 SQL dosyası çalıştırıldı mı?');
 }
 
+// Tek kullanımlık bağlantı kodu üretilir (e-posta GÖNDERİLMEZ) ve hemen oturuma çevrilir (Aşama 252: ortak)
+async function magicSession(e, email, ad) {
+  const gl = await fetch(`${e.url}/auth/v1/admin/generate_link`, {
+    method: 'POST',
+    headers: serviceHeaders(e),
+    body: JSON.stringify({ type: 'magiclink', email }),
+  });
+  const link = await readJson(gl);
+  const hashed = link && (link.hashed_token || (link.properties && link.properties.hashed_token));
+  if (!gl.ok || !hashed) throw new HttpError(502, `${ad} oluşturulamadı.`);
+  const vr = await fetch(`${e.url}/auth/v1/verify`, {
+    method: 'POST',
+    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'magiclink', token_hash: hashed }),
+  });
+  const session = await readJson(vr);
+  if (!vr.ok || !session || !session.access_token || !session.refresh_token) throw new HttpError(502, `${ad} doğrulanamadı.`);
+  return session;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function actionEnter(e, body) {
@@ -117,21 +144,7 @@ async function actionEnter(e, body) {
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Kurum yöneticisinin hesabı askıya alınmış.');
 
   // Tek kullanımlık bağlantı kodu üretilir (e-posta GÖNDERİLMEZ) ve hemen oturuma çevrilir
-  const gl = await fetch(`${e.url}/auth/v1/admin/generate_link`, {
-    method: 'POST',
-    headers: serviceHeaders(e),
-    body: JSON.stringify({ type: 'magiclink', email: authUser.email }),
-  });
-  const link = await readJson(gl);
-  const hashed = link && (link.hashed_token || (link.properties && link.properties.hashed_token));
-  if (!gl.ok || !hashed) throw new HttpError(502, 'Kuruma geçiş oturumu oluşturulamadı.');
-  const vr = await fetch(`${e.url}/auth/v1/verify`, {
-    method: 'POST',
-    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'magiclink', token_hash: hashed }),
-  });
-  const session = await readJson(vr);
-  if (!vr.ok || !session || !session.access_token || !session.refresh_token) throw new HttpError(502, 'Kuruma geçiş oturumu doğrulanamadı.');
+  const session = await magicSession(e, authUser.email, 'Kuruma geçiş oturumu');
 
   const sid = sessionIdOf(session.access_token);
   if (!UUID.test(sid)) throw new HttpError(502, 'Kuruma geçiş oturumu tanınamadı.');
@@ -145,6 +158,118 @@ async function actionEnter(e, body) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Aşama 252: KULLANICI GÖZÜYLE BAK
+// ---------------------------------------------------------------------------
+// PostgREST süzgecini bozabilecek işaretler aramadan çıkarılır
+const temizAra = (q) => String(q || '').replace(/[,()*%\\:"'.]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+
+async function actionKisiAra(e, body) {
+  const q = temizAra(body.q);
+  if (q.length < 2) return { ok: true, kisiler: [] };
+  const kurumId = String(body.kurumId || '');
+  if (kurumId && kurumId !== 'kendi' && !UUID.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
+  const kf = kurumId === 'kendi' ? '&kurum_id=is.null' : kurumId ? `&kurum_id=eq.${kurumId}` : '';
+  const like = encodeURIComponent(`*${q}*`);
+  const [ogretmen, ogrenci, kurumlar] = await Promise.all([
+    rest(e, `teachers?select=id,name,username,branch,is_admin,kurum_id,auth_user_id,status&auth_user_id=not.is.null${kf}&or=(name.ilike.${like},username.ilike.${like})&order=name.asc&limit=15`),
+    rest(e, `students?select=id,name,student_number,class_name,kurum_id,auth_user_id,status&auth_user_id=not.is.null${kf}&or=(name.ilike.${like},student_number.ilike.${like})&order=name.asc&limit=15`),
+    rest(e, 'kurumlar?select=id,name'),
+  ]);
+  const ids = ogretmen.map((t) => t.id);
+  const roller = ids.length
+    ? await rest(e, `teacher_roles?select=teacher_id,role&teacher_id=in.(${ids.map((x) => `"${String(x).replace(/"/g, '')}"`).join(',')})`)
+    : [];
+  const kurumAd = (id) => (id ? (kurumlar.find((k) => k.id === id) || {}).name || 'Kurum' : 'Kendi alanım');
+  const kisiler = [
+    ...ogretmen.map((t) => ({
+      authUserId: t.auth_user_id,
+      ad: t.name,
+      tur: 'ogretmen',
+      roller: roller.filter((r) => r.teacher_id === t.id).map((r) => r.role),
+      yonetici: !!t.is_admin,
+      ek: t.branch || '',
+      kurumId: t.kurum_id || null,
+      kurumAd: kurumAd(t.kurum_id),
+      askida: t.status === 'suspended',
+    })),
+    ...ogrenci.map((s) => ({
+      authUserId: s.auth_user_id,
+      ad: s.name,
+      tur: 'ogrenci',
+      roller: [],
+      yonetici: false,
+      ek: [s.class_name, s.student_number].filter(Boolean).join(' · '),
+      kurumId: s.kurum_id || null,
+      kurumAd: kurumAd(s.kurum_id),
+      askida: s.status === 'suspended',
+    })),
+  ];
+  return { ok: true, kisiler };
+}
+
+async function actionGozuyle(e, body, owner) {
+  const authUserId = String(body.authUserId || '');
+  if (!UUID.test(authUserId)) throw new HttpError(400, 'Geçersiz kişi.');
+  if (authUserId === owner.id) throw new HttpError(400, 'Kendi hesabınıza bakamazsınız.');
+  const [tRows, sRows] = await Promise.all([
+    rest(e, `teachers?select=id,name,kurum_id,status&auth_user_id=eq.${authUserId}`),
+    rest(e, `students?select=id,name,kurum_id,status&auth_user_id=eq.${authUserId}`),
+  ]);
+  const kayit = tRows[0] || sRows[0];
+  if (!kayit) throw new HttpError(404, 'Kişinin kaydı bulunamadı.');
+  const tur = tRows[0] ? 'ogretmen' : 'ogrenci';
+  const kurum = kayit.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${kayit.kurum_id}`))[0] : null;
+
+  const ur = await fetch(`${e.url}/auth/v1/admin/users/${authUserId}`, { headers: serviceHeaders(e) });
+  const authUser = await readJson(ur);
+  if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Kişinin giriş hesabı okunamadı.');
+  if ((authUser.email || '').toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hedef.');
+  if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
+
+  const session = await magicSession(e, authUser.email, 'Kişinin oturumu');
+  const sid = sessionIdOf(session.access_token);
+  if (!UUID.test(sid)) throw new HttpError(502, 'Kişinin oturumu tanınamadı.');
+  const ins = await fetch(`${e.url}/rest/v1/kullanici_gozu_oturumlari`, {
+    method: 'POST',
+    headers: { ...serviceHeaders(e), Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      session_id: sid,
+      sahip_auth_id: owner.id,
+      hedef_auth_id: authUserId,
+      hedef_ad: kayit.name || '',
+      hedef_tur: tur,
+      kurum_id: kurum ? kurum.id : null,
+      kurum_ad: kurum ? kurum.name : 'Kendi alanım',
+    }),
+  });
+  if (!ins.ok) {
+    // Kayıt yazılamadıysa oturum kullanılmaz ve kapatılır (kayıtsız bakış olmaz)
+    await fetch(`${e.url}/auth/v1/logout?scope=local`, {
+      method: 'POST',
+      headers: { apikey: e.anon || e.service, Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => null);
+    throw new HttpError(502, 'Bakış kaydedilemedi. Aşama 252 SQL dosyası çalıştırıldı mı?');
+  }
+  return {
+    ok: true,
+    kisi: { ad: kayit.name || '', tur, kurumAd: kurum ? kurum.name : 'Kendi alanım' },
+    sessionId: sid,
+    session: { access_token: session.access_token, refresh_token: session.refresh_token },
+  };
+}
+
+async function actionGozuBitir(e, body, owner) {
+  const sid = String(body.sessionId || '');
+  if (!UUID.test(sid)) return { ok: true };
+  await fetch(`${e.url}/rest/v1/kullanici_gozu_oturumlari?session_id=eq.${sid}&sahip_auth_id=eq.${owner.id}&bitti=is.null`, {
+    method: 'PATCH',
+    headers: { ...serviceHeaders(e), Prefer: 'return=minimal' },
+    body: JSON.stringify({ bitti: new Date().toISOString() }),
+  }).catch(() => null);
+  return { ok: true };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Yalnızca POST.' });
@@ -156,9 +281,12 @@ export default async function handler(req, res) {
     if (!token) throw new HttpError(401, 'Oturum bulunamadı. Lütfen yeniden giriş yapın.');
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
-    if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Kurumlar arası geçişi yalnızca genel yönetici yapabilir.');
+    if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));
+    if (body.action === 'kisiAra') return res.status(200).json(await actionKisiAra(e, body));
+    if (body.action === 'gozuyle') return res.status(200).json(await actionGozuyle(e, body, user));
+    if (body.action === 'gozuBitir') return res.status(200).json(await actionGozuBitir(e, body, user));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
