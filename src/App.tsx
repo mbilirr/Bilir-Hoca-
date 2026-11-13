@@ -138,6 +138,10 @@ export default function App() {
 
   // Teacher active navigation tab — sayfa yenilenirse URL hash'inden geri yüklenir, yoksa 'home'
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>(() => parseRouteHash().tab);
+  // Aşama 264: sistem sahibinin kendi paneli (yönetim merkezi) kapalı bir bölümle açılırsa ana sayfaya geçilir
+  useEffect(() => {
+    if (teacherTab !== 'home' && dataService.yonetimMerkezi() && !dataService.canUseTab(teacherTab)) setTeacherTab('home');
+  });
 
   // Data states from dataService
   const [students, setStudents] = useState<Student[]>(dataService.getStudents());

@@ -139,8 +139,18 @@ async function switchTab(tokens: { access_token: string; refresh_token: string }
     /* depolama kapalı */
   }
   writeGecis(next);
+  anaSayfadanAc();
   window.location.reload();
   return new Promise<never>(() => {});
+}
+
+// Aşama 264: hesap / kurum değişince sayfa her zaman ana sayfadan açılır (adresteki eski bölüm, ör. #/teacher/etuts, silinir)
+function anaSayfadanAc(): void {
+  try {
+    if (window.location.hash) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  } catch {
+    /* yok say */
+  }
 }
 
 /** Supabase giriş servisine doğrudan istek (sekmedeki oturuma dokunmaz) */
@@ -232,6 +242,7 @@ async function kurumaGir(
 export async function exitKurum(): Promise<never> {
   const g = readGecis();
   if (!g) {
+    anaSayfadanAc();
     window.location.reload();
     return new Promise<never>(() => {});
   }
@@ -243,6 +254,7 @@ export async function exitKurum(): Promise<never> {
     // Dönülemezse güvenli çıkış: giriş ekranına
     dataService.logout(); // geçiş işareti dururken: yalnız bu sekmedeki kurum oturumu kapanır
     writeGecis(null);
+    anaSayfadanAc();
     window.location.reload();
     throw e;
   }
