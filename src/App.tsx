@@ -40,7 +40,6 @@ import {
 // Aşama 15: sayfalar ilk açıldıklarında yüklenir (giriş ekranı ve öğrenci telefonu hızlı açılır)
 // Aşama 84: sayfa parçalarının yükleyicileri ortak: menüden açılırken de, önceden indirilirken de aynı parça kullanılır
 const PAGE_LOADERS = {
-  home: () => import('./components/Teacher/TeacherHome'),
   students: () => import('./components/Teacher/StudentManagement'),
   homework: () => import('./components/Teacher/HomeworkManagement'),
   etuts: () => import('./components/Teacher/EtutManagement'),
@@ -60,7 +59,6 @@ const StudentManagement = lazyNamed(PAGE_LOADERS.students, 'StudentManagement');
 const HomeworkManagement = lazyNamed(PAGE_LOADERS.homework, 'HomeworkManagement');
 const EtutManagement = lazyNamed(PAGE_LOADERS.etuts, 'EtutManagement');
 const TeacherMessages = lazyNamed(PAGE_LOADERS.messages, 'TeacherMessages');
-const TeacherHome = lazyNamed(PAGE_LOADERS.home, 'TeacherHome');
 const TeacherDocumentsArchive = lazyNamed(PAGE_LOADERS.archive, 'TeacherDocumentsArchive');
 const DerslerSayfasi = lazyNamed(PAGE_LOADERS.grades, 'DerslerSayfasi'); // Aşama 220
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
@@ -422,16 +420,32 @@ export default function App() {
   const unreadMessagesCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages, authSession]) + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
   // Aşama 244: yeni tasarımlı (kabuklu) ana sayfa: menü solda, üst menünün bölüm satırı gizli
   const kabukluAnaSayfa = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' ? anaSayfaTuru() : null;
-  // Aşama 250: kurum bilgisi (rol, bölümler) gelmeden hangi ana sayfanın açılacağı bilinmez; o ana kadar eski ana sayfa
-  // bir an görünüp yenisine dönmesin diye yükleniyor yazısı gösterilir (bağlantı yoksa 8 saniye sonra bugünkü sayfa açılır).
-  const [kurumBeklemeBitti, setKurumBeklemeBitti] = useState(false);
-  const anaSayfaBekliyor =
-    authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' && !kabukluAnaSayfa && !dataService.getMyKurum().loaded && !kurumBeklemeBitti;
+  // Aşama 250 / 255: kurum bilgisi (rol, bölümler) gelmeden hangi ana sayfanın açılacağı bilinmez. Eski ana sayfa (TeacherHome)
+  // kaldırıldı: bilgi gelene kadar sade bekleme ekranı görünür; 8 saniyede gelmezse "Yeniden dene" çıkar (eski sayfaya düşülmez).
+  const anaSayfaBekliyor = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' && !kabukluAnaSayfa;
+  const [kurumGecikti, setKurumGecikti] = useState(false);
+  const [kurumDeneniyor, setKurumDeneniyor] = useState(false);
   useEffect(() => {
-    if (!anaSayfaBekliyor) return;
-    const t = setTimeout(() => setKurumBeklemeBitti(true), 8000);
+    if (!anaSayfaBekliyor) {
+      setKurumGecikti(false);
+      return;
+    }
+    const t = setTimeout(() => setKurumGecikti(true), 8000);
     return () => clearTimeout(t);
   }, [anaSayfaBekliyor]);
+  const kurumYenidenDene = async () => {
+    setKurumDeneniyor(true);
+    setKurumGecikti(false);
+    try {
+      await dataService.syncMyKurum();
+    } catch {
+      /* bağlantı yok: aşağıda yeniden denenir */
+    } finally {
+      setKurumDeneniyor(false);
+      setDataRev((n) => n + 1);
+      setTimeout(() => setKurumGecikti(true), 8000);
+    }
+  };
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens
@@ -440,8 +454,8 @@ export default function App() {
   useEffect(() => {
     if (sessionRole === 'student') return prefetchModules(STUDENT_LOADERS);
     if (sessionRole !== 'teacher') return;
-    const order: Array<keyof typeof PAGE_LOADERS> = ['home', 'students', 'homework', 'etuts', 'messages', 'grades', 'question_tracking', 'deneme', 'archive'];
-    return prefetchModules(order.filter((t) => t === 'home' || dataService.canUseTab(t as TeacherTabType)).map((t) => PAGE_LOADERS[t]));
+    const order: Array<keyof typeof PAGE_LOADERS> = ['students', 'homework', 'etuts', 'messages', 'grades', 'question_tracking', 'deneme', 'archive'];
+    return prefetchModules(order.filter((t) => dataService.canUseTab(t as TeacherTabType)).map((t) => PAGE_LOADERS[t]));
   }, [sessionRole]);
 
   // Aşama 82: yalnızca Etüt Öğretmeni rolü olan kişi doğrudan Etütler bölümünde açılır (ana sayfa öğrenci özetleri içerir)
@@ -585,7 +599,17 @@ export default function App() {
       {/* Aşama 253: öğrenci portalı kendi kabını kurar (ana sayfası tam genişlik kabuk, diğer bölümler app-container) */}
       <main className={kabukluAnaSayfa || (role === 'student' && currentStudent) ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
         {anaSayfaBekliyor ? (
-          <PageLoading />
+          kurumGecikti && !kurumDeneniyor ? (
+            <div className="ui-card p-8 text-center space-y-3 max-w-md mx-auto mt-10" id="ana-sayfa-bekleme" role="status">
+              <h2 className="text-base font-bold text-fg">Kurum bilgileri alınamadı</h2>
+              <p className="text-sm text-muted">Bağlantı yavaş ya da kesik olabilir. Ana sayfa, bilgiler gelince açılır.</p>
+              <button type="button" onClick={() => void kurumYenidenDene()} className="ui-btn ui-btn-primary ui-btn-sm w-28 mx-auto">
+                Yeniden dene
+              </button>
+            </div>
+          ) : (
+            <PageLoading />
+          )
         ) : role === 'teacher' && kabukluAnaSayfa === 'sistem' ? (
           /* Aşama 244: sistem sahibi ana sayfası (tam genişlik; yedek hatırlatması ve uyarılar sayfanın içinde) */
           <Suspense fallback={<PageLoading />}>
@@ -721,23 +745,6 @@ export default function App() {
                   Başvuruları İncele
                 </button>
               </div>
-            )}
-
-            {/* ANA SAYFA: selamlama, "Bugün" özeti, özet kartları ve ajanda */}
-            {teacherTab === 'home' && !dataService.roleEtutOnly() && (
-              <Suspense fallback={<PageLoading />}>
-              <TeacherHome
-                currentTeacher={currentTeacher}
-                students={students}
-                classes={classes}
-                homeworks={homeworks}
-                submissions={submissions}
-                etuts={etuts}
-                messages={messages}
-                onNavigateTab={selectTeacherTab}
-                onOpenStudentView={() => handleRoleChange('student')}
-              />
-              </Suspense>
             )}
 
             {/* Aşama 105: yalnız Etüt Öğretmeni rolü olan kişiye Etütler bölümü kapalıysa boş sayfa yerine bilgi */}

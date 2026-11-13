@@ -2,7 +2,7 @@ import { dataService } from '../../services/dataService';
 
 // ============================================================================
 // Aşama 244: hangi ana sayfa açılacak (rol / portal)
-// Yeni tasarımlı ana sayfalar sırayla eklenir; listede olmayan hesap bugünkü ana sayfayı (TeacherHome) görür.
+// Her öğretmen hesabı bir yeni tasarımlı ana sayfa görür (Aşama 255: eski TeacherHome kaldırıldı).
 //  - 'sistem': genel yönetici kendi panelinde (kuruma geçince o kurumun sayfası açılır)
 //  - 'kurum' (Aşama 245): kurum yöneticisi kaydı olan hesap — Kurum yöneticisi portalında ya da portal seçimi yoksa.
 //             İdare / Öğretmen portalını seçen kurum yöneticisi o portalın ana sayfasını görür (yoneticiKaydi portala bakar).
@@ -39,5 +39,8 @@ export function anaSayfaTuru(): AnaSayfaTuru {
     dataService.roleCanTeach()
   )
     return 'ogretmen';
-  return null;
+  // Aşama 255: eski ana sayfa (TeacherHome) kaldırıldı. Kurum bilgisi geldiyse yukarıdakilere uymayan her öğretmen hesabı
+  // (sistem sahibinin kendi alanındaki kurumsuz öğretmenler dahil) öğretmen ana sayfasını görür; o sayfa yalnız açık bölümleri çizer.
+  if (k.loaded) return 'ogretmen';
+  return null; // kurum bilgisi henüz gelmedi: App bekleme ekranı gösterir
 }
