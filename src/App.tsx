@@ -480,7 +480,8 @@ export default function App() {
 
   // Aşama 256: sistem sahibi girişte "Sistem sahibi / bağlı öğretmen hesabı" seçer (bağlı hesap yoksa sorulmaz).
   // Seçim bu oturumda bir kez yapılır; "hatırla" seçiliyse sorulmadan o hesap açılır.
-  const hesapSecimAday = authSession?.role === 'teacher' && dataService.isHeadAdmin() && !readGecis() && !hesapSecimiYapildi();
+  // Aşama 263: her öğretmen (bağlı hesabı yoksa sorulmaz)
+  const hesapSecimAday = authSession?.role === 'teacher' && !readGecis() && !hesapSecimiYapildi();
   const [hesapListe, setHesapListe] = useState<BagliHesap[] | null>(null);
   const [hesapSecimBitti, setHesapSecimBitti] = useState(false);
   useEffect(() => {

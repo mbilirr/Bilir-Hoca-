@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { LogOut, HeartHandshake, ClipboardCheck, CalendarClock, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
+import { LogOut, HeartHandshake, ClipboardCheck, CalendarClock, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Repeat, Mail, Camera, Search, Settings2,
   MailCheck, GraduationCap, Building2, Check, ListChecks, Link2,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
@@ -8,7 +8,7 @@ import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
 import { PortalDegistirPencere } from './Auth/PortalSecimi'; // Aşama 254c
 import { HesapSecPencere, BagliHesaplarPencere } from './Auth/HesapSecimi'; // Aşama 256
-import { bagliHesaplar, readBagli, readGecis } from '../lib/kurumGecis'; // Aşama 256
+import { bagliHesaplar, bagliKullanilir, readBagli, readGecis, sahipKarti } from '../lib/kurumGecis'; // Aşama 256 / 263
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
@@ -125,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [portalPencere, setPortalPencere] = useState(false);
   // Aşama 256: sistem sahibinin bağlı (kendi) hesapları: logoya basınca hesap seçimi; bağlı hesaptayken geri dönüş
   const bagliIcinde = isTeacherSession && !!readBagli();
-  const sahipPaneli = isTeacherSession && dataService.isHeadAdmin() && !readGecis();
+  const sahipPaneli = isTeacherSession && bagliKullanilir() && !readGecis(); // Aşama 263: her öğretmenin ana hesabı
   const [bagliVar, setBagliVar] = useState(false);
   const [hesapPencere, setHesapPencere] = useState(false);
   const [bagliYonet, setBagliYonet] = useState(false);
@@ -368,15 +368,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <MenuItem icon={Mail} onClick={closeAnd(() => setIsSentCommunicationsOpen(true))}>
                           Giden E-postalar
                         </MenuItem>
-                        {/* Aşama 256: başka kurumdaki kendi öğretmen hesabını bağlama (yalnız sistem sahibi, kendi panelinde) */}
+                        {/* Aşama 256 / 263: başka kurumdaki kendi öğretmen hesabını bağlama (giriş yapılan ana hesapta) */}
                         {sahipPaneli && (
                           <MenuItem icon={Link2} onClick={closeAnd(() => setBagliYonet(true))}>
                             Bağlı hesaplarım
                           </MenuItem>
                         )}
                         {bagliIcinde && (
-                          <MenuItem icon={Crown} onClick={closeAnd(() => setHesapPencere(true))}>
-                            Sistem sahibi hesabına dön
+                          <MenuItem icon={sahipKarti().head ? Crown : Repeat} onClick={closeAnd(() => setHesapPencere(true))}>
+                            {sahipKarti().head ? 'Sistem sahibi hesabına dön' : 'Hesap değiştir'}
                           </MenuItem>
                         )}
                         {/* Aşama 243 / 257: çıkış yapmadan portal değiştirme (kurumda birden çok görevi olan herkes) */}

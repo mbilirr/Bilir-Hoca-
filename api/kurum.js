@@ -17,6 +17,10 @@
 //   * Oturumun kimliği kullanici_gozu_oturumlari tablosuna yazılır (kurum_gecis_oturumlari'na YAZILMAZ: kişi kendi
 //     yetkileriyle görür, genel yönetici yetkisi taşınmaz). Bu oturumla yapılan her yazma işlemi veritabanı tetiğiyle
 //     kullanici_gozu_islemleri tablosuna düşer (sql/252).
+// Aşama 256 / 263: BAĞLI HESAP
+//   POST /api/kurum { action: 'bagla', kullanici, sifre } → başka kurumdaki KENDİ öğretmen hesabını bağlar (şifre doğrulanır)
+//   POST /api/kurum { action: 'bagliGir', authUserId }   → yalnız bağlı hesaba şifresiz oturum
+//   * 263: sistem sahibine ek olarak her onaylı öğretmen kullanır; öğretmenler arası bağ iki yönlüdür.
 // Vercel ortam değişkenleri (mevcut): SUPABASE_URL (ya da VITE_SUPABASE_URL), SUPABASE_ANON_KEY (ya da VITE_...),
 // SUPABASE_SERVICE_ROLE_KEY. Yeni ayar gerekmez.
 // ============================================================================
@@ -300,6 +304,17 @@ function baglaSiniri(ownerId) {
   baglaDenemeleri.set(ownerId, list);
 }
 
+// Aşama 263: çağıran sistem sahibi ya da onaylı (askıda olmayan) bir öğretmen olmalı
+async function bagliSahibi(e, user) {
+  const head = (user.email || '').toLowerCase() === HEAD_ADMIN_EMAIL;
+  if (head) return { id: user.id, head: true, ad: 'Sistem sahibi', kurumAd: '' };
+  const rows = await rest(e, `teachers?select=id,name,kurum_id,status&auth_user_id=eq.${user.id}`);
+  const t = rows[0];
+  if (!t || (t.status && t.status !== 'approved')) throw new HttpError(403, 'Hesap bağlama yalnız öğretmen hesaplarında kullanılabilir.');
+  const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
+  return { id: user.id, head: false, ad: t.name || '', kurumAd: kurum ? kurum.name : 'Kendi alanım' };
+}
+
 async function actionBagla(e, body, owner) {
   const kim = String(body.kullanici || '').trim().toLowerCase();
   const sifre = String(body.sifre || '');
@@ -308,9 +323,12 @@ async function actionBagla(e, body, owner) {
   baglaSiniri(owner.id);
   const alan = kim.includes('@') ? 'email' : 'username';
   const rows = await rest(e, `teachers?select=id,name,kurum_id,status,auth_user_id&${alan}=eq.${encodeURIComponent(kim)}&auth_user_id=not.is.null`);
-  const t = rows[0];
+  const adaylar = rows.filter((r) => r.auth_user_id !== owner.id);
+  if (!adaylar.length && rows.length) throw new HttpError(400, 'Kendi hesabınızı bağlayamazsınız.');
+  if (adaylar.length > 1) throw new HttpError(400, 'Bu e-postayla birden çok hesap var; bağlamak istediğiniz hesabın kullanıcı adını yazın.');
+  const t = adaylar[0];
   if (!t) throw new HttpError(404, 'Bu kullanıcı adıyla bir öğretmen hesabı bulunamadı.');
-  if (t.auth_user_id === owner.id) throw new HttpError(400, 'Kendi hesabınızı bağlayamazsınız.');
+  if (t.status && t.status !== 'approved') throw new HttpError(409, 'Bu hesap onaylı değil ya da askıya alınmış.');
   const ur = await fetch(`${e.url}/auth/v1/admin/users/${t.auth_user_id}`, { headers: serviceHeaders(e) });
   const authUser = await readJson(ur);
   if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Hesabın giriş bilgisi okunamadı.');
@@ -329,10 +347,12 @@ async function actionBagla(e, body, owner) {
   }).catch(() => null);
   const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
   const kayit = { sahip_auth_id: owner.id, hedef_auth_id: t.auth_user_id, hedef_ad: t.name || '', kurum_ad: kurum ? kurum.name : 'Kendi alanım' };
+  // Aşama 263: öğretmenler arasındaki bağ iki yönlüdür (iki hesaptan da ötekine geçilir); sistem sahibininki tek yönlü
+  const kayitlar = owner.head ? [kayit] : [kayit, { sahip_auth_id: t.auth_user_id, hedef_auth_id: owner.id, hedef_ad: owner.ad, kurum_ad: owner.kurumAd }];
   const ins = await fetch(`${e.url}/rest/v1/bagli_hesaplar?on_conflict=sahip_auth_id,hedef_auth_id`, {
     method: 'POST',
     headers: { ...serviceHeaders(e), Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(kayit),
+    body: JSON.stringify(kayitlar),
   });
   if (!ins.ok) throw new HttpError(502, 'Bağ kaydedilemedi. Aşama 256 SQL dosyası çalıştırıldı mı?');
   return { ok: true, hesap: { authUserId: t.auth_user_id, ad: kayit.hedef_ad, kurumAd: kayit.kurum_ad } };
@@ -349,6 +369,7 @@ async function actionBagliGir(e, body, owner) {
   ]);
   const t = tRows[0];
   if (!t) throw new HttpError(404, 'Bağlı hesabın öğretmen kaydı bulunamadı.');
+  if (t.status && t.status !== 'approved') throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
   const authUser = await readJson(ur);
   if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Bağlı hesabın giriş bilgisi okunamadı.');
   if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hesap.');
@@ -376,10 +397,14 @@ export default async function handler(req, res) {
     const arama = body.action === 'kisiAra' ? actionKisiAra(e, body).then((v) => ({ v }), (err) => ({ err })) : null;
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+    // Aşama 263: bağlı hesap işlemleri her onaylı öğretmene açık (şifre doğrulamasıyla bağlanmış hesaplar arasında)
+    if (body.action === 'bagla' || body.action === 'bagliGir') {
+      const owner = await bagliSahibi(e, user);
+      if (body.action === 'bagla') return res.status(200).json(await actionBagla(e, body, owner)); // Aşama 256
+      return res.status(200).json(await actionBagliGir(e, body, owner)); // Aşama 256
+    }
     if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
     if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));
-    if (body.action === 'bagla') return res.status(200).json(await actionBagla(e, body, user)); // Aşama 256
-    if (body.action === 'bagliGir') return res.status(200).json(await actionBagliGir(e, body, user)); // Aşama 256
     if (arama) {
       const sonuc = await arama;
       if (sonuc.err) throw sonuc.err;

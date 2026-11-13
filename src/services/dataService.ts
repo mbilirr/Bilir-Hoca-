@@ -5386,6 +5386,16 @@ class DataService {
     this.resyncAfterAccessChange();
     return (data && typeof data === 'object' ? data : {}) as Record<string, number>;
   }
+  /** Aşama 263: tek öğretmenli kurumu bireysel (koçluk) hesaba çevirir (yalnız sistem sahibi; öğretmen hesabın sahibi olur) */
+  public async kurumBireyseleCevir(kurumId: string): Promise<void> {
+    if (!this.isHeadAdmin()) throw new Error('Bireysel hesaba yalnız sistem sahibi çevirebilir.');
+    const { error } = await supabase.rpc('kurum_bireysel_cevir', { p_kurum_id: kurumId });
+    if (error) {
+      if (error.code === 'PGRST202') throw new Error("Önce Supabase'de 263 numaralı SQL'i çalıştırın.");
+      throw new Error(error.message);
+    }
+    this.resyncAfterAccessChange();
+  }
   /** Aşama 258: oturumdaki kurum bireysel (koçluk) hesabı mı */
   public isBireysel(): boolean {
     return this.myKurum.loaded && !!this.myKurum.kurumId && this.myKurum.tur === 'bireysel';

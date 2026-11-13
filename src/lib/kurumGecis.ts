@@ -38,6 +38,15 @@ export interface GecisState {
   bagliListe?: BagliHesap[];
   /** Aşama 256: sistem sahibinin giriş kimliği ("seçimimi hatırla" bağlı hesaptayken de onun adına yazılır) */
   headId?: string;
+  /** Aşama 263: giriş yapılan (ana) hesabın kartı; sistem sahibi değilse "<kurum> · Öğretmen" */
+  sahip?: SahipKart;
+}
+
+/** Aşama 263: hesap seçiminde giriş yapılan (ana) hesabın kartı */
+export interface SahipKart {
+  head: boolean;
+  baslik: string;
+  aciklama: string;
 }
 
 /** Aşama 256: sistem sahibine bağlı (kendi) öğretmen hesabı */
@@ -367,11 +376,29 @@ export function readBagli(): BagliHesap | null {
   return readGecis()?.bagli || null;
 }
 
-/** Sistem sahibinin bağlı hesapları (yalnız kendi panelinde veritabanından; bağlı hesaptayken saklanan listeden) */
+/** Aşama 263: bağlı hesap özelliği bu oturumda kullanılabilir mi (öğretmen oturumu; kurum geçişi / gözüyle bakış değil) */
+export function bagliKullanilir(): boolean {
+  const g = readGecis();
+  if (g) return !!g.bagli;
+  return dataService.getAuthSession()?.role === 'teacher';
+}
+
+/** Aşama 263: giriş yapılan (ana) hesabın kartı */
+export function sahipKarti(): SahipKart {
+  const g = readGecis();
+  const HEAD: SahipKart = { head: true, baslik: 'Sistem sahibi', aciklama: 'Kurumlar, hesaplar, yedek ve sistem ayarları.' };
+  if (g) return (g.bagli && g.sahip) || HEAD; // kurum geçişi / gözüyle bakış yalnız sistem sahibinde olur
+  if (dataService.isHeadAdmin()) return HEAD;
+  const ad = dataService.getAuthSession()?.user?.name || '';
+  const kurum = dataService.getBrand().name || 'Kendi alanım';
+  return { head: false, baslik: `${kurum} · Öğretmen`, aciklama: `${ad ? `${ad} olarak ` : ''}giriş yaptığınız hesap.` };
+}
+
+/** Bağlı hesaplar (ana hesapta veritabanından; bağlı hesaptayken saklanan listeden). Aşama 263: her öğretmen */
 export async function bagliHesaplar(): Promise<BagliHesap[]> {
   const g = readGecis();
   if (g?.bagli) return g.bagliListe || [g.bagli];
-  if (!dataService.isHeadAdmin() || g) return [];
+  if (!bagliKullanilir()) return [];
   const { data, error } = await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma').order('olusturma');
   if (error) {
     if (/bagli_hesaplar|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) return []; // 256 SQL kurulmamış
@@ -380,9 +407,9 @@ export async function bagliHesaplar(): Promise<BagliHesap[]> {
   return (data || []).map((r: any) => ({ authUserId: String(r.hedef_auth_id), ad: r.hedef_ad || '', kurumAd: r.kurum_ad || '' }));
 }
 
-/** Kullanıcı adı (ya da e-posta) ve o hesabın şifresiyle hesap bağlar (yalnız sistem sahibi, kendi panelinde) */
+/** Kullanıcı adı (ya da e-posta) ve o hesabın şifresiyle hesap bağlar (giriş yapılan ana hesapta) */
 export async function hesapBagla(kullanici: string, sifre: string): Promise<BagliHesap> {
-  if (!dataService.isHeadAdmin() || readGecis()) throw new Error('Hesap bağlama yalnız sistem sahibinin kendi panelinde yapılır.');
+  if (!bagliKullanilir() || readGecis()) throw new Error('Hesap bağlama giriş yaptığınız ana hesapta yapılır.');
   const { data } = await supabase.auth.getSession();
   if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
   const out = await kurumApi(data.session.access_token, { action: 'bagla', kullanici, sifre });
@@ -403,19 +430,22 @@ export async function bagliHesabaGec(authUserId: string): Promise<never> {
   let headName: string;
   let liste: BagliHesap[];
   let headId: string;
+  let sahip: SahipKart;
   if (g) {
     if (g.bagli?.authUserId === authUserId) throw new Error('Zaten bu hesaptasınız.');
     liste = g.bagliListe || (g.bagli ? [g.bagli] : []);
     head = await restoreHead(g);
     headName = g.headName;
     headId = g.headId || '';
+    sahip = sahipKarti();
     if (g.gozu) void gozuBitirBildir(head.access_token, g.gozu.sessionId);
   } else {
-    if (!dataService.isHeadAdmin()) throw new Error('Bağlı hesaba yalnız sistem sahibi geçebilir.');
+    if (!bagliKullanilir()) throw new Error('Bağlı hesaba bu oturumdan geçilemez.');
+    sahip = sahipKarti();
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
     head = { access_token: data.session.access_token, refresh_token: data.session.refresh_token };
-    headName = dataService.getAuthSession()?.user?.name || 'Sistem sahibi';
+    headName = dataService.getAuthSession()?.user?.name || sahip.baslik;
     headId = data.session.user.id;
     liste = await bagliHesaplar();
   }
@@ -427,10 +457,10 @@ export async function bagliHesabaGec(authUserId: string): Promise<never> {
     throw e;
   }
   hesapSecildi();
-  return switchTab(out.session, { headRefresh: head.refresh_token, headName, kurumlar: [], active: null, gozu: null, bagli: out.hesap, bagliListe: liste, headId });
+  return switchTab(out.session, { headRefresh: head.refresh_token, headName, kurumlar: [], active: null, gozu: null, bagli: out.hesap, bagliListe: liste, headId, sahip });
 }
 
-/** Sistem sahibinin kendi paneline döner (bağlı hesaptan) */
+/** Giriş yapılan ana hesaba döner (bağlı hesaptan; sistem sahibinde kendi paneli) */
 export function sistemSahibineDon(): Promise<never> {
   hesapSecildi();
   return exitKurum();

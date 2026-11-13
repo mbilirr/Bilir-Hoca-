@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus } from 'lucide-react';
+import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus, UserRound } from 'lucide-react';
 import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
@@ -44,6 +44,9 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
   const [msg, setMsg] = useState<{ id: string; tone: 'ok' | 'err'; text: string } | null>(null);
   const [classSearch, setClassSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
+  // Aşama 263: tek öğretmenli kurumu bireysele çevirme (iki adımlı onay)
+  const [cevirOnay, setCevirOnay] = useState<string | null>(null);
+  const [cevirBusy, setCevirBusy] = useState<string | null>(null);
   // Aşama 149: açılan sınıflara giriş bilgisi izni (kurum başına tek anahtar). null = 149 SQL'i henüz yok
   const [credSrv, setCredSrv] = useState<Record<string, boolean> | null>({});
   const [credDraft, setCredDraft] = useState<Record<string, boolean>>({});
@@ -429,6 +432,57 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                       </span>
                     </label>
                   </fieldset>
+
+                  {/* Aşama 263: hesap türü; tek öğretmenli kurum bireysel (koçluk) hesaba çevrilir */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2.5" id={`kurum-tur-${k.id}`}>
+                    <span className="w-8 h-8 rounded-lg bg-surface-2 text-muted grid place-items-center shrink-0">
+                      <UserRound className="w-4 h-4" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-fg">Hesap türü: {k.tur === 'bireysel' ? 'Bireysel (koçluk)' : 'Kurum'}</p>
+                      <p className="text-[11px] text-muted">
+                        {k.tur === 'bireysel'
+                          ? 'Tek öğretmenli koçluk hesabı: öğretmen eklenmez, rol yetkileri kapalı.'
+                          : members.length === 1
+                            ? `Tek öğretmen var (${members[0].name}). Bireysele çevrilince öğretmen hesabın sahibi olur; öğrenci, sınıf ve kayıtlar aynen kalır.`
+                            : `${members.length} öğretmen var; yalnız tek öğretmenli kurum bireysele çevrilebilir.`}
+                      </p>
+                      {cevirOnay === k.id && (
+                        <p className="mt-1 text-[11px] font-semibold text-warning-fg" role="status">
+                          Öğretmen ekleme ve rol yetkileri kapanacak; ekrandan geri alınmaz. Onaylamak için yeniden basın.
+                        </p>
+                      )}
+                    </div>
+                    {k.tur !== 'bireysel' && (
+                      <button
+                        type="button"
+                        className={cx('ui-btn ui-btn-sm h-8 w-28 justify-center shrink-0', cevirOnay === k.id ? 'ui-btn-danger' : 'ui-btn-secondary')}
+                        disabled={members.length !== 1 || !!cevirBusy}
+                        id={`kurum-bireysel-cevir-${k.id}`}
+                        onClick={async () => {
+                          if (cevirOnay !== k.id) {
+                            setCevirOnay(k.id);
+                            return;
+                          }
+                          setCevirBusy(k.id);
+                          setMsg(null);
+                          try {
+                            await dataService.kurumBireyseleCevir(k.id);
+                            setMsg({ id: k.id, tone: 'ok', text: `"${k.name}" bireysel (koçluk) hesaba çevrildi.` });
+                            await load();
+                            onChanged?.();
+                          } catch (e: any) {
+                            setMsg({ id: k.id, tone: 'err', text: e?.message || 'Çevrilemedi.' });
+                          } finally {
+                            setCevirBusy(null);
+                            setCevirOnay(null);
+                          }
+                        }}
+                      >
+                        {cevirBusy === k.id ? 'Çevriliyor…' : cevirOnay === k.id ? 'Eminim, çevir' : 'Bireysele çevir'}
+                      </button>
+                    )}
+                  </div>
 
                   {msg && msg.id === k.id && (
                     <p

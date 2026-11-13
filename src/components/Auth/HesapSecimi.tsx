@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Crown, GraduationCap, LogOut, Check, Repeat, Link2, Trash2 } from 'lucide-react';
+import { Crown, GraduationCap, LogOut, Check, Repeat, Link2, Trash2, Building2 } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import {
   bagliHesabaGec,
@@ -10,12 +10,14 @@ import {
   hesapTercihOku,
   hesapTercihYaz,
   readBagli,
+  sahipKarti,
   sistemSahibineDon,
   type BagliHesap,
 } from '../../lib/kurumGecis';
 
 // ============================================================================
 // Aşama 256: SİSTEM SAHİBİ ↔ BAĞLI (KENDİ) ÖĞRETMEN HESABI SEÇİMİ
+// Aşama 263: her öğretmen kullanır (ör. iki kurumda hesabı olan öğretmen); ana kart giriş yapılan hesaptır.
 //  HesapSecimi: girişte tam ekran ("Sistem sahibi" / "<kurum> · Öğretmen"); "hatırla" kutusu baştan boş.
 //  HesapSecPencere: içeride kurum logosuna basınca aynı seçim (bağlı hesaptayken sistem sahibine dönüş de burada).
 //  BagliHesaplarPencere: hesap menüsünden; kullanıcı adı + o hesabın şifresiyle bağlama, bağı kaldırma.
@@ -33,8 +35,9 @@ const HesapKartlari: React.FC<{
   sik?: boolean;
   onSec: (id: string) => void;
 }> = ({ liste, aktif, busy, sik = false, onSec }) => {
+  const sahip = sahipKarti(); // Aşama 263: sistem sahibi ya da giriş yapılan öğretmen hesabı
   const secenekler = [
-    { id: SAHIP, icon: Crown, baslik: 'Sistem sahibi', aciklama: 'Kurumlar, hesaplar, yedek ve sistem ayarları.' },
+    { id: SAHIP, icon: sahip.head ? Crown : Building2, baslik: sahip.baslik, aciklama: sahip.aciklama },
     ...liste.map((h) => ({ id: h.authUserId, icon: GraduationCap, baslik: `${h.kurumAd} · Öğretmen`, aciklama: `${h.ad} olarak öğretmen hesabınız: dersler, ödev ve etüt.` })),
   ];
   return (
@@ -178,7 +181,7 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
   );
 };
 
-/** Hesap menüsünden: bağlı hesapları yönet (yalnız sistem sahibinin kendi panelinde) */
+/** Hesap menüsünden: bağlı hesapları yönet (giriş yapılan ana hesapta) */
 export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [liste, setListe] = useState<BagliHesap[] | null>(null);
   const [kullanici, setKullanici] = useState('');
@@ -223,7 +226,13 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
     }
   };
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} id="bagli-hesaplar" icon={Link2} title="Bağlı hesaplarım" description="Başka kurumdaki kendi öğretmen hesabınızı bağlayın; girişte hangi hesapla çalışacağınız sorulur." size="sm">
+    <Modal open={open} onClose={() => !busy && onClose()} id="bagli-hesaplar" icon={Link2} title="Bağlı hesaplarım" description={
+        sahipKarti().head
+          ? 'Başka kurumdaki kendi öğretmen hesabınızı bağlayın; girişte hangi hesapla çalışacağınız sorulur.'
+          : 'Başka kurumdaki kendi öğretmen hesabınızı bağlayın; iki hesaptan da ötekine şifresiz geçersiniz.'
+      }
+      size="sm"
+    >
       <div className="space-y-4 text-xs">
         <div className="space-y-1.5">
           {liste === null ? (
