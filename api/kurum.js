@@ -365,20 +365,28 @@ async function actionBagla(e, body, owner, gozuSid = null) {
 //  açık bir bakış kaydıyla eşleşmeli: o kaydı yalnız bu sunucu, sistem sahibi için yazar. Bağlarken bağlanacak
 //  hesabın kullanıcı adı ve şifresi normal bağlamadaki gibi doğrulanır; her işlem kullanici_gozu_islemleri'ne yazılır (sistem sahibinin bakış raporunda görünür).
 // ============================================================================
-async function gozuOturumuDogrula(e, token, user) {
+// Aşama 267b: kuruma geçişte de (kurum_gecis_oturumlari: yalnız bu sunucu, sistem sahibi için yazar) kullanılır.
+//  Dönüş: gözüyle bakışta bakış oturumu kimliği (işlem kaydı için), kuruma geçişte null.
+async function sahipOturumuDogrula(e, token, user) {
   const sid = sessionIdOf(token);
-  if (!UUID.test(sid)) throw new HttpError(403, 'Bu işlem yalnız sistem sahibi gözüyle bakarken yapılır.');
-  const sinir = new Date(Date.now() - 12 * 3600_000).toISOString();
-  const rows = await rest(
-    e,
-    `kullanici_gozu_oturumlari?select=session_id,sahip_auth_id,hedef_tur&session_id=eq.${sid}&hedef_auth_id=eq.${user.id}&bitti=is.null&basladi=gt.${encodeURIComponent(sinir)}`
-  );
-  const g = rows[0];
-  if (!g) throw new HttpError(403, 'Bu işlem yalnız sistem sahibi gözüyle bakarken yapılır.');
+  const red = new HttpError(403, 'Bu işlem yalnız sistem sahibi gözüyle bakarken ya da kuruma geçmişken yapılır.');
+  if (!UUID.test(sid)) throw red;
+  const gozuSinir = new Date(Date.now() - 12 * 3600_000).toISOString();
+  const gecisSinir = new Date(Date.now() - 7 * 864e5).toISOString();
+  const [gozu, gecis] = await Promise.all([
+    rest(
+      e,
+      `kullanici_gozu_oturumlari?select=session_id,sahip_auth_id,hedef_tur&session_id=eq.${sid}&hedef_auth_id=eq.${user.id}&bitti=is.null&basladi=gt.${encodeURIComponent(gozuSinir)}`
+    ).catch(() => []),
+    rest(e, `kurum_gecis_oturumlari?select=session_id&session_id=eq.${sid}&auth_user_id=eq.${user.id}&created_at=gt.${encodeURIComponent(gecisSinir)}`).catch(() => []),
+  ]);
+  if (gecis[0]) return null; // kuruma geçiş kaydını yalnız sistem sahibi için bu sunucu yazar (actionEnter)
+  const g = gozu[0];
+  if (!g) throw red;
   if (g.hedef_tur !== 'ogretmen') throw new HttpError(400, 'Hesap bağlama yalnız öğretmen hesaplarında kullanılabilir.');
   const ur = await fetch(`${e.url}/auth/v1/admin/users/${g.sahip_auth_id}`, { headers: serviceHeaders(e) });
   const sahip = await readJson(ur);
-  if (!ur.ok || String((sahip && sahip.email) || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
+  if (!ur.ok || String((sahip && sahip.email) || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw red;
   return sid;
 }
 
@@ -390,14 +398,14 @@ async function gozuIslemYaz(e, sid, islem, satirId) {
   }).catch(() => null);
 }
 
-async function actionGozuBagKaldir(e, body, owner, sid) {
+async function actionGozuBagKaldir(e, body, owner, sid) { // sid: gözüyle bakışta kayıt için; kuruma geçişte null
   const hedef = String(body.authUserId || '');
   if (!UUID.test(hedef)) throw new HttpError(400, 'Geçersiz hesap.');
   // İki yön birlikte silinir (öğretmenler arası bağ iki yönlüdür)
   const yol = `bagli_hesaplar?or=(and(sahip_auth_id.eq.${owner.id},hedef_auth_id.eq.${hedef}),and(sahip_auth_id.eq.${hedef},hedef_auth_id.eq.${owner.id}))`;
   const r = await fetch(`${e.url}/rest/v1/${yol}`, { method: 'DELETE', headers: { ...serviceHeaders(e), Prefer: 'return=minimal' } });
   if (!r.ok) throw new HttpError(502, 'Bağ kaldırılamadı.');
-  await gozuIslemYaz(e, sid, 'DELETE', hedef);
+  if (sid) await gozuIslemYaz(e, sid, 'DELETE', hedef);
   return { ok: true };
 }
 
@@ -446,9 +454,9 @@ export default async function handler(req, res) {
       if (body.action === 'bagla') return res.status(200).json(await actionBagla(e, body, owner)); // Aşama 256
       return res.status(200).json(await actionBagliGir(e, body, owner)); // Aşama 256
     }
-    // Aşama 267: sistem sahibi gözüyle bakarken bakılan öğretmenin bağlarını yönetir (bağlanacak hesabın şifresiyle; geçiş yok)
+    // Aşama 267 / 267b: sistem sahibi gözüyle bakarken ya da kuruma geçmişken o öğretmenin bağlarını yönetir (bağlanacak hesabın şifresiyle; geçiş yok)
     if (body.action === 'gozuBagla' || body.action === 'gozuBagKaldir') {
-      const sid = await gozuOturumuDogrula(e, token, user);
+      const sid = await sahipOturumuDogrula(e, token, user);
       const owner = await bagliSahibi(e, user);
       if (owner.head) throw new HttpError(400, 'Geçersiz hesap.');
       if (body.action === 'gozuBagla') return res.status(200).json(await actionBagla(e, body, owner, sid));

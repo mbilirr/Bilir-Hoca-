@@ -406,10 +406,19 @@ export function sahipKarti(): SahipKart {
   return { head: false, baslik: `${kurum} · Öğretmen`, aciklama: `${ad ? `${ad} olarak ` : ''}giriş yaptığınız hesap.` };
 }
 
-/** Aşama 267: sistem sahibi bir ÖĞRETMENİN gözüyle bakıyor; o kişinin bağlarını yönetebilir (bağla / kaldır, geçiş yok) */
+/** Aşama 267: sistem sahibi bir ÖĞRETMENİN gözüyle bakıyor ya da (267b) bir kuruma geçmiş (kurum yöneticisi öğretmenin
+ *  hesabında); o kişinin bağlarını yönetebilir (bağla / kaldır, geçiş yok) */
 export function gozuBagYonetimi(): boolean {
   const g = readGecis();
-  return !!g && !g.bagli && !!g.gozu && g.gozu.tur === 'ogretmen';
+  if (!g || g.bagli) return false;
+  if (g.gozu) return g.gozu.tur === 'ogretmen';
+  return !!g.active && dataService.getAuthSession()?.role === 'teacher';
+}
+
+/** Aşama 267b: bağları yönetilen kişinin adı (gözüyle bakışta kişi, kuruma geçişte kurum yöneticisi) */
+export function bagYonetilenAd(): string {
+  const g = readGecis();
+  return g?.gozu?.ad || dataService.getAuthSession()?.user?.name || g?.active?.name || '';
 }
 
 /** Bağlı hesaplar (ana hesapta veritabanından; bağlı hesaptayken saklanan listeden). Aşama 263: her öğretmen.

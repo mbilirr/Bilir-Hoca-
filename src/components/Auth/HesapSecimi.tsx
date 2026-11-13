@@ -4,6 +4,7 @@ import { Modal, cx } from '../ui/kit';
 import {
   bagliHesabaGec,
   bagliHesaplar,
+  bagYonetilenAd,
   gozuBagYonetimi,
   hesapBagKaldir,
   hesapBagla,
@@ -206,7 +207,7 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   // Aşama 267: sistem sahibi öğretmenin gözüyle bakıyorsa onun adına bağlar (bağlanacak hesabın şifresiyle, kayda geçer; geçiş yok)
-  const gozu = gozuBagYonetimi() ? readGecis()?.gozu || null : null;
+  const gozu = gozuBagYonetimi() ? { ad: bagYonetilenAd() } : null; // 267b: kuruma geçişte de
   const yukle = () =>
     bagliHesaplar(true)
       .then(setListe)
