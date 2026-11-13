@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
-  MailCheck, GraduationCap, Building2, Check,
+  MailCheck, GraduationCap, Building2, Check, ListChecks,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { lazyNamed } from '../lib/lazyLoad';
 import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
+import { PortalDegistirPencere } from './Auth/PortalSecimi'; // Aşama 254c
 import { teacherNavFor } from './Layout/navItems';
 import { anaSayfaTuru } from './Home/anaSayfaSecimi'; // Aşama 244
 import { openCommandPalette } from './Layout/CommandPalette';
@@ -116,6 +117,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const yoneticiGorunum = isTeacherSession && dataService.yoneticiKaydi(currentTeacher);
   const portallar = isTeacherSession ? dataService.getPortallar() : [];
   const aktifPortal = dataService.getPortal();
+  // Aşama 254c: birden çok portalı olan kişide kurum logosu portal değişim penceresini açar
+  const [portalPencere, setPortalPencere] = useState(false);
   // Aşama 171: profil resminin rolü (unvan isteği yok: branş + yönetici bilgisi yeter)
   const avatarRol: ProfilRol = currentTeacher ? ogretmenProfilRol(currentTeacher) : 'student';
   const activeStudent = isStudentSession ? (authSession!.user as Student) : currentStudent;
@@ -177,8 +180,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const brand = (
     <button
       type="button"
-      onClick={() => goTab('home')}
-      title="Ana Sayfa"
+      onClick={() => (portallar.length > 1 ? setPortalPencere(true) : goTab('home'))}
+      title={portallar.length > 1 ? 'Portal değiştir' : 'Ana Sayfa'}
       className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors min-w-0"
     >
       {brandLogo ? (
@@ -198,6 +201,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
+      {portallar.length > 1 && (
+        <PortalDegistirPencere open={portalPencere} onClose={() => setPortalPencere(false)} onSec={() => goTab('home')} />
+      )}
       <header className="sticky top-0 z-40 w-full bg-surface/90 backdrop-blur-md border-b border-line pt-safe">
         <div className="app-container">
           <div className="flex items-center gap-2 sm:gap-3 h-14 sm:h-16">
@@ -361,6 +367,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 {PORTAL_ADI[p]}
                               </MenuItem>
                             ))}
+                            {/* Aşama 254c: hatırlanan seçimi kaldırma / yeniden açma (işaretliyken her girişte sorulur) */}
+                            {aktifPortal && (
+                              <MenuItem
+                                icon={ListChecks}
+                                onClick={closeAnd(() => dataService.setPortal(aktifPortal, !dataService.portalHatirlaniyor()))}
+                                trailing={!dataService.portalHatirlaniyor() ? <Check className="w-4 h-4 text-brand-fg shrink-0" aria-label="Açık" /> : undefined}
+                              >
+                                Girişte her seferinde sor
+                              </MenuItem>
+                            )}
                           </>
                         )}
                         {yoneticiGorunum && (
