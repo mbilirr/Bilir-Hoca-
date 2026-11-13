@@ -8,7 +8,7 @@ import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService, PORTAL_ADI, type PortalKod } from '../services/dataService';
 import { PortalDegistirPencere } from './Auth/PortalSecimi'; // Aşama 254c
 import { HesapSecPencere, BagliHesaplarPencere } from './Auth/HesapSecimi'; // Aşama 256
-import { bagliHesaplar, bagliKullanilir, readBagli, readGecis, sahipKarti } from '../lib/kurumGecis'; // Aşama 256 / 263
+import { bagliHesaplar, bagliKullanilir, gozuBagYonetimi, readBagli, readGecis, sahipKarti } from '../lib/kurumGecis'; // Aşama 256 / 263 / 267
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
@@ -126,6 +126,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Aşama 256: sistem sahibinin bağlı (kendi) hesapları: logoya basınca hesap seçimi; bağlı hesaptayken geri dönüş
   const bagliIcinde = isTeacherSession && !!readBagli();
   const sahipPaneli = isTeacherSession && bagliKullanilir() && !readGecis(); // Aşama 263: her öğretmenin ana hesabı
+  // Aşama 267: sistem sahibi bir öğretmenin gözüyle bakarken onun bağlarını yönetir (yalnız bağla / kaldır)
+  const bagYonetimi = sahipPaneli || (isTeacherSession && gozuBagYonetimi());
   const [bagliVar, setBagliVar] = useState(false);
   const [hesapPencere, setHesapPencere] = useState(false);
   const [bagliYonet, setBagliYonet] = useState(false);
@@ -223,7 +225,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       {hesapSecimi && <HesapSecPencere open={hesapPencere} onClose={() => setHesapPencere(false)} />}
-      {sahipPaneli && <BagliHesaplarPencere open={bagliYonet} onClose={() => setBagliYonet(false)} />}
+      {bagYonetimi && <BagliHesaplarPencere open={bagliYonet} onClose={() => setBagliYonet(false)} />}
       {portallar.length > 1 && (
         <PortalDegistirPencere open={portalPencere} onClose={() => setPortalPencere(false)} onSec={() => goTab('home')} />
       )}
@@ -371,9 +373,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           Giden E-postalar
                         </MenuItem>
                         {/* Aşama 256 / 263: başka kurumdaki kendi öğretmen hesabını bağlama (giriş yapılan ana hesapta) */}
-                        {sahipPaneli && (
+                        {bagYonetimi && (
                           <MenuItem icon={Link2} onClick={closeAnd(() => setBagliYonet(true))}>
-                            Bağlı hesaplarım
+                            {sahipPaneli ? 'Bağlı hesaplarım' : 'Bağlı hesapları'}
                           </MenuItem>
                         )}
                         {bagliIcinde && (

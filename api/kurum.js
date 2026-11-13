@@ -315,7 +315,7 @@ async function bagliSahibi(e, user) {
   return { id: user.id, head: false, ad: t.name || '', kurumAd: kurum ? kurum.name : 'Kendi alanım' };
 }
 
-async function actionBagla(e, body, owner) {
+async function actionBagla(e, body, owner, gozuSid = null) {
   const kim = String(body.kullanici || '').trim().toLowerCase();
   const sifre = String(body.sifre || '');
   if (kim.length < 3 || kim.length > 200) throw new HttpError(400, 'Kullanıcı adını yazın.');
@@ -355,7 +355,50 @@ async function actionBagla(e, body, owner) {
     body: JSON.stringify(kayitlar),
   });
   if (!ins.ok) throw new HttpError(502, 'Bağ kaydedilemedi. Aşama 256 SQL dosyası çalıştırıldı mı?');
+  if (gozuSid) await gozuIslemYaz(e, gozuSid, 'INSERT', t.auth_user_id);
   return { ok: true, hesap: { authUserId: t.auth_user_id, ad: kayit.hedef_ad, kurumAd: kayit.kurum_ad } };
+}
+
+// ============================================================================
+// Aşama 267: SİSTEM SAHİBİ GÖZÜYLE BAKARKEN BAĞLI HESAP YÖNETİMİ (yalnız bağla / kaldır; geçiş YOK)
+//  İstek, bakılan öğretmenin oturumuyla gelir. Oturum kimliği (JWT session_id) kullanici_gozu_oturumlari'nda
+//  açık bir bakış kaydıyla eşleşmeli: o kaydı yalnız bu sunucu, sistem sahibi için yazar. Bağlarken bağlanacak
+//  hesabın kullanıcı adı ve şifresi normal bağlamadaki gibi doğrulanır; her işlem kullanici_gozu_islemleri'ne yazılır (sistem sahibinin bakış raporunda görünür).
+// ============================================================================
+async function gozuOturumuDogrula(e, token, user) {
+  const sid = sessionIdOf(token);
+  if (!UUID.test(sid)) throw new HttpError(403, 'Bu işlem yalnız sistem sahibi gözüyle bakarken yapılır.');
+  const sinir = new Date(Date.now() - 12 * 3600_000).toISOString();
+  const rows = await rest(
+    e,
+    `kullanici_gozu_oturumlari?select=session_id,sahip_auth_id,hedef_tur&session_id=eq.${sid}&hedef_auth_id=eq.${user.id}&bitti=is.null&basladi=gt.${encodeURIComponent(sinir)}`
+  );
+  const g = rows[0];
+  if (!g) throw new HttpError(403, 'Bu işlem yalnız sistem sahibi gözüyle bakarken yapılır.');
+  if (g.hedef_tur !== 'ogretmen') throw new HttpError(400, 'Hesap bağlama yalnız öğretmen hesaplarında kullanılabilir.');
+  const ur = await fetch(`${e.url}/auth/v1/admin/users/${g.sahip_auth_id}`, { headers: serviceHeaders(e) });
+  const sahip = await readJson(ur);
+  if (!ur.ok || String((sahip && sahip.email) || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
+  return sid;
+}
+
+async function gozuIslemYaz(e, sid, islem, satirId) {
+  await fetch(`${e.url}/rest/v1/kullanici_gozu_islemleri`, {
+    method: 'POST',
+    headers: { ...serviceHeaders(e), Prefer: 'return=minimal' },
+    body: JSON.stringify({ session_id: sid, tablo: 'bagli_hesaplar', islem, satir_id: String(satirId || '').slice(0, 120) }),
+  }).catch(() => null);
+}
+
+async function actionGozuBagKaldir(e, body, owner, sid) {
+  const hedef = String(body.authUserId || '');
+  if (!UUID.test(hedef)) throw new HttpError(400, 'Geçersiz hesap.');
+  // İki yön birlikte silinir (öğretmenler arası bağ iki yönlüdür)
+  const yol = `bagli_hesaplar?or=(and(sahip_auth_id.eq.${owner.id},hedef_auth_id.eq.${hedef}),and(sahip_auth_id.eq.${hedef},hedef_auth_id.eq.${owner.id}))`;
+  const r = await fetch(`${e.url}/rest/v1/${yol}`, { method: 'DELETE', headers: { ...serviceHeaders(e), Prefer: 'return=minimal' } });
+  if (!r.ok) throw new HttpError(502, 'Bağ kaldırılamadı.');
+  await gozuIslemYaz(e, sid, 'DELETE', hedef);
+  return { ok: true };
 }
 
 async function actionBagliGir(e, body, owner) {
@@ -402,6 +445,14 @@ export default async function handler(req, res) {
       const owner = await bagliSahibi(e, user);
       if (body.action === 'bagla') return res.status(200).json(await actionBagla(e, body, owner)); // Aşama 256
       return res.status(200).json(await actionBagliGir(e, body, owner)); // Aşama 256
+    }
+    // Aşama 267: sistem sahibi gözüyle bakarken bakılan öğretmenin bağlarını yönetir (bağlanacak hesabın şifresiyle; geçiş yok)
+    if (body.action === 'gozuBagla' || body.action === 'gozuBagKaldir') {
+      const sid = await gozuOturumuDogrula(e, token, user);
+      const owner = await bagliSahibi(e, user);
+      if (owner.head) throw new HttpError(400, 'Geçersiz hesap.');
+      if (body.action === 'gozuBagla') return res.status(200).json(await actionBagla(e, body, owner, sid));
+      return res.status(200).json(await actionGozuBagKaldir(e, body, owner, sid));
     }
     if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
     if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));

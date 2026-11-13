@@ -406,11 +406,18 @@ export function sahipKarti(): SahipKart {
   return { head: false, baslik: `${kurum} · Öğretmen`, aciklama: `${ad ? `${ad} olarak ` : ''}giriş yaptığınız hesap.` };
 }
 
-/** Bağlı hesaplar (ana hesapta veritabanından; bağlı hesaptayken saklanan listeden). Aşama 263: her öğretmen */
-export async function bagliHesaplar(): Promise<BagliHesap[]> {
+/** Aşama 267: sistem sahibi bir ÖĞRETMENİN gözüyle bakıyor; o kişinin bağlarını yönetebilir (bağla / kaldır, geçiş yok) */
+export function gozuBagYonetimi(): boolean {
+  const g = readGecis();
+  return !!g && !g.bagli && !!g.gozu && g.gozu.tur === 'ogretmen';
+}
+
+/** Bağlı hesaplar (ana hesapta veritabanından; bağlı hesaptayken saklanan listeden). Aşama 263: her öğretmen.
+ *  Aşama 267: yonetim = true ise gözüyle bakılan öğretmenin bağları da okunur (yalnız Bağlı hesaplar penceresi). */
+export async function bagliHesaplar(yonetim = false): Promise<BagliHesap[]> {
   const g = readGecis();
   if (g?.bagli) return g.bagliListe || [g.bagli];
-  if (!bagliKullanilir()) return [];
+  if (!bagliKullanilir() && !(yonetim && gozuBagYonetimi())) return [];
   const { data, error } = await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma').order('olusturma');
   if (error) {
     if (/bagli_hesaplar|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) return []; // 256 SQL kurulmamış
@@ -421,15 +428,23 @@ export async function bagliHesaplar(): Promise<BagliHesap[]> {
 
 /** Kullanıcı adı (ya da e-posta) ve o hesabın şifresiyle hesap bağlar (giriş yapılan ana hesapta) */
 export async function hesapBagla(kullanici: string, sifre: string): Promise<BagliHesap> {
-  if (!bagliKullanilir() || readGecis()) throw new Error('Hesap bağlama giriş yaptığınız ana hesapta yapılır.');
+  const gozu = gozuBagYonetimi(); // Aşama 267: gözüyle bakışta da şifreyle; sunucu ayrıca bakış kaydını doğrular
+  if (!gozu && (!bagliKullanilir() || readGecis())) throw new Error('Hesap bağlama giriş yaptığınız ana hesapta yapılır.');
   const { data } = await supabase.auth.getSession();
   if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
-  const out = await kurumApi(data.session.access_token, { action: 'bagla', kullanici, sifre });
+  const out = await kurumApi(data.session.access_token, { action: gozu ? 'gozuBagla' : 'bagla', kullanici, sifre });
   return out.hesap as BagliHesap;
 }
 
 /** Bağı kaldırır (hesap silinmez, yalnız bağ) */
 export async function hesapBagKaldir(authUserId: string): Promise<void> {
+  if (gozuBagYonetimi()) {
+    // Aşama 267: gözüyle bakışta sunucu üzerinden (iki yön birlikte, bakış kaydına yazılır)
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
+    await kurumApi(data.session.access_token, { action: 'gozuBagKaldir', authUserId });
+    return;
+  }
   const { error } = await supabase.from('bagli_hesaplar').delete().eq('hedef_auth_id', authUserId);
   if (error) throw new Error(error.message);
   hesapTercihYaz(null);

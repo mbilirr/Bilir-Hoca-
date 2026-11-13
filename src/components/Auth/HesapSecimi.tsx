@@ -4,6 +4,7 @@ import { Modal, cx } from '../ui/kit';
 import {
   bagliHesabaGec,
   bagliHesaplar,
+  gozuBagYonetimi,
   hesapBagKaldir,
   hesapBagla,
   hesapSecildi,
@@ -204,8 +205,10 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
   const [sifre, setSifre] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  // Aşama 267: sistem sahibi öğretmenin gözüyle bakıyorsa onun adına bağlar (bağlanacak hesabın şifresiyle, kayda geçer; geçiş yok)
+  const gozu = gozuBagYonetimi() ? readGecis()?.gozu || null : null;
   const yukle = () =>
-    bagliHesaplar()
+    bagliHesaplar(true)
       .then(setListe)
       .catch((e) => setNote({ ok: false, text: e?.message || 'Hesaplar okunamadı.' }));
   useEffect(() => {
@@ -222,7 +225,12 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
     setNote(null);
     try {
       const h = await hesapBagla(kullanici, sifre);
-      setNote({ ok: true, text: `${h.kurumAd} · ${h.ad} hesabı bağlandı. Bir dahaki girişte seçim sorulur.` });
+      setNote({
+        ok: true,
+        text: gozu
+          ? `${h.kurumAd} · ${h.ad} hesabı ${gozu.ad} hesabına bağlandı.`
+          : `${h.kurumAd} · ${h.ad} hesabı bağlandı. Bir dahaki girişte seçim sorulur.`,
+      });
       setKullanici('');
       setSifre('');
       await yukle();
@@ -242,8 +250,10 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
     }
   };
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} id="bagli-hesaplar" icon={Link2} title="Bağlı hesaplarım" description={
-        sahipKarti().head
+    <Modal open={open} onClose={() => !busy && onClose()} id="bagli-hesaplar" icon={Link2} title={gozu ? `${gozu.ad} · Bağlı hesaplar` : 'Bağlı hesaplarım'} description={
+        gozu
+          ? 'Bu öğretmenin başka kurumdaki kendi hesabını, o hesabın kullanıcı adı ve şifresiyle bağlayın ya da bağı kaldırın. İşlem kayda geçer; geçiş buradan yapılmaz.'
+          : sahipKarti().head
           ? 'Başka kurumdaki kendi öğretmen hesabınızı bağlayın; girişte hangi hesapla çalışacağınız sorulur.'
           : 'Başka kurumdaki kendi öğretmen hesabınızı bağlayın; iki hesaptan da ötekine şifresiz geçersiniz.'
       }
@@ -296,7 +306,9 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
             />
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted">Şifre yalnız hesabın size ait olduğunu doğrulamak için bir kez sorulur, saklanmaz.</span>
+            <span className="text-[11px] text-muted">
+              {gozu ? 'Şifre yalnız doğrulama için sorulur, saklanmaz. Bağ iki yönlüdür.' : 'Şifre yalnız hesabın size ait olduğunu doğrulamak için bir kez sorulur, saklanmaz.'}
+            </span>
             <button type="submit" disabled={busy || kullanici.trim().length < 3 || sifre.length < 6} className="ui-btn ui-btn-primary ui-btn-sm h-8 w-24 justify-center shrink-0">
               {busy ? 'Bağlanıyor…' : 'Bağla'}
             </button>
