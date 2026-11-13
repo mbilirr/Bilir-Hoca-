@@ -9,13 +9,13 @@ import {
   dayIndexOf,
   loadMyCurrentWeek,
   planDayName,
-  setTaskDone,
   shortDayLabel,
   weekRangeLabel,
   weekStartOf,
   ymd,
   type PlanItem,
 } from '../../services/studyPlanService';
+import { planGorevIsaretle } from '../../lib/planGorev';
 
 // ============================================================================
 // Öğrenci ana sayfası: "Bugün yapılması gerekenler" (Aşama 19)
@@ -56,7 +56,6 @@ export const StudentTodayPlan: React.FC<{
     if (infoTimer.current) window.clearTimeout(infoTimer.current);
     infoTimer.current = window.setTimeout(() => setInfo(null), 15000); // Aşama 99: 15 sn
   };
-  const dayText = (d: string) => (d === ymd(new Date()) ? 'bugün' : shortDayLabel(d));
 
   const refresh = useCallback(async () => {
     try {
@@ -98,38 +97,24 @@ export const StudentTodayPlan: React.FC<{
     pending.current.add(it.id);
     setError(null);
     setItems((cur) => cur.map((i) => (i.id === it.id ? { ...i, doneAt: next ? new Date().toISOString() : null } : i)));
+    let sonuc: Awaited<ReturnType<typeof planGorevIsaretle>>;
     try {
-      await setTaskDone(it.id, next);
-      if (next && it.day === todayIdx && todayItems.filter((i) => i.id !== it.id).every((i) => i.doneAt)) {
-        confetti({ particleCount: 90, spread: 70, origin: { y: 0.55 } });
-      }
+      // Aşama 253: işaret + soru kaydına aktarım ortak yardımcıda (öğrenci ana sayfasıyla aynı iş)
+      sonuc = await planGorevIsaretle(it, next, weekStart);
     } catch (e: any) {
       setItems((cur) => cur.map((i) => (i.id === it.id ? { ...i, doneAt: it.doneAt } : i)));
       setError(e?.message || 'İşaret kaydedilemedi. Lütfen tekrar dene.');
       pending.current.delete(it.id);
       return;
     }
-    // Aşama 46: görevde soru sayısı varsa soru kaydına aktarılır (işaret kaldırılınca geri alınır)
-    try {
-      const before = dataService.getPlanTaskQuestionShare(it.id);
-      if (next && it.questionCount > 0 && !before) {
-        const req = { itemId: it.id, subject: it.subject, date: dateOfDay(weekStart, it.day), count: it.questionCount };
-        let r = await dataService.setPlanTaskQuestions(req);
-        // Aşama 67: aktarım kaydedildikten sonra pay görünmüyorsa (art arda işaretlemede gecikmiş eşitleme) bir kez daha
-        // yazılır. İşlem tekrarlansa da sorular iki kez eklenmez: görevin payı varsa yalnızca aynı sayıya güncellenir.
-        if (!dataService.getPlanTaskQuestionShare(it.id)) r = await dataService.setPlanTaskQuestions(req);
-        showInfo(`${r.subject}: ${r.count} soru, ${dayText(r.date)} soru kaydına otomatik eklendi ve kaydedildi. Fazlasını çözdüysen "Düzenle" ile güncelleyebilirsin.`);
-      } else if (!next && before) {
-        await dataService.setPlanTaskQuestions({ itemId: it.id, subject: it.subject, date: before.date, count: 0 });
-        if (editId === it.id) setEditId(null);
-        showInfo(`${before.subject}: ${before.count} soru, ${dayText(before.date)} soru kaydından çıkarıldı.`);
-      }
-    } catch (e: any) {
-      setError(`Görev işaretlendi ama soru kaydı güncellenemedi: ${e?.message || 'bağlantı sorunu'}. Soru Kaydet bölümünden elle girebilirsin.`);
-    } finally {
-      pending.current.delete(it.id);
-      setLogsTick((n) => n + 1); // "aktarılıyor" yazısı kalksın
+    if (next && it.day === todayIdx && todayItems.filter((i) => i.id !== it.id).every((i) => i.doneAt)) {
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.55 } });
     }
+    if (sonuc.cikarildi && editId === it.id) setEditId(null);
+    if (sonuc.bilgi) showInfo(sonuc.bilgi);
+    if (sonuc.uyari) setError(sonuc.uyari);
+    pending.current.delete(it.id);
+    setLogsTick((n) => n + 1); // "aktarılıyor" yazısı kalksın
   };
 
   const startEdit = (it: PlanItem) => {

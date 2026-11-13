@@ -17,6 +17,7 @@ import { gradeOf } from '../../lib/teacherGrades';
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import { matchTurkishSearch, turkishCompare } from '../../utils/turkishSearch';
 import { currentAcademicYear } from '../../lib/importNormalize';
+import { useQuickFocus } from '../../lib/quickFocus';
 
 // Aşama 111: deneme listesi süzgeçleri (herkese aynı; öğretmende seçenekler yalnız görebildiği denemelerden gelir)
 const denemeYear = (e: DenemeExam) => (e.examDate ? currentAcademicYear(new Date(e.examDate + 'T12:00:00')) : '');
@@ -173,6 +174,19 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   useEffect(() => {
     void reload();
   }, []);
+
+  // Aşama 253: ölçme ana sayfasındaki kısayollar (Yeni deneme, Karneler, deneme sonuçları, yarım kalan taslak)
+  useQuickFocus(['deneme'], (f) => {
+    if (f.id === 'karne') {
+      setTab('karne');
+      setView({ kind: 'list' });
+      return;
+    }
+    setTab('denemeler');
+    if (f.id === 'yeni' && !readOnly) setView({ kind: 'new' });
+    else if (f.id === 'detay' && f.label) setView({ kind: 'detail', id: f.label });
+    else if (f.id === 'taslak' && f.label && !readOnly) setView({ kind: 'draft', id: f.label });
+  });
 
   // Aşama 90: taslak açılınca tam hâli (cevap anahtarı + optik verisi) okunur
   const draftViewId = view.kind === 'draft' ? view.id : '';

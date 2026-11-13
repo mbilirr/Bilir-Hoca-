@@ -73,6 +73,8 @@ const MudurAnaSayfa = lazyNamed(() => import('./components/Home/MudurAnaSayfa'),
 const MudurYardimcisiAnaSayfa = lazyNamed(() => import('./components/Home/MudurYardimcisiAnaSayfa'), 'MudurYardimcisiAnaSayfa'); // Aşama 247
 const OgretmenAnaSayfa = lazyNamed(() => import('./components/Home/OgretmenAnaSayfa'), 'OgretmenAnaSayfa'); // Aşama 248
 const RehberlikAnaSayfa = lazyNamed(() => import('./components/Home/RehberlikAnaSayfa'), 'RehberlikAnaSayfa'); // Aşama 249
+const OlcmeAnaSayfa = lazyNamed(() => import('./components/Home/OlcmeAnaSayfa'), 'OlcmeAnaSayfa'); // Aşama 253
+const EtutAnaSayfa = lazyNamed(() => import('./components/Home/EtutAnaSayfa'), 'EtutAnaSayfa'); // Aşama 253
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
@@ -571,7 +573,8 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className={kabukluAnaSayfa ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
+      {/* Aşama 253: öğrenci portalı kendi kabını kurar (ana sayfası tam genişlik kabuk, diğer bölümler app-container) */}
+      <main className={kabukluAnaSayfa || (role === 'student' && currentStudent) ? 'flex-1' : 'flex-1 app-container py-4 sm:py-6'}>
         {anaSayfaBekliyor ? (
           <PageLoading />
         ) : role === 'teacher' && kabukluAnaSayfa === 'sistem' ? (
@@ -625,6 +628,29 @@ export default function App() {
           /* Aşama 249: rehberlik ana sayfası (okulun nabzı, rehberlik masası; kurumun açık bölümlerinden, yoklamayı yalnız okur) */
           <Suspense fallback={<PageLoading />}>
             <RehberlikAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              etuts={etuts}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+            />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'olcme' ? (
+          /* Aşama 253: ölçme ve değerlendirme ana sayfası (son deneme, net değişimi ve kazanım özeti; Deneme bölümü açıksa) */
+          <Suspense fallback={<PageLoading />}>
+            <OlcmeAnaSayfa
+              currentTeacher={currentTeacher}
+              students={students}
+              classes={classes}
+              unreadMessages={unreadMessagesCount}
+              onNavigateTab={selectTeacherTab}
+            />
+          </Suspense>
+        ) : role === 'teacher' && kabukluAnaSayfa === 'etut' ? (
+          /* Aşama 253: etüt öğretmeni ana sayfası (sıradaki etüt, yoklama, bu hafta; öğrenciler yalnız özet) */
+          <Suspense fallback={<PageLoading />}>
+            <EtutAnaSayfa
               currentTeacher={currentTeacher}
               students={students}
               classes={classes}

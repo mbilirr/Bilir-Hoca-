@@ -45,14 +45,12 @@ import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
 import { StudentNotificationCenterModal, bildirimAcik } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
 import type { StudentTabType } from './StudentHeroBanner';
-import { StudentHomeToday } from './StudentHomeToday';
 import { StudentPraiseToast } from './StudentPraiseToast';
 import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
-import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
@@ -64,6 +62,7 @@ const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'),
 const StudentDenemeSonuclari = lazyNamed(() => import('./StudentDenemeSonuclari'), 'StudentDenemeSonuclari');
 const StudentDersDevamsizlik = lazyNamed(() => import('./StudentDersDevamsizlik'), 'StudentDersDevamsizlik'); // Aşama 223
 const StudentDersProgrami = lazyNamed(() => import('./StudentDersProgrami'), 'StudentDersProgrami'); // Aşama 231
+const OgrenciAnaSayfa = lazyNamed<React.ComponentProps<typeof import('./OgrenciAnaSayfa').OgrenciAnaSayfa>>(() => import('./OgrenciAnaSayfa'), 'OgrenciAnaSayfa'); // Aşama 253
 
 // Aşama 109: üst menüdeki bütün kutular aynı en ve boyda (en uzun yazıya göre), içerik sola dayalı
 const NAV_BOX = 'inline-flex items-center justify-start gap-2 h-9 w-48 px-2.5 rounded-lg text-xs font-semibold text-left';
@@ -252,6 +251,18 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     return [];
   };
 
+  // Aşama 253: teslim penceresini açma (Ödevlerim ve ana sayfadaki "Bana gelenler" aynı yoldan): önceki teslim
+  // varsa dosyaları ve notu pencerede görünür; öğrenci ekleyip çıkarabilir
+  const teslimAc = (hw: Homework) => {
+    const mySubmission = getStudentSubmission(hw);
+    setSubmissionResources(mySubmission?.resources || []);
+    setSubmissionNotes(getStudentNote(mySubmission));
+    setSubmissionLink('');
+    setPendingSubmissionResource(null);
+    setSubmitError(null);
+    setSubmittingHw(hw);
+  };
+
   // Filter homeworks assigned to this student (or assigned to 'all' or class)
   const myHomeworks = homeworks.filter((h) => dataService.isHomeworkForStudent(h, currentStudent));
 
@@ -395,11 +406,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   return (
     <div
-      className={`space-y-6 w-full min-w-0${preview ? ' student-preview' : ''}`}
+      className={`w-full min-w-0${activeTab === 'home' ? '' : ' space-y-6 app-container py-4 sm:py-6'}${preview ? ' student-preview' : ''}`}
       onClickCapture={preview ? blockWrite : undefined}
       onSubmitCapture={preview ? blockWrite : undefined}
     >
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
+      {/* Aşama 253: ana sayfada bölümler soldaki menüde (telefonda alt menüde); bu üst duvar yalnız diğer bölümlerde görünür */}
+      {activeTab !== 'home' && (
       <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
         <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
@@ -433,7 +446,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-home-btn"
               type="button"
               onClick={() => setActiveTab('home')}
-              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'home' ? 'ui-btn-primary' : 'ui-btn-secondary'}`}
+              className={`ui-btn ui-btn-sm ${NAV_BOX} ui-btn-secondary`}
             >
               <Home className="w-3.5 h-3.5" />
               <span>Ana Sayfa</span>
@@ -498,12 +511,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* =========================================================================
           VIEW 1: HOME (ÖĞRETMEN ANA SAYFASININ ÖĞRENCİYE ÖZGÜ TAM KARŞILIĞI)
          ========================================================================= */}
       {activeTab === 'home' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+        <>
           {/* Aşama 68: öğretmenin tebrik mesajı küçük ana ekran bildirimi olarak çıkar, 15 saniye sonra kendiliğinden kaybolur */}
           <StudentPraiseToast
             praises={unreadPraiseNotifs}
@@ -512,34 +526,31 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               setNotificationTrigger((prev) => prev + 1);
             }}
           />
-
-          {/* Karşılama: saate göre Günaydın / İyi günler / İyi akşamlar + öğrencinin adı */}
-          <h1 id="student-home-greeting" className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-            {timeGreeting()} {firstNameOf(currentStudent.name, '')}
-          </h1>
-
-          {/* Aşama 34: telefon bildirimleri (kapalıysa açma kartı, açıksa tek satır) */}
-          {!preview && <PushOptInCard role="student" />}
-
-          {/* Aşama 66: "Bugün" (soru hedefi, plan görevleri, ödev/etüt, duyurular) ve "Bu hafta"
-              (gün gün mini görünüm, haftanın durumu, son deneme, notlar) yan yana eş duvarlar */}
-          <StudentHomeToday
-            student={{ ...currentStudent, avatar: studentAvatar !== null ? studentAvatar || undefined : currentStudent.avatar }}
-            homeworks={myHomeworks}
-            etuts={myEtuts}
-            submissions={getSubmissionsList()}
-            grades={myGrades}
-            announcements={myAnnouncements}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            acik={acik}
-            onOpenStudyPlan={() => {
-              setDenemeTur('plan');
-              setActiveTab('deneme');
-              window.scrollTo({ top: 0 });
-            }}
-            onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
-          />
-        </div>
+          {/* Aşama 253: yeni öğrenci ana sayfası (taslak kalan-roller › Öğrenci): sol menü, Bugün, Bana gelenler,
+              bugünkü ders programı, Bu hafta ve Son denemem. Yalnız öğrenciye açık bölümler. */}
+          <Suspense fallback={<div className="app-container py-10 text-center text-sm text-muted">Yükleniyor…</div>}>
+            <OgrenciAnaSayfa
+              student={currentStudent}
+              homeworks={myHomeworks}
+              etuts={myEtuts}
+              submissions={getSubmissionsList()}
+              messages={myMessages}
+              announcements={myAnnouncements}
+              acik={acik}
+              preview={preview}
+              unreadNotifs={unreadNotifsCount}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onTeslim={teslimAc}
+              onOpenNotifications={() => setIsNotificationModalOpen(true)}
+              onOpenStudyPlan={() => {
+                setDenemeTur('plan');
+                setActiveTab('deneme');
+                window.scrollTo({ top: 0 });
+              }}
+              ek={!preview ? <PushOptInCard role="student" /> : undefined}
+            />
+          </Suspense>
+        </>
       )}
 
       {/* TAB 1: HOMEWORKS */}
@@ -657,15 +668,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   <div className="pt-3 border-t border-line flex items-center gap-2">
                     <button
                       data-yazma
-                      onClick={() => {
-                        // Önceki teslim varsa dosyaları ve notu pencerede görünür; öğrenci ekleyip çıkarabilir
-                        setSubmissionResources(mySubmission?.resources || []);
-                        setSubmissionNotes(getStudentNote(mySubmission));
-                        setSubmissionLink('');
-                        setPendingSubmissionResource(null);
-                        setSubmitError(null);
-                        setSubmittingHw(hw);
-                      }}
+                      onClick={() => teslimAc(hw)}
                       className={`ui-btn ui-btn-sm ${
                         mySubmission
                           ? 'bg-surface-2 hover:bg-surface-3 text-fg'

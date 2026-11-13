@@ -7,7 +7,8 @@ import { useEffect, useRef } from 'react';
 // 'teacher' (Aşama 98): Kurum Özeti'nden bir öğretmenin çalışmalarına git (Ödevler / Etütler / Not & Yoklama süzülür)
 // 'ders' (Aşama 220): ana sayfadaki "yoklama bekliyor" satırı → Dersler › Program, o dersin yoklaması açılır (id = classId|tarih|sira)
 // 'yonetim' (Aşama 244): sistem sahibi ana sayfasındaki kısayollar → Yönetim sayfasının üst bölümü (id = kurumlar | bildirim | yedek | kendi)
-export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher' | 'ders' | 'yonetim';
+// 'deneme' (Aşama 253): ölçme ana sayfasından Deneme Analizi (id = yeni | karne | detay | taslak; label = deneme kimliği)
+export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher' | 'ders' | 'yonetim' | 'deneme';
 
 export interface QuickFocus {
   type: QuickFocusType;

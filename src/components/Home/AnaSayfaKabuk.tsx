@@ -62,8 +62,21 @@ export const akBasHarf = (s: string) =>
     .join('')
     .toLocaleUpperCase('tr-TR');
 
+/** Aşama 253: öğretmen menüsü yerine verilen menü (öğrenci ana sayfası). sep = öncesine ayraç */
+export interface AkMenuOge {
+  id: string;
+  title: string;
+  icon: React.ComponentType;
+  badge?: number;
+  current?: boolean;
+  sep?: boolean;
+  onClick: () => void;
+}
+
 interface Props {
   currentTeacher: Teacher | null;
+  /** Aşama 253: verilirse sol menüde öğretmen bölümleri yerine bu liste çizilir */
+  menu?: AkMenuOge[];
   unreadMessages?: number;
   onNavigate: (tab: TeacherTabType) => void;
   /** Koyu panel (yönetici teması). Odak temasında kullanılmaz. */
@@ -78,7 +91,7 @@ interface Props {
   overlay?: React.ReactNode;
 }
 
-export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', sinif, children, overlay }) => {
+export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, menu, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', sinif, children, overlay }) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(loadSerif, []);
@@ -135,10 +148,44 @@ export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, unreadMessages 
       {/* Aşama 250: şerit ve koyu panel sayfanın sonuna kadar uzanır; içerikleri ekranda sabit kalır (yarıda kesik görünmez) */}
       <nav className="ak-rail" aria-label="Bölümler">
         <div className="ak-rail-in">
-          {home && link(home, true)}
-          {yonetim && link(yonetim)}
-          {rest.length > 0 && <span className="sep" aria-hidden="true" />}
-          {rest.map((i) => link(i))}
+          {menu ? (
+            menu.map((m) => {
+              const Icon = m.icon;
+              const badge = m.badge && m.badge > 0 ? (m.badge > 99 ? '99+' : String(m.badge)) : '';
+              return (
+                <React.Fragment key={m.id}>
+                  {m.sep && <span className="sep" aria-hidden="true" />}
+                  <button
+                    type="button"
+                    id={`ak-menu-${m.id}`}
+                    aria-label={badge ? `${m.title} (${badge} yeni)` : m.title}
+                    aria-current={m.current ? 'page' : undefined}
+                    onClick={() => {
+                      if (m.current) return;
+                      m.onClick();
+                    }}
+                  >
+                    <Icon />
+                    {badge && (
+                      <span className="badge tnum" aria-hidden="true">
+                        {badge}
+                      </span>
+                    )}
+                    <span className="tip" aria-hidden="true">
+                      {m.title}
+                    </span>
+                  </button>
+                </React.Fragment>
+              );
+            })
+          ) : (
+            <>
+              {home && link(home, true)}
+              {yonetim && link(yonetim)}
+              {rest.length > 0 && <span className="sep" aria-hidden="true" />}
+              {rest.map((i) => link(i))}
+            </>
+          )}
         </div>
       </nav>
       {tema !== 'odak' && (
