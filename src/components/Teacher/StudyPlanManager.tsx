@@ -153,7 +153,7 @@ interface Props {
 export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgrenci }) => {
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
-  const mySubjects = dataService.getMySubjects(); // null = tüm dersler
+  const mySubjects = dataService.getMyPlanSubjects(); // null = tüm dersler (Aşama 261)
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
   // Aşama 164: "benim görevim" kuralı (veritabanıyla aynı) + planın tamamını geri çekebilenler (yöneticiler)
@@ -324,7 +324,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
   const [taskModal, setTaskModal] = useState<{ mode: 'add' | 'edit'; item?: PlanItem; day: number } | null>(null);
   const taskInitial: PlanItemDraft = taskModal?.item
     ? { day: taskModal.item.day, subject: taskModal.item.subject, book: taskModal.item.book, note: taskModal.item.note, questionCount: taskModal.item.questionCount }
-    : { day: taskModal?.day ?? 0, subject: subjectOptions[0] || '', book: '', note: '' };
+    : { day: taskModal?.day ?? 0, subject: dataService.planVarsayilanDers(subjectOptions), book: '', note: '' };
   const subjectOptionsForModal = useMemo(
     () => (taskModal?.item && !subjectOptions.includes(taskModal.item.subject) ? [taskModal.item.subject, ...subjectOptions] : subjectOptions),
     [taskModal, subjectOptions]

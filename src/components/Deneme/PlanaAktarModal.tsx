@@ -71,7 +71,7 @@ export const PlanaAktarModal: React.FC<{
   }, [student, bolumSurum]);
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
-  const mySubjects = dataService.getMySubjects();
+  const mySubjects = dataService.getMyPlanSubjects();
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
 

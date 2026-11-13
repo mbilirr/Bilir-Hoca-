@@ -1177,6 +1177,10 @@ const ETUT_COMMENT_KEYS: EtutCommentKey[] = ['teacherFeedback', 'notes', 'attend
 // Aşama 193: ham satırları bellekte tutulup artımlı okunan tablolar (fetchRowsSmart)
 type RawTable = 'students' | 'student_contacts' | 'teachers' | 'classes' | 'deleted_records';
 
+
+/** Aşama 261: haftalık planda bütün dersleri gören roller (sql/261 plan_subject_ok ile aynı) */
+const PLAN_GENIS_ROLLER = ['rehberlik', 'olcme_degerlendirme', 'mudur', 'mudur_yardimcisi'];
+
 class DataService {
   private static instance: DataService;
 
@@ -5898,6 +5902,22 @@ class DataService {
     const t = this.getCurrentTeacher();
     const list = subjectsForBranch(t?.branch);
     return list.length > 0 ? list : null;
+  }
+
+  // Aşama 261: Haftalık planın ders sınırı. Yalnız öğretmen kendi branşının dersini görür; yönetici, rehberlik,
+  // ölçme ve idare (müdür / müdür yrd.) bütün dersleri görür. Veritabanındaki plan_subject_ok() ile aynı kural.
+  public getMyPlanSubjects(): string[] | null {
+    if (this.isCurrentUserAdmin()) return null;
+    if (PLAN_GENIS_ROLLER.some((r) => this.hasRole(r))) return null;
+    const b = (this.getCurrentTeacher()?.branch || '').toLocaleLowerCase('tr');
+    if (b.includes('rehber') || b.includes('psikolojik')) return null;
+    return this.getMySubjects();
+  }
+
+  /** Aşama 261: "Görev ekle" ilk açılışta açan kişinin branşındaki dersle açılır (listede yoksa ilk ders) */
+  public planVarsayilanDers(options: string[]): string {
+    const mine = subjectsForBranch(this.getCurrentTeacher()?.branch);
+    return options.find((o) => mine.some((m) => sameSubjectName(m, o))) || options[0] || '';
   }
 
   // Etüt formu için öğretmen listesi (veritabanı yönetici olmayana yalnızca kendi branşını döndürür)

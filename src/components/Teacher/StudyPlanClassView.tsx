@@ -102,7 +102,7 @@ interface Props {
 export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekStart, onWeekChange, weekNav, modeSwitch }) => {
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
-  const mySubjects = dataService.getMySubjects();
+  const mySubjects = dataService.getMyPlanSubjects(); // null = tüm dersler (Aşama 261)
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
   // Aşama 164: "benim görevim" (veritabanındaki plan_item_mine ile aynı kural); gönder / geri çek yalnız benim görevlerime uygulanır
@@ -444,7 +444,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
 
   const taskInitial: PlanItemDraft = taskModal?.group
     ? { day: taskModal.group.day, subject: taskModal.group.subject, book: taskModal.group.book, note: taskModal.group.note, questionCount: taskModal.group.questionCount }
-    : { day: taskModal?.day ?? 0, subject: subjectOptions[0] || '', book: '', note: '' };
+    : { day: taskModal?.day ?? 0, subject: dataService.planVarsayilanDers(subjectOptions), book: '', note: '' };
   const subjectOptionsForModal = useMemo(
     () => (taskModal?.group && !subjectOptions.includes(taskModal.group.subject) ? [taskModal.group.subject, ...subjectOptions] : subjectOptions),
     [taskModal, subjectOptions]
