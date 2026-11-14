@@ -501,7 +501,8 @@ export default function App() {
         if (!l.length) return bitir();
         const tercih = hesapTercihOku();
         if (tercih === 'sahip') return bitir();
-        if (tercih && l.some((h) => h.authUserId === tercih)) {
+        // Aşama 269: sistem sahibi kartı hatırlanmış olsa da şifre ister; seçim ekranı gösterilir
+        if (tercih && l.some((h) => h.authUserId === tercih && !h.head)) {
           try {
             await bagliHesabaGec(tercih);
           } catch {

@@ -348,13 +348,16 @@ async function actionBagla(e, body, owner, gozuSid = null) {
   const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
   const kayit = { sahip_auth_id: owner.id, hedef_auth_id: t.auth_user_id, hedef_ad: t.name || '', kurum_ad: kurum ? kurum.name : 'Kendi alanım' };
   // Aşama 263: öğretmenler arasındaki bağ iki yönlüdür (iki hesaptan da ötekine geçilir); sistem sahibininki tek yönlü
-  const kayitlar = owner.head ? [kayit] : [kayit, { sahip_auth_id: t.auth_user_id, hedef_auth_id: owner.id, hedef_ad: owner.ad, kurum_ad: owner.kurumAd }];
+  // Aşama 269: sistem sahibinin bağı da iki yönlüdür; öğretmen hesabından sistem sahibine geçerken şifresi sorulur (bagliGir)
+  const kayitlar = owner.head
+    ? [kayit, { sahip_auth_id: t.auth_user_id, hedef_auth_id: owner.id, hedef_ad: 'Sistem sahibi', kurum_ad: '', hedef_head: true }]
+    : [kayit, { sahip_auth_id: t.auth_user_id, hedef_auth_id: owner.id, hedef_ad: owner.ad, kurum_ad: owner.kurumAd }];
   const ins = await fetch(`${e.url}/rest/v1/bagli_hesaplar?on_conflict=sahip_auth_id,hedef_auth_id`, {
     method: 'POST',
     headers: { ...serviceHeaders(e), Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(kayitlar),
   });
-  if (!ins.ok) throw new HttpError(502, 'Bağ kaydedilemedi. Aşama 256 SQL dosyası çalıştırıldı mı?');
+  if (!ins.ok) throw new HttpError(502, 'Bağ kaydedilemedi. Aşama 256 ve 269 SQL dosyaları çalıştırıldı mı?');
   if (gozuSid) await gozuIslemYaz(e, gozuSid, 'INSERT', t.auth_user_id);
   return { ok: true, hesap: { authUserId: t.auth_user_id, ad: kayit.hedef_ad, kurumAd: kayit.kurum_ad } };
 }
@@ -419,11 +422,11 @@ async function actionBagliGir(e, body, owner) {
     fetch(`${e.url}/auth/v1/admin/users/${hedef}`, { headers: serviceHeaders(e) }),
   ]);
   const t = tRows[0];
-  if (!t) throw new HttpError(404, 'Bağlı hesabın öğretmen kaydı bulunamadı.');
-  if (t.status && t.status !== 'approved') throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
   const authUser = await readJson(ur);
   if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Bağlı hesabın giriş bilgisi okunamadı.');
-  if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hesap.');
+  if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) return bagliSahibeGir(e, body, owner, authUser, t); // Aşama 269
+  if (!t) throw new HttpError(404, 'Bağlı hesabın öğretmen kaydı bulunamadı.');
+  if (t.status && t.status !== 'approved') throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
   const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
   const session = await magicSession(e, authUser.email, 'Hesap oturumu');
@@ -431,6 +434,26 @@ async function actionBagliGir(e, body, owner) {
     ok: true,
     hesap: { authUserId: hedef, ad: t.name || '', kurumAd: kurum ? kurum.name : 'Kendi alanım' },
     session: { access_token: session.access_token, refresh_token: session.refresh_token },
+  };
+}
+
+// Aşama 269: öğretmen hesabından SİSTEM SAHİBİNE geçiş. Şifresiz oturum ÜRETİLMEZ: sistem sahibinin şifresi doğrulanır ve
+// o girişin oturumu döner (öğretmen hesabı ele geçirilse bile sistem sahibine şifresiz çıkılamaz).
+async function bagliSahibeGir(e, body, owner, authUser, t) {
+  const sifre = String(body.sifre || '');
+  if (sifre.length < 6 || sifre.length > 200) throw new HttpError(400, 'Sistem sahibi şifrenizi yazın.');
+  baglaSiniri(owner.id);
+  const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: authUser.email, password: sifre }),
+  });
+  const ses = await readJson(vr);
+  if (!vr.ok || !ses || !ses.access_token || !ses.refresh_token) throw new HttpError(401, 'Şifre doğrulanamadı.');
+  return {
+    ok: true,
+    hesap: { authUserId: authUser.id, ad: (t && t.name) || 'Sistem sahibi', kurumAd: '', head: true },
+    session: { access_token: ses.access_token, refresh_token: ses.refresh_token },
   };
 }
 

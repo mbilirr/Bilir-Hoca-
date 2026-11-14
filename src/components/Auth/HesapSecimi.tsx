@@ -54,7 +54,11 @@ const HesapKartlari: React.FC<{
   const secenekler = [
     { id: SAHIP, icon: sahip.head ? Crown : Building2, baslik: sahip.head ? 'Sistem sahibi · Kendi panelim' : sahip.baslik, aciklama: sahip.aciklama },
     ...(gecis ? [gecis] : []),
-    ...liste.map((h) => ({ id: h.authUserId, icon: GraduationCap, baslik: `${h.kurumAd} · Öğretmen`, aciklama: `${h.ad} olarak öğretmen hesabınız: dersler, ödev ve etüt.` })),
+    ...liste.map((h) =>
+      h.head
+        ? { id: h.authUserId, icon: Crown, baslik: 'Sistem sahibi', aciklama: 'Kurumlar, hesaplar ve sistem ayarları. Geçerken şifreniz sorulur.' } // Aşama 269
+        : { id: h.authUserId, icon: GraduationCap, baslik: `${h.kurumAd} · Öğretmen`, aciklama: `${h.ad} olarak öğretmen hesabınız: dersler, ödev ve etüt.` }
+    ),
   ];
   return (
     <div className={cx('grid sm:grid-cols-2', sik ? 'gap-3' : 'gap-4')}>
@@ -90,6 +94,39 @@ const HesapKartlari: React.FC<{
   );
 };
 
+/** Aşama 269: öğretmen hesabından sistem sahibine geçerken şifre (saklanmaz; sunucuda doğrulanır) */
+const SahipSifre: React.FC<{ busy: boolean; onGir: (sifre: string) => void; onVazgec: () => void }> = ({ busy, onGir, onVazgec }) => {
+  const [sifre, setSifre] = useState('');
+  return (
+    <form
+      className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-2 p-2 pl-3"
+      autoComplete="off"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!busy && sifre.length >= 6) onGir(sifre);
+      }}
+    >
+      <Crown className="w-4 h-4 text-muted shrink-0" aria-hidden="true" />
+      <input
+        className="ui-field flex-1 min-w-0 h-8"
+        type="password"
+        value={sifre}
+        onChange={(e) => setSifre(e.target.value)}
+        placeholder="Sistem sahibi şifreniz"
+        aria-label="Sistem sahibi şifreniz"
+        autoComplete="current-password"
+        autoFocus
+      />
+      <button type="button" onClick={onVazgec} disabled={busy} className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-24 justify-center shrink-0">
+        Vazgeç
+      </button>
+      <button type="submit" disabled={busy || sifre.length < 6} className="ui-btn ui-btn-primary ui-btn-sm h-8 w-24 justify-center shrink-0">
+        {busy ? 'Açılıyor…' : 'Gir'}
+      </button>
+    </form>
+  );
+};
+
 const HatirlaKutusu: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = ({ checked, onChange }) => (
   <label className="mt-5 flex items-center justify-center gap-2 text-sm text-muted cursor-pointer select-none">
     <input type="checkbox" className="w-4 h-4 accent-[var(--color-brand)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -102,17 +139,23 @@ export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: 
   const [hatirla, setHatirla] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const sec = async (id: string) => {
+  const [sifreHedef, setSifreHedef] = useState<string | null>(null); // Aşama 269: sistem sahibi kartı seçildi
+  const sec = async (id: string, sifre?: string) => {
     setErr(null);
-    hesapTercihYaz(hatirla ? id : null);
     if (id === SAHIP) {
+      hesapTercihYaz(hatirla ? id : null);
       hesapSecildi();
       onSahip();
       return;
     }
+    if (liste.some((h) => h.authUserId === id && h.head) && !sifre) {
+      setSifreHedef(id);
+      return;
+    }
+    hesapTercihYaz(hatirla ? id : null);
     setBusy(id);
     try {
-      await bagliHesabaGec(id);
+      await bagliHesabaGec(id, sifre);
     } catch (e: any) {
       setBusy(null);
       setErr(e?.message || 'Hesaba geçilemedi.');
@@ -128,6 +171,7 @@ export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: 
           </h1>
         </header>
         <HesapKartlari liste={liste} aktif={null} busy={busy} onSec={(id) => void sec(id)} />
+        {sifreHedef && <SahipSifre busy={!!busy} onGir={(p) => void sec(sifreHedef, p)} onVazgec={() => setSifreHedef(null)} />}
         {err && (
           <p role="alert" className="mt-4 text-center text-sm font-semibold text-danger-fg">
             {err}
@@ -166,13 +210,21 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
       iptal = true;
     };
   }, [open]);
-  const sec = async (id: string) => {
+  const [sifreHedef, setSifreHedef] = useState<string | null>(null); // Aşama 269
+  useEffect(() => {
+    if (!open) setSifreHedef(null);
+  }, [open]);
+  const sec = async (id: string, sifre?: string) => {
     setErr(null);
+    if (id !== SAHIP && !sifre && (liste || []).some((h) => h.authUserId === id && h.head)) {
+      setSifreHedef(id);
+      return;
+    }
     setBusy(id);
     if (hatirla) hesapTercihYaz(id);
     try {
       if (id === SAHIP) await sistemSahibineDon();
-      else await bagliHesabaGec(id);
+      else await bagliHesabaGec(id, sifre);
     } catch (e: any) {
       setBusy(null);
       setErr(e?.message || 'Hesaba geçilemedi.');
@@ -181,6 +233,7 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
   return (
     <Modal open={open} onClose={() => !busy && onClose()} id="hesap-degistir" icon={Repeat} title="Hesap değiştir" description="Çalışmak istediğiniz hesabı seçin." size="lg">
       {liste ? <HesapKartlari liste={liste} aktif={aktif} busy={busy} sik onSec={(id) => void sec(id)} /> : <div className="h-44 rounded-2xl bg-surface-2 animate-pulse" />}
+      {sifreHedef && <SahipSifre busy={!!busy} onGir={(p) => void sec(sifreHedef, p)} onVazgec={() => setSifreHedef(null)} />}
       {err && (
         <p role="alert" className="mt-3 text-center text-sm font-semibold text-danger-fg">
           {err}
@@ -267,9 +320,9 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
           ) : liste.length ? (
             liste.map((h) => (
               <div key={h.authUserId} className="flex items-center gap-2 h-10 px-3 rounded-lg border border-line bg-surface">
-                <GraduationCap className="w-4 h-4 text-muted shrink-0" />
+                {h.head ? <Crown className="w-4 h-4 text-muted shrink-0" /> : <GraduationCap className="w-4 h-4 text-muted shrink-0" />}
                 <span className="flex-1 min-w-0 truncate">
-                  <b className="text-fg">{h.kurumAd}</b> <span className="text-muted">· {h.ad}</span>
+                  {h.head ? <b className="text-fg">Sistem sahibi</b> : <><b className="text-fg">{h.kurumAd}</b> <span className="text-muted">· {h.ad}</span></>}
                 </span>
                 <button type="button" onClick={() => void kaldir(h)} className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-20 justify-center" title="Bağı kaldır (hesap silinmez)">
                   <Trash2 className="w-3.5 h-3.5" />

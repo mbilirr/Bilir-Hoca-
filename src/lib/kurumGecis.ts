@@ -54,6 +54,8 @@ export interface BagliHesap {
   authUserId: string;
   ad: string;
   kurumAd: string;
+  /** Aşama 269: bağlı hesap sistem sahibidir (öğretmen hesabından geçerken sistem sahibinin şifresi sorulur) */
+  head?: boolean;
 }
 
 export function readGecis(): GecisState | null {
@@ -123,9 +125,53 @@ async function teacherOfAuth(authUser: { id: string; created_at: string; app_met
 /** Sekmeyi verilen oturuma geçirir ve sayfayı yeniler.
  *  Aşama 251: önce yeni oturum kurulur ve öğretmen kaydı okunur; sekmedeki veriler ancak bunlar başarılıysa, yenilemeden
  *  hemen önce silinir (hata olursa ekran boşalmaz). Kullanıcı bilgisi setSession'ın döndürdüğünden alınır (fazladan istek yok). */
+// ============================================================================
+// Aşama 269: GEÇİŞ PERDESİ
+// Oturum değişirken (setSession / eski oturumun kapatılması) React ekranı bir an önceki hesabın sayfasını ya da giriş
+// ekranını çizebiliyordu (ör. öğretmen hesabına geçerken sistem sahibi ana sayfası görünüp kayboluyordu). Oturuma
+// dokunulan ilk anda React'ten bağımsız tam ekran bir perde açılır; sayfa yenilenince kendiliğinden kalkar.
+// ============================================================================
+const PERDE_ID = 'hesap-gecis-perdesi';
+function perdeAc(yazi = 'Hesap açılıyor…'): void {
+  try {
+    if (document.getElementById(PERDE_ID)) return;
+    const d = document.createElement('div');
+    d.id = PERDE_ID;
+    d.setAttribute('role', 'status');
+    d.setAttribute('aria-live', 'polite');
+    d.style.cssText =
+      'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:var(--color-canvas,#f3f5f9);color:var(--color-muted,#5b6679);font:600 13px/1.4 system-ui,-apple-system,sans-serif';
+    const ic = document.createElement('div');
+    ic.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px';
+    const halka = document.createElement('span');
+    halka.style.cssText =
+      'width:28px;height:28px;border-radius:50%;border:3px solid color-mix(in srgb,var(--color-brand,#4f46e5) 22%,transparent);border-top-color:var(--color-brand,#4f46e5);animation:hgp-don .8s linear infinite';
+    const st = document.createElement('style');
+    st.textContent = '@keyframes hgp-don{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){#' + PERDE_ID + ' span{animation:none!important}}';
+    const t = document.createElement('span');
+    t.textContent = yazi;
+    ic.append(halka, t);
+    d.append(st, ic);
+    document.body.appendChild(d);
+  } catch {
+    /* perde açılamazsa geçiş yine olur */
+  }
+}
+function perdeKapat(): void {
+  try {
+    document.getElementById(PERDE_ID)?.remove();
+  } catch {
+    /* yok say */
+  }
+}
+
 async function switchTab(tokens: { access_token: string; refresh_token: string }, next: GecisState | null): Promise<never> {
+  perdeAc(); // Aşama 269: setSession'dan önce (önceki hesabın sayfası bir an bile görünmesin)
   const { data, error } = await supabase.auth.setSession(tokens);
-  if (error) throw new Error(`Oturum değiştirilemedi: ${error.message}`);
+  if (error) {
+    perdeKapat();
+    throw new Error(`Oturum değiştirilemedi: ${error.message}`);
+  }
   const authUser = data.session?.user || data.user;
   // Aşama 252: öğrenci hesabına bakılıyorsa öğrenci oturumu kurulur (şifre değiştirme ekranı açılmaz)
   const session =
@@ -139,6 +185,9 @@ async function switchTab(tokens: { access_token: string; refresh_token: string }
     /* depolama kapalı */
   }
   writeGecis(next);
+  // Aşama 269 (kök neden): "hesap seçildi" işareti eskiden yeni oturum kurulmadan ÖNCE yazılıyordu; aradaki bekleme
+  // sırasında ekran seçim ekranını bırakıp eski hesabın ana sayfasını çiziyordu. Artık yalnız yenilemeden hemen önce yazılır.
+  hesapSecildi();
   anaSayfadanAc();
   window.location.reload();
   return new Promise<never>(() => {});
@@ -173,13 +222,17 @@ async function authFetch(path: string, init: { body?: unknown; token?: string })
  *  Aşama 251: sekmedeki kurum oturumu kapatılmadan (ekran "çıkış" durumuna düşmeden) genel yöneticinin anahtarı
  *  doğrudan yenilenir; kurum oturumu da AYNI ANDA sunucuda kapatılır (iki istek sırayla değil, birlikte). */
 async function restoreHead(g: GecisState): Promise<{ access_token: string; refresh_token: string }> {
+  perdeAc(); // Aşama 269: geçerli oturum kapanırken giriş ekranı bir an görünmesin
   const { data: cur } = await supabase.auth.getSession();
   const kurumToken = cur.session?.access_token || '';
   const [head] = await Promise.all([
     authFetch('token?grant_type=refresh_token', { body: { refresh_token: g.headRefresh } }).catch(() => null),
     kurumToken ? authFetch('logout?scope=local', { token: kurumToken }).catch(() => null) : Promise.resolve(null),
   ]);
-  if (!head?.access_token || !head?.refresh_token) throw new Error('Kendi oturumunuza dönülemedi; lütfen yeniden giriş yapın.');
+  if (!head?.access_token || !head?.refresh_token) {
+    perdeKapat();
+    throw new Error('Kendi oturumunuza dönülemedi; lütfen yeniden giriş yapın.');
+  }
   return { access_token: head.access_token, refresh_token: head.refresh_token };
 }
 
@@ -427,12 +480,21 @@ export async function bagliHesaplar(yonetim = false): Promise<BagliHesap[]> {
   const g = readGecis();
   if (g?.bagli) return g.bagliListe || [g.bagli];
   if (!bagliKullanilir() && !(yonetim && gozuBagYonetimi())) return [];
-  const { data, error } = await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma').order('olusturma');
+  // Aşama 269: hedef_head sütunu (sistem sahibine ters bağ); 269 SQL'i kurulmadıysa sütunsuz okunur
+  let { data, error } = (await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma,hedef_head').order('olusturma')) as {
+    data: any[] | null;
+    error: any;
+  };
+  if (error && /hedef_head|42703/i.test(`${error.code || ''} ${error.message || ''}`)) {
+    ({ data, error } = await supabase.from('bagli_hesaplar').select('hedef_auth_id,hedef_ad,kurum_ad,olusturma').order('olusturma'));
+  }
   if (error) {
     if (/bagli_hesaplar|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) return []; // 256 SQL kurulmamış
     throw new Error(error.message);
   }
-  return (data || []).map((r: any) => ({ authUserId: String(r.hedef_auth_id), ad: r.hedef_ad || '', kurumAd: r.kurum_ad || '' }));
+  return (data || [])
+    .map((r: any) => ({ authUserId: String(r.hedef_auth_id), ad: r.hedef_ad || '', kurumAd: r.kurum_ad || '', head: r.hedef_head === true }))
+    .sort((a, b) => Number(!!b.head) - Number(!!a.head)); // sistem sahibi kartı önde
 }
 
 /** Kullanıcı adı (ya da e-posta) ve o hesabın şifresiyle hesap bağlar (giriş yapılan ana hesapta) */
@@ -460,8 +522,26 @@ export async function hesapBagKaldir(authUserId: string): Promise<void> {
 }
 
 /** Bağlı hesaba geçer (sistem sahibinin panelinden, bir kurumdan ya da başka bir bağlı hesaptan) */
-export async function bagliHesabaGec(authUserId: string): Promise<never> {
+export async function bagliHesabaGec(authUserId: string, sifre?: string): Promise<never> {
   const g = readGecis();
+  // Aşama 269: öğretmen hesabından sistem sahibine: şifre sunucuda doğrulanır, sistem sahibi kendi oturumuyla açılır
+  // (geçiş durumu taşınmaz; sistem sahibinin kendi bağlı hesapları ve kurum geçişi olağan biçimde çalışır)
+  const hedefHesap = (g ? g.bagliListe || [] : await bagliHesaplar().catch(() => [] as BagliHesap[])).find((h) => h.authUserId === authUserId);
+  if (hedefHesap?.head) {
+    if (!sifre) throw new Error('Sistem sahibi hesabına geçmek için şifrenizi yazın.');
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
+    const out = await kurumApi(data.session.access_token, { action: 'bagliGir', authUserId, sifre });
+    const eski = data.session.access_token;
+    const sahipYenile = g?.headRefresh || '';
+    // önceki oturumlar sunucuda kapatılır (sekmede tek oturum kalır)
+    void authFetch('logout?scope=local', { token: eski }).catch(() => null);
+    if (sahipYenile)
+      void authFetch('token?grant_type=refresh_token', { body: { refresh_token: sahipYenile } })
+        .then((t: any) => t?.access_token && authFetch('logout?scope=local', { token: t.access_token }))
+        .catch(() => null);
+    return switchTab(out.session, null);
+  }
   let head: { access_token: string; refresh_token: string };
   let headName: string;
   let liste: BagliHesap[];
@@ -492,13 +572,12 @@ export async function bagliHesabaGec(authUserId: string): Promise<never> {
     if (g) await switchTab(head, null); // geçişteyken hata: sistem sahibinin paneline dönülür (yarım durum kalmaz)
     throw e;
   }
-  hesapSecildi();
   return switchTab(out.session, { headRefresh: head.refresh_token, headName, kurumlar: [], active: null, gozu: null, bagli: out.hesap, bagliListe: liste, headId, sahip });
 }
 
 /** Giriş yapılan ana hesaba döner (bağlı hesaptan; sistem sahibinde kendi paneli) */
 export function sistemSahibineDon(): Promise<never> {
-  hesapSecildi();
+  if (!readGecis()) hesapSecildi(); // geçişte işaret switchTab'da, yenilemeden hemen önce yazılır (Aşama 269)
   return exitKurum();
 }
 
