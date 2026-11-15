@@ -154,6 +154,24 @@ const QuickClassSelect: React.FC<{
   );
 };
 
+// Aşama 274: sınıf ayrıntısı ızgarası için sıralama. Okul no sayısal (no'suz olanlar sonda, kendi içinde alfabetik);
+// alfabetik Türkçe kurallarıyla (Ç, Ğ, İ, Ö, Ş, Ü doğru yerde).
+function siraliSinifOgrencileri(list: Student[], sira: 'no' | 'ad'): Student[] {
+  const adKarsilastir = (a: Student, b: Student) =>
+    (a.name || '').localeCompare(b.name || '', 'tr', { sensitivity: 'base' });
+  if (sira === 'ad') return [...list].sort(adKarsilastir);
+  const no = (s: Student) => {
+    const n = parseInt(String(s.studentNumber || '').replace(/\D/g, ''), 10);
+    return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+  };
+  return [...list].sort((a, b) => {
+    const na = no(a);
+    const nb = no(b);
+    if (na !== nb) return na < nb ? -1 : 1;
+    return adKarsilastir(a, b);
+  });
+}
+
 export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
   classes,
@@ -181,6 +199,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useHistoryState<'students' | 'classes'>('students.tab', 'students'); // Aşama 52: geri tuşu
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
+  // Aşama 274: sınıf ayrıntısındaki öğrenci ızgarasının sırası (okul no / alfabetik); seçim bütün sınıflarda geçerli
+  const [classDetailSort, setClassDetailSort] = useState<'no' | 'ad'>('no');
 
   // Hızlı arama / ana sayfa kısayolu ile gelindiyse ilgili öğrenciyi, sınıfı veya ekleme formunu aç
   useQuickFocus(['student', 'class', 'action'], (f) => {
@@ -2101,14 +2121,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </button>
                     </div>
                     {classStudents.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                        {classStudents.slice(0, 60).map((st) => (
-                          <span key={st.id} className="text-[11px] px-2 py-0.5 rounded-md bg-surface-2 border border-line text-fg-2">
-                            {st.studentNumber ? `${st.studentNumber} · ` : ''}
-                            {st.name}
-                          </span>
-                        ))}
-                        {classStudents.length > 60 && <span className="text-[11px] text-muted">+{classStudents.length - 60} öğrenci</span>}
+                      /* Aşama 274: dağınık etiketler yerine eşit boylu ızgara; satır satır, yan yana. Sıra: okul no ya da alfabetik */
+                      <div className="space-y-2" data-class-student-grid>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-muted">Öğrenciler · {classStudents.length}</span>
+                          <Segmented
+                            size="sm"
+                            value={classDetailSort}
+                            onChange={setClassDetailSort}
+                            items={[
+                              { value: 'no', label: 'Okul no', id: `class-sort-no-${cls.id}` },
+                              { value: 'ad', label: 'Alfabetik', id: `class-sort-ad-${cls.id}` },
+                            ]}
+                          />
+                        </div>
+                        <ol className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 max-h-80 overflow-y-auto overscroll-contain pr-0.5">
+                          {siraliSinifOgrencileri(classStudents, classDetailSort).map((st) => (
+                            <li
+                              key={st.id}
+                              className="flex items-center gap-2 h-8 px-2 rounded-lg bg-surface-2 border border-line min-w-0"
+                              title={st.studentNumber ? `${st.studentNumber} · ${st.name}` : st.name}
+                            >
+                              <span className="w-11 shrink-0 text-right text-[11px] font-semibold tabular-nums text-muted">
+                                {st.studentNumber || '–'}
+                              </span>
+                              <span className="flex-1 min-w-0 truncate text-xs text-fg-2">{st.name}</span>
+                            </li>
+                          ))}
+                        </ol>
                       </div>
                     )}
                   </div>
