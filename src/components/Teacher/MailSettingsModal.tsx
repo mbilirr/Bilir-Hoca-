@@ -101,7 +101,8 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
                   Kurumunuzun e-posta adresi kullanılıyor: <b>{(status.kurumAccount as { gmail: string }).gmail}</b>. Bütün e-postalar bu adresten
-                  sizin adınızla gider, yanıtlar size gelir; aşağıdaki kendi Gmail bağlantınız kullanılmaz.
+                  sizin adınızla gider; yanıtlar kurum adresine, kendi yazdığınız duyuruların yanıtları size gelir. Aşağıdaki kendi Gmail
+                  bağlantınız kullanılmaz.
                 </span>
               </div>
             )}

@@ -21,7 +21,8 @@ import {
 // ============================================================================
 // KURUM AYARLARI (Aşama 82)
 //  - Kurum adı ve logosu (üst menüde ve karnelerde görünür; kurum e-postalarının başlığında kurum adı yazar)
-//  - Kurum gönderim e-postası: kurumdaki bütün e-postalar bu tek Gmail adresinden gider, "Yanıtla" öğretmene gider
+//  - Kurum gönderim e-postası: kurumdaki bütün e-postalar bu tek Gmail adresinden gider, "Yanıtla" kuruma gider
+//    (Aşama 273: yalnız öğretmenin yazdığı veli / öğrenci duyurusunda yanıt öğretmene gider)
 //  - Rol yetkileri anahtarı (yalnızca genel yönetici) ve "Rehberlik öğrenci ekleyip silebilsin" ayarı
 //  - Aşama 108: "Ölçme Değerlendirme öğrenci ekleyip silebilsin" ayarı; öğrenci kayıt bağlantısı kaldırıldı
 //    (öğrenciyi yalnızca kurum ekler)
@@ -398,7 +399,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
               </div>
               <p className="text-[11px] text-muted flex items-center gap-1">
                 Gmail'de iki adımlı doğrulama ve "Uygulama şifresi" gerekir.
-                <InfoTip text='Bağlanınca kurumdaki bütün e-postalar bu adresten gider; veli ya da öğrenci "Yanıtla"ya basarsa yanıt öğretmene gider.' />
+                <InfoTip text='Bağlanınca kurumdaki bütün e-postalar bu adresten gider; yanıtlar da bu adrese gelir. Yalnız öğretmenin kendi yazdığı duyurularda yanıt öğretmene gider.' />
               </p>
             </section>
             )}
