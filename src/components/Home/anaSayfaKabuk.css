@@ -222,6 +222,7 @@
 .ak-gz-list.dim { opacity: .55; }
 .ak-gz-list .w b, .ak-gz-list .w span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ak-gz-list .ak-tag { width: calc(6 * var(--ak-rem)); justify-content: center; flex-shrink: 0; }
+.ak-gz-hata { display: flex; align-items: center; justify-content: space-between; gap: calc(0.75 * var(--ak-rem)); padding-bottom: calc(0.75 * var(--ak-rem)); }
 .ak-gz-h { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: calc(0.6875 * var(--ak-rem)); margin-top: calc(1.5 * var(--ak-rem)); }
 
 @keyframes ak-fill { from { transform: scaleX(0); } to { transform: none; } }

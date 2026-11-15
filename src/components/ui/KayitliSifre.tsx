@@ -50,7 +50,7 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
       <p className={cx('text-[12px] font-semibold text-muted', className)}>
         {d.durum === 'degisti'
           ? `${kim} şifresini kendisi değiştirdi; güvenlik gereği kimse göremez. Unuttuysa Yeni şifre verin.`
-          : 'Kayıtlı şifre yok. Gerekirse Yeni şifre verin.'}
+          : 'Bu şifre, sistem şifre saklamaya başlamadan önce verilmiş; görülemez. Bir kez "Yeni şifre" verin, bundan sonra burada görünür.'}
       </p>
     );
   }

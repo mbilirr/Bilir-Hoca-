@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ROLE_BY_CODE } from '../../lib/teacherRoles';
-import { gozuKisiAra, gozuyleBak, type GozuAday } from '../../lib/kurumGecis';
+import { gozuKisiAra, gozuSunucuIsit, gozuyleBak, type GozuAday } from '../../lib/kurumGecis';
 import { AkSheet, akBasHarf } from './AnaSayfaKabuk';
 
 // ============================================================================
@@ -50,14 +50,17 @@ export const GozuyleBakSheet: React.FC<{
   const [son, setSon] = useState<SonBakis[] | null | 'yok'>(null);
   const sira = useRef(0);
   const onbellek = useRef(new Map<string, GozuAday[]>());
+  const [bakHata, setBakHata] = useState(''); // "Bak" hatası (aramadan ayrı)
+  const [deneme, setDeneme] = useState(0); // Aşama 252c: "Tekrar dene" aynı aramayı yeniden başlatır
 
-  // Panel her açılışta temiz başlar; son bakışlar okunur; sunucu ısıtılır (ilk aramada bekleme olmasın)
+  // Panel her açılışta temiz başlar; son bakışlar okunur; sunucu ısıtılır ("Bak" beklemesin; arama sunucuya gitmez)
   useEffect(() => {
     if (!open) return;
     setHata('');
+    setBakHata('');
     setAcilan('');
     onbellek.current.clear();
-    void gozuKisiAra('', '').catch(() => null);
+    gozuSunucuIsit();
     let iptal = false;
     supabase
       .from('kullanici_gozu_oturumlari')
@@ -73,7 +76,7 @@ export const GozuyleBakSheet: React.FC<{
   }, [open]);
 
   // Yazdıkça arar. Aşama 252b: önbellekte varsa beklemeden gösterir; yoksa önceki (daha kısa) aramanın sonucunu hemen
-  // süzer, 200 ms sonra sunucuya sorar. Yeni harf yazılınca eski istek iptal edilir (yanıtlar sıra bozmaz).
+  // süzer, 200 ms sonra veritabanına sorar (252c). Yeni harf yazılınca eski istek iptal edilir (yanıtlar sıra bozmaz).
   useEffect(() => {
     if (!open) return;
     const metin = q.trim();
@@ -83,6 +86,7 @@ export const GozuyleBakSheet: React.FC<{
       return;
     }
     const no = ++sira.current;
+    setHata('');
     const key = anahtar(metin, kurum);
     const hazir = onbellek.current.get(key);
     if (hazir) {
@@ -91,15 +95,18 @@ export const GozuyleBakSheet: React.FC<{
       setHata('');
       return;
     }
-    // Önceki kısa aramanın sonucundan anında süzme (sunucu yanıtı gelince yerine geçer)
+    // Önceki kısa aramanın sonucundan anında süzme (veritabanı yanıtı gelince yerine geçer). Aşama 252c: süzülen
+    // liste boşsa eski liste gösterilmez; "Aranıyor…" görünür (kişi yok sanılmaz)
     const kf = katla(metin);
+    let suzulen: GozuAday[] | null = null;
     for (let n = metin.length - 1; n >= 2; n--) {
       const onceki = onbellek.current.get(anahtar(metin.slice(0, n), kurum));
       if (onceki) {
-        setSonuc(onceki.filter((k) => katla(k.ad).includes(kf) || katla(k.ek).includes(kf)));
+        suzulen = onceki.filter((k) => katla(k.ad).includes(kf) || katla(k.ek).includes(kf));
         break;
       }
     }
+    setSonuc(suzulen && suzulen.length ? suzulen : null);
     setAraniyor(true);
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
@@ -121,16 +128,16 @@ export const GozuyleBakSheet: React.FC<{
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [q, kurum, open]);
+  }, [q, kurum, open, deneme]);
 
   const bak = async (k: GozuAday) => {
     if (acilan) return;
     setAcilan(k.authUserId);
-    setHata('');
+    setBakHata('');
     try {
       await gozuyleBak(k.authUserId); // sayfa o kişinin hesabıyla yeniden açılır
     } catch (e: any) {
-      setHata(e?.message || 'Açılamadı.');
+      setBakHata(e?.message || 'Açılamadı.');
       setAcilan('');
     }
   };
@@ -181,15 +188,24 @@ export const GozuyleBakSheet: React.FC<{
       </div>
 
       {hata && (
+        <div className="ak-gz-hata" role="alert">
+          <span className="ak-err">{hata}</span>
+          <button type="button" className="ak-btn w-24" onClick={() => setDeneme((n) => n + 1)}>
+            Tekrar dene
+          </button>
+        </div>
+      )}
+
+      {bakHata && (
         <p className="ak-err" role="alert">
-          {hata}
+          {bakHata}
         </p>
       )}
 
       <div aria-live="polite">
         {q.trim().length < 2 && <p className="ak-empty">Aramak için en az 2 harf yazın.</p>}
-        {q.trim().length >= 2 && araniyor && !sonuc && <p className="ak-empty">Aranıyor…</p>}
-        {sonuc && !sonuc.length && !araniyor && <p className="ak-empty">Bu aramayla kişi bulunamadı.</p>}
+        {q.trim().length >= 2 && araniyor && !sonuc?.length && <p className="ak-empty">Aranıyor…</p>}
+        {q.trim().length >= 2 && sonuc && !sonuc.length && !araniyor && !hata && <p className="ak-empty">Bu aramayla kişi bulunamadı.</p>}
         {sonuc && sonuc.length > 0 && (
           <div className={'ak-gz-list' + (araniyor ? ' dim' : '')}>
             {sonuc.map((k) => (
