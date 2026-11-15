@@ -1,43 +1,50 @@
 import React from 'react';
-import { BookOpen } from 'lucide-react';
-import { Panel, cx } from '../ui/kit';
+import { cx } from '../ui/kit';
 import { fmtScore } from '../../lib/deneme/lgs';
-import { dateRange, dateTr, examShort } from '../../lib/deneme/karneModel';
+import { dateRange, dateTr, denemeEtiketleri } from '../../lib/deneme/karneModel';
 import { bransTitle, type BransGelisim } from '../../lib/deneme/bransKarne';
+// Aşama 272: birleştirilmiş karnenin tasarım dili (ortak)
+import { DersAd, KBolum, dersRgb, rgb } from './KarneTasarim';
 
 // ============================================================================
 // Aşama 130: Branş şube gelişim karnesi (ekran). Hesap lib/deneme/bransKarne.ts'te; PDF aynı veriden.
 // Satır = öğrenci, sütun = deneme; hücre = dersin neti (kurum ortalamasına göre renkli).
 // ============================================================================
 
-const TONE_CELL: Record<'success' | 'danger', string> = {
-  success: 'bg-success-soft text-success-fg font-bold',
-  danger: 'bg-danger-soft text-danger-fg font-bold',
+/** Aşama 272: renkli kutu yerine renkli kalın yazı (birleştirilmiş karnenin tablo dili) */
+const TONE_TEXT: Record<'success' | 'danger', string> = {
+  success: 'text-success-fg font-bold',
+  danger: 'text-danger-fg font-bold',
 };
 const TH = 'sticky top-0 z-20 bg-surface-2 px-1 py-2 text-center font-semibold border-b border-line';
 
 export const BransGelisimView: React.FC<{ data: BransGelisim | null; scopeLabel: string }> = ({ data, scopeLabel }) => {
   if (!data) return <p className="text-sm text-muted">Seçilen kapsamda bu dersi içeren deneme yok.</p>;
   const { exams, counts, rows, subeAvg, kurumAvg } = data;
+  const renk = dersRgb(data.subject.key);
+  const etiket = denemeEtiketleri(exams);
   return (
-    <Panel
-      title={bransTitle(data.subject)}
-      description={`${data.className} · ${scopeLabel} (${exams.length} deneme) · ${dateRange(exams)} · Yeşil: kurum ortalamasının üstü · Kırmızı: altı · —: girmedi`}
-      icon={BookOpen}
-      tone="info"
-      padded={false}
+    <KBolum
+      tablo
+      baslik={
+        <>
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(renk) }} />
+          <DersAd ad={bransTitle(data.subject)} renk={renk} className="font-extrabold" />
+        </>
+      }
+      aciklama={`${data.className} · ${scopeLabel} (${exams.length} deneme) · ${dateRange(exams)} · Yeşil: kurum ortalamasının üstü · Kırmızı: altı · —: girmedi`}
     >
-      <div className="overflow-auto max-h-[36rem]">
+      <div className="max-h-[36rem] overflow-auto">
         <table className="w-full text-xs text-fg-2 border-separate border-spacing-0">
-          <thead className="text-muted">
+          <thead className="text-[11px] uppercase tracking-wider text-muted">
             <tr>
               <th className="sticky top-0 left-0 z-30 bg-surface-2 px-2 py-2 text-center font-semibold border-b border-line w-14">No</th>
               <th className="sticky top-0 left-14 z-30 bg-surface-2 px-3 py-2 text-left font-semibold border-b border-line min-w-40">Adı Soyadı</th>
               {exams.map((e, i) => (
                 <th key={e.id} className={cx(TH, 'min-w-16')} title={`${e.name} · ${dateTr(e.examDate)} · ${counts[i]} soru`}>
-                  <span className="block font-normal text-[10px] truncate max-w-20 mx-auto">{examShort(e)}</span>
-                  <span className="block font-normal text-[10px] tabular-nums">{dateTr(e.examDate)}</span>
-                  <span className="block text-[10px] tabular-nums">{counts[i]} soru</span>
+                  <span className="mx-auto block max-w-20 truncate normal-case tracking-normal">{etiket[i].ust}</span>
+                  <span className="block text-[10px] font-normal tabular-nums normal-case tracking-normal">{etiket[i].alt}</span>
+                  <span className="block text-[10px] font-normal tabular-nums normal-case tracking-normal">{counts[i]} soru</span>
                 </th>
               ))}
               <th className={cx(TH, 'px-2')}>Genel ort.</th>
@@ -51,35 +58,37 @@ export const BransGelisimView: React.FC<{ data: BransGelisim | null; scopeLabel:
                 {r.nets.map((v, i) => {
                   const t = r.tones[i];
                   return (
-                    <td key={i} className="p-0.5 border-b border-line/60">
-                      <span className={cx('block rounded-md py-1 text-center tabular-nums', v === null ? 'text-subtle' : t ? TONE_CELL[t] : 'text-fg')}>
-                        {v === null ? '—' : fmtScore(v)}
-                      </span>
+                    <td key={i} className={cx('border-b border-line/60 px-1 py-1 text-center tabular-nums', v === null ? 'text-subtle' : t ? TONE_TEXT[t] : 'text-fg')}>
+                      {v === null ? '—' : fmtScore(v)}
                     </td>
                   );
                 })}
                 <td className="px-2 py-1 text-center tabular-nums font-bold text-fg border-b border-line/60">{r.avg === null ? '—' : fmtScore(r.avg)}</td>
               </tr>
             ))}
-            <tr className="font-bold">
-              <td className="sticky left-0 z-10 bg-info-soft px-2 py-1.5" />
-              <td className="sticky left-14 z-10 bg-info-soft px-3 py-1.5 text-info-fg">Şube ortalaması</td>
+            <tr className="font-bold text-fg">
+              <td className="sticky left-0 z-10 bg-surface-2 px-2 py-1.5" />
+              <td className="sticky left-14 z-10 bg-surface-2 px-3 py-1.5">Şube ortalaması</td>
               {subeAvg.map((v, i) => (
-                <td key={i} className="bg-info-soft px-1 py-1.5 text-center tabular-nums text-info-fg">{fmtScore(v)}</td>
+                <td key={i} className="bg-surface-2 px-1 py-1.5 text-center tabular-nums">
+                  {fmtScore(v)}
+                </td>
               ))}
-              <td className="bg-info-soft px-2 py-1.5 text-center tabular-nums text-info-fg">{fmtScore(data.subeGenel)}</td>
+              <td className="bg-surface-2 px-2 py-1.5 text-center tabular-nums">{fmtScore(data.subeGenel)}</td>
             </tr>
             <tr>
-              <td className="sticky left-0 z-10 bg-surface-2 px-2 py-1.5" />
-              <td className="sticky left-14 z-10 bg-surface-2 px-3 py-1.5 font-semibold text-muted">Kurum ortalaması</td>
+              <td className="sticky left-0 z-10 bg-surface px-2 py-1.5" />
+              <td className="sticky left-14 z-10 bg-surface px-3 py-1.5 font-semibold text-muted">Kurum ortalaması</td>
               {kurumAvg.map((v, i) => (
-                <td key={i} className="bg-surface-2 px-1 py-1.5 text-center tabular-nums text-muted">{fmtScore(v)}</td>
+                <td key={i} className="px-1 py-1.5 text-center tabular-nums text-muted">
+                  {fmtScore(v)}
+                </td>
               ))}
-              <td className="bg-surface-2 px-2 py-1.5 text-center tabular-nums text-muted">{fmtScore(data.kurumGenel)}</td>
+              <td className="px-2 py-1.5 text-center tabular-nums text-muted">{fmtScore(data.kurumGenel)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    </Panel>
+    </KBolum>
   );
 };

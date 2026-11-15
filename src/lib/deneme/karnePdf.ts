@@ -47,7 +47,16 @@ export type PdfBlock =
       items: Array<{ label: string; sub?: string; parts: Array<{ value: number; tone: PdfTone; rgb?: [number, number, number] }>; right?: string }>;
       legend?: Array<{ label: string; tone: PdfTone; rgb?: [number, number, number] }>;
     }
-  | { kind: 'line'; title: string; labels: string[]; series: Array<{ name: string; values: Array<number | null> }>; yMin?: number; yMax?: number }
+  | {
+      kind: 'line';
+      title: string;
+      labels: string[];
+      series: Array<{ name: string; values: Array<number | null> }>;
+      yMin?: number;
+      yMax?: number;
+      /** Aşama 272: dizi başına renk (ör. ders renkleri); verilmezse ilk dizi kurum rengi, diğerleri gri */
+      colors?: Array<[number, number, number]>;
+    }
   | {
       kind: 'bar';
       title: string;
@@ -81,22 +90,21 @@ export type PdfBlock =
   | { kind: 'gelisimPano'; data: GelisimPanoData }
   | { kind: 'isiNokta'; data: IsiNoktaData };
 
-const PALETTE: Array<[number, number, number]> = [
-  [79, 70, 229],
-  [16, 150, 105],
-  [217, 119, 6],
-  [220, 38, 38],
-  [14, 165, 233],
-  [139, 92, 246],
+// Aşama 272: bütün karneler birleştirilmiş karnenin (B) diliyle: koyu yazı, gri çizgi, kurum rengi vurgu
+const B_FG: [number, number, number] = [17, 24, 39];
+const B_FG2: [number, number, number] = [55, 65, 81];
+const B_MUTED: [number, number, number] = [107, 114, 128];
+const B_SOFT: [number, number, number] = [156, 163, 175];
+const B_LINE: [number, number, number] = [229, 231, 235];
+const B_TRACK: [number, number, number] = [241, 242, 244];
+const B_SURFACE: [number, number, number] = [249, 250, 251];
+/** Aşama 272: karşılaştırma dizileri (sınıf, kurum…) gri tonlarda; ilk dizi kurum renginde */
+const tintB = (c: [number, number, number], k: number): [number, number, number] => [Math.round(255 - (255 - c[0]) * k), Math.round(255 - (255 - c[1]) * k), Math.round(255 - (255 - c[2]) * k)];
+const B_GRI: Array<[number, number, number]> = [
+  [148, 163, 184],
+  [203, 213, 225],
   [100, 116, 139],
 ];
-const TONE_FILL: Record<PdfTone, [number, number, number]> = {
-  success: [220, 252, 231],
-  info: [219, 234, 254],
-  warning: [254, 243, 199],
-  danger: [254, 226, 226],
-  muted: [241, 245, 249],
-};
 const TONE_TEXT: Record<PdfTone, [number, number, number]> = {
   success: [21, 128, 61],
   info: [29, 78, 216],
@@ -122,6 +130,11 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
   const zemin2 = renk ? renk.zemin2 : ([79, 70, 229] as [number, number, number]);
   const cipRenk = renk ? renk.cip : ([99, 102, 241] as [number, number, number]);
   const kutuRenk = renk ? renk.kutu : ([99, 102, 241] as [number, number, number]);
+  // Aşama 272: grafiklerde ve başlıklarda vurgu = kurum rengi (logo yoksa indigo)
+  const vurgu: [number, number, number] = renk ? renk.zemin : [79, 70, 229];
+  // 3'ten çok dizi (ör. sınıflar) kurum renginin koyudan açığa tonlarıyla ayrılır (ekrandaki gibi)
+  const diziRenk = (i: number, n = 1, renkler?: Array<[number, number, number]>): [number, number, number] =>
+    renkler?.[i] || (n > 3 ? tintB(vurgu, 1 - (0.7 * i) / Math.max(1, n - 1)) : i === 0 ? vurgu : B_GRI[(i - 1) % B_GRI.length]);
   const [{ jsPDF }, autoTableMod, fonts, analytics, tekMod] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -151,14 +164,15 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
     }
   };
 
-  const drawLegend = (names: string[], x0: number, yy: number) => {
+  const drawLegend = (names: string[], x0: number, yy: number, renkler?: Array<[number, number, number]>) => {
     let x = x0;
     doc.setFontSize(7.5);
     names.forEach((n, i) => {
-      const c = PALETTE[i % PALETTE.length];
+      // Aşama 272: B lejantı — yuvarlak işaret, ilk dizi kurum renginde
+      const c = diziRenk(i, names.length, renkler);
       doc.setFillColor(c[0], c[1], c[2]);
-      doc.rect(x, yy - 2.2, 3, 2.2, 'F');
-      doc.setTextColor(55, 65, 81);
+      doc.circle(x + 1.2, yy - 1.1, 1.2, 'F');
+      doc.setTextColor(B_FG2[0], B_FG2[1], B_FG2[2]);
       const label = t(n);
       doc.text(label, x + 4, yy);
       x += 8 + doc.getTextWidth(label);
@@ -167,22 +181,24 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
 
   const chartFrame = (title: string, minV: number, maxV: number, h: number) => {
     ensure(h + 14);
+    // Aşama 272: B grafik başlığı (koyu, kalın) ve açık gri kılavuz çizgileri
     doc.setFont(F, 'bold');
     doc.setFontSize(9.5);
-    doc.setTextColor(30, 27, 75);
+    doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]);
     doc.text(t(title), M, y + 4);
     doc.setFont(F, 'normal');
     const top = y + 8;
     const left = M + 10;
     const right = W - M;
     const bottom = top + h;
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.2);
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
+    doc.setLineWidth(0.15);
+    doc.setFontSize(6.6);
+    doc.setTextColor(B_SOFT[0], B_SOFT[1], B_SOFT[2]);
     for (let k = 0; k <= 4; k++) {
       const v = minV + ((maxV - minV) * k) / 4;
       const yy = bottom - (h * k) / 4;
+      if (k === 0) doc.setDrawColor(B_LINE[0], B_LINE[1], B_LINE[2]);
+      else doc.setDrawColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]);
       doc.line(left, yy, right, yy);
       doc.text(String(Math.round(v * 10) / 10).replace('.', ','), left - 1.5, yy + 1, { align: 'right' });
     }
@@ -315,15 +331,19 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         ensure(th + 4);
         b.items.forEach((it, i) => {
           const x = M + i * (tw + gap);
-          const fill = it.tone ? TONE_FILL[it.tone] : ([248, 250, 252] as [number, number, number]);
-          const txt = it.tone ? TONE_TEXT[it.tone] : ([15, 23, 42] as [number, number, number]);
-          doc.setFillColor(fill[0], fill[1], fill[2]);
-          doc.setDrawColor(226, 232, 240);
+          // Aşama 272: B kutusu — beyaz zemin, ince gri çerçeve, tonlu kutuda üstte renk şeridi ve renkli rakam
+          const txt = it.tone ? TONE_TEXT[it.tone] : B_FG;
+          doc.setFillColor(255, 255, 255);
+          doc.setDrawColor(B_LINE[0], B_LINE[1], B_LINE[2]);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, tw, th, 2.5, 2.5, 'FD');
+          if (it.tone && it.tone !== 'muted') {
+            doc.setFillColor(txt[0], txt[1], txt[2]);
+            doc.roundedRect(x + 2.5, y, tw - 5, 0.8, 0.4, 0.4, 'F');
+          }
           doc.setFont(F, 'bold');
           doc.setFontSize(6.4);
-          doc.setTextColor(100, 116, 139);
+          doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
           doc.text(t(it.label.toLocaleUpperCase('tr-TR')), x + 2.5, y + 4.3, { maxWidth: tw - 4 });
           doc.setFontSize(13);
           doc.setTextColor(txt[0], txt[1], txt[2]);
@@ -331,7 +351,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           if (it.sub) {
             doc.setFont(F, 'normal');
             doc.setFontSize(6.4);
-            doc.setTextColor(100, 116, 139);
+            doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
             doc.text(t(it.sub), x + 2.5, y + 15, { maxWidth: tw - 4 });
           }
           doc.setFont(F, 'normal');
@@ -348,7 +368,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           ensure(6 + lines * (cell + 7));
           doc.setFont(F, 'bold');
           doc.setFontSize(8.2);
-          doc.setTextColor(30, 27, 75);
+          doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]); // Aşama 272
           doc.text(t(r.title), M, y + 3.5);
           y += 5.5;
           r.cells.forEach((c, i) => {
@@ -360,9 +380,10 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             doc.setFontSize(5.4);
             doc.setTextColor(148, 163, 184);
             doc.text(String(c.no), x + cell / 2, yy + 1.8, { align: 'center' });
-            const fill: [number, number, number] = c.mark === 'D' ? [16, 150, 105] : c.mark === 'Y' ? [220, 38, 38] : [241, 245, 249];
+            // Aşama 272: B renkleri (birleştirilmiş karnedeki doğru / yanlış yeşil-kırmızısı)
+            const fill: [number, number, number] = c.mark === 'D' ? [22, 163, 74] : c.mark === 'Y' ? [220, 38, 38] : B_TRACK;
             doc.setFillColor(fill[0], fill[1], fill[2]);
-            doc.setDrawColor(226, 232, 240);
+            doc.setDrawColor(B_LINE[0], B_LINE[1], B_LINE[2]);
             doc.roundedRect(x, yy + 2.6, cell, cell, 1.3, 1.3, c.mark === 'B' ? 'FD' : 'F');
             doc.setFont(F, 'bold');
             doc.setFontSize(8);
@@ -391,7 +412,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           ensure(10);
           doc.setFont(F, 'bold');
           doc.setFontSize(9);
-          doc.setTextColor(30, 27, 75);
+          doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]); // Aşama 272
           doc.text(t(b.title), M, y + 3.5);
           y += 5.5;
         }
@@ -413,14 +434,14 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             doc.text(subLines, M, y + 3 + lines.length * 3.2);
           }
           const by = y + rh / 2 - 1.4;
-          doc.setFillColor(241, 245, 249);
+          doc.setFillColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]); // Aşama 272
           doc.roundedRect(barX, by, barW, 2.8, 1.4, 1.4, 'F');
           const c = TONE_TEXT[it.tone];
           doc.setFillColor(c[0], c[1], c[2]);
           doc.roundedRect(barX, by, Math.max(1.2, (barW * Math.max(0, Math.min(100, it.rate))) / 100), 2.8, 1.4, 1.4, 'F');
           if (it.marker !== null && it.marker !== undefined) {
             const mx = barX + (barW * Math.max(0, Math.min(100, it.marker))) / 100;
-            doc.setDrawColor(30, 41, 59);
+            doc.setDrawColor(B_FG[0], B_FG[1], B_FG[2]);
             doc.setLineWidth(0.5);
             doc.line(mx, by - 1, mx, by + 3.8);
           }
@@ -434,7 +455,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             doc.setTextColor(100, 116, 139);
             doc.text(t(it.right), W - M, by + 2.4, { align: 'right' });
           }
-          doc.setDrawColor(241, 245, 249);
+          doc.setDrawColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]);
           doc.setLineWidth(0.15);
           doc.line(M, y + rh, W - M, y + rh);
           y += rh + 0.8;
@@ -455,7 +476,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           ensure(12);
           doc.setFont(F, 'bold');
           doc.setFontSize(9);
-          doc.setTextColor(30, 27, 75);
+          doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]); // Aşama 272
           doc.text(t(b.title), M, y + 3.5);
           y += 5.5;
         }
@@ -484,7 +505,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           }
           const total = it.parts.reduce((a, p) => a + Math.max(0, p.value), 0);
           const by = y + rh / 2 - 2;
-          doc.setFillColor(241, 245, 249);
+          doc.setFillColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]); // Aşama 272
           doc.roundedRect(barX, by, barW, 4, 1.2, 1.2, 'F');
           if (total > 0) {
             let x = barX;
@@ -510,7 +531,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             doc.setTextColor(30, 41, 59);
             doc.text(doc.splitTextToSize(t(it.right), rightW) as string[], W - M - rightW, by + 2.9);
           }
-          doc.setDrawColor(241, 245, 249);
+          doc.setDrawColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]);
           doc.setLineWidth(0.15);
           doc.line(M, y + rh, W - M, y + rh);
           y += rh + 0.8;
@@ -540,20 +561,22 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         doc.setFontSize(16);
         const tl = doc.splitTextToSize(t(b.text), W - 2 * M) as string[];
         ensure(10 + tl.length * 6.5);
-        doc.setTextColor(30, 27, 75);
+        doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]); // Aşama 272
         doc.text(tl, M, y + 4);
         y += 4 + tl.length * 6.5;
         if (b.sub) {
           doc.setFont(F, 'normal');
           doc.setFontSize(9.5);
-          doc.setTextColor(71, 85, 105);
+          doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
           const sl = doc.splitTextToSize(t(b.sub), W - 2 * M) as string[];
           doc.text(sl, M, y + 1);
           y += sl.length * 4.2 + 1;
         }
-        doc.setDrawColor(199, 210, 254);
-        doc.setLineWidth(0.4);
-        doc.line(M, y + 1, W - M, y + 1);
+        // Aşama 272: B ayracı — kısa kurum rengi, ardından ince gri çizgi
+        doc.setFillColor(vurgu[0], vurgu[1], vurgu[2]);
+        doc.rect(M, y + 0.6, 18, 0.8, 'F');
+        doc.setFillColor(B_LINE[0], B_LINE[1], B_LINE[2]);
+        doc.rect(M + 18, y + 0.85, W - 2 * M - 18, 0.3, 'F');
         y += 5;
         continue;
       }
@@ -572,10 +595,10 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           pair.forEach(([k], j) => {
             const x = M + j * colW;
             doc.setFont(F, 'normal');
-            doc.setTextColor(100, 116, 139);
+            doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
             doc.text(t(`${k}:`), x, y + 3);
             doc.setFont(F, 'bold');
-            doc.setTextColor(15, 23, 42);
+            doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]);
             doc.text(wrapped[j], x + 30, y + 3);
           });
           y += rowH;
@@ -588,22 +611,25 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         // Başlık sayfanın en altında tek başına kalmasın diye ardından gelecek içerik için de yer aranır.
         doc.setFont(F, 'bold');
         doc.setFontSize(11);
-        const hl = doc.splitTextToSize(t(b.text), W - 2 * M) as string[];
+        const hl = doc.splitTextToSize(t(b.text), W - 2 * M - 2.6) as string[];
         doc.setFont(F, 'normal');
         doc.setFontSize(8.2);
-        const sl = b.sub ? (doc.splitTextToSize(t(b.sub), W - 2 * M) as string[]) : [];
+        const sl = b.sub ? (doc.splitTextToSize(t(b.sub), W - 2 * M - 2.6) as string[]) : [];
         const h = 3 + hl.length * 4.8 + sl.length * 3.6 + 2;
         ensure(h + (b.minFollow ?? 18));
+        // Aşama 272: B bölüm başlığı — koyu kalın yazı, solda kurum renginde kısa çizgi
         doc.setFont(F, 'bold');
         doc.setFontSize(11);
-        doc.setTextColor(67, 56, 202);
-        doc.text(hl, M, y + 5);
+        doc.setTextColor(B_FG[0], B_FG[1], B_FG[2]);
+        doc.setFillColor(vurgu[0], vurgu[1], vurgu[2]);
+        doc.roundedRect(M, y + 1.6, 1, 4, 0.5, 0.5, 'F');
+        doc.text(hl, M + 2.6, y + 5);
         y += 3 + hl.length * 4.8;
         if (sl.length) {
           doc.setFont(F, 'normal');
           doc.setFontSize(8.2);
-          doc.setTextColor(100, 116, 139);
-          doc.text(sl, M, y + 2.6);
+          doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
+          doc.text(sl, M + 2.6, y + 2.6);
           y += sl.length * 3.6;
         }
         y += 2;
@@ -628,12 +654,14 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         const bodyH = prepared.reduce((a, p) => a + p.lines.length * 3.5 + 0.8, 0);
         const h = pad + 5 + bodyH + pad - 1;
         ensure(h + 3);
-        const fill = TONE_FILL[tone];
+        // Aşama 272: B not kutusu — açık zemin, ince gri çerçeve, solda tonun renginde şerit
         const txt = TONE_TEXT[tone];
-        doc.setFillColor(fill[0], fill[1], fill[2]);
-        doc.setDrawColor(txt[0], txt[1], txt[2]);
-        doc.setLineWidth(0.25);
+        doc.setFillColor(B_SURFACE[0], B_SURFACE[1], B_SURFACE[2]);
+        doc.setDrawColor(B_LINE[0], B_LINE[1], B_LINE[2]);
+        doc.setLineWidth(0.2);
         doc.roundedRect(M, y, W - 2 * M, h, 2.5, 2.5, 'FD');
+        doc.setFillColor(txt[0], txt[1], txt[2]);
+        doc.roundedRect(M + 0.8, y + 2, 1, h - 4, 0.5, 0.5, 'F');
         doc.setFont(F, 'bold');
         doc.setFontSize(8.6);
         doc.setTextColor(txt[0], txt[1], txt[2]);
@@ -648,7 +676,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             doc.text(p.label, M + pad, yy);
           }
           doc.setFont(F, 'normal');
-          doc.setTextColor(51, 65, 85);
+          doc.setTextColor(B_FG2[0], B_FG2[1], B_FG2[2]);
           doc.text(p.lines, M + pad + p.labelW, yy);
           yy += p.lines.length * 3.5 + 0.8;
         }
@@ -658,7 +686,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
       if (b.kind === 'text') {
         doc.setFont(F, 'normal');
         doc.setFontSize(8.8);
-        const c = b.tone ? TONE_TEXT[b.tone] : ([55, 65, 81] as [number, number, number]);
+        const c = b.tone ? TONE_TEXT[b.tone] : B_FG2; // Aşama 272
         doc.setTextColor(c[0], c[1], c[2]);
         const lines = doc.splitTextToSize(t(b.text), W - 2 * M) as string[];
         ensure(lines.length * 4 + 2);
@@ -679,10 +707,11 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           margin: { left: M, right: M, top: TOP, bottom: 16 },
           head: [b.head.map(t)],
           body: b.rows.map((r) => r.map((c) => t(c))),
-          theme: 'grid',
           // Aşama 53: uzun hücre metni alt satıra geçer (sayfa dışına taşmaz); başlık her sayfada tekrarlanır
-          styles: { font: F, fontSize: b.fontSize || 8.2, cellPadding: 1.6, textColor: [55, 65, 81], lineColor: [226, 232, 240], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
-          headStyles: { font: F, fillColor: b.rowColors ? (renk ? renk.zemin : [30, 41, 59]) : [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
+          // Aşama 272: B tablosu — yalnız yatay ince çizgiler, açık gri başlık, gri küçük başlık yazısı
+          theme: 'plain',
+          styles: { font: F, fontSize: b.fontSize || 8.2, cellPadding: 1.6, textColor: B_FG2, lineColor: B_LINE, lineWidth: { bottom: 0.15, top: 0, left: 0, right: 0 }, valign: 'middle', overflow: 'linebreak' },
+          headStyles: { font: F, fillColor: B_SURFACE, textColor: B_MUTED, fontStyle: 'bold', fontSize: Math.max(6.4, (b.fontSize || 8.2) - 1), lineColor: B_LINE, lineWidth: { bottom: 0.3, top: 0, left: 0, right: 0 } },
           showHead: 'everyPage',
           rowPageBreak: 'avoid',
           columnStyles,
@@ -692,30 +721,30 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             // Aşama 135: ders renkli tablo
             if (b.rowColors) {
               const rc = b.rowColors[data.row.index];
-              data.cell.styles.fillColor = rc === null ? [241, 245, 249] : data.row.index % 2 ? [248, 250, 252] : [255, 255, 255];
+              data.cell.styles.fillColor = rc === null ? B_SURFACE : [255, 255, 255];
               data.cell.styles.minCellHeight = 6.4;
               if (rc === null) data.cell.styles.fontStyle = 'bold';
               const ci = data.column.index;
               if (ci === 0) {
                 data.cell.styles.fontStyle = 'bold';
                 data.cell.styles.cellPadding = { top: 1.6, bottom: 1.6, left: 3.6, right: 1.6 };
-                data.cell.styles.textColor = rc || [15, 23, 42];
+                data.cell.styles.textColor = B_FG; // Aşama 272: ders adı koyu, rengi soldaki işarette
               } else if (ci === b.head.length - 1) {
                 const v = String(data.cell.raw ?? '');
                 data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.textColor = v.startsWith('+') ? [21, 128, 61] : v.startsWith('-') ? [190, 18, 60] : [100, 116, 139];
+                data.cell.styles.textColor = v.startsWith('+') ? [22, 163, 74] : v.startsWith('-') ? [220, 38, 38] : B_MUTED;
               } else if (ci === b.rateColumn) {
                 data.cell.styles.halign = 'right';
               } else if (b.head[ci] === 'Net') {
                 data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.textColor = [15, 23, 42];
-              } else if (b.head[ci] === 'D') data.cell.styles.textColor = [21, 128, 61];
-              else if (b.head[ci] === 'Y') data.cell.styles.textColor = [190, 18, 60];
+                data.cell.styles.textColor = B_FG;
+              } else if (b.head[ci] === 'D') data.cell.styles.textColor = [22, 163, 74];
+              else if (b.head[ci] === 'Y') data.cell.styles.textColor = [220, 38, 38];
               return;
             }
+            // Aşama 272: B — satır boyanmaz, yalnız durum sütunu renkli kalın yazılır
             const tone = b.rowTones?.[data.row.index];
             if (tone) {
-              data.cell.styles.fillColor = TONE_FILL[tone];
               if (data.column.index === (b.toneColumn ?? b.head.length - 1)) {
                 data.cell.styles.textColor = TONE_TEXT[tone];
                 data.cell.styles.fontStyle = 'bold';
@@ -724,7 +753,8 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             // Aşama 54: hücre rengi
             const ct = b.cellTones?.[data.row.index]?.[data.column.index];
             if (ct) {
-              data.cell.styles.fillColor = TONE_FILL[ct];
+              // Aşama 272: hücre renkli kalın yazı + çok açık ton (ekrandaki renkli yazı gibi)
+              data.cell.styles.fillColor = tintB(TONE_TEXT[ct], 0.08);
               data.cell.styles.textColor = TONE_TEXT[ct];
               data.cell.styles.fontStyle = 'bold';
             }
@@ -735,8 +765,9 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
                 const rc = b.rowColors![data.row.index];
                 const c = data.cell;
                 if (data.column.index === 0 && rc) {
+                  // Aşama 272: ders rengi yuvarlak işaret (birleştirilmiş karnedeki gibi)
                   doc.setFillColor(rc[0], rc[1], rc[2]);
-                  doc.roundedRect(c.x + 1.2, c.y + 1.3, 1.2, c.height - 2.6, 0.5, 0.5, 'F');
+                  doc.circle(c.x + 1.9, c.y + c.height / 2, 0.9, 'F');
                 }
                 if (data.column.index === b.rateColumn) {
                   const m = /(\d+)/.exec(String(data.cell.raw ?? ''));
@@ -745,7 +776,7 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
                   const bx = c.x + 1.8;
                   const by = c.y + c.height / 2 - 1;
                   const col = rc || [71, 85, 105];
-                  doc.setFillColor(226, 232, 240);
+                  doc.setFillColor(B_TRACK[0], B_TRACK[1], B_TRACK[2]);
                   doc.roundedRect(bx, by, bw, 2, 1, 1, 'F');
                   if (rate > 0) {
                     doc.setFillColor(col[0], col[1], col[2]);
@@ -772,14 +803,26 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         const n = b.labels.length;
         const xAt = (i: number) => (n === 1 ? (f.left + f.right) / 2 : f.left + 4 + ((f.right - f.left - 8) * i) / (n - 1));
         const yAt = (v: number) => f.bottom - ((v - minV) / (maxV - minV)) * h;
-        doc.setFontSize(6.8);
-        doc.setTextColor(100, 116, 139);
-        b.labels.forEach((l, i) => doc.text(t(l).slice(0, 18), xAt(i), f.bottom + 4, { align: 'center' }));
-        b.series.forEach((s, si) => {
-          const c = PALETTE[si % PALETTE.length];
+        doc.setFontSize(6.6);
+        doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
+        // Aşama 272: ilk ve son etiket kenara yaslanır (sayfa dışına taşmaz)
+        b.labels.forEach((l, i) => {
+          const al = n > 1 && i === 0 ? 'left' : n > 1 && i === n - 1 ? 'right' : 'center';
+          const x = al === 'left' ? xAt(i) - 4 : al === 'right' ? xAt(i) + 4 : xAt(i);
+          doc.text(t(l).slice(0, 18), x, f.bottom + 4, { align: al });
+        });
+        // Aşama 272: B çizgi grafiği — ilk dizi kalın kurum rengi (beyaz halkalı nokta), diğerleri ince gri;
+        // gri diziler önce çizilir, ana dizi üstte kalır
+        const sira = b.series.map((_, i) => i).reverse();
+        sira.forEach((si) => {
+          const s = b.series[si];
+          const c = diziRenk(si, b.series.length, b.colors);
+          // ders renkli / çok dizili grafikte bütün çizgiler eşit ve düz; aksi halde ilk dizi ana çizgi
+          const ana = si === 0 || !!b.colors || b.series.length > 3;
           doc.setDrawColor(c[0], c[1], c[2]);
           doc.setFillColor(c[0], c[1], c[2]);
-          doc.setLineWidth(0.6);
+          doc.setLineWidth(ana ? 0.8 : 0.45);
+          if (!ana) doc.setLineDashPattern([1.2, 0.9], 0);
           let prev: [number, number] | null = null;
           s.values.forEach((v, i) => {
             if (v === null || !Number.isFinite(v)) {
@@ -788,13 +831,22 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
             }
             const p: [number, number] = [xAt(i), yAt(v)];
             if (prev) doc.line(prev[0], prev[1], p[0], p[1]);
-            doc.circle(p[0], p[1], 0.9, 'F');
             prev = p;
+          });
+          doc.setLineDashPattern([], 0);
+          s.values.forEach((v, i) => {
+            if (v === null || !Number.isFinite(v)) return;
+            if (ana) {
+              doc.setFillColor(255, 255, 255);
+              doc.circle(xAt(i), yAt(v), 1.25, 'F');
+              doc.setFillColor(c[0], c[1], c[2]);
+              doc.circle(xAt(i), yAt(v), 0.85, 'F');
+            } else doc.circle(xAt(i), yAt(v), 0.6, 'F');
           });
         });
         y = f.bottom + 7;
         if (b.series.length > 1 || b.series[0]?.name) {
-          drawLegend(b.series.map((s) => s.name), M + 10, y + 1);
+          drawLegend(b.series.map((s) => s.name), M + 10, y + 1, b.colors);
           y += 5;
         }
         y += 3;
@@ -812,50 +864,31 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         const barW = Math.min(8, (groupW * 0.8) / b.series.length);
         const yAt = (v: number) => f.bottom - ((v - minV) / (maxV - minV)) * h;
         if (b.solid) {
-          // Aşama 135: 3 boyutlu sütunlar (ön yüz + açık üst yüz + koyu yan yüz), öğrenci sütunu ders renginde
-          const GRI: Array<[number, number, number]> = [
-            [100, 116, 139],
-            [203, 213, 225],
-          ];
-          const ton = (c: [number, number, number], k: number): [number, number, number] =>
-            k >= 0 ? [Math.round(c[0] + (255 - c[0]) * k), Math.round(c[1] + (255 - c[1]) * k), Math.round(c[2] + (255 - c[2]) * k)] : [Math.round(c[0] * (1 + k)), Math.round(c[1] * (1 + k)), Math.round(c[2] * (1 + k))];
-          const dx = Math.min(1.8, barW * 0.28);
-          const dy = dx * 0.8;
-          const bw = barW * 0.78;
+          // Aşama 272: B sütunları — düz, üstü yuvarlak; öğrenci sütunu ders renginde, karşılaştırmalar gri
+          const GRI = B_GRI;
           const fillC = (c: [number, number, number]) => doc.setFillColor(c[0], c[1], c[2]);
-          const quad = (pts: Array<[number, number]>) => {
-            doc.triangle(pts[0][0], pts[0][1], pts[1][0], pts[1][1], pts[2][0], pts[2][1], 'F');
-            doc.triangle(pts[0][0], pts[0][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1], 'F');
-          };
+          const bw = barW * 0.82;
           b.labels.forEach((l, i) => {
             const gx = f.left + groupW * i + groupW / 2;
-            doc.setFontSize(6.8);
-            doc.setTextColor(71, 85, 105);
+            doc.setFontSize(6.6);
+            doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
             doc.text(t(l).slice(0, 14), gx, f.bottom + 4, { align: 'center' });
             b.series.forEach((s, si) => {
               const v = Math.max(0, s.values[i] ?? 0);
-              const c = si === 0 ? b.solid!.colors[i] || [71, 85, 105] : GRI[(si - 1) % GRI.length];
+              const c = si === 0 ? b.solid!.colors[i] || B_FG2 : GRI[(si - 1) % GRI.length];
               const x = gx - (barW * b.series.length) / 2 + si * barW;
               const y0 = yAt(Math.max(0, minV));
               const y1 = Math.min(y0 - 0.3, yAt(v));
-              // yan yüz (koyu) ve üst yüz (açık)
-              fillC(ton(c, -0.3));
-              quad([[x + bw, y1], [x + bw + dx, y1 - dy], [x + bw + dx, y0 - dy], [x + bw, y0]]);
-              fillC(ton(c, 0.35));
-              quad([[x, y1], [x + dx, y1 - dy], [x + bw + dx, y1 - dy], [x + bw, y1]]);
-              // ön yüz: soldan sağa hafif koyulaşan ton
-              fillC(ton(c, -0.05));
-              doc.rect(x, y1, bw, y0 - y1, 'F');
-              const k = 6;
-              for (let j = 0; j < k - 1; j++) {
-                fillC(ton(c, 0.14 - (0.19 * j) / (k - 2)));
-                doc.rect(x + (bw * j) / k, y1, bw / k + 0.25, y0 - y1, 'F');
-              }
+              const hh = y0 - y1;
+              const rr = Math.min(0.9, bw / 2, hh / 2);
+              fillC(c);
+              doc.roundedRect(x, y1, bw, hh, rr, rr, 'F');
+              if (hh > rr * 2) doc.rect(x, y0 - rr, bw, rr, 'F'); // alt köşeler düz
               if (si === 0) {
                 doc.setFont(F, 'bold');
                 doc.setFontSize(6.6);
                 doc.setTextColor(c[0], c[1], c[2]);
-                doc.text(v.toLocaleString("tr-TR", { maximumFractionDigits: 2 }), x + bw / 2 + dx / 2, y1 - dy - 1, { align: 'center' });
+                doc.text(v.toLocaleString("tr-TR", { maximumFractionDigits: 2 }), x + bw / 2, y1 - 1, { align: 'center' });
                 doc.setFont(F, 'normal');
               }
             });
@@ -866,15 +899,15 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
           doc.setFontSize(7.5);
           b.solid.colors.slice(0, 6).forEach((c, ci) => {
             fillC(c);
-            doc.rect(lx + ci * 1.2, y - 1.2, 1.2, 2.2, 'F');
+            doc.circle(lx + 0.9 + ci * 1.5, y - 0.1, 0.75, 'F');
           });
-          lx += Math.min(6, b.solid.colors.length) * 1.2 + 1.5;
-          doc.setTextColor(55, 65, 81);
+          lx += Math.min(6, b.solid.colors.length) * 1.5 + 1.5;
+          doc.setTextColor(B_FG2[0], B_FG2[1], B_FG2[2]);
           doc.text(t(b.series[0]?.name || ''), lx, y + 1);
           lx += doc.getTextWidth(t(b.series[0]?.name || '')) + 6;
           b.series.slice(1).forEach((s, si) => {
             fillC(GRI[si % GRI.length]);
-            doc.rect(lx, y - 1.2, 3, 2.2, 'F');
+            doc.circle(lx + 1.2, y - 0.1, 1.2, 'F');
             doc.text(t(s.name), lx + 4, y + 1);
             lx += 9 + doc.getTextWidth(t(s.name));
           });
@@ -884,16 +917,19 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         doc.setFontSize(6.8);
         b.labels.forEach((l, i) => {
           const gx = f.left + groupW * i + groupW / 2;
-          doc.setTextColor(100, 116, 139);
+          doc.setTextColor(B_MUTED[0], B_MUTED[1], B_MUTED[2]);
           doc.text(t(l).slice(0, 14), gx, f.bottom + 4, { align: 'center' });
           b.series.forEach((s, si) => {
+            // Aşama 272: B sütunları — ilk dizi kurum renginde, karşılaştırmalar gri, üstü yuvarlak
             const v = s.values[i] ?? 0;
-            const c = PALETTE[si % PALETTE.length];
+            const c = diziRenk(si, b.series.length);
             doc.setFillColor(c[0], c[1], c[2]);
             const x = gx - (barW * b.series.length) / 2 + si * barW;
             const y0 = yAt(Math.max(0, minV));
             const y1 = yAt(v);
-            doc.rect(x, Math.min(y0, y1), barW * 0.9, Math.max(0.3, Math.abs(y0 - y1)), 'F');
+            const hh = Math.max(0.3, Math.abs(y0 - y1));
+            const rr = Math.min(0.8, (barW * 0.82) / 2, hh / 2);
+            doc.roundedRect(x, Math.min(y0, y1), barW * 0.82, hh, rr, rr, 'F');
           });
         });
         y = f.bottom + 7;

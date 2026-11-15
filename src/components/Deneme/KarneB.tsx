@@ -3,56 +3,18 @@
 // PDF'teki karnePdfB.ts çizimlerinin ekran karşılığı; aynı veriyle (kazanimBirlesik, gelisimPanoData, isiNoktaData).
 // Grafikler satır içi SVG ile çizilir (grafik kütüphanesi yüklenmez, sayfa hafif kalır).
 // ============================================================================
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React from 'react';
 import { cx } from '../ui/kit';
-import { LEVEL_INFO, levelOf, type Level } from '../../lib/deneme/analiz';
+import { LEVEL_INFO, levelOf } from '../../lib/deneme/analiz';
 import type { BirlesikDers } from '../../lib/deneme/kazanimBirlesik';
 import type { GelisimPanoData, IsiNoktaData } from '../../lib/deneme/karnePdfB';
-import { getKurumBrand } from '../../lib/kurumBrand';
-import { kurumRenkHazirla, kurumRenkOnbellek, seritRenk } from '../../lib/kurumRenk';
 import { InfoTip } from '../ui/Compact'; // Aşama 215
+// Aşama 272: renk, seviye, vurgu ve açıklama ortak tasarım dosyasından (bütün karneler aynı dili kullanır)
+import { LV_CHIP, LV_ORDER, LV_TEXT, SeviyeLejant as Legend, lvRgb, rgb, tint, useGenislik, useVurgu, type RGB } from './KarneTasarim';
 
-type RGB = [number, number, number];
-const rgb = (c: RGB, a?: number) => (a === undefined ? `rgb(${c[0]} ${c[1]} ${c[2]})` : `rgb(${c[0]} ${c[1]} ${c[2]} / ${a})`);
-const tint = (c: RGB, k: number): RGB => [Math.round(255 - (255 - c[0]) * k), Math.round(255 - (255 - c[1]) * k), Math.round(255 - (255 - c[2]) * k)];
-const lvRgb = (r: number) => LEVEL_INFO[levelOf(r)].rgb;
-const LV_TEXT: Record<Level, string> = { iyi: 'text-success-fg', tekrar: 'text-info-fg', etut: 'text-warning-fg', kritik: 'text-danger-fg' };
-const LV_CHIP: Record<Level, string> = { iyi: 'ui-chip ui-chip-success', tekrar: 'ui-chip ui-chip-info', etut: 'ui-chip ui-chip-warning', kritik: 'ui-chip ui-chip-danger' };
-const LV_ORDER: Level[] = ['iyi', 'tekrar', 'etut', 'kritik'];
-const LV_RANGE: Record<Level, string> = { iyi: '%70+', tekrar: '%50-69', etut: '%30-49', kritik: '%30 altı' };
 const fmt1 = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '-' : (Math.round(v * 10) / 10).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 const fmt2 = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '-' : (Math.round(v * 100) / 100).toLocaleString('tr-TR', { maximumFractionDigits: 2 }));
 const MARK_BG: Record<'D' | 'Y' | 'B', string> = { D: 'bg-success', Y: 'bg-danger', B: 'bg-slate-300' };
-
-/** Kurum logosunun ana rengi (PDF ile aynı); logo yoksa marka rengi */
-function useVurgu(): RGB {
-  const logo = getKurumBrand().logo;
-  const [r, setR] = useState(() => kurumRenkOnbellek(logo) || null);
-  useEffect(() => {
-    let canli = true;
-    kurumRenkHazirla(logo).then((x) => canli && setR(x));
-    return () => {
-      canli = false;
-    };
-  }, [logo]);
-  return useMemo(() => (r ? seritRenk(r).zemin : ([79, 70, 229] as RGB)), [r]);
-}
-
-const Legend: React.FC<{ kurum?: boolean }> = ({ kurum }) => (
-  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-2">
-    {LV_ORDER.map((k) => (
-      <span key={k} className="inline-flex items-center gap-1">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(LEVEL_INFO[k].rgb) }} />
-        {LEVEL_INFO[k].label} {LV_RANGE[k]}
-      </span>
-    ))}
-    {kurum && (
-      <span className="inline-flex items-center gap-1 sm:ml-auto">
-        <span className="h-3 w-0.5 rounded bg-fg" /> Kurum
-      </span>
-    )}
-  </div>
-);
 
 // =============================================================================== 1) Kazanım kartları
 const Ring: React.FC<{ v: number; c: RGB }> = ({ v, c }) => {
@@ -168,22 +130,6 @@ export const KazanimKartlari: React.FC<{ dersler: BirlesikDers[]; n: number }> =
 };
 
 // =============================================================================== 2) Gelişim panosu
-/** SVG grafik kutunun gerçek genişliğinde çizilir; yazılar geniş ekranda büyümez */
-function useGenislik(varsayilan: number): [React.RefObject<HTMLDivElement | null>, number] {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [w, setW] = useState(varsayilan);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((e) => {
-      const g = Math.round(e[0].contentRect.width);
-      if (g > 0) setW((o) => (Math.abs(o - g) > 2 ? g : o));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, w];
-}
 const PuanGrafik: React.FC<{ g: GelisimPanoData; vurgu: RGB }> = ({ g, vurgu }) => {
   const D = g.denemeler;
   const n = D.length;

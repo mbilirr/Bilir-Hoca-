@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarPlus, ChevronDown, ChevronRight, Info, LayoutGrid, Lightbulb, ListChecks, Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { Panel, cx } from '../ui/kit';
+import { AlertTriangle, CalendarPlus, ChevronDown, ChevronRight, Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { cx } from '../ui/kit';
+// Aşama 272: birleştirilmiş karnenin tasarım dili (ortak)
+import { DersAd, Fark, IsiDaire, KAltKart, KBolum, KKutu, KNot, KT, SeviyeLejant, Yuzde, dersRgb } from './KarneTasarim';
 import type { BankRow, DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LEVEL_INFO, levelOf, type Level } from '../../lib/deneme/analiz';
 import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
 import { dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
 import {
@@ -40,33 +41,10 @@ export const KARNE_TURLERI: Array<{ value: KarneTur; label: string }> = [
   { value: 'veli', label: 'Veli karnesi' }, // Aşama 56 (yalnızca öğretmen)
 ];
 
-const tableCls = 'w-full text-left text-xs text-fg-2';
-const theadCls = 'bg-surface-2/60 uppercase tracking-wider text-muted border-b border-line';
-
-const LEVEL_CELL: Record<Level, string> = {
-  iyi: 'bg-success-soft text-success-fg',
-  tekrar: 'bg-info-soft text-info-fg',
-  etut: 'bg-warning-soft text-warning-fg',
-  kritik: 'bg-danger-soft text-danger-fg',
-};
-export const levelCell = (rate: number) => LEVEL_CELL[levelOf(rate)];
 const chipTone = (t: KazTone) => `ui-chip ui-chip-${t === 'muted' ? 'neutral' : t}`;
-const chipFor = (rate: number) => `ui-chip ui-chip-${LEVEL_INFO[levelOf(rate)].tone}`;
-const LEVEL_DOT: Record<Level, string> = { iyi: 'bg-success', tekrar: 'bg-info', etut: 'bg-warning', kritik: 'bg-danger' };
-const levelDot = (rate: number) => LEVEL_DOT[levelOf(rate)];
 const STATUS_BAR: Record<KazStatus, string> = { kazanildi: 'bg-success', gelisiyor: 'bg-info', eksik: 'bg-danger', sorulmadi: 'bg-line' };
 
-export const HeatLegend: React.FC<{ note?: string }> = ({ note }) => (
-  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-    {(['iyi', 'tekrar', 'etut', 'kritik'] as const).map((l) => (
-      <span key={l} className={cx('rounded-md px-2 py-0.5 font-semibold', LEVEL_CELL[l])}>
-        {LEVEL_INFO[l].label} {l === 'iyi' ? '%70+' : l === 'tekrar' ? '%50-69' : l === 'etut' ? '%30-49' : '%0-29'}
-      </span>
-    ))}
-    <span className="rounded-md px-2 py-0.5 font-semibold bg-surface-2 text-muted">— sorulmadı</span>
-    {note && <span className="text-muted">{note}</span>}
-  </div>
-);
+export const HeatLegend: React.FC<{ note?: string }> = ({ note }) => <SeviyeLejant sorulmadi not={note} />;
 
 const TrendIcon: React.FC<{ t: KazRow['trend'] }> = ({ t }) =>
   t === 'up' ? (
@@ -91,74 +69,56 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
   const a = useMemo(() => selectedAverages(exams, results, subs), [exams, results, subs]);
   if (!a || a.n < 2) return null;
   const hasCls = a.rows.some((r) => r.clsNet !== null);
-  const diff = (x: number | null, y: number | null, f: (n: number) => string) => {
-    if (x === null || y === null || Math.abs(x - y) < 0.005) return <span className="text-muted">—</span>;
-    return <span className={cx('font-semibold tabular-nums', x > y ? 'text-success-fg' : 'text-danger-fg')}>{x > y ? `▲ ${f(x - y)}` : `▼ ${f(y - x)}`}</span>;
-  };
+  const diff = (x: number | null, y: number | null, f: (n: number) => string) => <Fark v={x === null || y === null ? null : x - y} bicim={f} ok={false} />;
   return (
-    <Panel title={`Seçilen ${a.n} denemenin ortalaması`} description="Ders ders ortalama doğru, yanlış, boş ve net; sınıf ortalamasıyla" icon={LayoutGrid} tone="info" id="karne-ortalama">
-      <div className="space-y-3">
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-info/25 bg-info-soft px-3 py-2">
-            <p className="ui-eyebrow">Ortalama puan</p>
-            <p className="text-lg font-bold text-info-fg tabular-nums">{fmtScore(a.score)}</p>
-            {a.clsScore !== null && <p className="text-[11px] text-muted">Sınıf ort. {fmtScore(a.clsScore)}</p>}
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-3 py-2">
-            <p className="ui-eyebrow">Ortalama toplam net</p>
-            <p className="text-lg font-bold text-fg tabular-nums">{fmtNet(a.totalNet)}</p>
-          </div>
-          <div className="rounded-xl border border-success/25 bg-success-soft px-3 py-2">
-            <p className="ui-eyebrow">En iyi deneme</p>
-            <p className="text-lg font-bold text-success-fg tabular-nums">{fmtScore(a.best?.score)}</p>
-            <p className="text-[11px] text-muted truncate">{a.best?.exam.name}</p>
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-3 py-2">
-            <p className="ui-eyebrow">İlk → son puan</p>
-            <p className="text-lg font-bold text-fg tabular-nums">
-              {fmtScore(a.first)} → {fmtScore(a.last)}
-            </p>
-            <p className="text-[11px]">{diff(a.last, a.first, fmtScore)}</p>
-          </div>
-        </div>
-        <div className="bg-surface border border-line rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className={tableCls}>
-              <thead className={theadCls}>
-                <tr>
-                  <th className="px-3 py-2 font-semibold">Ders</th>
-                  <th className="px-2 py-2 font-semibold text-center">Ort. D / Y / B</th>
-                  <th className="px-2 py-2 font-semibold text-center">Ort. net</th>
-                  <th className="px-2 py-2 font-semibold text-center">Başarı</th>
-                  {hasCls && <th className="px-2 py-2 font-semibold text-center">Sınıf ort.</th>}
-                  {hasCls && <th className="px-2 py-2 font-semibold text-center">Sınıfa göre</th>}
-                  <th className="px-3 py-2 font-semibold text-center">En iyi / en düşük</th>
+    <KBolum baslik={`Seçilen ${a.n} denemenin ortalaması`} aciklama="Ders ders ortalama doğru, yanlış, boş ve net; sınıf ortalamasıyla" id="karne-ortalama">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <KKutu vurgu etiket="Ortalama puan" deger={fmtScore(a.score)} alt={a.clsScore !== null ? `Sınıf ort. ${fmtScore(a.clsScore)}` : undefined} />
+        <KKutu etiket="Ortalama toplam net" deger={fmtNet(a.totalNet)} />
+        <KKutu ton="success" etiket="En iyi deneme" deger={fmtScore(a.best?.score)} alt={<span className="block truncate">{a.best?.exam.name}</span>} />
+        <KKutu etiket="İlk → son puan" deger={`${fmtScore(a.first)} → ${fmtScore(a.last)}`}>
+          <p className="text-[11px]">{diff(a.last, a.first, fmtScore)}</p>
+        </KKutu>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="overflow-x-auto">
+          <table className={KT.tablo}>
+            <thead className={KT.bas}>
+              <tr>
+                <th className={KT.th}>Ders</th>
+                <th className={KT.thc}>Ort. D / Y / B</th>
+                <th className={KT.thc}>Ort. net</th>
+                <th className={KT.thc}>Başarı</th>
+                {hasCls && <th className={KT.thc}>Sınıf ort.</th>}
+                {hasCls && <th className={KT.thc}>Sınıfa göre</th>}
+                <th className={KT.thc}>En iyi / en düşük</th>
+              </tr>
+            </thead>
+            <tbody className={KT.govde}>
+              {a.rows.map((r, i) => (
+                <tr key={r.subject.key} className={KT.satir}>
+                  <td className={KT.td}>
+                    <DersAd ad={r.subject.name} renk={dersRgb(r.subject.key, i)} />
+                  </td>
+                  <td className={cx(KT.tdc, 'whitespace-nowrap')}>
+                    <span className="text-success-fg">{fmtNet(r.d)}</span> / <span className="text-danger-fg">{fmtNet(r.y)}</span> / <span className="text-muted">{fmtNet(r.b)}</span>
+                  </td>
+                  <td className={cx(KT.tdc, 'font-bold text-fg')}>{fmtNet(r.net)}</td>
+                  <td className={KT.tdc}>
+                    <Yuzde v={r.rate} />
+                  </td>
+                  {hasCls && <td className={KT.tdc}>{fmtNet(r.clsNet)}</td>}
+                  {hasCls && <td className={KT.tdc}>{diff(r.net, r.clsNet, fmtNet)}</td>}
+                  <td className={cx(KT.tdc, 'whitespace-nowrap')}>
+                    <span className="font-semibold text-success-fg">{fmtNet(r.best)}</span> / <span className="text-danger-fg">{fmtNet(r.worst)}</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {a.rows.map((r) => (
-                  <tr key={r.subject.key} className="hover:bg-surface-2/30">
-                    <td className="px-3 py-1.5 font-semibold text-fg">{r.subject.name}</td>
-                    <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap">
-                      <span className="text-success-fg">{fmtNet(r.d)}</span> / <span className="text-danger-fg">{fmtNet(r.y)}</span> / <span className="text-muted">{fmtNet(r.b)}</span>
-                    </td>
-                    <td className="px-2 py-1.5 text-center tabular-nums font-bold text-fg">{fmtNet(r.net)}</td>
-                    <td className="px-2 py-1.5 text-center">
-                      <span className={chipFor(r.rate)}>%{r.rate}</span>
-                    </td>
-                    {hasCls && <td className="px-2 py-1.5 text-center tabular-nums">{fmtNet(r.clsNet)}</td>}
-                    {hasCls && <td className="px-2 py-1.5 text-center">{diff(r.net, r.clsNet, fmtNet)}</td>}
-                    <td className="px-3 py-1.5 text-center tabular-nums whitespace-nowrap">
-                      <span className="text-success-fg font-semibold">{fmtNet(r.best)}</span> / <span className="text-danger-fg">{fmtNet(r.worst)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
-    </Panel>
+    </KBolum>
   );
 };
 
@@ -170,7 +130,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
   const [open, setOpen] = useState<Record<string, boolean>>({});
   if (!heat.length) return null;
   return (
-    <Panel title="Konu ısı tablosu" description="Satırlar kazanımlar, sütunlar denemeler: hangi konu hangi denemede nasıldı, tek bakışta" icon={LayoutGrid} tone="brand" id="karne-isi-tablosu">
+    <KBolum baslik="Konu ısı tablosu" aciklama="Satırlar kazanımlar, sütunlar denemeler: hangi konu hangi denemede nasıldı, tek bakışta" id="karne-isi-tablosu">
       <div className="space-y-3">
         <HeatLegend note="Hücreye gelince soru numaraları görünür." />
         {heat.map((h, hi) => {
@@ -188,7 +148,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
                 <span className="text-[11px] text-muted">{h.rows.length} kazanım</span>
                 <span className="ml-auto flex gap-0.5" aria-hidden>
                   {h.examRates.map((r, i) => (
-                    <span key={i} className={cx('h-3 w-3 rounded-sm', r === null ? 'bg-surface-2 border border-line' : levelDot(r))} />
+                    <IsiDaire key={i} v={r} kucuk />
                   ))}
                 </span>
               </button>
@@ -217,17 +177,12 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
                             const ap = row.per[exams[i].id];
                             return (
                               <td key={i} className="p-0.5 text-center">
-                                <span
-                                  className={cx('block rounded-md py-1 tabular-nums font-semibold', c === null ? 'bg-surface-2/60 text-subtle' : levelCell(c))}
-                                  title={ap ? `${exams[i].name}: ${ap.questions.join(', ')}. sorular · D ${ap.d} Y ${ap.y} B ${ap.b}` : `${exams[i].name}: sorulmadı`}
-                                >
-                                  {c === null ? '—' : `%${c}`}
-                                </span>
+                                <IsiDaire v={c} title={ap ? `${exams[i].name}: ${ap.questions.join(', ')}. sorular · D ${ap.d} Y ${ap.y} B ${ap.b}` : `${exams[i].name}: sorulmadı`} />
                               </td>
                             );
                           })}
                           <td className="p-0.5 text-center">
-                            <span className={cx('block rounded-md py-1 tabular-nums font-bold', levelCell(row.rate))}>%{row.rate}</span>
+                            <Yuzde v={row.rate} />
                           </td>
                         </tr>
                       ))}
@@ -235,7 +190,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
                         <td className="sticky left-0 z-10 bg-surface-2 px-3 py-1.5 font-bold text-fg">Ders geneli</td>
                         {h.examRates.map((c, i) => (
                           <td key={i} className="p-0.5 text-center">
-                            <span className={cx('block rounded-md py-1 tabular-nums font-bold', c === null ? 'text-subtle' : levelCell(c))}>{c === null ? '—' : `%${c}`}</span>
+                            <Yuzde v={c} />
                           </td>
                         ))}
                         <td />
@@ -248,7 +203,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
           );
         })}
       </div>
-    </Panel>
+    </KBolum>
   );
 };
 
@@ -274,56 +229,47 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
   ];
   return (
     <div className="space-y-4" id="kazanim-takip">
-      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {KAZ_STATUS_ORDER.map((k) => {
           const tone = KAZ_STATUS_INFO[k].tone;
-          const cls =
-            tone === 'success'
-              ? 'border-success/25 bg-success-soft text-success-fg'
-              : tone === 'info'
-                ? 'border-info/25 bg-info-soft text-info-fg'
-                : tone === 'danger'
-                  ? 'border-danger/25 bg-danger-soft text-danger-fg'
-                  : 'border-line bg-surface-2/60 text-muted';
           return (
-            <div key={k} className={cx('rounded-xl border px-3 py-2', cls)}>
-              <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">{KAZ_STATUS_INFO[k].label}</p>
-              <p className="text-2xl font-black tabular-nums leading-tight">{tot.counts[k]}</p>
-              <p className="text-[11px] opacity-80">
-                {k === 'sorulmadi'
+            <KKutu
+              key={k}
+              ton={tone === 'success' || tone === 'info' || tone === 'danger' ? tone : undefined}
+              etiket={KAZ_STATUS_INFO[k].label}
+              deger={tot.counts[k]}
+              alt={
+                k === 'sorulmadi'
                   ? tot.counts.sorulmadi
                     ? 'kazanım bankasına göre'
                     : bankLoading
                       ? 'kazanım bankası okunuyor…'
                       : 'bankada eşleşen kazanım yok'
-                  : `sorulan ${tot.asked} kazanımın ${withEk(tot.asked ? Math.round((tot.counts[k] / tot.asked) * 100) : 0, true)}`}
-              </p>
-            </div>
+                  : `sorulan ${tot.asked} kazanımın ${withEk(tot.asked ? Math.round((tot.counts[k] / tot.asked) * 100) : 0, true)}`
+              }
+            />
           );
         })}
       </div>
 
-      <div className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-[11px] text-info-fg">
-        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        <span>
-          <b>Durum nasıl belirlenir?</b> {KAZ_RULE_LINE}. Başarı = doğru / soru; "Son" kazanımın en son sorulduğu denemedeki başarısıdır. 3'ten az soru sorulan kazanımlar (*) ile işaretlidir: sonuç kesin değildir.
-        </span>
-      </div>
+      <KNot>
+        <b>Durum nasıl belirlenir?</b> {KAZ_RULE_LINE}. Başarı = doğru / soru; "Son" kazanımın en son sorulduğu denemedeki başarısıdır. 3'ten az soru sorulan kazanımlar (*) ile işaretlidir: sonuç kesin değildir.
+      </KNot>
 
-      <Panel title="Ders ders ilerleme" description="Her dersin kazanımlarının yüzde kaçı kazanıldı?" icon={ListChecks} tone="success">
+      <KBolum baslik="Ders ders ilerleme" aciklama="Her dersin kazanımlarının yüzde kaçı kazanıldı?">
         <div className="space-y-2.5">
-          {tracking.map((s) => (
+          {tracking.map((s, si) => (
             <div key={s.subject.key} className="grid gap-1 sm:grid-cols-[12rem_1fr_9rem] sm:items-center">
               <div>
-                <p className="text-sm font-semibold text-fg">{s.subject.name}</p>
+                <DersAd ad={s.subject.name} renk={dersRgb(s.subject.key, si)} className="text-sm" />
                 <p className="text-[11px] text-muted">{s.pctAll !== null ? `${s.all} kazanım · ${s.counts.sorulmadi} henüz sorulmadı` : `${s.asked} kazanım soruldu`}</p>
               </div>
-              <div className="flex h-4 w-full overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${s.subject.name}: ${s.counts.kazanildi} kazanıldı, ${s.counts.gelisiyor} gelişiyor, ${s.counts.eksik} eksik, ${s.counts.sorulmadi} sorulmadı`}>
+              <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${s.subject.name}: ${s.counts.kazanildi} kazanıldı, ${s.counts.gelisiyor} gelişiyor, ${s.counts.eksik} eksik, ${s.counts.sorulmadi} sorulmadı`}>
                 {KAZ_STATUS_ORDER.map((k) =>
                   s.counts[k] > 0 ? (
                     <span
                       key={k}
-                      className={cx('h-full flex items-center justify-center text-[10px] font-bold', STATUS_BAR[k], k === 'sorulmadi' ? 'text-muted' : 'text-white')}
+                      className={cx('flex h-full items-center justify-center text-[9px] font-bold', STATUS_BAR[k], k === 'sorulmadi' ? 'text-muted' : 'text-white')}
                       style={{ width: `${(s.counts[k] / Math.max(1, s.all)) * 100}%` }}
                       title={`${KAZ_STATUS_INFO[k].label}: ${s.counts[k]}`}
                     >
@@ -333,19 +279,19 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
                 )}
               </div>
               <p className="text-sm sm:text-right">
-                <b className="text-fg tabular-nums">%{s.pctAsked}</b> <span className="text-muted text-xs">kazanıldı</span>
+                <Yuzde v={s.pctAsked} /> <span className="text-xs text-muted">kazanıldı</span>
               </p>
             </div>
           ))}
-          <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-muted">
+          <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-fg-2">
             {KAZ_STATUS_ORDER.map((k) => (
               <span key={k} className="inline-flex items-center gap-1">
-                <span className={cx('h-2.5 w-2.5 rounded-sm', STATUS_BAR[k])} /> {KAZ_STATUS_INFO[k].label}
+                <span className={cx('h-2.5 w-2.5 rounded-full', STATUS_BAR[k])} /> {KAZ_STATUS_INFO[k].label}
               </span>
             ))}
           </div>
         </div>
-      </Panel>
+      </KBolum>
 
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Duruma göre süz">
         {filters.map((f) => (
@@ -366,38 +312,38 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
         if (!rows.length) return null;
         const isOpen = open[s.subject.key] ?? (filter !== 'all' || si === 0);
         return (
-          <div key={s.subject.key} className="rounded-2xl border border-line bg-surface overflow-hidden">
+          <KAltKart key={s.subject.key} renk={dersRgb(s.subject.key, si)} className="shadow-sm">
             <button
               type="button"
-              className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left cursor-pointer bg-surface-2/60"
+              className="flex w-full cursor-pointer flex-wrap items-center gap-2 px-3 py-2.5 text-left"
               onClick={() => setOpen((o) => ({ ...o, [s.subject.key]: !isOpen }))}
               aria-expanded={isOpen}
             >
-              {isOpen ? <ChevronDown className="w-4 h-4 text-muted" /> : <ChevronRight className="w-4 h-4 text-muted" />}
-              <span className="text-sm font-bold text-fg">{s.subject.name}</span>
+              {isOpen ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
+              <DersAd ad={s.subject.name} renk={dersRgb(s.subject.key, si)} className="text-sm font-extrabold" />
               <span className={chipTone(s.pctAsked >= 70 ? 'success' : s.pctAsked >= 40 ? 'info' : 'danger')}>Kazanımların {withEk(s.pctAsked, true)} kazanıldı</span>
               <span className="text-[11px] text-muted">
                 {s.counts.kazanildi} kazanıldı · {s.counts.gelisiyor} gelişiyor · {s.counts.eksik} eksik{s.counts.sorulmadi ? ` · ${s.counts.sorulmadi} sorulmadı` : ''}
               </span>
             </button>
             {isOpen && (
-              <div className="overflow-x-auto">
-                <table className={tableCls}>
-                  <thead className="text-muted border-b border-line">
+              <div className="overflow-x-auto border-t border-line">
+                <table className={KT.tablo}>
+                  <thead className={KT.bas}>
                     <tr>
-                      <th className="px-3 py-1.5 font-semibold">Kazanım</th>
-                      <th className="px-2 py-1.5 font-semibold text-center">Denemeler</th>
-                      <th className="px-2 py-1.5 font-semibold text-center">D/Y/B</th>
-                      <th className="px-2 py-1.5 font-semibold text-center">Genel</th>
-                      <th className="px-2 py-1.5 font-semibold text-center">Son</th>
-                      <th className="px-2 py-1.5 font-semibold">Gidiş</th>
-                      <th className="px-3 py-1.5 font-semibold text-center">Durum</th>
+                      <th className={KT.th}>Kazanım</th>
+                      <th className={KT.thc}>Denemeler</th>
+                      <th className={KT.thc}>D/Y/B</th>
+                      <th className={KT.thc}>Genel</th>
+                      <th className={KT.thc}>Son</th>
+                      <th className={KT.th}>Gidiş</th>
+                      <th className={KT.thc}>Durum</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
+                  <tbody className={KT.govde}>
                     {rows.map((r) => (
-                      <tr key={r.key} className={cx('hover:bg-surface-2/30', r.status === 'sorulmadi' && 'opacity-70')}>
-                        <td className="px-3 py-1.5 text-fg">
+                      <tr key={r.key} className={cx(KT.satir, r.status === 'sorulmadi' && 'opacity-70')}>
+                        <td className={cx(KT.td, 'text-fg')}>
                           <p className="font-semibold">
                             {r.label}
                             {r.fewData && <span className="text-muted font-normal" title="3'ten az soru: sonuç kesin değil"> (*)</span>}
@@ -407,17 +353,11 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
                           <div className="flex justify-center gap-0.5">
                             {exams.map((e) => {
                               const ap = r.per[e.id];
-                              return (
-                                <span
-                                  key={e.id}
-                                  className={cx('h-3.5 w-3.5 rounded-sm', ap ? levelDot(ap.rate) : 'bg-surface-2 border border-line')}
-                                  title={ap ? `${e.name}: %${ap.rate} (${ap.questions.join(', ')}. sorular)` : `${e.name}: sorulmadı`}
-                                />
-                              );
+                              return <IsiDaire key={e.id} v={ap ? ap.rate : null} kucuk title={ap ? `${e.name}: %${ap.rate} (${ap.questions.join(', ')}. sorular)` : `${e.name}: sorulmadı`} />;
                             })}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap">
+                        <td className={cx(KT.tdc, 'whitespace-nowrap')}>
                           {r.questions ? (
                             <>
                               <span className="text-success-fg font-semibold">{r.d}</span>/<span className="text-danger-fg font-semibold">{r.y}</span>/<span className="text-muted">{r.b}</span>
@@ -426,12 +366,16 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
                             '—'
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-center">{r.questions ? <span className={chipFor(r.rate)}>%{r.rate}</span> : <span className="text-subtle">—</span>}</td>
-                        <td className="px-2 py-1.5 text-center">{r.lastRate !== null ? <span className={chipFor(r.lastRate)}>%{r.lastRate}</span> : <span className="text-subtle">—</span>}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">
+                        <td className={KT.tdc}>
+                          <Yuzde v={r.questions ? r.rate : null} />
+                        </td>
+                        <td className={KT.tdc}>
+                          <Yuzde v={r.lastRate} />
+                        </td>
+                        <td className={cx(KT.td, 'whitespace-nowrap')}>
                           <TrendIcon t={r.trend} />
                         </td>
-                        <td className="px-3 py-1.5 text-center">
+                        <td className={KT.tdc}>
                           <span className={chipTone(KAZ_STATUS_INFO[r.status].tone)}>{KAZ_STATUS_INFO[r.status].label}</span>
                         </td>
                       </tr>
@@ -440,7 +384,7 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
                 </table>
               </div>
             )}
-          </div>
+          </KAltKart>
         );
       })}
     </div>
@@ -494,31 +438,17 @@ export const CalismaPlaniView: React.FC<{
 
   return (
     <div className="space-y-4" id="calisma-plani">
-      <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
-        <div className="rounded-xl border border-warning/25 bg-warning-soft px-3 py-2 text-warning-fg">
-          <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">Öncelikli kazanım</p>
-          <p className="text-2xl font-black tabular-nums leading-tight">{list.length}</p>
-          <p className="text-[11px] opacity-80">en çok puan kaybettirenler</p>
-        </div>
-        <div className="rounded-xl border border-info/25 bg-info-soft px-3 py-2 text-info-fg">
-          <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">Haftalık soru hedefi</p>
-          <p className="text-2xl font-black tabular-nums leading-tight">{totalQ}</p>
-          <p className="text-[11px] opacity-80">önerilen toplam soru</p>
-        </div>
-        <div className="rounded-xl border border-danger/25 bg-danger-soft px-3 py-2 text-danger-fg">
-          <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">Kaybettirdiği puan</p>
-          <p className="text-2xl font-black tabular-nums leading-tight">{fmtScore(totalLoss)}</p>
-          <p className="text-[11px] opacity-80">deneme başına, yaklaşık</p>
-        </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <KKutu ton="warning" etiket="Öncelikli kazanım" deger={list.length} alt="en çok puan kaybettirenler" />
+        <KKutu vurgu etiket="Haftalık soru hedefi" deger={totalQ} alt="önerilen toplam soru" />
+        <KKutu ton="danger" etiket="Kaybettirdiği puan" deger={fmtScore(totalLoss)} alt="deneme başına, yaklaşık" />
       </div>
 
-      <Panel
-        title="Gelecek hafta ne çalışmalı?"
-        description="Seçilen denemelerde en çok puan kaybettiren kazanımlar ve önerilen soru sayıları"
-        icon={Lightbulb}
-        tone="warning"
-        padded={false}
-        actions={
+      <KBolum
+        tablo
+        baslik="Gelecek hafta ne çalışmalı?"
+        aciklama="Seçilen denemelerde en çok puan kaybettiren kazanımlar ve önerilen soru sayıları"
+        sag={
           editable && onTransfer ? (
             <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={!list.length} onClick={() => onTransfer(list)} id="plana-aktar">
               <CalendarPlus /> Plana ve soru hedefine aktar
@@ -527,41 +457,43 @@ export const CalismaPlaniView: React.FC<{
         }
       >
         {!candidates.length ? (
-          <p className="px-4 pb-4 text-sm text-success-fg">Seçilen denemelerde puan kaybettiren eksik kazanım bulunmadı. Düzenli tekrar ve deneme çözümüyle devam.</p>
+          <p className="px-4 py-4 text-sm text-success-fg">Seçilen denemelerde puan kaybettiren eksik kazanım bulunmadı. Düzenli tekrar ve deneme çözümüyle devam.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className={tableCls}>
-              <thead className={theadCls}>
+          <div>
+            <table className={KT.tablo}>
+              <thead className={KT.bas}>
                 <tr>
-                  {editable && <th className="px-3 py-2 font-semibold w-10">Seç</th>}
-                  <th className="px-3 py-2 font-semibold w-8">#</th>
-                  <th className="px-2 py-2 font-semibold">Ders</th>
-                  <th className="px-2 py-2 font-semibold">Kazanım</th>
-                  <th className="px-2 py-2 font-semibold text-center">Son başarı</th>
-                  <th className="px-2 py-2 font-semibold text-center">Puan kaybı / deneme</th>
-                  <th className="px-2 py-2 font-semibold text-center">Soru</th>
-                  <th className="px-3 py-2 font-semibold">Ne yapmalı?</th>
+                  {editable && <th className={cx(KT.th, 'w-10')}>Seç</th>}
+                  <th className={cx(KT.th, 'w-8')}>#</th>
+                  <th className={KT.th}>Ders</th>
+                  <th className={KT.th}>Kazanım</th>
+                  <th className={KT.thc}>Son başarı</th>
+                  <th className={KT.thc}>Puan kaybı / deneme</th>
+                  <th className={KT.thc}>Soru</th>
+                  <th className={KT.th}>Ne yapmalı?</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className={KT.govde}>
                 {shown.map((c, i) => {
                   const on = picked.has(c.row.key);
                   const rate = c.row.lastRate ?? c.row.rate;
                   return (
-                    <tr key={c.row.key} className={cx('align-top hover:bg-surface-2/30', editable && !on && 'opacity-55')}>
+                    <tr key={c.row.key} className={cx('align-top', KT.satir, editable && !on && 'opacity-55')}>
                       {editable && (
                         <td className="px-3 py-2">
                           <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand,#4f46e5)] cursor-pointer" checked={on} onChange={() => toggle(c.row.key)} aria-label={`${c.row.short} seç`} />
                         </td>
                       )}
                       <td className="px-3 py-2 font-bold text-fg tabular-nums">{i + 1}</td>
-                      <td className="px-2 py-2 whitespace-nowrap font-semibold text-fg">{c.subject.short}</td>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        <DersAd ad={c.subject.short} renk={dersRgb(c.subject.key, subs.findIndex((x) => x.key === c.subject.key))} />
+                      </td>
                       <td className="px-2 py-2">
                         <p className="font-semibold text-fg">{c.row.label}</p>
                         <p className="text-[11px] text-muted">{c.reason}</p>
                       </td>
                       <td className="px-2 py-2 text-center">
-                        <span className={chipFor(rate)}>%{rate}</span>
+                        <Yuzde v={rate} />
                         {c.row.trend === 'down' && <p className="mt-0.5 text-[10px] text-danger-fg">düşüşte</p>}
                       </td>
                       <td className="px-2 py-2 text-center tabular-nums font-bold text-danger-fg">{fmtScore(c.row.perExamLoss)}</td>
@@ -596,52 +528,53 @@ export const CalismaPlaniView: React.FC<{
             )}
           </div>
         )}
-      </Panel>
+      </KBolum>
 
-      <div className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-[11px] text-info-fg">
-        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        <span>
+      <KNot>
+        <>
           <b>Kazanımlar nasıl seçildi?</b> Her kazanımın deneme başına kaybettirdiği yaklaşık puan hesaplanır (yanlış: 1 net + yanlış cezası, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı). Kazanılmış kazanımlar listeye girmez; eksik olanlar ve son denemede düşenler öne alınır. Soru sayısı: %30 altı 40, %30-49 30, %50-69 20 soru (1 katsayılı derslerde dörtte üçü).
-        </span>
-      </div>
+        </>
+      </KNot>
 
       {followUp && (
-        <Panel title={`Önceki önerilerin sonucu: ${followUp.exam.name}`} description="Bu denemeden önceki denemelere göre önerilecek kazanımlar bu denemede nasıl sonuçlandı?" icon={TrendingUp} tone="info" padded={false}>
-          <div className="overflow-x-auto">
-            <table className={tableCls}>
-              <thead className={theadCls}>
-                <tr>
-                  <th className="px-3 py-2 font-semibold">Ders</th>
-                  <th className="px-2 py-2 font-semibold">Kazanım</th>
-                  <th className="px-2 py-2 font-semibold text-center">Önce</th>
-                  <th className="px-2 py-2 font-semibold text-center">Bu deneme</th>
-                  <th className="px-2 py-2 font-semibold text-center">Değişim</th>
-                  <th className="px-3 py-2 font-semibold text-center">Sonuç</th>
+        <KBolum tablo baslik={`Önceki önerilerin sonucu: ${followUp.exam.name}`} aciklama="Bu denemeden önceki denemelere göre önerilecek kazanımlar bu denemede nasıl sonuçlandı?">
+          <table className={KT.tablo}>
+            <thead className={KT.bas}>
+              <tr>
+                <th className={KT.th}>Ders</th>
+                <th className={KT.th}>Kazanım</th>
+                <th className={KT.thc}>Önce</th>
+                <th className={KT.thc}>Bu deneme</th>
+                <th className={KT.thc}>Değişim</th>
+                <th className={KT.thc}>Sonuç</th>
+              </tr>
+            </thead>
+            <tbody className={KT.govde}>
+              {followUp.rows.map((r, i) => (
+                <tr key={i} className={KT.satir}>
+                  <td className={cx(KT.td, 'whitespace-nowrap')}>
+                    <DersAd ad={r.subject.short} renk={dersRgb(r.subject.key, subs.findIndex((x) => x.key === r.subject.key))} />
+                  </td>
+                  <td className={cx(KT.td, 'text-fg')} title={r.label}>
+                    {r.short}
+                  </td>
+                  <td className={KT.tdc}>
+                    <Yuzde v={r.before} />
+                  </td>
+                  <td className={KT.tdc}>
+                    <Yuzde v={r.after} />
+                  </td>
+                  <td className={KT.tdc}>
+                    <Fark v={r.change} bicim={(n) => String(n)} ok={false} />
+                  </td>
+                  <td className={KT.tdc}>
+                    <span className={chipTone(FOLLOW_INFO[r.verdict].tone)}>{FOLLOW_INFO[r.verdict].label}</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {followUp.rows.map((r, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-1.5 font-semibold text-fg whitespace-nowrap">{r.subject.short}</td>
-                    <td className="px-2 py-1.5 text-fg" title={r.label}>
-                      {r.short}
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <span className={chipFor(r.before)}>%{r.before}</span>
-                    </td>
-                    <td className="px-2 py-1.5 text-center">{r.after === null ? <span className="text-subtle">—</span> : <span className={chipFor(r.after)}>%{r.after}</span>}</td>
-                    <td className={cx('px-2 py-1.5 text-center tabular-nums font-semibold', r.change === null ? 'text-subtle' : r.change > 0 ? 'text-success-fg' : r.change < 0 ? 'text-danger-fg' : 'text-muted')}>
-                      {r.change === null ? '—' : `${r.change > 0 ? '▲ ' : r.change < 0 ? '▼ ' : ''}${Math.abs(r.change)}`}
-                    </td>
-                    <td className="px-3 py-1.5 text-center">
-                      <span className={chipTone(FOLLOW_INFO[r.verdict].tone)}>{FOLLOW_INFO[r.verdict].label}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+              ))}
+            </tbody>
+          </table>
+        </KBolum>
       )}
       {!followUp && exams.length < 2 && (
         <p className="flex items-center gap-1.5 text-[11px] text-muted">

@@ -343,18 +343,28 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
 }
 
 /** Aşama 141: gelişim panosunun verisi (deneme sırasıyla; ekran ve PDF aynı) */
-export function gelisimPanoData(exams: DenemeExam[], rByExam: Map<string, DenemeResult>, subs: ExamSubject[], target: number | null, ortalama: number | null): GelisimPanoData {
+/** Aşama 141 (Aşama 272'de ayrıldı): grafiklerde denemenin kısa adı; aynı yayınevinin denemeleri sıra numarasıyla ayrılır */
+export function denemeKisaAdlari(exams: DenemeExam[]): string[] {
   const kisaAdlar = exams.map((e) => denemeKisaAd(e));
-  // aynı yayınevinin denemeleri ayırt edilsin: kısa ad tekrar ediyorsa sıra numarası eklenir
   const sayac = new Map<string, number>();
   kisaAdlar.forEach((k) => sayac.set(k, (sayac.get(k) || 0) + 1));
   const sira = new Map<string, number>();
-  const kisa = kisaAdlar.map((k) => {
+  return kisaAdlar.map((k) => {
     if ((sayac.get(k) || 0) < 2) return k;
     const i = (sira.get(k) || 0) + 1;
     sira.set(k, i);
     return `${k} ${i}`;
   });
+}
+
+/** Aşama 272: grafiklerin deneme etiketleri (kısa ad + gün.ay); ekran ve PDF aynı */
+export const denemeEtiketleri = (exams: DenemeExam[]): Array<{ ust: string; alt: string }> => {
+  const k = denemeKisaAdlari(exams);
+  return exams.map((e, i) => ({ ust: k[i], alt: dateTr(e.examDate).slice(0, 5) }));
+};
+
+export function gelisimPanoData(exams: DenemeExam[], rByExam: Map<string, DenemeResult>, subs: ExamSubject[], target: number | null, ortalama: number | null): GelisimPanoData {
+  const kisa = denemeKisaAdlari(exams);
   const cls = (e: DenemeExam) => {
     const r = rByExam.get(e.id);
     return r?.classId ? (e.summary.classes || {})[r.classId] : undefined;
@@ -828,6 +838,7 @@ export function classKarneBlocks(inp: ClassKarneInput): PdfBlock[] {
     title: 'Ders net ortalamalarının gelişimi',
     labels: exams.map(examShort),
     series: subs.map((s) => ({ name: s.short, values: perExam.map((x) => x.ca?.avgNet[s.key] ?? null) })),
+    colors: subs.map((s, i) => dersRengi(s.key, i)), // Aşama 272: ders renkleri (ekrandaki gibi)
   });
 
   // Öğrenci sıralaması (seçilen denemelerin ortalaması)
