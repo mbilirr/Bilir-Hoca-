@@ -963,8 +963,10 @@ async function actionEtutAttendanceLink(caller, body, req, deadline) {
 
 // ----------------------------------------------------------------------------- Gönderen hesap
 // Aşama 82: KURUM GÖNDERİM HESABI — kurumun bir gönderim Gmail'i tanımlıysa o kurumdaki bütün e-postalar
-// bu tek adresten gider (öğretmenin kendi Gmail'i kullanılmaz); "Yanıtla" öğretmene gider. Genel yönetici ve
+// bu tek adresten gider (öğretmenin kendi Gmail'i kullanılmaz). Genel yönetici ve
 // kurumsuz öğretmenler eskisi gibi (öğretmenin Gmail'i ya da okul hesabı) gönderir.
+// Aşama 273: "Yanıtla" artık KURUM adresine gider (etüt, ödev, plan, karne… sistem e-postaları). Yalnız öğretmenin
+// kendi yazdığı e-postalarda (veli / öğrenci duyurusu) yanıt öğretmene gider: resolveSender(kişi, { kisisel: true }).
 const kurumOfAuthCache = new Map();
 async function kurumIdForSender(teacher) {
   if (teacher && teacher.kurumId !== undefined) return teacher.kurumId || null;
@@ -1041,19 +1043,22 @@ async function kurumSender(teacher) {
     const brandName = (brand && brand.name) || '';
     const brandLogo = (brand && brand.logo) || '';
     const gmail = String(row.gmail || '').toLowerCase();
-    const replyTo = isEmail(teacher.email) && String(teacher.email).toLowerCase() !== gmail ? teacher.email : null;
-    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName, brandLogo, brandKid: kid };
+    // Aşama 273: Reply-To yazılmaz → yanıt "Kimden"deki kurum adresine gider; öğretmen adresi yalnız kişisel e-posta için saklanır
+    const ogretmenYanit = isEmail(teacher.email) && String(teacher.email).toLowerCase() !== gmail ? teacher.email : null;
+    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo: null, ogretmenYanit, brandName, brandLogo, brandKid: kid };
   } catch {
     return null; // tablo yoksa (82 numaralı SQL çalışmadıysa) eski davranış
   }
 }
 
 // Aşama 83: kurum öğretmeninin e-postası hangi hesaptan giderse gitsin başlıkta kendi kurumunun adı ve logosu görünür
-async function resolveSender(teacher) {
+async function resolveSender(teacher, opts = {}) {
   // Aşama 159: unvan bilgisi gönderen hesabıyla AYNI ANDA okunur (ek bekleme yok); okunamazsa yalnız ad kalır
   const [acc, info] = await Promise.all([resolveSenderAccount(teacher || {}), senderInfoFor(teacher || {})]);
   const s = withSignature(acc, teacher || {}, info);
-  if (!s || s.via === 'kurum') return s;
+  // Aşama 273: kurum hesabında yalnız öğretmenin kendi yazdığı e-postada yanıt öğretmene gider
+  if (s && s.via === 'kurum') return opts.kisisel && s.ogretmenYanit ? { ...s, replyTo: s.ogretmenYanit } : s;
+  if (!s) return s;
   try {
     const kid = await kurumIdForSender(teacher || {});
     const brand = await kurumBrandFor(kid);
@@ -1555,7 +1560,8 @@ async function actionParentAnnounce(caller, body, deadline) {
   // E-posta
   let mailRes = { sent: 0, failed: 0, skipped: 0, remaining: 0, errors: [] };
   if (wantMail && byMail.size) {
-    const sender = await resolveSender(caller);
+    // Aşama 273: duyuruyu öğretmen kendisi yazar → veli "Yanıtla"ya basınca yanıt öğretmene gider
+    const sender = await resolveSender(caller, { kisisel: true });
     const items = [];
     for (const [em, v] of byMail) {
       const isStudent = v.kind === 'ogrenci';
@@ -2639,8 +2645,10 @@ async function actionTest(caller, body, req) {
     greeting: `Merhaba ${caller.name},`,
     intro: 'Bu bir deneme e-postasıdır. Bu e-postayı aldıysanız otomatik ödev ve etüt e-postaları çalışıyor demektir.',
     rows: [
-      ['Gönderen hesap', sender.via === 'ogretmen' ? `${sender.user} (kendi Gmail hesabınız)` : `${sender.user} (okul hesabı)`],
+      // Aşama 273: kurum hesabı ayrı yazılır; yanıt adresi sistem e-postalarındaki gerçek adres
+      ['Gönderen hesap', sender.via === 'ogretmen' ? `${sender.user} (kendi Gmail hesabınız)` : sender.via === 'kurum' ? `${sender.user} (kurum hesabı)` : `${sender.user} (okul hesabı)`],
       ['Yanıt adresi', sender.replyTo || sender.user],
+      ...(sender.via === 'kurum' && sender.ogretmenYanit ? [['Duyurularda yanıt', sender.ogretmenYanit]] : []),
     ],
     buttonLabel: 'Sisteme git',
     url: appUrl(req),
