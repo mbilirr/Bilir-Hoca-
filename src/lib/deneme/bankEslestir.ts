@@ -6,7 +6,7 @@
 // Eşleşen sorunun kazanımı, kazanım metni ve KONUSU bankadan gelir.
 // ============================================================================
 import type { ExamQuestion, ExamQuestions, ExamSubject } from './lgs';
-import { bankSubjectKey, buildSubjectIndex, codeKey, konuCodeOf, matchQuestion, srcKeyOf, type BankOption, type KonuOption, type SubjectIndex } from './kazanimBank';
+import { bankForGrade, bankSubjectKey, buildSubjectIndex, codeKey, konuCodeOf, matchQuestion, srcKeyOf, type BankOption, type KonuOption, type SubjectIndex } from './kazanimBank';
 import type { BankRow } from '../../services/denemeService';
 import { AI_CONCURRENCY, aiCall, aiMatchKazanim, newAiState, runPool, type AiProvider } from '../aiApi';
 import { planFilterFor, type PlanMap } from './yillikPlan';
@@ -100,8 +100,10 @@ export async function matchQuestionsWithBank(
     memory?: Map<string, Map<string, string>>; // Aşama 128: ders → (yayınevi ifadesi → kod)
     plans?: PlanMap | null; // Aşama 129: yıllık plan (Fen, Mat, İnkılap)
     examDate?: string; // Aşama 129: deneme tarihi (+1 hafta pay)
+    grade?: string; // Aşama 271: denemenin sınıfı (banka bu sınıfa süzülür; yapay zekâya bildirilir)
   }
 ): Promise<{ questions: ExamQuestions; stats: Record<string, MatchStat>; notes: string[] }> {
+  bank = bankForGrade(bank, opts.grade);
   const options = bankOptionsBySubject(bank);
   const index = bankIndexBySubject(options);
   const byCode = new Map(bank.map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] } as BankOption]));
@@ -165,7 +167,7 @@ export async function matchQuestionsWithBank(
             .filter((k) => !f || f(k.code))
             .slice(0, 400)
             .map((k) => ({ code: k.code, konu: k.konu, text: k.text }));
-          const r = await aiCall(state, (p, avoid) => aiMatchKazanim({ provider: p, subject: { name: job.s.name }, items: job.items, kazanimlar: kaz, avoid }), {
+          const r = await aiCall(state, (p, avoid) => aiMatchKazanim({ provider: p, subject: { name: job.s.name }, items: job.items, kazanimlar: kaz, avoid, grade: opts.grade }), {
             stop: () => stop,
             onWait: (w) => w && opts.onProgress?.(w),
           });

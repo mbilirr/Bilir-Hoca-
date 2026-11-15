@@ -8,7 +8,7 @@
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { examKarneData, percentile } from './karneDetay';
-import { round2 } from './lgs';
+import { puanAdi, round2 } from './lgs';
 import { isLgsExam, lgsPercentiles } from './lgsYuzdelik';
 import { denemeKarneAdi, denemeKisaAd } from './karneAdi';
 
@@ -37,6 +37,10 @@ export const KISA_AD: Record<string, string> = {
   mat: 'Matematik',
   fen: 'Fen Bilimleri',
 };
+/** Aşama 271: "sos" 5-7'de Sosyal Bilgiler'dir (adı denemenin kaydından gelir) */
+export const isSosyalBilgiler = (s: { key: string; name?: string } | null | undefined) => !!s && s.key === 'sos' && /sosyal/i.test(s.name || '');
+/** Kısa ders adı: KISA_AD, 5-7'de "sos" için "Sosyal Bilgiler" */
+export const kisaAd = (s: { key: string; name: string }) => (isSosyalBilgiler(s) ? 'Sosyal Bilgiler' : KISA_AD[s.key] || s.name);
 /** Kurumun bu oranından fazlasının doğru yaptığı soruyu kaçırmak "dikkat" işaretidir */
 export const TEK_KACAN_ORAN = 60;
 /** Puan gelişimi grafiğinde gösterilen deneme sayısı (seçili deneme + öğrencinin girdiği önceki 4 deneme) */
@@ -90,6 +94,8 @@ export interface TekSayfaData {
   kurumYuzdelik: number | null;
   /** Son 3 yıl LGS yüzdelik dilimi (LGS dışı denemede boş) */
   yuzdelik: Array<{ year: number; value: number; below: boolean }>;
+  /** Aşama 271: puan kutusunun adı (8: "LGS puanı", 5-7: "Puan") */
+  puanAdi: string;
   dersler: TekDers[];
   /** Son denemelerdeki puan (eski → yeni, en çok 5); sinif: o denemede öğrencinin sınıfının ortalaması (Aşama 141: kurum yerine) */
   /** kisa: denemenin kısa adı (yayınevi; ör. Hız, Aday, Özdebir) — grafikte puanın üstünde (Aşama 140) */
@@ -155,7 +161,7 @@ export function tekSayfaData(
     return {
       key: sr.subject.key,
       name: sr.subject.name,
-      short: KISA_AD[sr.subject.key] || sr.subject.short,
+      short: kisaAd(sr.subject),
       color: dersRengi(sr.subject.key, i),
       count: sr.count,
       d: sr.d,
@@ -224,6 +230,7 @@ export function tekSayfaData(
     rank: k.rank,
     kurumYuzdelik: percentile(k.rank),
     yuzdelik,
+    puanAdi: puanAdi(exam.grade),
     dersler,
     gelisim,
     degerlendirme,

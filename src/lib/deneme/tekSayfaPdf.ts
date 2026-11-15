@@ -212,7 +212,7 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
   const dlt = d.score !== null && d.prevScore !== null ? Math.round((d.score - d.prevScore) * 100) / 100 : null;
   kpi(
     0,
-    'LGS puanı',
+    d.puanAdi || 'LGS puanı', // Aşama 271
     big(fmt2(d.score), 16, FG),
     dlt === null ? 'İlk deneme' : `${dlt >= 0 ? '+' : '-'}${fmt2(Math.abs(dlt))}`,
     dlt === null ? FG2 : dlt >= 0 ? OK : BAD,

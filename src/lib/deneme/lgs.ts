@@ -66,6 +66,78 @@ export const LGS_SUBJECTS: ExamSubject[] = [
 // Gerçek LGS puanı Türkiye geneli ortalamalarla hesaplanır; bu değer tahmindir ve ayarlardan değiştirilebilir.
 export const LGS_SCORING: ScoringSettings = { base: 194.752082, perWeighted: 305.247918 / 270, wrongPerCorrect: 3 };
 
+// ----------------------------------------------------------------------------- Aşama 271: sınıf düzeyi (5-6-7-8)
+// Bir deneme tek sınıf düzeyine aittir (deneme_exams.grade). Ders anahtarları her sınıfta aynıdır; "sos" 8'de
+// T.C. İnkılap Tarihi, 5-7'de Sosyal Bilgiler'dir. Soru sayıları denemeye kaydedilir (exam.subjects), bu yüzden
+// kayıtlı her deneme kendi ders listesiyle okunur; aşağıdaki listeler yalnız YENİ deneme için başlangıçtır.
+export const DENEME_SINIFLARI = ['5', '6', '7', '8'] as const;
+
+/** "8", "8. sınıf", 8 → "8"; sayı değilse olduğu gibi (ör. "Mezun") */
+export const sinifNo = (g: unknown): string => {
+  const t = String(g ?? '').trim();
+  const n = parseInt(t, 10);
+  return Number.isNaN(n) ? t : String(n);
+};
+
+/** LGS'ye (8. sınıf) ait deneme mi? Sınıf boşsa eski kayıt sayılır (8) */
+export const isLgsGrade = (g: unknown) => {
+  const s = sinifNo(g);
+  return !s || s === '8';
+};
+
+/** Yeni denemenin başlangıç dersleri: 8 = LGS; 5-6 = Türkçe/Mat/Fen 15 soru; 7 = 20 soru; diğerleri 10 soru */
+export function subjectsForGrade(grade: unknown): ExamSubject[] {
+  if (isLgsGrade(grade)) return LGS_SUBJECTS.map((s) => ({ ...s }));
+  const big = sinifNo(grade) === '7' ? 20 : 15;
+  return LGS_SUBJECTS.map((s) =>
+    s.key === 'sos' ? { ...s, name: 'Sosyal Bilgiler', short: 'SOS' } : s.coef === 4 ? { ...s, count: big } : { ...s }
+  );
+}
+
+/** Ders listesindeki en yüksek ağırlıklı net (LGS: 270) */
+export const maxWeighted = (subjects: ExamSubject[]) => subjects.reduce((a, s) => a + s.coef * s.count, 0);
+
+/**
+ * Aşama 271: 5-6-7 puanı. MEB'in bu sınıflar için resmî puanı yoktur; yayınevleri LGS yöntemini kullanır
+ * (Türkçe, Matematik, Fen ×4; diğerleri ×1; 3 yanlış 1 doğruyu götürür; tavan 500). Aynı taban (194,75) ile
+ * ağırlıklı net başına puan, denemenin en yüksek ağırlıklı netine göre ölçeklenir: tam net her sınıfta 500.
+ * 8. sınıfta (270 ağırlıklı net) sonuç LGS_SCORING ile birebir aynıdır.
+ */
+export function scoringFor(subjects: ExamSubject[], wrongPerCorrect = LGS_SCORING.wrongPerCorrect): ScoringSettings {
+  const max = maxWeighted(subjects);
+  if (max === 270 && wrongPerCorrect === LGS_SCORING.wrongPerCorrect) return { ...LGS_SCORING };
+  return { base: LGS_SCORING.base, perWeighted: max > 0 ? (500 - LGS_SCORING.base) / max : LGS_SCORING.perWeighted, wrongPerCorrect };
+}
+
+/** Denemenin kayıtlı puan ayarı (eski kayıtlarda LGS) */
+export const examScoring = (exam: { scoring?: Partial<ScoringSettings> | null } | null | undefined): ScoringSettings =>
+  exam?.scoring && typeof exam.scoring.base === 'number' && typeof exam.scoring.perWeighted === 'number'
+    ? { base: exam.scoring.base, perWeighted: exam.scoring.perWeighted, wrongPerCorrect: typeof exam.scoring.wrongPerCorrect === 'number' ? exam.scoring.wrongPerCorrect : 3 }
+    : LGS_SCORING;
+
+/**
+ * Denemelerde gerçekten bulunan dersler: sıra LGS sırası, ad ve soru sayısı denemenin kendi kaydından
+ * (sonraki deneme önceliklidir). 8'de LGS_SUBJECTS ile aynı sonucu verir; 5-7'de "Sosyal Bilgiler" ve 15 soru gelir.
+ */
+export function subjectsOfExams(exams: Array<{ subjects?: ExamSubject[] | null; examDate?: string }>): ExamSubject[] {
+  const byKey = new Map<string, ExamSubject>();
+  const sorted = exams.slice().sort((a, b) => String(a.examDate || '').localeCompare(String(b.examDate || '')));
+  for (const e of sorted) for (const s of e.subjects || []) if (s && s.key) byKey.set(s.key, s);
+  const order = LGS_SUBJECTS.map((s) => s.key);
+  return Array.from(byKey.values()).sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99));
+}
+
+/** Puanın adı: 8'de "LGS puanı", 5-7'de "Puan" */
+export const puanAdi = (grade: unknown) => (isLgsGrade(grade) ? 'LGS puanı' : 'Puan');
+
+/** Karnelerdeki puan açıklaması */
+export function puanNotu(exam: { grade?: string; scoring?: Partial<ScoringSettings> | null } | null | undefined): string {
+  const w = examScoring(exam).wrongPerCorrect;
+  const ceza = w > 0 ? `${w} yanlış 1 doğruyu götürür` : 'yanlış doğruyu götürmez';
+  if (isLgsGrade(exam?.grade)) return `Puanlar yaklaşık LGS puanıdır (${ceza}; ağırlıklı net × 1,13 + 194,75).`;
+  return `Puan LGS yöntemiyle hesaplanır (${ceza}; Türkçe, Matematik ve Fen ×4, diğer dersler ×1; bütün sorular doğruysa 500). MEB'in bu sınıf için resmî puanı yoktur.`;
+}
+
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 export const fmtNet = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? '-' : (Math.round(n * 100) / 100).toLocaleString('tr-TR'));
 export const fmtScore = (n: number | null | undefined) =>

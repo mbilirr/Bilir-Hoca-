@@ -7,7 +7,7 @@
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import type { Student } from '../../types';
-import { LGS_SCORING, LGS_SUBJECTS, round2, type ExamSubject } from './lgs';
+import { LGS_SCORING, round2, type ExamSubject, subjectsOfExams } from './lgs';
 import { LEVEL_INFO, levelOf } from './analiz';
 import { isBadKonu } from './kazanimBank';
 import { LGS_YEARS, isLgsExam, lgsPercentileFor, lgsPercentiles, type LgsPercentile } from './lgsYuzdelik';
@@ -65,7 +65,7 @@ function pickDiverse<T extends { subject: ExamSubject }>(list: T[], n: number): 
   return out;
 }
 
-export function veliKarneData(examsAll: DenemeExam[], results: DenemeResult[], target: number | null, subjects: ExamSubject[] = LGS_SUBJECTS): VeliKarneData | null {
+export function veliKarneData(examsAll: DenemeExam[], results: DenemeResult[], target: number | null, subjects: ExamSubject[] = subjectsOfExams(examsAll)): VeliKarneData | null {
   const rByExam = new Map<string, DenemeResult>();
   for (const r of results) if (!rByExam.has(r.examId)) rByExam.set(r.examId, r);
   const exams = examsAll.filter((e) => rByExam.has(e.id));
@@ -148,7 +148,7 @@ export interface PriorityKarne {
  * Konuların önceliği: deneme başına kaybettirdiği puana göre (Pareto).
  * Sıralı listede toplam kaybın ilk %50'si 1. öncelik, sonraki %30'u 2. öncelik, kalanı 3. öncelik.
  */
-export function priorityKarne(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = LGS_SUBJECTS): PriorityKarne {
+export function priorityKarne(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = subjectsOfExams(examsAll)): PriorityKarne {
   const exams = examsAll.filter((e) => results.some((r) => r.examId === e.id));
   const n = exams.length;
   const subs = subjects.filter((s) => exams.some((e) => e.subjects.some((x) => x.key === s.key)));
@@ -254,7 +254,7 @@ export interface KurumOzet {
   };
 }
 
-export function kurumOzet(examsAll: DenemeExam[], results: DenemeResult[], students: Student[], subjects: ExamSubject[] = LGS_SUBJECTS): KurumOzet | null {
+export function kurumOzet(examsAll: DenemeExam[], results: DenemeResult[], students: Student[], subjects: ExamSubject[] = subjectsOfExams(examsAll)): KurumOzet | null {
   const exams = examsAll.filter((e) => results.some((r) => r.examId === e.id));
   if (!exams.length) return null;
   const subs = subjects.filter((s) => exams.some((e) => e.subjects.some((x) => x.key === s.key)));
@@ -374,4 +374,4 @@ export function kurumOzet(examsAll: DenemeExam[], results: DenemeResult[], stude
 }
 
 /** Ağırlıklı netten puana: konu kazancını puana çevirirken kullanılır */
-export const pointsPerNet = (coef: number) => round2(coef * LGS_SCORING.perWeighted);
+export const pointsPerNet = (coef: number, scoring = LGS_SCORING) => round2(coef * scoring.perWeighted);

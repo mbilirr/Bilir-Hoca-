@@ -415,6 +415,21 @@ const SUBJECT_LIST = Object.entries(SUBJECTS)
   .map(([k, v]) => `${k} = ${v}`)
   .join(', ');
 
+// Aşama 271: 5-6-7. sınıf denemeleri. Sınıf istekte gelir (yoksa 8). 5-7'de "sos" Sosyal Bilgiler'dir;
+// 2024'ten sonra 5. ve 6. sınıf programları Türkiye Yüzyılı Maarif Modeli kodlarıyladır (MAT.5.1.1.1, FB.6.1.1.1, T.O.5.24).
+const gradeOf = (body) => {
+  const g = parseInt(clean(body && body.grade, 4), 10);
+  return g >= 1 && g <= 12 ? String(g) : '8';
+};
+const isLgs = (g) => g === '8';
+const subjectListFor = (g) =>
+  isLgs(g) ? SUBJECT_LIST : SUBJECT_LIST.replace(`sos = ${SUBJECTS.sos}`, 'sos = Sosyal Bilgiler');
+const examWord = (g) => (isLgs(g) ? 'LGS deneme' : `${g}. sınıf deneme`);
+const gradeNote = (g) =>
+  isLgs(g)
+    ? ''
+    : `Sınıf düzeyi: ${g}. sınıf (ortaokul). "sos" bu sınıfta Sosyal Bilgiler dersidir. Yalnızca ${g}. sınıf kazanımlarını kullan. Yeni (Maarif Modeli) programlarda kodlar MAT.${g}.1.1.1., FB.${g}.1.1.1., SB.${g}.1.1., T.O.${g}.24. gibi olabilir; kodu listede yazdığı gibi kullan.`;
+
 // ----------------------------------------------------------------------------- 1) Öğretim programından kazanımlar
 const PROGRAM_SYSTEM = [
   'Sen MEB öğretim programlarını çok iyi bilen bir eğitim uzmanısın.',
@@ -430,7 +445,8 @@ const PROGRAM_SYSTEM = [
   '  Konu ASLA kazanım cümlesi olamaz ve ünite adı olmamalıdır. Aynı konu başlığı altındaki bütün kazanımlara AYNI konu adını yaz.',
   '  Türkçe gibi konu başlığı kodlu olmayan derslerde kazanımın üstündeki alt başlığı yaz (ör. "Söz Varlığı", "Anlama", "Yazım ve Noktalama").',
   '  Belgede konu başlığı yoksa ünite adını yaz.',
-  '- "ders": şu anahtarlardan biri: ' + SUBJECT_LIST + '.',
+  '- "ders": şu anahtarlardan biri: ' + SUBJECT_LIST + ' (5-7. sınıfta "sos" Sosyal Bilgiler dersidir).',
+  '- Türkiye Yüzyılı Maarif Modeli programlarında kodlar MAT.5.1.1.1., FB.6.1.1.1., SB.5.2.4., DKAB.5.1.2., T.O.5.24., ENG.5.R2.1. gibidir; kodu aynen yaz, "kazanim" alanına öğrenme çıktısını yaz.',
   '- Başka sınıfların kazanımlarını, genel amaçları, açıklamaları ve tabloları alma.',
   '- Yalnızca şu biçimde JSON döndür: {"kazanimlar":[{"ders":"fen","kod":"","kazanim":"","konu":"","aciklamalar":[""]}]}',
 ].join('\n');
@@ -472,12 +488,12 @@ async function actionProgram(body) {
 }
 
 // ----------------------------------------------------------------------------- 2) Kitapçık sayfalarını tanıma
-const PAGES_SYSTEM = [
-  'Sen LGS deneme kitapçıklarını inceleyen bir uzmansın.',
+const pagesSystem = (g) => [
+  `Sen ${examWord(g)} kitapçıklarını inceleyen bir uzmansın.`,
   'Sana kitapçıktan sırayla birkaç sayfanın resmi verilir; her resmin sayfa numarası metinde yazılıdır.',
   'Görevin: her sayfada HANGİ DERSİN sorularının bulunduğunu ve sayfada görünen SORU NUMARALARINI bulmak.',
   'Kurallar:',
-  '- Ders anahtarları: ' + SUBJECT_LIST + '.',
+  '- Ders anahtarları: ' + subjectListFor(g) + '.',
   '- Ders başlığı sayfada yazmasa da soruların içeriğinden dersi anla.',
   '- Kapak, açıklama, cevap kâğıdı gibi soru olmayan sayfalarda "dersler" boş liste olsun.',
   '- Bir sayfada iki dersin soruları varsa ikisini de yaz.',
@@ -488,7 +504,7 @@ const PAGES_SYSTEM = [
 async function actionPages(body) {
   const images = readImages(body.images);
   const prompt = [`Resimler sırasıyla şu sayfalardır: ${images.map((i) => i.page).join(', ')}.`, 'Her sayfa için dersleri ve soru numaralarını yaz.'].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, PAGES_SYSTEM, prompt, images, 'fast');
+  const { provider, model, parsed, exhausted } = await ask(body, pagesSystem(gradeOf(body)), prompt, images, 'fast');
   const raw = Array.isArray(parsed.sayfalar) ? parsed.sayfalar : [];
   const allowedPages = new Set(images.map((i) => i.page));
   const pages = [];
@@ -511,8 +527,9 @@ async function actionPages(body) {
 }
 
 // ----------------------------------------------------------------------------- 3) Soru → kazanım
-const CLASSIFY_SYSTEM = [
-  'Sen Türkiye\'de 8. sınıf (LGS) sorularını MEB öğretim programı kazanımlarına göre sınıflandıran deneyimli bir ölçme-değerlendirme uzmanısın.',
+const classifySystem = (g) => [
+  `Sen Türkiye'de ${isLgs(g) ? '8. sınıf (LGS)' : `${g}. sınıf`} sorularını MEB öğretim programı kazanımlarına göre sınıflandıran deneyimli bir ölçme-değerlendirme uzmanısın.`,
+  gradeNote(g),
   'Sana bir deneme kitapçığının bir ya da iki sayfasının resmi (sayfa numaraları metinde yazılı), sayfalardaki derslerin bilgisi ve her dersin kazanım listesi verilir.',
   'Görevin: sayfalarda numarası görünen HER soru için sorunun ölçtüğü kazanımı listeden seçmek.',
   '- "sayfa": sorunun bulunduğu sayfanın numarası (metinde verilen sayfa numaralarından biri).',
@@ -526,7 +543,7 @@ const CLASSIFY_SYSTEM = [
   '- "guven": seçiminden ne kadar eminsin, 0-100 arası tam sayı.',
   '- Soruyu çözme, cevabı yazma. Sayfada soru yoksa boş liste döndür.',
   '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"sayfa":1,"ders":"fen","no":1,"kod":"","kod2":"","alt_no":0,"konu":"","alt":"","guven":0}]}',
-].join('\n');
+].filter(Boolean).join('\n');
 
 async function actionClassify(body) {
   const images = readImages(body.image ? [body.image] : body.images).slice(0, 2);
@@ -570,7 +587,7 @@ async function actionClassify(body) {
     ...blocks,
   ].join('\n');
   // Aşama 162: zaman aşımından sonra tek sayfa yeniden gönderilirken düşünme kısaltılır (hızlı mod)
-  const { provider, model, parsed, exhausted } = await ask(body, CLASSIFY_SYSTEM, prompt, images, body.fast === true ? 'fast' : 'normal');
+  const { provider, model, parsed, exhausted } = await ask(body, classifySystem(gradeOf(body)), prompt, images, body.fast === true ? 'fast' : 'normal');
   const raw = Array.isArray(parsed.sorular) ? parsed.sorular : Array.isArray(parsed) ? parsed : [];
   const byKey = new Map(prepared.map((s) => [s.key, s]));
   const seen = new Set();
@@ -608,8 +625,9 @@ async function actionClassify(body) {
 }
 
 // ----------------------------------------------------------------------------- 4) Yayınevi kazanımı → MEB kazanımı (yalnızca metin)
-const MATCH_SYSTEM = [
-  'Sen MEB 8. sınıf öğretim programlarını çok iyi bilen bir ölçme-değerlendirme uzmanısın.',
+const matchSystem = (g) => [
+  `Sen MEB ${g}. sınıf öğretim programlarını çok iyi bilen bir ölçme-değerlendirme uzmanısın.`,
+  gradeNote(g),
   'Sana bir yayınevinin deneme sınavındaki soruların kazanım ya da konu ifadeleri ve dersin MEB kazanım listesi verilir.',
   'Görevin: her soru için yayınevinin ifadesine anlamca EN UYGUN MEB kazanımını listeden seçmek.',
   'Kurallar:',
@@ -617,7 +635,7 @@ const MATCH_SYSTEM = [
   '- Yayınevi yalnızca konu adı yazdıysa (ör. "Paragrafta Anlam") o konuyu en iyi karşılayan kazanımı seç.',
   '- "guven": 0-100 arası tam sayı.',
   '- Yalnızca şu biçimde JSON döndür: {"eslesmeler":[{"no":1,"kod":"","guven":0}]}',
-].join('\n');
+].filter(Boolean).join('\n');
 
 async function actionMatch(body) {
   const name = clean(body.subject && body.subject.name, 80);
@@ -639,7 +657,7 @@ async function actionMatch(body) {
     'MEB kazanım listesi (kod | konu | kazanım):',
     kaz.map((k) => `${k.code} | ${k.konu || '-'} | ${k.text}`).join('\n'),
   ].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, MATCH_SYSTEM, prompt, [], 'normal');
+  const { provider, model, parsed, exhausted } = await ask(body, matchSystem(gradeOf(body)), prompt, [], 'normal');
   const raw = Array.isArray(parsed.eslesmeler) ? parsed.eslesmeler : [];
   const allowed = new Map(kaz.map((k) => [codeKey(k.code), k.code]));
   const wanted = new Set(items.map((it) => it.no));
@@ -658,12 +676,14 @@ async function actionMatch(body) {
 }
 
 // ----------------------------------------------------------------------------- 5) Cevap anahtarı dosyasını çözme (yalnızca metin)
-const KEY_SYSTEM = [
+const keySystem = (g) => [
   'Sen deneme sınavı cevap anahtarı dosyalarını okuyan dikkatli bir asistansın.',
   'Sana bir Excel dosyasının hücreleri satır satır metin olarak (hücreler " | " ile ayrılmış) ve denemedeki dersler (sırasıyla, soru sayılarıyla) verilir.',
   'Görevin: her dersin A kitapçığı cevap anahtarını çıkarmak.',
   'Kurallar:',
-  '- Ders başlığı yazmıyorsa dersleri sıradan ve soru sayılarından anla (ör. LGS: Türkçe 20, İnkılap 10, Din 10, Yabancı Dil 10, Matematik 20, Fen 20).',
+  isLgs(g)
+    ? '- Ders başlığı yazmıyorsa dersleri sıradan ve soru sayılarından anla (ör. LGS: Türkçe 20, İnkılap 10, Din 10, Yabancı Dil 10, Matematik 20, Fen 20).'
+    : `- Ders başlığı yazmıyorsa dersleri sıradan ve verilen soru sayılarından anla (${g}. sınıf: Türkçe, Sosyal Bilgiler, Din, İngilizce, Matematik, Fen).`,
   '- "no": dersin içindeki A kitapçığı soru numarası (1\'den başlar). "cevap": A, B, C, D ya da E; iptal soru için "X".',
   '- "b": dosyada B kitapçığı numarası varsa o sorunun B kitapçığındaki numarası; yoksa 0.',
   '- "kazanim": dosyada o soruya ait kazanım yazıyorsa kodu ve metniyle aynen yaz (ör. "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur."); ayrı bir konu sütunu varsa sonuna parantez içinde ekle (ör. "(Mevsimlerin Oluşumu)"); hiçbiri yoksa boş bırak.',
@@ -686,7 +706,7 @@ async function actionKey(body) {
     'Dosya:',
     text,
   ].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, KEY_SYSTEM, prompt, [], 'normal');
+  const { provider, model, parsed, exhausted } = await ask(body, keySystem(gradeOf(body)), prompt, [], 'normal');
   const byKey = new Map(subjects.map((s) => [s.key, s]));
   const out = [];
   for (const d of Array.isArray(parsed.dersler) ? parsed.dersler.slice(0, 10) : []) {
@@ -710,12 +730,12 @@ async function actionKey(body) {
 // ----------------------------------------------------------------------------- 7) Aşama 94: kitapçık sorularını okuma
 // A ve B kitapçığında aynı sorular farklı sırada bulunur. Yapay zekâ yalnızca her sorunun numarasını ve metninin
 // başını okur; eşleştirme ve cevap harfi kontrolü tarayıcıda yapılır.
-const SORULAR_SYSTEM = [
-  'Sen LGS deneme kitapçıklarını okuyan dikkatli bir uzmansın.',
+const sorularSystem = (g) => [
+  `Sen ${examWord(g)} kitapçıklarını okuyan dikkatli bir uzmansın.`,
   'Sana kitapçıktan sırayla birkaç sayfanın resmi verilir; her resmin sayfa numarası metinde yazılıdır.',
   'Görevin: sayfalarda NUMARASI GÖRÜNEN her sorunun dersini, numarasını ve metninin başını yazmak.',
   'Kurallar:',
-  '- Ders anahtarları: ' + SUBJECT_LIST + '. Sayfa başlığına ve sorunun içeriğine bak.',
+  '- Ders anahtarları: ' + subjectListFor(g) + '. Sayfa başlığına ve sorunun içeriğine bak.',
   '- "no": sorunun kitapçıkta yazan numarası (her ders 1\'den başlar).',
   '- "metin": sorunun okuma metni / öncülleri ve soru kökü dahil İLK 30 KELİMESİ, kitapçıkta yazdığı gibi (yazım düzeltme, özetleme yapma).',
   '  Birden çok soruya ortak metin varsa her soruya kendi kökünü yaz.',
@@ -729,7 +749,7 @@ const SORULAR_SYSTEM = [
 async function actionSorular(body) {
   const images = readImages(body.images).slice(0, 4);
   const prompt = [`Resimler sırasıyla şu sayfalardır: ${images.map((i) => i.page).join(', ')}.`, 'Her sayfadaki soruları yaz.'].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, SORULAR_SYSTEM, prompt, images, 'fast');
+  const { provider, model, parsed, exhausted } = await ask(body, sorularSystem(gradeOf(body)), prompt, images, 'fast');
   const allowedPages = new Set(images.map((i) => i.page));
   const items = [];
   for (const q of Array.isArray(parsed.sorular) ? parsed.sorular.slice(0, 80) : []) {
@@ -744,8 +764,9 @@ async function actionSorular(body) {
 }
 
 // ----------------------------------------------------------------------------- 6) Kazanımların konu başlıklarını düzenleme (yalnızca metin)
-const KONU_SYSTEM = [
-  'Sen MEB 8. sınıf öğretim programlarını çok iyi bilen bir eğitim uzmanısın.',
+const konuSystem = (g) => [
+  `Sen MEB ${g}. sınıf öğretim programlarını çok iyi bilen bir eğitim uzmanısın.`,
+  gradeNote(g),
   'MEB programlarının yapısı: ÜNİTE (ör. "F.8.1. Mevsimler ve İklim") → KONU (ör. "F.8.1.1. Mevsimlerin Oluşumu") → KAZANIM (ör. "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur.").',
   'Sana bir dersin kazanımları (kod | şu anki konu | kazanım) verilir. Şu anki konu boş, yanlış ya da kazanım cümlesinin kendisi olabilir.',
   'Görevin: her kazanım için doğru KONU başlığını yazmak.',
@@ -755,7 +776,7 @@ const KONU_SYSTEM = [
   '- Türkçe gibi kodlu konu başlığı olmayan derslerde kazanımı en iyi anlatan alt başlığı yaz (ör. "Söz Varlığı", "Anlama", "Söz Sanatları", "Fiilimsiler", "Cümle Türleri", "Yazım ve Noktalama").',
   '- Şu anki konu zaten doğru bir konu başlığıysa aynen koru.',
   '- Yalnızca şu biçimde JSON döndür: {"konular":[{"kod":"","konu":""}]}',
-].join('\n');
+].filter(Boolean).join('\n');
 
 async function actionKonular(body) {
   const name = clean(body.subject && body.subject.name, 80);
@@ -765,7 +786,7 @@ async function actionKonular(body) {
     .filter((k) => k.kod && k.kazanim);
   if (!items.length) return { ok: true, items: [] };
   const prompt = [`Ders: ${name}`, '', 'Kazanımlar (kod | şu anki konu | kazanım):', items.map((k) => `${k.kod} | ${k.konu || '-'} | ${k.kazanim}`).join('\n')].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, KONU_SYSTEM, prompt, [], 'normal');
+  const { provider, model, parsed, exhausted } = await ask(body, konuSystem(gradeOf(body)), prompt, [], 'normal');
   const allowed = new Map(items.map((k) => [codeKey(k.kod), k.kod]));
   const seen = new Set();
   const out = [];

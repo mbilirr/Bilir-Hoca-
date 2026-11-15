@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Link2, Save, Trash2, Upload, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, FileText, Link2, Pencil, Save, Sparkles, Trash2, Upload, Users } from 'lucide-react';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
@@ -8,12 +8,18 @@ import { AnahtarEditor } from './AnahtarEditor';
 import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type OptikRow, type TxtParseResult } from '../../lib/deneme/optik';
+import { otomatikAlanlar, type OtoOkuma } from '../../lib/deneme/optikOtomatik';
 import { checkBlocksWithKey, fixSessionSubjects, remapFields, remapRows, suggestionMap, type KeySuggestion } from '../../lib/deneme/oturum';
 import { aliasKeyOf, applyMerge, findSessionPairs, groupRows, matchGroups, nameSimilarity, resultNumber, type MatchItem, type SessionPair } from '../../lib/deneme/eslestir';
 import {
-  LGS_SCORING,
-  LGS_SUBJECTS,
   computeResult,
+  examScoring,
+  puanNotu,
+  isLgsGrade,
+  scoringFor,
+  sinifNo,
+  subjectsForGrade,
+  type ExamSubject,
   fmtNet,
   fmtScore,
   normalizeQuestions,
@@ -40,6 +46,22 @@ import {
 } from '../../services/denemeService';
 import { newId } from '../../lib/ids';
 import { hashTcs, validTc } from '../../lib/tcApi';
+import { gradeOf } from '../../lib/teacherGrades';
+import type { ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
+
+/** Aşama 271: yeni denemenin dersleri sınıfa göre; kayıtlı deneme / taslakta soru sayısı ve ad kaydedilenden gelir */
+function wizardSubjects(grade: string, saved: ExamSubject[] | undefined): ExamSubject[] {
+  const byKey = new Map((saved || []).map((x) => [x.key, x]));
+  return subjectsForGrade(grade).map((s) => {
+    const k = byKey.get(s.key);
+    return k ? { ...s, name: k.name || s.name, short: k.short || s.short, count: k.count || s.count } : s;
+  });
+}
+const YANLIS_SECENEK = [
+  { v: 3, label: '3 yanlış 1 doğruyu götürür' },
+  { v: 4, label: '4 yanlış 1 doğruyu götürür' },
+  { v: 0, label: 'Yanlış doğruyu götürmez' },
+];
 
 // ============================================================================
 // Yeni deneme / optik yükleme sihirbazı (Aşama 47)
@@ -66,7 +88,10 @@ const todayStr = () => {
 const filled = (s?: string) => !!s && /[A-E*]/.test(s);
 
 /** Aşama 90: yüklenen TXT (text) ya da taslaktan gelen okunmuş satırlar (rows). fmt: '' = yukarıda düzenlenen format */
-type TxtSrc = { name: string; text?: string; fmt: string; rows?: DraftFile['rows']; fmtName?: string };
+// Aşama 271: fmt '__oto' = FMT'siz okuma; alanlar dosyanın kendisinden çözülür (oto)
+type TxtSrc = { name: string; text?: string; fmt: string; rows?: DraftFile['rows']; fmtName?: string; oto?: OtoOkuma };
+const OTO = '__oto';
+const OTO_AD = "FMT'siz okuma";
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const SQ_BTN = 'ui-btn ui-btn-sm w-32 justify-center';
 // Aşama 63: "Denemelere dön" düğmesi deneme sonuçları ekranındakiyle aynı görünümde
@@ -82,9 +107,19 @@ export const DenemeWizard: React.FC<{
   onCancel: () => void;
   onSaved: (examId: string) => void;
   onDraftChange?: () => void; // taslak kaydedildi / silindi (liste yenilenir)
-}> = ({ students, classes, existing, draft, startStep = 1, onCancel, onSaved, onDraftChange }) => {
-  const subjects = LGS_SUBJECTS;
+  grade?: string; // Aşama 271: sayfada seçilen sınıf (yeni deneme); kayıtlı denemede kendi sınıfı kullanılır
+}> = ({ students, classes, existing, draft, startStep = 1, onCancel, onSaved, onDraftChange, grade: gradeProp }) => {
   const src = existing || draft || null;
+  // Aşama 271: sınıf düzeyi denemeyle birlikte kaydedilir ve sonradan değişmez
+  const grade = sinifNo(src?.grade || gradeProp || '8') || '8';
+  const lgs = isLgsGrade(grade);
+  const [subjects, setSubjects] = useState<ExamSubject[]>(() => wizardSubjects(grade, src?.subjects));
+  const subjectsRef = useRef(subjects);
+  subjectsRef.current = subjects;
+  // 8'de LGS puanı (değişmez); 5-7'de yanlış etkisi yayınevine göre seçilir (Excel'de yazıyorsa oradan)
+  const [yanlis, setYanlis] = useState<number>(() => examScoring(src).wrongPerCorrect);
+  const scoring = existing ? examScoring(existing) : scoringFor(subjects, lgs ? 3 : yanlis);
+  const [countNote, setCountNote] = useState<string | null>(null);
   const draftData: DenemeDraft | undefined = draft?.draft;
   const [step, setStep] = useState<Step>(() => (draft ? (Math.min(3, Math.max(1, draftData?.step || draft.draftInfo?.step || 1)) as Step) : startStep));
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +197,8 @@ export const DenemeWizard: React.FC<{
 
   // Aşama 90: her TXT kendi formatıyla okunur. '' ya da düzenlenen kayıtlı format = yukarıdaki (canlı) alanlar
   const usesEditor = (f: TxtSrc) => !f.rows && (f.fmt === '' || f.fmt === formatId);
-  const fieldsFor = (f: TxtSrc): OptikField[] | null => (usesEditor(f) ? fields : formats.find((x) => x.id === f.fmt)?.fields || null);
+  const fieldsFor = (f: TxtSrc): OptikField[] | null =>
+    f.fmt === OTO && f.oto ? f.oto.fields : usesEditor(f) ? fields : formats.find((x) => x.id === f.fmt)?.fields || null;
   // TXT'ler format değişince yeniden okunur
   const parsed: Array<TxtParseResult | null> = useMemo(
     () =>
@@ -212,11 +248,70 @@ export const DenemeWizard: React.FC<{
   }, [allRows, subjects]);
   const keyMissingForAnswered = answeredSubjects.filter((s) => !keyComplete(s.key));
 
+  // Aşama 271: eşleştirmede yalnız bu sınıf düzeyindeki öğrenciler aday olur (5. sınıftaki adaş 8. sınıfa yazılmaz).
+  // Sınıfının düzeyi bilinmeyen öğrenci de aday kalır; sınıf düzeyi sayı değilse (ör. "Mezun") süzülmez.
+  const adaylar = useMemo(() => {
+    if (!/^\d+$/.test(grade)) return students;
+    const byId = new Map(classes.map((c) => [c.id, c]));
+    return students.filter((st) => {
+      const c = byId.get(st.classId);
+      const g = c ? gradeOf(c) : gradeOf({ gradeLevel: st.gradeLevel, name: st.className });
+      return g === null || String(g) === grade;
+    });
+  }, [students, classes, grade]);
   const studentById = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
   const sortedStudents = useMemo(
-    () => students.slice().sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr') || a.name.localeCompare(b.name, 'tr')),
-    [students]
+    () => adaylar.slice().sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr') || a.name.localeCompare(b.name, 'tr')),
+    [adaylar]
   );
+  // Aşama 271: optikte SINIF alanı varsa seçilen sınıfla uyuşmalı (yanlış sınıfın TXT'si yüklenmesin)
+  const sinifUyumsuz = useMemo(() => {
+    if (!/^\d+$/.test(grade)) return 0;
+    let n = 0;
+    for (const r of allRows) {
+      const g = (r.grade || '').replace(/\D/g, '');
+      if (g && g !== grade) n++;
+    }
+    return n;
+  }, [allRows, grade]);
+
+  // Aşama 271: 5-7'de yayınevlerinin soru sayısı farklı olabilir. Okunan dosyada bir dersin soruları 1'den N'ye
+  // eksiksizse soru sayısı N yapılır (cevap anahtarı kesilmeden). Excel'de "Sınıf" ve "Yanlış Etkisi" yazıyorsa
+  // sınıf denetlenir, yanlış etkisi alınır. 8. sınıf (LGS) ve kayıtlı deneme değişmez.
+  const fileMeta = (r: ExcelKeyResult) => {
+    const notes: string[] = [];
+    if (r.grade && /^\d+$/.test(grade) && r.grade !== grade) notes.push(`Dosyada "${r.grade}. sınıf" yazıyor, bu deneme ${grade}. sınıf. Doğru dosyayı yüklediğinizden emin olun.`);
+    if (!lgs && !existing) {
+      if (typeof r.wrongPerCorrect === 'number' && r.wrongPerCorrect !== yanlis) {
+        setYanlis(r.wrongPerCorrect);
+        notes.push(`Yanlış etkisi dosyadan alındı: ${YANLIS_SECENEK.find((x) => x.v === r.wrongPerCorrect)?.label || r.wrongPerCorrect}.`);
+      }
+      const changed: string[] = [];
+      const nextSubs = subjectsRef.current.map((sub) => {
+        const list = r.questions[sub.key] || [];
+        if (!list.length) return sub;
+        const nos = new Set(list.map((q) => q.no));
+        const max = Math.max(...Array.from(nos));
+        if (max === sub.count || max < 5 || max > 40 || nos.size !== max) return sub;
+        changed.push(`${sub.short} ${sub.count} → ${max}`);
+        return { ...sub, count: max };
+      });
+      if (changed.length) {
+        subjectsRef.current = nextSubs;
+        setSubjects(nextSubs);
+        notes.push(`Soru sayıları dosyaya göre ayarlandı: ${changed.join(', ')}.`);
+      }
+    }
+    setCountNote(notes.length ? notes.join(' ') : null);
+  };
+  /** 5-7: soru sayısı elle (dosyada başlık yoksa ya da yayınevi farklıysa) */
+  const setCount = (key: string, n: number) => {
+    const c = Math.max(1, Math.min(40, Math.round(n) || 0));
+    const nextSubs = subjects.map((x) => (x.key === key ? { ...x, count: c } : x));
+    subjectsRef.current = nextSubs;
+    setSubjects(nextSubs);
+    setQuestions((q) => normalizeQuestions(nextSubs, q));
+  };
 
   const onTxt = async (list: FileList | null) => {
     if (!list?.length) return;
@@ -226,11 +321,35 @@ export const DenemeWizard: React.FC<{
       // Aşama 90: dosyaya uyan format kendiliğinden seçilir (önce yukarıdaki format, sonra kayıtlı formatlar)
       const editorFits = fields.length > 0 && !checkFields(fields).length && formatFitsTxt(text, fields);
       const fit = editorFits ? null : formats.find((x) => formatFitsTxt(text, x.fields));
-      add.push({ name: f.name, text, fmt: fit ? fit.id : '' });
+      // Aşama 271: uyan FMT yoksa dosyanın kendisinden okunur (FMT'siz okuma); sonuç ekranda kontrol edilir
+      const oto = editorFits || fit ? null : otomatikAlanlar(text, subjectsRef.current, grade);
+      add.push({ name: f.name, text, fmt: fit ? fit.id : oto ? OTO : '', oto: oto || undefined, fmtName: oto ? OTO_AD : undefined });
     }
     setTxtFiles((cur) => [...cur.filter((c) => !add.some((a) => a.name === c.name)), ...add]);
   };
-  const setFileFmt = (name: string, fmt: string) => setTxtFiles((cur) => cur.map((f) => (f.name === name ? { ...f, fmt } : f)));
+  const setFileFmt = (name: string, fmt: string) =>
+    setTxtFiles((cur) =>
+      cur.map((f) => {
+        if (f.name !== name) return f;
+        if (fmt !== OTO) return { ...f, fmt, fmtName: f.rows ? f.fmtName : undefined };
+        // Aşama 271: FMT'siz okuma seçildi (daha önce çözülmediyse şimdi çözülür)
+        const oto = f.oto || (f.text ? otomatikAlanlar(f.text, subjectsRef.current, grade) : null);
+        return oto ? { ...f, fmt: OTO, oto, fmtName: OTO_AD } : f;
+      })
+    );
+  /** Aşama 271: FMT'siz okunan alanları format düzenleyicisine alır (düzeltip kaydetmek için) */
+  const otoDuzenle = (name: string) => {
+    const f = txtFiles.find((x) => x.name === name);
+    if (!f?.oto) return;
+    if (formatId) setTxtFiles((cur) => cur.map((x) => (x.fmt === '' ? { ...x, fmt: formatId } : x)));
+    setFields(f.oto.fields);
+    setSequential(true);
+    setFmtText('');
+    setFormatId('');
+    setFormatName(`${name.replace(/\.[^.]+$/, '').slice(0, 100)} (FMT'siz)`);
+    setTxtFiles((cur) => cur.map((x) => (x.name === name ? { ...x, fmt: '', fmtName: undefined } : x)));
+    setFormatMsg('Dosyadan çözülen alanlar aşağıda. "İlk satırda okunan" sütununu kontrol edin; sonraki denemeler için "Formatı kaydet" deyin.');
+  };
 
   /** Aşama 90: anahtarla bulunan ders düzeltmesini uygular (format ya da kayıtlı satırlar) */
   const applyKeyFix = async (i: number) => {
@@ -327,7 +446,7 @@ export const DenemeWizard: React.FC<{
     if (!list.length) return { map };
     try {
       const existingHashes = await listStudentTcHashes();
-      const allowed = new Set(students.map((s) => s.id));
+      const allowed = new Set(adaylar.map((s) => s.id));
       const byHash = new Map<string, string>();
       const dupHash = new Set<string>();
       for (const [sid, h] of existingHashes) {
@@ -374,7 +493,7 @@ export const DenemeWizard: React.FC<{
     }
     if (tcMatch.size) setTcNote((n) => n || `${tcMatch.size} öğrenci TC ile eşleşti (TC'ler kaydedilmedi).`);
     for (const g of groups) delete g.tc; // TC bellekten atılır
-    return matchGroups(groups, students, classes, aliases, tcMatch.size ? tcMatch : undefined);
+    return matchGroups(groups, adaylar, classes, aliases, tcMatch.size ? tcMatch : undefined);
   };
   /** Aşama 118: birleşebilecek oturum satırları. Daha önce onaylananlar (hafıza / TC) sormadan birleşir, kalanlar sorulur. */
   const studentNo = (id: string | null) => (id ? studentById.get(id)?.studentNumber : undefined);
@@ -496,11 +615,11 @@ export const DenemeWizard: React.FC<{
         name: name.trim(),
         publisher: publisher.trim(),
         examDate,
-        grade: '8',
-        examType: 'LGS',
+        grade,
+        examType: lgs ? 'LGS' : 'ARA', // Aşama 271: 5-7 (ara sınıf) denemesi
         subjects: completeSubjects,
         questions: normalizeQuestions(subjects, questions),
-        scoring: LGS_SCORING,
+        scoring,
         summary: {},
         published: false,
         draftInfo: { step: stepNow, at: at.toISOString() },
@@ -698,7 +817,7 @@ export const DenemeWizard: React.FC<{
       if (m.skip || !m.studentId) continue;
       const st = studentById.get(m.studentId);
       if (!st) continue;
-      const r = computeResult(m.group.answers, m.group.booklet, active, qs, LGS_SCORING);
+      const r = computeResult(m.group.answers, m.group.booklet, active, qs, scoring);
       if (r.stats.bookletGuessed) guessed++;
       list.push({
         id: '',
@@ -725,7 +844,7 @@ export const DenemeWizard: React.FC<{
     }
     return { list, guessed, active };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, matches, questions]);
+  }, [step, matches, questions, scoring.perWeighted, scoring.wrongPerCorrect]);
 
   const doSave = async () => {
     if (!computed || saving) return;
@@ -747,14 +866,14 @@ export const DenemeWizard: React.FC<{
           if (!prev) return r;
           const answers: Record<string, string> = {};
           for (const s of active) answers[s.key] = filled(r.answers[s.key]) ? r.answers[s.key] : prev.answers[s.key] || r.answers[s.key] || '';
-          const re = recomputeFromAnswers(answers, r.booklet || prev.booklet, active, qs, LGS_SCORING);
+          const re = recomputeFromAnswers(answers, r.booklet || prev.booklet, active, qs, scoring);
           const kag = { ...(prev.optik?.kag || {}), ...(r.optik?.kag || {}) };
           return { ...r, answers: re.answers, stats: re.stats, totalNet: re.totalNet, score: re.score, optik: { ...prev.optik, ...r.optik, kag } };
         });
         const newIds = new Set(results.map((r) => r.studentId));
         for (const prev of old) {
           if (newIds.has(prev.studentId)) continue;
-          const re = recomputeFromAnswers(prev.answers, prev.booklet, active, qs, LGS_SCORING);
+          const re = recomputeFromAnswers(prev.answers, prev.booklet, active, qs, scoring);
           results.push({ ...prev, answers: re.answers, stats: re.stats, totalNet: re.totalNet, score: re.score });
         }
       }
@@ -767,11 +886,11 @@ export const DenemeWizard: React.FC<{
         name: name.trim(),
         publisher: publisher.trim(),
         examDate,
-        grade: '8',
-        examType: 'LGS',
+        grade,
+        examType: existing?.examType || (lgs ? 'LGS' : 'ARA'),
         subjects: active,
         questions: qs,
-        scoring: LGS_SCORING,
+        scoring,
         summary,
         published: existing?.published || false,
       });
@@ -882,6 +1001,11 @@ export const DenemeWizard: React.FC<{
           <ArrowLeft /> Denemelere dön
         </button>
         <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: optik yükleme` : draftId ? name.trim() || 'Yeni deneme' : 'Yeni deneme'}</h2>
+        {/^\d+$/.test(grade) && (
+          <span className="ui-chip ui-chip-info" id="deneme-wizard-sinif" title="Deneme bu sınıf düzeyine kaydedilir">
+            {grade}. sınıf
+          </span>
+        )}
         {draftId && (
           <span className="ui-chip ui-chip-warning" id="deneme-taslak-chip">
             Taslak
@@ -927,15 +1051,70 @@ export const DenemeWizard: React.FC<{
             </div>
           </div>
           <div className="mt-4">
-            <p className="ui-eyebrow mb-2">Cevap anahtarı ve kazanımlar (8. sınıf LGS)</p>
+            {/* Aşama 271: 5-7'de soru sayısı ve yanlış etkisi (yayınevine göre); 8 LGS'de sabit */}
+            {!lgs && (
+              <div className="mb-4 rounded-xl border border-line bg-surface-2/50 p-3" id="dn-sinif-ayar">
+                <div className="flex flex-wrap items-end gap-3">
+                  {subjects.map((x) => (
+                    <div key={x.key} className="w-20">
+                      <label className="ui-label truncate" htmlFor={`dn-say-${x.key}`} title={x.name}>
+                        {x.short}
+                      </label>
+                      <input
+                        id={`dn-say-${x.key}`}
+                        type="number"
+                        min={1}
+                        max={40}
+                        inputMode="numeric"
+                        className="ui-input text-center tabular-nums"
+                        value={x.count}
+                        disabled={!!existing}
+                        onChange={(e) => setCount(x.key, Number(e.target.value))}
+                      />
+                    </div>
+                  ))}
+                  <div className="min-w-56">
+                    <label className="ui-label" htmlFor="dn-yanlis">Yanlış etkisi</label>
+                    <div className="relative">
+                      <select
+                        id="dn-yanlis"
+                        className="ui-input cursor-pointer appearance-none pr-8"
+                        value={yanlis}
+                        disabled={!!existing}
+                        onChange={(e) => setYanlis(Number(e.target.value))}
+                      >
+                        {YANLIS_SECENEK.map((o) => (
+                          <option key={o.v} value={o.v}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" aria-hidden />
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] text-muted flex items-center gap-1">
+                  Soru sayısı cevap anahtarı dosyasından kendiliğinden ayarlanır; dosyada yoksa buradan yazın.
+                  <InfoTip text="MEB'in 5-6-7. sınıflar için resmî puanı yoktur. Puan LGS yöntemiyle hesaplanır: Türkçe, Matematik ve Fen ×4, diğer dersler ×1; bütün sorular doğruysa 500." />
+                </p>
+              </div>
+            )}
+            {countNote && (
+              <p role="status" className="mb-3 text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2" id="dn-dosya-notu">
+                {countNote}
+              </p>
+            )}
+            <p className="ui-eyebrow mb-2">{lgs ? 'Cevap anahtarı ve kazanımlar (8. sınıf LGS)' : `Cevap anahtarı ve kazanımlar (${grade}. sınıf)`}</p>
             <AnahtarEditor
               subjects={subjects}
+              grade={grade}
               questions={questions}
               examDate={examDate}
-              onChange={(q) => setQuestions(normalizeQuestions(subjects, q))}
+              onChange={(q) => setQuestions(normalizeQuestions(subjectsRef.current, q))}
               onExcelMeta={(r) => {
                 if (!name.trim() && r.examName) setName(r.examName.slice(0, 200));
                 if (r.examDate && !existing) setExamDate(r.examDate);
+                fileMeta(r);
               }}
             />
           </div>
@@ -988,6 +1167,7 @@ export const DenemeWizard: React.FC<{
             {formatMsg && <p className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2 mb-3">{formatMsg}</p>}
             <OptikFormatEditor
               fields={fields}
+              subjects={subjects}
               sequential={sequential}
               onSequentialChange={setSequential}
               sampleLine={editorFile ? sampleLine || '' : undefined}
@@ -1063,11 +1243,12 @@ export const DenemeWizard: React.FC<{
                           ) : (
                             <select
                               className="ui-input py-1 text-xs w-auto max-w-56"
-                              value={usesEditor(f) ? '' : f.fmt}
+                              value={f.fmt === OTO ? OTO : usesEditor(f) ? '' : f.fmt}
                               onChange={(e) => setFileFmt(f.name, e.target.value)}
                               aria-label={`${f.name} optik formatı`}
                             >
                               <option value="">{formatId ? `${formatName || 'Format'} (düzenlenen)` : `${formatName || 'Yukarıdaki format'} (düzenlenen)`}</option>
+                              {f.text && <option value={OTO}>{OTO_AD}</option>}
                               {formats
                                 .filter((x) => x.id !== formatId)
                                 .map((x) => (
@@ -1078,6 +1259,27 @@ export const DenemeWizard: React.FC<{
                             </select>
                           )}
                         </div>
+                        {f.fmt === OTO && f.oto && (
+                          <div
+                            className={cx(
+                              'mt-1.5 flex flex-col items-start gap-2 rounded-xl px-3 py-2 text-xs sm:flex-row sm:items-center',
+                              f.oto.guvenli ? 'bg-info-soft text-info-fg' : 'bg-warning-soft text-warning-fg'
+                            )}
+                            data-oto={f.name}
+                          >
+                            <span className="min-w-0 flex-1 flex items-start gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 shrink-0 mt-px" />
+                              <span>
+                              {f.oto.guvenli
+                                ? 'Uyan FMT olmadığı için sütunlar dosyadan çözüldü. Aşağıdaki tabloda numara, ad ve cevapları kontrol edin.'
+                                : `Sütunlar dosyadan çözüldü ama emin olunamadı. ${f.oto.notlar.join(' ')}`}
+                              </span>
+                            </span>
+                            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32 justify-center" onClick={() => otoDuzenle(f.name)}>
+                              <Pencil /> Alanları düzenle
+                            </button>
+                          </div>
+                        )}
                         {p ? (
                           <>
                             <p className="text-xs text-muted">
@@ -1097,6 +1299,11 @@ export const DenemeWizard: React.FC<{
                             {p.errors.map((x) => (
                               <p key={x} className="text-xs font-semibold text-danger-fg">{x}</p>
                             ))}
+                            {p.errors.length > 0 && f.text && f.fmt !== OTO && (
+                              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32 justify-center mt-1" onClick={() => setFileFmt(f.name, OTO)}>
+                                <Sparkles /> FMT'siz oku
+                              </button>
+                            )}
                             {p.warnings.map((x) => (
                               <p key={x} className="text-xs text-warning-fg">{x}</p>
                             ))}
@@ -1136,6 +1343,13 @@ export const DenemeWizard: React.FC<{
                     </div>
                   );
                 })}
+                {sinifUyumsuz > 0 && !parseErrors.length && (
+                  <p role="alert" className="text-xs font-semibold text-warning-fg bg-warning-soft rounded-xl px-3 py-2 flex items-start gap-1.5" id="dn-sinif-uyumsuz">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    {/* Aşama 271 */}
+                    Optikte {sinifUyumsuz} satırın sınıfı {grade} değil. Bu deneme {grade}. sınıf; başka sınıfın TXT dosyası yüklenmiş olabilir. Eşleştirmede yalnız {grade}. sınıf öğrencileri aday olur.
+                  </p>
+                )}
                 {allRows.length > 0 && !parseErrors.length && (
                   <div className="bg-surface border border-line rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
@@ -1422,8 +1636,8 @@ export const DenemeWizard: React.FC<{
                   </div>
                 </div>
                 <p className="text-[11px] text-muted flex items-center gap-1">
-                  Puan yaklaşık LGS puanıdır.
-                  <InfoTip text="194,75 + ağırlıklı net × 1,13; 3 yanlış 1 doğruyu götürür. Gerçek LGS puanı Türkiye geneli ortalamalarla hesaplanır." />
+                  {lgs ? 'Puan yaklaşık LGS puanıdır.' : 'Puan LGS yöntemiyle hesaplanır (tam net 500).'}
+                  <InfoTip text={puanNotu({ grade, scoring })} />
                 </p>
               </div>
             );

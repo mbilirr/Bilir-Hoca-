@@ -1,11 +1,11 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
+import { BarChart3, BookOpen, Building2, ChevronDown, ChevronRight, GraduationCap, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { getExam, isDraftExam, isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
-import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
+import { DENEME_SINIFLARI, fmtNet, fmtScore } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { DenemeWizard } from './DenemeWizard';
 import { DenemeSonuclar } from './DenemeSonuclar';
@@ -24,6 +24,25 @@ const denemeYear = (e: DenemeExam) => (e.examDate ? currentAcademicYear(new Date
 const denemeGrade = (e: DenemeExam) => String(parseInt(String(e.grade), 10) || e.grade || '');
 const denemeSelectCls = 'h-8 w-full sm:w-36 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const DENEME_PAGE = 15;
+
+// Aşama 271: sayfa bir sınıf düzeyine göre çalışır ("Sınıf seçiniz"); seçim bu tarayıcıda hatırlanır
+const SINIF_KEY = 'deneme.sinif';
+const readSinif = (): string => {
+  try {
+    return window.localStorage.getItem(SINIF_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+const writeSinif = (v: string) => {
+  try {
+    if (v) window.localStorage.setItem(SINIF_KEY, v);
+    else window.localStorage.removeItem(SINIF_KEY);
+  } catch {
+    /* tarayıcı saklamaya izin vermiyor: seçim yalnız bu oturumda kalır */
+  }
+};
+const sinifEtiketi = (g: string) => (/^\d+$/.test(g) ? `${g}. sınıf` : g);
 
 // ============================================================================
 // DENEME ANALİZİ (Aşama 47) — ana sayfa
@@ -82,32 +101,65 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       }),
     [allExams, myGrades, classes]
   );
+  // Aşama 271: sınıf düzeyi. Seçenekler 5-8 (düz görüntüleyicide yalnız kendi kademeleri) ve sayı olmayan
+  // kademeli denemeler (ör. "Mezun"). Sınıf seçilmeden hiçbir işlem yapılmaz; seçilince bütün sayfa o sınıfa göre.
+  const sinifSecenekleri = useMemo(() => {
+    const base: string[] = DENEME_SINIFLARI.filter((g) => !myGrades || myGrades.has(g));
+    const extra = new Set<string>();
+    for (const e of readOnly ? exams : allExams) {
+      const g = denemeGrade(e);
+      if (g && !/^\d+$/.test(g)) extra.add(g);
+      else if (g && !base.includes(g) && (!myGrades || myGrades.has(g))) extra.add(g);
+    }
+    return [...base, ...Array.from(extra).sort((a, b) => (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99) || turkishCompare(a, b))];
+  }, [myGrades, exams, allExams, readOnly]);
+  const [sinifRaw, setSinifRaw] = useState<string>(readSinif);
+  const sinif = sinifSecenekleri.includes(sinifRaw) ? sinifRaw : '';
+  const setSinif = (v: string) => {
+    setSinifRaw(v);
+    writeSinif(v);
+    setFYear('');
+    setFPub('');
+    setFQ('');
+    setView({ kind: 'list' });
+  };
+  const sinifExams = useMemo(() => exams.filter((e) => denemeGrade(e) === sinif), [exams, sinif]);
+  const sinifAllExams = useMemo(() => allExams.filter((e) => denemeGrade(e) === sinif), [allExams, sinif]);
+  const sinifClasses = useMemo(
+    () =>
+      classes.filter((c) => {
+        const g = gradeOf(c);
+        if (/^\d+$/.test(sinif)) return g !== null && String(g) === sinif;
+        return !!sinif && matchTurkishSearch(`${c.name} ${c.gradeLevel || ''}`, sinif);
+      }),
+    [classes, sinif]
+  );
+  const sinifStudents = useMemo(() => {
+    const ids = new Set(sinifClasses.map((c) => c.id));
+    return students.filter((st) => ids.has(st.classId));
+  }, [students, sinifClasses]);
+
   // Aşama 115: Etüt yönlendirme Öğretmen / Zümre Başkanı'na da açık (yalnız kendi branşının dersleri);
   // yalnız Etüt Öğretmeni rolü olana kapalı. Kazanım bankası öğretmene kapalı kalır.
   const etutTabOk = !plain || !dataService.roleEtutOnly();
   useEffect(() => {
     if (plain && ((tab === 'etut' && !etutTabOk) || tab === 'kazanim')) setTab('denemeler', { replace: true });
   }, [plain, tab, etutTabOk]);
-  const listed = readOnly ? exams : allExams;
+  const listed = readOnly ? sinifExams : sinifAllExams;
   const [fYear, setFYear] = useState('');
-  const [fGrade, setFGrade] = useState('');
   const [fPub, setFPub] = useState('');
   const [fQ, setFQ] = useState('');
   const fTerm = useDeferredValue(fQ.trim());
   const listOpts = useMemo(() => {
     const y = new Set<string>();
-    const g = new Set<string>();
     const p = new Set<string>();
     listed.forEach((e) => {
       const yy = denemeYear(e);
       if (yy) y.add(yy);
-      const gg = denemeGrade(e);
-      if (gg) g.add(gg);
       if (e.publisher?.trim()) p.add(e.publisher.trim());
     });
     return {
       years: Array.from(y).sort().reverse(),
-      grades: Array.from(g).sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0)),
       publishers: Array.from(p).sort(turkishCompare),
     };
   }, [listed]);
@@ -116,14 +168,13 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       listed.filter(
         (e) =>
           (!fYear || denemeYear(e) === fYear) &&
-          (!fGrade || denemeGrade(e) === fGrade) &&
           (!fPub || (e.publisher || '').trim() === fPub) &&
           (!fTerm || matchTurkishSearch(e.name, fTerm) || matchTurkishSearch(e.publisher, fTerm))
       ),
-    [listed, fYear, fGrade, fPub, fTerm]
+    [listed, fYear, fPub, fTerm]
   );
-  const examFiltersOn = !!(fYear || fGrade || fPub || fTerm);
-  const pagedExams = usePagedList(shownExams, `${fYear}|${fGrade}|${fPub}|${fTerm}`, DENEME_PAGE);
+  const examFiltersOn = !!(fYear || fPub || fTerm);
+  const pagedExams = usePagedList(shownExams, `${sinif}|${fYear}|${fPub}|${fTerm}`, DENEME_PAGE);
   const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
   const [siralamaOpen, setSiralamaOpen] = useState(false); // Aşama 115
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
@@ -188,6 +239,19 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     else if (f.id === 'taslak' && f.label && !readOnly) setView({ kind: 'draft', id: f.label });
   });
 
+  // Aşama 271: bir deneme doğrudan açıldıysa (ana sayfa kısayolu, tarayıcı geçmişi) sayfa o denemenin sınıfına geçer
+  const viewExamId = view.kind === 'list' || view.kind === 'new' ? '' : view.id;
+  useEffect(() => {
+    if (!viewExamId) return;
+    const e = allExams.find((x) => x.id === viewExamId);
+    const g = e ? denemeGrade(e) : '';
+    if (g && g !== sinif && sinifSecenekleri.includes(g)) {
+      setSinifRaw(g);
+      writeSinif(g);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewExamId, allExams]);
+
   // Aşama 90: taslak açılınca tam hâli (cevap anahtarı + optik verisi) okunur
   const draftViewId = view.kind === 'draft' ? view.id : '';
   useEffect(() => {
@@ -227,22 +291,22 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       icon={BarChart3}
       tone="brand"
       title="Deneme Analizi"
-      description="Optik sonuçları, LGS puanı, kazanım analizi, karneler ve etüt yönlendirme"
+      description={sinif ? `${sinifEtiketi(sinif)}: optik sonuçları, puan, kazanım analizi, karneler ve etüt yönlendirme` : "5-8. sınıf optik sonuçları, puan, kazanım analizi, karneler ve etüt yönlendirme"}
       actions={
-        tab === 'denemeler' && view.kind === 'list' && !setupMissing && (!readOnly || !plain) ? (
+        sinif && tab === 'denemeler' && view.kind === 'list' && !setupMissing && (!readOnly || !plain) ? (
           <div className="flex flex-wrap items-center gap-2">
             {/* Aşama 115: ortalama sıralama (Excel) — yalnız yönetici, Müdür / Yrd., Rehberlik, Ölçme Değ. */}
-            {!plain && exams.length > 0 && (
+            {!plain && sinifExams.length > 0 && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setSiralamaOpen(true)} id="deneme-ortalama-siralama">
                 <ListOrdered /> Ortalama sıralama
               </button>
             )}
-            {!readOnly && isHead && exams.length > 0 && (
+            {!readOnly && isHead && sinifExams.length > 0 && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('aktar')} id="deneme-kurum-aktar">
                 <Building2 /> Kuruma aktar
               </button>
             )}
-            {!readOnly && gecis && allExams.some((e) => !!e.kurumId) && (
+            {!readOnly && gecis && sinifAllExams.some((e) => !!e.kurumId) && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('geri')} id="deneme-geri-tasi">
                 <Undo2 /> Genel yöneticiye geri taşı
               </button>
@@ -277,6 +341,28 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     <div className="space-y-5 mb-6" id="deneme-analizi">
       {header}
       {(view.kind === 'list' || tab !== 'denemeler') && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center" id="deneme-ust-satir">
+          <div className="relative w-full sm:w-44 shrink-0">
+            <GraduationCap className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" aria-hidden />
+            <select
+              id="deneme-sinif"
+              aria-label="Sınıf"
+              className={cx('ui-input cursor-pointer appearance-none pl-8 pr-8 font-semibold', !sinif && 'text-muted')}
+              value={sinif}
+              onChange={(e) => setSinif(e.target.value)}
+            >
+              <option value="" disabled>
+                Sınıf seçiniz
+              </option>
+              {sinifSecenekleri.map((g) => (
+                <option key={g} value={g}>
+                  {sinifEtiketi(g)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" aria-hidden />
+          </div>
+          {sinif && (
         <Segmented
           value={tab}
           onChange={(v) => {
@@ -290,6 +376,18 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
             ...(readOnly ? [] : [{ value: 'kazanim' as Tab, label: 'Kazanım bankası', icon: BookOpen }]),
           ]}
         />
+          )}
+        </div>
+      )}
+
+      {!sinif && !setupMissing && (
+        <div className="ui-card ui-card-pad" id="deneme-sinif-bos">
+          <EmptyState
+            icon={GraduationCap}
+            title="Sınıf seçiniz"
+            description="Denemeler, karneler, etüt yönlendirme ve kazanım bankası seçtiğiniz sınıfa göre açılır. Seçiminiz hatırlanır."
+          />
+        </div>
       )}
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
@@ -303,7 +401,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           <KurumAktarModal
             open
             geri={aktarOpen === 'geri'}
-            exams={aktarOpen === 'geri' ? allExams : exams}
+            exams={aktarOpen === 'geri' ? sinifAllExams : sinifExams}
             onClose={() => setAktarOpen(false)}
             onDone={(text) => {
               setAktarMsg(text);
@@ -315,14 +413,15 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
 
       {siralamaOpen && !plain && (
         <Suspense fallback={null}>
-          <OrtalamaSiralamaModal onClose={() => setSiralamaOpen(false)} exams={exams} students={students} classes={classes} />
+          <OrtalamaSiralamaModal onClose={() => setSiralamaOpen(false)} exams={sinifExams} students={sinifStudents} classes={sinifClasses} />
         </Suspense>
       )}
 
-      {tab === 'denemeler' && shownView.kind === 'new' && !readOnly && (
+      {sinif && tab === 'denemeler' && shownView.kind === 'new' && !readOnly && (
         <DenemeWizard
           students={students}
           classes={classes}
+          grade={sinif}
           onCancel={() => goBack({ kind: 'list' })}
           onSaved={(id) => {
             void reload();
@@ -332,7 +431,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           onDraftChange={() => void reload()}
         />
       )}
-      {tab === 'denemeler' && shownView.kind === 'draft' && !readOnly &&
+      {sinif && tab === 'denemeler' && shownView.kind === 'draft' && !readOnly &&
         (draftExam && draftExam.id === shownView.id ? (
           <DenemeWizard
             key={draftExam.id}
@@ -353,7 +452,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         ) : (
           !error && <p className="text-sm text-muted">Taslak açılıyor…</p>
         ))}
-      {tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && !readOnly && (
+      {sinif && tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && !readOnly && (
         <DenemeWizard
           students={students}
           classes={classes}
@@ -367,7 +466,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           }}
         />
       )}
-      {tab === 'denemeler' && shownView.kind === 'detail' && (
+      {sinif && tab === 'denemeler' && shownView.kind === 'detail' && (
         <DenemeSonuclar
           readOnly={readOnly}
           limited={plain}
@@ -387,14 +486,14 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         />
       )}
 
-      {tab === 'denemeler' && shownView.kind === 'list' && (
+      {sinif && tab === 'denemeler' && shownView.kind === 'list' && (
         <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-card">
           {loading ? (
             <p className="px-4 py-8 text-sm text-muted text-center">Yükleniyor…</p>
           ) : listed.length === 0 ? (
             <EmptyState
               icon={BarChart3}
-              title="Henüz deneme yok"
+              title={`${sinifEtiketi(sinif)} için henüz deneme yok`}
               description="Yeni deneme ekleyin: cevap anahtarı Excel'ini, optik formatını (FMT) ve optik sonuç dosyalarını (TXT) yükleyin."
               action={
                 readOnly ? undefined : (
@@ -412,14 +511,6 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                 {listOpts.years.map((y) => (
                   <option key={y} value={y}>
                     {y}
-                  </option>
-                ))}
-              </select>
-              <select id="deneme-filter-grade" aria-label="Kademe" value={fGrade} onChange={(e) => setFGrade(e.target.value)} className={denemeSelectCls}>
-                <option value="">Tüm kademeler</option>
-                {listOpts.grades.map((g) => (
-                  <option key={g} value={g}>
-                    {g}. sınıf
                   </option>
                 ))}
               </select>
@@ -446,7 +537,6 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                   className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28"
                   onClick={() => {
                     setFYear('');
-                    setFGrade('');
                     setFPub('');
                     setFQ('');
                   }}
@@ -577,9 +667,9 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         </div>
       </Modal>
 
-      {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} limited={plain} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
-      {tab === 'etut' && etutTabOk && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} branchOnly={plain} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
-      {tab === 'kazanim' && !readOnly && <KazanimBankasi />}
+      {sinif && tab === 'karne' && (sinifExams.length ? <DenemeKarne key={sinif} exams={sinifExams} students={sinifStudents} classes={sinifClasses} limited={plain} /> : <p className="text-sm text-muted">Karne için önce {sinifEtiketi(sinif)} denemesi ekleyin.</p>)}
+      {sinif && tab === 'etut' && etutTabOk && (sinifExams.length ? <DenemeEtut key={sinif} exams={sinifExams} students={sinifStudents} classes={sinifClasses} branchOnly={plain} /> : <p className="text-sm text-muted">Etüt listesi için önce {sinifEtiketi(sinif)} denemesi ekleyin.</p>)}
+      {sinif && tab === 'kazanim' && !readOnly && <KazanimBankasi key={sinif} grade={sinif} />}
 
       <p className="text-[11px] text-muted flex items-center gap-1">
         TC kimlik numarası saklanmaz ve gösterilmez.

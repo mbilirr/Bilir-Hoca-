@@ -4,7 +4,7 @@ import { Modal, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ExamQuestion, ExamQuestions, ExamSubject } from '../../lib/deneme/lgs';
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
-import { bankSubjectKey, codeKey } from '../../lib/deneme/kazanimBank';
+import { bankForGrade, bankSubjectKey, codeKey } from '../../lib/deneme/kazanimBank';
 import { planCutoff, planDateTr, planFilterFor, planStartOf, type PlanMap } from '../../lib/deneme/yillikPlan';
 import { formatPageRanges, openKitapcik, parsePageRanges, type Kitapcik } from '../../lib/deneme/kitapcik';
 import {
@@ -66,7 +66,8 @@ export const KazanimAI: React.FC<{
   onApply: (qs: ExamQuestions, summary: string) => void;
   plans?: PlanMap | null; // Aşama 129: yıllık plan (Fen, Mat, İnkılap)
   examDate?: string;
-}> = ({ open, onClose, subjects, questions, onApply, plans, examDate }) => {
+  grade?: string; // Aşama 271: sınıf düzeyi
+}> = ({ open, onClose, subjects, questions, onApply, plans, examDate, grade = '8' }) => {
   const [step, setStep] = useState<Step>('pick');
   const [book, setBook] = useState<Kitapcik | null>(null);
   const [thumbs, setThumbs] = useState<string[]>([]);
@@ -102,9 +103,9 @@ export const KazanimAI: React.FC<{
       } else setError(r.error || 'Yapay zekâ servisine ulaşılamadı.');
     });
     listKazanimlar()
-      .then(setBank)
+      .then((b) => setBank(bankForGrade(b, grade)))
       .catch(() => setBank([]));
-  }, [open]);
+  }, [open, grade]);
 
   // Kapatınca kitapçığı bellekten çıkar
   useEffect(() => {
@@ -213,7 +214,7 @@ export const KazanimAI: React.FC<{
         if (img) images.push({ mime: img.mime, data: img.data, page: p });
       }
       if (images.length) {
-        const r = await aiCall(state, (pv, avoid) => aiPages({ provider: pv, images, avoid }), {
+        const r = await aiCall(state, (pv, avoid) => aiPages({ provider: pv, images, avoid, grade }), {
           stop: () => stopRef.current,
           onWait: (w) => setProgress({ ...progressOf(), wait: w }),
           onNote: (n) => notes.push(n),
@@ -345,7 +346,7 @@ export const KazanimAI: React.FC<{
           };
         });
         // Hızlı moda geçmemiş iş ilk zaman aşımında küçültülür; hızlı moddaki tek sayfa iki kez denenir
-        const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid, fast }), {
+        const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid, fast, grade }), {
           stop: () => stopRef.current,
           onWait: (w) => setProgress({ ...progressOf(), wait: w }),
           onNote: (n) => notes.push(n),

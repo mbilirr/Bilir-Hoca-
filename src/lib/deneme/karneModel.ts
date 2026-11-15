@@ -4,7 +4,7 @@
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from './analiz';
-import { LGS_SUBJECTS, fmtNet, fmtScore, round2, type ExamSubject } from './lgs';
+import { examScoring, fmtNet, fmtScore, puanAdi, puanNotu, round2, subjectsOfExams, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile } from './karneDetay';
 import { averageKarneData, type KarneData } from './karneOrtalama';
@@ -12,7 +12,7 @@ import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
 import { denemeKarneAdi, denemeKisaAd } from './karneAdi'; // Aşama 135
 import { birlesikKazanim, type BirlesikDers } from './kazanimBirlesik'; // Aşama 141
 import type { GelisimPanoData, IsiNoktaData } from './karnePdfB';
-import { KISA_AD, dersRengi } from './tekSayfaKarne';
+import { dersRengi, kisaAd } from './tekSayfaKarne';
 import {
   FOLLOW_INFO,
   KAZ_STATUS_INFO,
@@ -58,8 +58,9 @@ export const dateRange = (exams: DenemeExam[]) => {
 export const examShort = (e: DenemeExam) => (e.name.length > 22 ? `${e.name.slice(0, 21)}…` : e.name);
 
 /** Denemelerde gerçekten bulunan dersler (sıra korunur) */
+// Aşama 271: ad ve soru sayısı denemenin kaydından (5-7'de "Sosyal Bilgiler", 15 soru)
 export function usedSubjects(exams: DenemeExam[]): ExamSubject[] {
-  return LGS_SUBJECTS.filter((s) => exams.some((e) => e.subjects.some((x) => x.key === s.key)));
+  return subjectsOfExams(exams);
 }
 
 const levelTone = (rate: number): PdfTone => LEVEL_INFO[levelOf(rate)].tone;
@@ -162,7 +163,7 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
       sub: className || data.result.className || '',
       chips: avg ? [avg.scopeLabel, `${avg.n} denemenin ortalaması`, avg.range] : [exam.name, dateTr(exam.examDate), exam.publisher, data.result.booklet ? `${data.result.booklet} kitapçığı` : ''],
       score: fmtScore(data.score),
-      scoreLabel: avg ? 'Ort. LGS puanı' : 'LGS puanı',
+      scoreLabel: avg ? `Ort. ${puanAdi(exam.grade).toLocaleLowerCase('tr-TR')}` : puanAdi(exam.grade), // Aşama 271
       side,
     },
     {
@@ -305,7 +306,7 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
   const scores = exams.map((e) => rByExam.get(e.id)?.score ?? null);
   const valid = scores.filter((s): s is number => s !== null);
   const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-  const gap = targetGap(last?.score ?? null, inp.target);
+  const gap = targetGap(last?.score ?? null, inp.target, examScoring(exams[exams.length - 1])); // Aşama 271
   const picked = exams.find((e) => e.id === inp.detailExamId);
   const avgData = inp.detailExamId !== 'none' && !picked && exams.length >= 2 ? averageKarneData(exams, inp.results, inp.scopeLabel, dateRange(exams)) : null;
   const detailExam = inp.detailExamId === 'none' || avgData ? undefined : picked || exams[exams.length - 1];
@@ -337,7 +338,7 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
   blocks.push(...heatBlocks(exams, inp.results, subs));
   if (!head.length) blocks.push(...kazanimKartBlocks(birlesik.dersler, birlesik.n));
   blocks.push(...adviceBlocks(analysis));
-  blocks.push({ kind: 'text', tone: 'muted', text: 'Puanlar yaklaşık LGS puanıdır (3 yanlış 1 doğruyu götürür; ağırlıklı net × 1,13 + 194,75).' });
+  blocks.push({ kind: 'text', tone: 'muted', text: puanNotu(exams[exams.length - 1]) }); // Aşama 271
   return blocks;
 }
 
@@ -380,7 +381,7 @@ export function gelisimPanoData(exams: DenemeExam[], rByExam: Map<string, Deneme
       };
     }),
     dersler: subs.map((s, i) => ({
-      ad: KISA_AD[s.key] || s.name,
+      ad: kisaAd(s),
       kisa: s.short,
       renk: dersRengi(s.key, i),
       soru: s.count,
@@ -463,7 +464,7 @@ export function isiNoktaData(exams: DenemeExam[], results: DenemeResult[], subs:
       const t = h.rows.reduce((a, r) => a + r.row.total, 0);
       const d = h.rows.reduce((a, r) => a + r.row.d, 0);
       return {
-        ad: KISA_AD[h.subject.key] || h.subject.name,
+        ad: kisaAd(h.subject),
         renk: dersRengi(h.subject.key, i),
         genelOran: t ? Math.round((d / t) * 100) : 0,
         satirlar: h.rows.map((r) => ({ ad: r.row.short, hucre: r.cells, genel: r.row.rate })),
@@ -617,9 +618,9 @@ export function studyPlanKarneBlocks(inp: StudyPlanKarneInput): PdfBlock[] {
       title: 'Kazanımlar nasıl seçildi?',
       tone: 'info',
       lines: [
-        'Seçilen denemelerde her kazanımın deneme başına kaybettirdiği yaklaşık LGS puanı hesaplandı (yanlış: 1 net + 1/3 net ceza, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı).',
+        'Seçilen denemelerde her kazanımın deneme başına kaybettirdiği yaklaşık puan hesaplandı (yanlış: 1 net + yanlış cezası, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı).',
         'Kazanılmış kazanımlar listeye girmez. Eksik olanlar ve son denemelerde düşüş gösterenler öne alınır; yükselenler biraz geriye düşer.',
-        'Soru sayısı başarıya göre önerilir: %30 altı 40 soru, %30-49 30 soru, %50-69 20 soru (İnkılap, Din ve Yabancı Dil\'de dörtte üçü).',
+        'Soru sayısı başarıya göre önerilir: %30 altı 40 soru, %30-49 30 soru, %50-69 20 soru (1 katsayılı derslerde dörtte üçü).',
       ],
     },
     { kind: 'heading', text: 'Gelecek hafta çalışılacak kazanımlar' },
@@ -1042,7 +1043,7 @@ export function classCombinedBlocks(c: ClassCombined, scopeLabel: string): PdfBl
     widths: [32, ...ex.map(() => 16)],
     fontSize: 7.4,
   });
-  blocks.push({ kind: 'text', tone: 'muted', text: 'Puanlar yaklaşık LGS puanıdır. Kurum sırası, o denemeye giren sınıfların ortalama puanına göredir.' });
+  blocks.push({ kind: 'text', tone: 'muted', text: `${puanNotu(c.exams[c.exams.length - 1])} Kurum sırası, o denemeye giren sınıfların ortalama puanına göredir.` }); // Aşama 271
   return blocks;
 }
 

@@ -8,7 +8,7 @@
 // Kazanım bankasında kişisel bilgi yoktur.
 // ============================================================================
 import { foldTr, guessSubjectKey } from './optik';
-import { LGS_SUBJECTS } from './lgs';
+import { LGS_SUBJECTS, sinifNo, subjectsForGrade } from './lgs';
 import { sheetSource } from '../importNormalize'; // Aşama 154
 
 export interface BankKazanim {
@@ -93,7 +93,8 @@ export interface BankParseResult {
 }
 
 // Kod: isteğe bağlı harf öneki (F., T., M., İTA., DKAB., E) + sınıf + nokta ile ayrılmış parçalar
-const CODE_SRC = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,6}\\s?\\.?\\s?)?\\d{1,2}(?:\\s?\\.\\s?[A-Za-z]?\\d{1,3}){1,5}';
+// Aşama 271: Maarif kodlarında iki harf öbeği olabilir (T.O.5.24, T.S.5.3.4)
+const CODE_SRC = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,6}\\s?\\.\\s?)?(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,6}\\s?\\.?\\s?)?\\d{1,2}(?:\\s?\\.\\s?[A-Za-z]?\\d{1,3}){1,5}';
 const CODE_LINE = new RegExp(`^(${CODE_SRC})\\s?\\.?\\s*[-–:)]?\\s+(.+)$`);
 const CODE_ONLY = new RegExp(`^(${CODE_SRC})\\.?$`);
 
@@ -281,7 +282,7 @@ export function mergeProgramItems(
   const m = new Map<string, BankKazanim>();
   for (const list of lists) {
     for (const it of list) {
-      const s = LGS_SUBJECTS.find((x) => x.key === it.ders);
+      const s = subjectsForGrade(grade).find((x) => x.key === it.ders); // Aşama 271: ders adı sınıfa göre
       if (!s || !it.kod || !it.kazanim) continue;
       const k = codeKey(it.kod);
       const prev = m.get(k);
@@ -370,7 +371,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
       let subject = defaultSubject;
       if (col.subject >= 0 && cells[col.subject]) {
         const k = bankSubjectKey(cells[col.subject]);
-        const s = k ? LGS_SUBJECTS.find((x) => x.key === k) : null;
+        const s = k ? subjectsForGrade(grade).find((x) => x.key === k) : null;
         if (s) subject = s.name;
         if (s && s.name !== defaultSubject) otherSubjects++;
       }
@@ -399,7 +400,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
       let subject = defaultSubject;
       for (const c of others) {
         const k = bankSubjectKey(c);
-        const sub = k ? LGS_SUBJECTS.find((x) => x.key === k) : null;
+        const sub = k ? subjectsForGrade(grade).find((x) => x.key === k) : null;
         if (sub && foldTr(c).length <= 30) {
           subject = sub.name;
           break;
@@ -551,8 +552,29 @@ export function konuCodeOf(code: string): string {
   return i > 0 ? c.slice(0, i) : c;
 }
 
-/** Kodun harf öneki: "İTA.8.1.1" → "ITA", "8.1.1" → "" */
-const prefixOf = (c: string) => foldTr((/^\s*([A-Za-zÇĞİÖŞÜçğıöşü]*)/.exec(c || '') || ['', ''])[1]).toUpperCase();
+/** Kodun harf öneki: "İTA.8.1.1" → "ITA", "8.1.1" → "". Aşama 271: Maarif kodlarında ilk rakama kadarki bütün
+ *  harfler ("T.O.5.24" → "TO", "T.S.5.3.4" → "TS"); tek harf grubu olan eski kodlarda sonuç değişmez. */
+const prefixOf = (c: string) => foldTr((/^[^\d]*/.exec(c || '') || [''])[0].replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g, '')).toUpperCase();
+
+/**
+ * Aşama 271: kazanımın sınıfı. Kayıttaki "grade" alanı; boşsa koddaki ilk sayı (F.8.1.1 → 8, MAT.5.1.1 → 5).
+ * Banka bütün sınıfların kazanımlarını tutar; eşleştirme ve seçim listesi denemenin sınıfıyla sınırlanır.
+ */
+export function bankGradeOf(row: { grade?: string | null; code?: string }): string {
+  const g = sinifNo(row.grade || '');
+  if (/^\d+$/.test(g)) return g;
+  const m = /\d+/.exec(row.code || '');
+  return m ? String(parseInt(m[0], 10)) : '';
+}
+/** Bankanın yalnız bu sınıfa ait satırları (sınıfı bilinmeyen satır her sınıfta aday kalır) */
+export function bankForGrade<T extends { grade?: string | null; code?: string }>(rows: T[], grade: string | null | undefined): T[] {
+  const g = sinifNo(grade || '');
+  if (!/^\d+$/.test(g)) return rows;
+  return rows.filter((r) => {
+    const rg = bankGradeOf(r);
+    return !rg || rg === g;
+  });
+}
 
 /** MEB biçimli kod mu? (en az iki sayı noktayla ayrılmış: 8.2.2.2, F.8.1.1.1, İTA.8.1.1) */
 export const isMebCode = (c: string) => /\d\s*\.\s*\d/.test(c || '');

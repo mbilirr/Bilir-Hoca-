@@ -6,7 +6,7 @@
 // (sınıf/kurum değerleri denemenin kişisel bilgi içermeyen özetindendir).
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LGS_SUBJECTS, markOf, round2, type ExamSubject } from './lgs';
+import { markOf, round2, subjectsOfExams, type ExamSubject } from './lgs';
 import { topicLabels } from './analiz';
 
 export type Mark = 'D' | 'Y' | 'B';
@@ -61,7 +61,7 @@ export interface ExamKarneData {
 const avgOf = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
 
 export function examKarneData(exam: DenemeExam, result: DenemeResult): ExamKarneData {
-  const subs = LGS_SUBJECTS.filter((s) => exam.subjects.some((x) => x.key === s.key));
+  const subs = subjectsOfExams([exam]); // Aşama 271: denemenin kendi dersleri (5-7'de ad / soru sayısı farklı)
   const cls = result.classId ? (exam.summary.classes || {})[result.classId] : undefined;
   const qRates = exam.summary.questionRates || {};
   const subjects: SubjectRow[] = [];

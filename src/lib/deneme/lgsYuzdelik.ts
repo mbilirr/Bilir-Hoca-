@@ -18,6 +18,7 @@
 // Yeni yılın resmî verisi gelince yalnızca LGS_YEARS dizisini güncellemek yeterlidir.
 // Bu hesap öğrenci verisini hiçbir yere göndermez; tarayıcıda yapılır.
 // ============================================================================
+import { isLgsGrade } from './lgs';
 
 export interface LgsYearCurve {
   year: number;
@@ -222,7 +223,8 @@ export function lgsPercentiles(score: number | null | undefined): LgsPercentile[
 export function isLgsExam(exam: { examType?: string; grade?: string } | null | undefined): boolean {
   if (!exam) return false;
   const t = (exam.examType || 'LGS').toLocaleUpperCase('tr-TR');
-  return t.includes('LGS');
+  // Aşama 271: yüzdelik dilim yalnız 8. sınıf (LGS) denemesinde; 5-7'nin Türkiye geneli LGS karşılığı yoktur
+  return t.includes('LGS') && isLgsGrade(exam.grade);
 }
 
 export const LGS_PERCENTILE_NOTE =

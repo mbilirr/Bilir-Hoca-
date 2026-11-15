@@ -5,7 +5,7 @@ import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { byUploadOrder, getExamsFull, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, levelOf, studentTopicRows, type StudentTopicRow } from '../../lib/deneme/analiz';
-import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { subjectsForGrade } from '../../lib/deneme/lgs';
 import { SCOPES, dateTr, pickScope, scopeLabel, usedSubjects, type ScopeKey } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
@@ -117,12 +117,12 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
   const allSubjects = useMemo(() => usedSubjects(fullExams.length ? fullExams : exams), [fullExams, exams]);
   // Aşama 115: öğretmende yalnız branşının dersleri (ekran ve Excel aynı liste)
   const subjects = useMemo(() => (branchKeys ? allSubjects.filter((s) => branchKeys.has(s.key)) : allSubjects), [allSubjects, branchKeys]);
-  const subjectList = branchKeys ? subjects : subjects.length ? subjects : LGS_SUBJECTS;
+  const subjectList = branchKeys ? subjects : subjects.length ? subjects : subjectsForGrade(exams[0]?.grade); // Aşama 271
   useEffect(() => {
     if (subjectList.length && !subjectList.some((s) => s.key === subject)) setSubject(subjectList[0].key);
   }, [subjectList, subject]);
   const subjectAllowed = subjectList.some((s) => s.key === subject);
-  const subjectInfo = LGS_SUBJECTS.find((s) => s.key === subject);
+  const subjectInfo = subjectList.find((s) => s.key === subject) || allSubjects.find((s) => s.key === subject);
 
   // Aşama 51: konu / alt kazanım açılır listesi
   const [topicKey, setTopicKey] = useState('');

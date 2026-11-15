@@ -27,7 +27,7 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   // Aşama 47: yalnızca genel yönetici ve izinli kurum yöneticileri görür (dataService.canUseTab)
   // Aşama 242: yalnız "Akademik takvim" bölümü açık kurumda görünür (dataService.canUseTab)
   { id: 'akademik_takvim', title: 'Akademik Takvim', description: 'Yıllık öğrenci ve veli etkinlikleri', icon: CalendarRange, tone: 'brand', keywords: 'akademik takvim etkinlik yıllık gezi veli sergi excel' },
-  { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, LGS puanı ve kazanım analizi', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },
+  { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, puan ve kazanım analizi (5-8. sınıf)', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },
   {
     id: 'user_management',
     title: 'Yönetim',

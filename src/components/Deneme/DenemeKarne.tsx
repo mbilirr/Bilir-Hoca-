@@ -62,6 +62,7 @@ function branchSubjectKey(): string {
     const mine = dataService.getMySubjects();
     if (!mine || !mine.length) return 'all';
     const hit = Object.entries(PLAN_SUBJECT_NAME).find(([, name]) => mine.includes(name));
+    if (!hit && mine.includes('Sosyal Bilgiler')) return 'sos'; // Aşama 271: 5-7'de "sos" Sosyal Bilgiler
     return hit ? hit[0] : 'all';
   } catch {
     return 'all';

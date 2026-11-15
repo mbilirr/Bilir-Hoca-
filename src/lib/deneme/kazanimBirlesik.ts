@@ -5,7 +5,7 @@
 // ============================================================================
 import { levelOf, type Level, type SubjectTopics } from './analiz';
 import type { KarneData } from './karneOrtalama';
-import { KISA_AD, dersRengi } from './tekSayfaKarne';
+import { dersRengi, kisaAd } from './tekSayfaKarne';
 
 type RGB = [number, number, number];
 export interface BirlesikSatir {
@@ -93,7 +93,7 @@ export function birlesikKazanim(detail: KarneData | null, analysis: SubjectTopic
     satirlar.forEach((r) => sayilar[r.durum]++);
     out.push({
       key,
-      ad: KISA_AD[key] || subject.name,
+      ad: kisaAd(subject),
       renk: dersRengi(key, i),
       bu: sr && !ortalama ? { d: sr.d, y: sr.y, b: sr.b, net: sr.net, rate: sr.rate } : null,
       toplamRate: st && toplamGoster ? st.rate : null,

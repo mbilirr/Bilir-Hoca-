@@ -6,7 +6,7 @@
 // Bütün hesaplar kayıtlı cevaplar ve deneme özetlerinden yapılır; yeni veri ya da SQL gerekmez.
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LGS_SUBJECTS, markOf, round2, type ExamQuestion, type ExamSubject } from './lgs';
+import { markOf, round2, type ExamQuestion, type ExamSubject, subjectsOfExams } from './lgs';
 import { topicLabels } from './analiz';
 import { NO_TOPIC, codeCompare, kazKey, shortKazanim } from './kazanimKarne';
 
@@ -84,7 +84,7 @@ export interface ClassCombined {
 }
 
 /** Bir sınıfın sonuçlarından (results: yalnızca o sınıf) birleştirilmiş karne verisi */
-export function classCombined(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = LGS_SUBJECTS, moverCount = 5): ClassCombined | null {
+export function classCombined(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = subjectsOfExams(examsAll), moverCount = 5): ClassCombined | null {
   const exams = examsAll.filter((e) => results.some((r) => r.examId === e.id));
   if (!exams.length) return null;
   const subs = subjects.filter((s) => exams.some((e) => e.subjects.some((x) => x.key === s.key)));
@@ -283,7 +283,7 @@ const finishCell = (c: HeatCell) => (c.rate = c.total ? Math.round((c.d / c.tota
 /** Isı haritasında güvenilir sayılan en az cevap (öğrenci × soru) */
 export const HEAT_MIN_TOTAL = 5;
 
-export function kazanimClassHeat(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = LGS_SUBJECTS): KazHeat {
+export function kazanimClassHeat(examsAll: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = subjectsOfExams(examsAll)): KazHeat {
   const exams = examsAll.filter((e) => results.some((r) => r.examId === e.id));
   const clsMap = new Map<string, { name: string; ids: Set<string> }>();
   for (const r of results) {

@@ -43,7 +43,9 @@ const ayniTur = (a: DenemeExam, b: DenemeExam) => String(a.grade) === String(b.g
 const sonuclu = (e: DenemeExam) => !isDraftExam(e) && Number(e.summary?.count) > 0;
 const ortalama = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const DERS_KISA: Record<string, string> = { tr: 'Türkçe', mat: 'Matematik', fen: 'Fen', sos: 'İnkılap', din: 'Din K.', ing: 'İngilizce' };
-const dersAd = (s: { key: string; name: string; short: string }) => DERS_KISA[s.key] || (s.name.length <= 10 ? s.name : s.short || s.name);
+// Aşama 271: 5-7. sınıfta sos = Sosyal Bilgiler (denemenin kendi ders adından)
+const dersAd = (s: { key: string; name: string; short: string }) =>
+  s.key === 'sos' && /sosyal/i.test(s.name) ? 'Sosyal B.' : DERS_KISA[s.key] || (s.name.length <= 10 ? s.name : s.short || s.name);
 const trSirala = (a: string, b: string) => a.localeCompare(b, 'tr', { numeric: true });
 
 interface NetDegisim {

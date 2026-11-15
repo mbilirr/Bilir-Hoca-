@@ -4,7 +4,7 @@ import { Panel, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { dataService } from '../../services/dataService';
 import { deleteYillikPlan, listYillikPlan, saveYillikPlan, type YillikPlanInfo } from '../../services/denemeService';
-import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { subjectsForGrade } from '../../lib/deneme/lgs';
 import { PLAN_SUBJECTS, currentSchoolYear, planDateTr, readPlanFile, type PlanParseResult } from '../../lib/deneme/yillikPlan';
 
 // ============================================================================
@@ -16,7 +16,7 @@ import { PLAN_SUBJECTS, currentSchoolYear, planDateTr, readPlanFile, type PlanPa
 
 type Msg = { tone: 'success' | 'warning' | 'danger'; text: string } | null;
 
-export const YillikPlanPanel: React.FC = () => {
+export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) => {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<YillikPlanInfo[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export const YillikPlanPanel: React.FC = () => {
 
   const load = async () => {
     const r = await listYillikPlan();
-    setInfo(r.info);
+    setInfo(r.info.filter((x) => x.grade === grade)); // Aşama 271: yalnız seçili sınıfın planları
   };
   useEffect(() => {
     if (open && !info) void load();
@@ -42,7 +42,7 @@ export const YillikPlanPanel: React.FC = () => {
     setMsg(null);
     setPreview(null);
     try {
-      const r = await readPlanFile(file, year);
+      const r = await readPlanFile(file, year, grade);
       if (!r.items.length) setMsg({ tone: 'danger', text: r.warnings.join(' ') || 'Planda kazanım bulunamadı.' });
       else setPreview({ subject, r });
     } catch {
@@ -56,7 +56,7 @@ export const YillikPlanPanel: React.FC = () => {
     if (!preview) return;
     setBusy(preview.subject);
     try {
-      const n = await saveYillikPlan(preview.subject, preview.r.items, preview.r.year);
+      const n = await saveYillikPlan(preview.subject, preview.r.items, preview.r.year, grade);
       setMsg({ tone: 'success', text: `${nameOf(preview.subject)} yıllık planı kaydedildi (${n} kod).` });
       setPreview(null);
       await load();
@@ -71,7 +71,7 @@ export const YillikPlanPanel: React.FC = () => {
     setBusy(subject);
     setMsg(null);
     try {
-      await deleteYillikPlan(subject);
+      await deleteYillikPlan(subject, grade);
       setMsg({ tone: 'success', text: `${nameOf(subject)} yıllık planı silindi.` });
       await load();
     } catch (e: any) {
@@ -81,12 +81,12 @@ export const YillikPlanPanel: React.FC = () => {
     }
   };
 
-  const nameOf = (k: string) => LGS_SUBJECTS.find((s) => s.key === k)?.name || k;
+  const nameOf = (k: string) => subjectsForGrade(grade).find((s) => s.key === k)?.name || k;
 
   return (
     <Panel
       icon={CalendarDays}
-      title="Yıllık planlar (Fen, Matematik, İnkılap)"
+      title={`Yıllık planlar (Fen, Matematik, ${grade === "8" ? "İnkılap" : "Sosyal Bilgiler"})`}
       description={
         <span className="inline-flex items-center gap-1">
           Henüz işlenmemiş kazanımlar önerilmez.

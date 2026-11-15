@@ -13,7 +13,7 @@ import {
   type FieldRole,
   type OptikField,
 } from '../../lib/deneme/optik';
-import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { LGS_SUBJECTS, type ExamSubject } from '../../lib/deneme/lgs';
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
@@ -30,7 +30,8 @@ export const OptikFormatEditor: React.FC<{
   sequential: boolean;
   onSequentialChange: (v: boolean) => void;
   sampleLine?: string; // TXT'nin ilk satırı: alanların neyi okuduğu önizlenir
-}> = ({ fields, onChange, sequential, onSequentialChange, sampleLine }) => {
+  subjects?: ExamSubject[]; // Aşama 271: denemenin dersleri (5-7'de "sos" Sosyal Bilgiler)
+}> = ({ fields, onChange, sequential, onSequentialChange, sampleLine, subjects = LGS_SUBJECTS }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const errs = checkFields(fields);
   const joined = joinedSubjects(fields); // Aşama 49c: aynı derse ait birden fazla cevap alanı
@@ -130,7 +131,7 @@ export const OptikFormatEditor: React.FC<{
                       {f.role === 'answers' ? (
                         <select className="ui-input py-1 text-xs" value={f.subject || ''} onChange={(e) => patch(f.id, { subject: e.target.value || undefined })}>
                           <option value="">Seçin</option>
-                          {LGS_SUBJECTS.map((s) => (
+                          {subjects.map((s) => (
                             <option key={s.key} value={s.key}>
                               {s.name}
                             </option>
@@ -192,7 +193,7 @@ export const OptikFormatEditor: React.FC<{
         <ul className="text-xs text-info-fg bg-info-soft rounded-xl px-3 py-2 space-y-0.5">
           {joined.map((j) => (
             <li key={j.subject}>
-              • {LGS_SUBJECTS.find((s) => s.key === j.subject)?.name || j.subject}: {j.widths.length} cevap alanı sırayla birleştirilir ({j.widths.join(' + ')} ={' '}
+              • {subjects.find((s) => s.key === j.subject)?.name || j.subject}: {j.widths.length} cevap alanı sırayla birleştirilir ({j.widths.join(' + ')} ={' '}
               {j.widths.reduce((a, b) => a + b, 0)} soru). Alanlardan biri başka sınıf düzeyine aitse "Kullanılmaz" seçin.
             </li>
           ))}

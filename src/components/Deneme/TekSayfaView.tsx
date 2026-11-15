@@ -35,7 +35,7 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
       </p>
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-5">
         <Kutu
-          label="LGS puanı"
+          label={d.puanAdi || 'LGS puanı'}
           value={fmtScore(d.score)}
           sub={dlt === null ? 'İlk deneme' : <span className={dlt >= 0 ? 'text-success-fg font-semibold' : 'text-danger-fg font-semibold'}>{`Önceki denemeye göre ${dlt >= 0 ? '+' : '-'}${fmtScore(Math.abs(dlt))}`}</span>}
         />

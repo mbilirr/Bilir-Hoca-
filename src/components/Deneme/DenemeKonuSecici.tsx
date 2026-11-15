@@ -7,7 +7,8 @@ import { getExamsFull, listExams, listResultsFor, type DenemeExam, type DenemeRe
 import { topicLabels } from '../../lib/deneme/analiz';
 import { isBadKonu } from '../../lib/deneme/kazanimBank';
 import { guessSubjectKey } from '../../lib/deneme/optik';
-import { LGS_SUBJECTS, markOf } from '../../lib/deneme/lgs';
+import { markOf, sinifNo, subjectsForGrade } from '../../lib/deneme/lgs';
+import { gradeOf } from '../../lib/teacherGrades';
 
 // ============================================================================
 // Aşama 50 — ETÜT OLUŞTURURKEN DENEME KONULARI
@@ -55,7 +56,6 @@ export const DenemeKonuSecici: React.FC<{
   const baseKey = useMemo(() => guessSubjectKey(subjectName || ''), [subjectName]);
   const [altKey, setAltKey] = useState('');
   const subjectKey = baseKey || altKey || null;
-  const altName = !baseKey && altKey ? LGS_SUBJECTS.find((x) => x.key === altKey)?.name || '' : '';
   const [scope, setScope] = useState<Scope>('son3');
   const [grup, setGrup] = useState<Grup>('kazanim');
   const [list, setList] = useState<DenemeExam[] | null>(null);
@@ -83,14 +83,35 @@ export const DenemeKonuSecici: React.FC<{
     if (allowed && initialTopic) setOpen(true);
   }, [allowed, initialTopic]);
 
+  // Aşama 271: denemeler tek sınıf düzeyinden alınır (5. sınıf etüdüne 8. sınıf denemesi karışmaz).
+  // Varsayılan: listedeki öğrencilerin çoğunun sınıf düzeyi; denemelerde birden çok düzey varsa seçilebilir.
+  const [sinif, setSinif] = useState('');
+  const sinifSecenek = useMemo(
+    () => Array.from(new Set((list || []).map((e) => sinifNo(e.grade || '8')).filter(Boolean))).sort((a, b) => (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99)),
+    [list]
+  );
+  const ogrenciSinifi = useMemo(() => {
+    const say = new Map<string, number>();
+    for (const st of students) {
+      const g = gradeOf({ gradeLevel: st.gradeLevel, name: st.className });
+      if (g !== null) say.set(String(g), (say.get(String(g)) || 0) + 1);
+    }
+    return Array.from(say.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  }, [students]);
+  const sinifSecili =
+    sinif && sinifSecenek.includes(sinif) ? sinif : sinifSecenek.includes(ogrenciSinifi) ? ogrenciSinifi : sinifSecenek.includes('8') ? '8' : sinifSecenek[0] || '';
+  const altName = !baseKey && altKey ? subjectsForGrade(sinifSecili).find((x) => x.key === altKey)?.name || '' : '';
+
   // Sonuçlu son N deneme + bütün taslaklar (yalnızca konu listesi için)
   const scoped = useMemo(() => {
     if (!list) return [] as DenemeExam[];
-    const withSubject = list.filter((e) => !subjectKey || e.subjects.some((s) => s.key === subjectKey));
+    const withSubject = list.filter(
+      (e) => (!sinifSecili || sinifNo(e.grade || '8') === sinifSecili) && (!subjectKey || e.subjects.some((s) => s.key === subjectKey))
+    );
     const done = withSubject.filter((e) => !e.draftInfo);
     const n = scope === 'son' ? 1 : scope === 'son3' ? 3 : scope === 'son5' ? 5 : done.length;
     return [...done.slice(0, n), ...withSubject.filter((e) => !!e.draftInfo)]; // liste en yeni önce
-  }, [list, scope, subjectKey]);
+  }, [list, scope, subjectKey, sinifSecili]);
   const scopedIds = scoped.map((e) => e.id).join(',');
   const draftIds = useMemo(() => new Set((list || []).filter((e) => e.draftInfo).map((e) => e.id)), [list]);
   const doneExams = useMemo(() => exams.filter((e) => !draftIds.has(e.id)), [exams, draftIds]);
@@ -230,12 +251,32 @@ export const DenemeKonuSecici: React.FC<{
             Deneme konularını göster
           </button>
         ) : (
-          <select className="ui-input w-auto py-1 text-xs ml-auto" value={scope} onChange={(e) => setScope(e.target.value as Scope)} aria-label="Deneme kapsamı">
+          <>
+          {sinifSecenek.length > 1 && (
+            <select
+              className="ui-input w-auto py-1 text-xs ml-auto"
+              value={sinifSecili}
+              onChange={(e) => {
+                setSinif(e.target.value);
+                setKonu('');
+              }}
+              aria-label="Deneme sınıfı"
+              id="etut-deneme-sinif"
+            >
+              {sinifSecenek.map((g) => (
+                <option key={g} value={g}>
+                  {/^\d+$/.test(g) ? `${g}. sınıf` : g}
+                </option>
+              ))}
+            </select>
+          )}
+          <select className={cx('ui-input w-auto py-1 text-xs', sinifSecenek.length > 1 ? '' : 'ml-auto')} value={scope} onChange={(e) => setScope(e.target.value as Scope)} aria-label="Deneme kapsamı">
             <option value="son">Son deneme</option>
             <option value="son3">Son 3 deneme</option>
             <option value="son5">Son 5 deneme</option>
             <option value="tum">Tüm denemeler</option>
           </select>
+          </>
         )}
       </div>
       {open && (
@@ -256,7 +297,7 @@ export const DenemeKonuSecici: React.FC<{
                 id="etut-deneme-ders-sec"
               >
                 <option value="">Deneme dersi seçin</option>
-                {LGS_SUBJECTS.map((x) => (
+                {subjectsForGrade(sinifSecili).map((x) => (
                   <option key={x.key} value={x.key}>
                     {x.name}
                   </option>

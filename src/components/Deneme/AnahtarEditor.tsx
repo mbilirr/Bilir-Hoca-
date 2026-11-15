@@ -5,8 +5,8 @@ import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
 import { listEslesmeler, listKazanimlar, listYillikPlan, saveEslesme, type BankRow } from '../../services/denemeService';
-import { isPlanSubject, planCutoff, planDateTr, planStartOf, planUsable, type PlanMap } from '../../lib/deneme/yillikPlan';
-import { codeKey } from '../../lib/deneme/kazanimBank';
+import { isPlanSubject, planCutoff, planDateTr, planStartOf, planUsable, plansForGrade, type PlanMap } from '../../lib/deneme/yillikPlan';
+import { bankForGrade, codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, applyKonu, bankIndexBySubject, bankOptionsBySubject, describeMatch, matchQuestionsWithBank, memoryKeyOf } from '../../lib/deneme/bankEslestir';
 import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
@@ -40,7 +40,8 @@ export const AnahtarEditor: React.FC<{
   onChange: (qs: ExamQuestions) => void;
   onExcelMeta?: (r: ExcelKeyResult) => void;
   examDate?: string; // Aşama 129: yıllık plan süzgeci için deneme tarihi
-}> = ({ subjects, questions, onChange, onExcelMeta, examDate }) => {
+  grade?: string; // Aşama 271: sınıf düzeyi (banka, yıllık plan ve yapay zekâ bu sınıfa göre)
+}> = ({ subjects, questions, onChange, onExcelMeta, examDate, grade = '8' }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,19 +71,19 @@ export const AnahtarEditor: React.FC<{
   useEffect(() => {
     let alive = true;
     listKazanimlar()
-      .then((b) => alive && setBank(b))
+      .then((b) => alive && setBank(bankForGrade(b, grade)))
       .catch(() => alive && setBank([]));
     void listEslesmeler().then((m) => {
       if (alive && !memoryRef.current) memoryRef.current = m;
     });
-    void listYillikPlan().then((r) => alive && setPlans(r.plans));
+    void listYillikPlan().then((r) => alive && setPlans(plansForGrade(r.plans, grade)));
     void aiStatus().then((r) => {
       if (alive && r.ok) setAi({ provider: !r.gemini && r.mistral ? 'mistral' : 'gemini', keys: { gemini: !!r.gemini, mistral: !!r.mistral } });
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [grade]);
 
   const options = useMemo(() => bankOptionsBySubject(bank || []), [bank]);
   const index = useMemo(() => bankIndexBySubject(options), [options]); // Aşama 128: konu dizini
@@ -105,7 +106,7 @@ export const AnahtarEditor: React.FC<{
   const ensureBank = async (): Promise<BankRow[]> => {
     if (bank) return bank;
     try {
-      const b = await listKazanimlar();
+      const b = bankForGrade(await listKazanimlar(), grade);
       setBank(b);
       return b;
     } catch {
@@ -126,10 +127,10 @@ export const AnahtarEditor: React.FC<{
     // Aşama 129: plan henüz okunmadıysa beklenir
     let pl = plans;
     if (!pl) {
-      pl = (await listYillikPlan()).plans;
+      pl = plansForGrade((await listYillikPlan()).plans, grade);
       setPlans(pl);
     }
-    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText, memory: memoryRef.current, plans: pl, examDate: date });
+    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText, memory: memoryRef.current, plans: pl, examDate: date, grade });
     onChange(r.questions);
     const d = describeMatch(subjects, r.stats);
     setMsg({ tone: d.tone === 'success' && !r.notes.length ? 'success' : 'warning', text: `${prefix}${d.text}${r.notes.length ? ' ' + r.notes.join(' ') : ''}` });
@@ -146,7 +147,7 @@ export const AnahtarEditor: React.FC<{
     if (!ai) return { ok: false as const, error: 'Yapay zekâ ayarlı değil.' };
     const res = await aiCall(
       newAiState(ai.provider, true, ai.keys),
-      (p, avoid) => aiReadKey({ provider: p, text: rawText, subjects: subjects.map((s) => ({ key: s.key, name: s.name, count: s.count })), avoid }),
+      (p, avoid) => aiReadKey({ provider: p, text: rawText, subjects: subjects.map((s) => ({ key: s.key, name: s.name, count: s.count })), avoid, grade }),
       { stop: () => false, onWait: (w) => w && setBusyText(w) }
     );
     if (!res.ok) return { ok: false as const, error: res.error || 'hata' };
@@ -384,6 +385,7 @@ export const AnahtarEditor: React.FC<{
           questions={questions}
           plans={plans}
           examDate={examDate}
+          grade={grade}
           onApply={(qs, summary) => {
             onChange(qs);
             setMsg({ tone: 'success', text: `${summary} Kaydetmeyi unutmayın.` });
@@ -397,6 +399,7 @@ export const AnahtarEditor: React.FC<{
             onClose={() => setKitOpen(false)}
             subjects={subjects}
             questions={questions}
+            grade={grade}
             onApply={(qs, summary) => {
               onChange(qs);
               setEstB(new Set());

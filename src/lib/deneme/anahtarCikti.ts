@@ -10,7 +10,8 @@ export type Booklet = 'A' | 'B';
 
 // Excel başlığında kısa ders adları (sütuna sığar; sisteme yeniden yüklenince tanınır)
 const HEAD: Record<string, string> = { tr: 'TÜRKÇE', sos: 'T.C. İNKILAP', din: 'DİN KÜLTÜRÜ', ing: 'YABANCI DİL', mat: 'MATEMATİK', fen: 'FEN BİLİMLERİ' };
-const headOf = (s: ExamSubject) => HEAD[s.key] || s.name.toLocaleUpperCase('tr-TR');
+// Aşama 271: 5-7'de "sos" Sosyal Bilgiler'dir
+const headOf = (s: ExamSubject) => (s.key === 'sos' && /sosyal/i.test(s.name) ? 'SOSYAL BİLGİLER' : HEAD[s.key] || s.name.toLocaleUpperCase('tr-TR'));
 
 /** Ekranda ve dosyada gösterilecek harf: iptal soru "İ" (yayınevi yazımı) */
 export const showLetter = (a: string | undefined) => (a === 'X' ? 'İ' : a || '-');

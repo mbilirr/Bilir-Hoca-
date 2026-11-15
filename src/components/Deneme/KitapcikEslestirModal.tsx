@@ -26,7 +26,8 @@ export const KitapcikEslestirModal: React.FC<{
   subjects: ExamSubject[];
   questions: ExamQuestions;
   onApply: (qs: ExamQuestions, summary: string) => void;
-}> = ({ open, onClose, subjects, questions, onApply }) => {
+  grade?: string; // Aşama 271: sınıf düzeyi (yapay zekâ istemi)
+}> = ({ open, onClose, subjects, questions, onApply, grade = '8' }) => {
   const refs = { A: useRef<HTMLInputElement | null>(null), B: useRef<HTMLInputElement | null>(null) };
   const [files, setFiles] = useState<Record<Side, File[]>>({ A: [], B: [] });
   const [busy, setBusy] = useState(false);
@@ -127,7 +128,7 @@ export const KitapcikEslestirModal: React.FC<{
               if (img) images.push({ mime: img.mime, data: img.data, page: p });
             }
             if (images.length) {
-              const r = await aiCall(state, (pv, avoid) => aiSorular({ provider: pv, images, avoid }), { stop: () => stopRef.current, onWait: (w) => show(w) });
+              const r = await aiCall(state, (pv, avoid) => aiSorular({ provider: pv, images, avoid, grade }), { stop: () => stopRef.current, onWait: (w) => show(w) });
               if (r.ok) got[job.side].push(...((r.items || []) as AiSoru[]));
               else if (!stopRef.current) {
                 if (r.code === 'quota-day') fatal = DAY_DONE_MSG;

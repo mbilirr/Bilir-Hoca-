@@ -20,7 +20,7 @@ import { Award, CheckCircle2, ChevronDown, ChevronRight, CircleSlash, Target, Tr
 import { Panel, cx } from '../ui/kit';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from '../../lib/deneme/analiz';
-import { fmtNet, fmtScore, round2 } from '../../lib/deneme/lgs';
+import { examScoring, fmtNet, fmtScore, puanAdi, round2 } from '../../lib/deneme/lgs';
 import { HEAT_MAX_EXAMS, dateRange, dateTr, examShort, gelisimPanoData, isiNoktaData, usedSubjects } from '../../lib/deneme/karneModel';
 import { averageKarneData, type KarneData } from '../../lib/deneme/karneOrtalama';
 import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
@@ -277,7 +277,7 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
           </div>
           <div className="flex items-center gap-3">
             <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white text-brand-fg shadow-xl ring-4 ring-white/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{avg ? 'Ort. LGS puanı' : 'LGS puanı'}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{avg ? `Ort. ${puanAdi(exam.grade).toLocaleLowerCase('tr-TR')}` : puanAdi(exam.grade)}</span>
               <span className="text-2xl font-black tabular-nums leading-none mt-0.5" style={renk ? { color: c(renk.cip) } : undefined}>
                 {fmtScore(data.score)}
               </span>
@@ -602,7 +602,7 @@ export const StudentKarneView: React.FC<{
   const pickDetail = (id: string) => (onDetailExamChange ? onDetailExamChange(id) : setLocalDetail(id));
   const scores = exams.map((e) => rByExam.get(e.id)?.score ?? 0);
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const gap = targetGap(last.score, target);
+  const gap = targetGap(last.score, target, examScoring(exams[exams.length - 1])); // Aşama 271
   return (
     <div className="space-y-4">
       {detail && (

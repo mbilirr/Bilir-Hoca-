@@ -11,8 +11,10 @@ import {
   updateKazanimKonular,
   type BankRow,
 } from '../../services/denemeService';
-import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { subjectsForGrade } from '../../lib/deneme/lgs';
 import {
+  bankForGrade,
+  bankGradeOf,
   bankSubjectKey,
   chunkProgram,
   fixKonularByCode,
@@ -46,7 +48,7 @@ import {
 // ============================================================================
 // Kazanım bankası (Aşama 48)
 //  * Asıl yol: MEB öğretim programı PDF'leri (tek ders ya da hepsi birden) seçilir; yapay zekâ
-//    8. sınıf kazanımlarını kod, metin ve konu olarak çıkarır; öğretmen kontrol edip kaydeder.
+//    seçili sınıfın kazanımlarını kod, metin ve konu olarak çıkarır; öğretmen kontrol edip kaydeder.
 //  * İsteğe bağlı: kazanımları elle yapıştırma ya da Excel/CSV ile yükleme.
 // Bankada kişisel bilgi yoktur.
 // ============================================================================
@@ -135,7 +137,9 @@ const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: stri
   </table>
 );
 
-export const KazanimBankasi: React.FC = () => {
+// Aşama 271: banka bütün sınıfları birlikte tutar; ekran yalnız seçili sınıfın kazanımlarını gösterir, yükler ve siler
+export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) => {
+  const SUBJECTS = useMemo(() => subjectsForGrade(grade), [grade]);
   const [rows, setRows] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +186,7 @@ export const KazanimBankasi: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await listKazanimlar());
+      setRows(bankForGrade(await listKazanimlar(), grade));
     } catch (e: any) {
       setError(e?.message || 'Kazanım bankası yüklenemedi.');
     } finally {
@@ -210,7 +214,7 @@ export const KazanimBankasi: React.FC = () => {
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(r);
     }
-    const list = LGS_SUBJECTS.map((s) => ({ key: s.key, name: s.name, rows: m.get(s.key) || [] }));
+    const list = SUBJECTS.map((s) => ({ key: s.key, name: s.name, rows: m.get(s.key) || [] }));
     if (m.get('diger')?.length) list.push({ key: 'diger', name: 'Diğer', rows: m.get('diger')! });
     return list;
   }, [rows]);
@@ -233,7 +237,7 @@ export const KazanimBankasi: React.FC = () => {
         const chars = pages.reduce((a, p) => a + p.length, 0);
         // Metin yoksa (taranmış) ya da bozuksa (özel yazı tipi kodlaması) sayfalar resim olarak okunur
         const scanned = chars < pages.length * 150 || textLooksGarbled(pages);
-        const relevant = scanned ? [] : gradePages(pages, '8');
+        const relevant = scanned ? [] : gradePages(pages, grade);
         const guess = guessSubjectKey(file.name);
         added.push({
           id: `${file.name}-${file.size}-${Date.now()}`,
@@ -301,7 +305,7 @@ export const KazanimBankasi: React.FC = () => {
           return;
         }
       }
-      const r = await aiCall(state, (p, avoid) => aiProgram({ provider: p, text: job.text, images, grade: '8', subject: job.f.subject || undefined, avoid }), {
+      const r = await aiCall(state, (p, avoid) => aiProgram({ provider: p, text: job.text, images, grade, subject: job.f.subject || undefined, avoid }), {
         stop: () => stopRef.current,
         onWait: (w) => setProgress({ ...progressOf(), wait: w }),
         onNote: (n) => note.push(n),
@@ -311,7 +315,7 @@ export const KazanimBankasi: React.FC = () => {
       const pageParts = !r.ok && job.pages && job.pages.length > 1 && (r.code === 'timeout' || r.code === 'long' || r.code === 'size') ? job.pages : null;
       if (r.ok) {
         lists.push((r.items || []) as AiProgramItem[]);
-        setExtracted(withFixedKonular(mergeProgramItems(lists)));
+        setExtracted(withFixedKonular(mergeProgramItems(lists, grade)));
       } else if (pageParts) {
         // İki sayfa birden uzun sürdü: sayfalar tek tek yeniden sıraya girer
         queue.unshift(...pageParts.map((p) => ({ f: job.f, text: '', pages: [p] })));
@@ -337,14 +341,14 @@ export const KazanimBankasi: React.FC = () => {
       () => stopRef.current
     );
     for (const b of books.values()) b.destroy();
-    const merged = withFixedKonular(mergeProgramItems(lists));
+    const merged = withFixedKonular(mergeProgramItems(lists, grade));
     setExtracted(merged);
     const subjects = Array.from(new Set(merged.map((r) => r.subject)));
     setPick(Object.fromEntries(subjects.map((s) => [s, true])));
     setNotes(note);
     setProgress(null);
     setRunning(false);
-    if (!merged.length && !stopRef.current) setMsg({ tone: 'danger', text: 'Yapay zekâ 8. sınıf kazanımı bulamadı. Doğru öğretim programını seçtiğinizden emin olun ya da "Bütün sayfalar"ı işaretleyip tekrar deneyin.' });
+    if (!merged.length && !stopRef.current) setMsg({ tone: 'danger', text: `Yapay zekâ ${grade}. sınıf kazanımı bulamadı. Doğru öğretim programını seçtiğinizden emin olun ya da "Bütün sayfalar"ı işaretleyip tekrar deneyin.` });
   };
 
   const saveExtracted = async () => {
@@ -373,7 +377,7 @@ export const KazanimBankasi: React.FC = () => {
       setMsg({ tone: 'warning', text: 'Yapıştırılan metin için önce dersi seçin.' });
       return;
     }
-    const r = parseKazanimText(text, subject);
+    const r = parseKazanimText(text, subject, grade);
     setPreview(r);
     if (!r.rows.length) setMsg({ tone: 'danger', text: r.warnings.join(' ') });
   };
@@ -383,10 +387,13 @@ export const KazanimBankasi: React.FC = () => {
     setBusy(true);
     setMsg(null);
     try {
-      const r0 = await readKazanimFile(file, subject === ALL ? '' : subject);
+      const r0 = await readKazanimFile(file, subject === ALL ? '' : subject, grade);
       // Aşama 129: ders seçildiyse yalnız o dersin satırları alınır; "Bütün dersler"de dersi belli olmayan satırlar atlanır
-      const keep = r0.rows.filter((x) => (subject === ALL ? !!x.subject : x.subject === subject));
-      const dropped = r0.rows.length - keep.length;
+      // Aşama 271: başka sınıfın kazanımları bu ekrandan yüklenmez (dosyada "Sınıf" sütunu ya da koddaki sınıf)
+      const sameGrade = r0.rows.filter((x) => bankGradeOf(x) === grade);
+      const otherGrade = r0.rows.length - sameGrade.length;
+      const keep = sameGrade.filter((x) => (subject === ALL ? !!x.subject : x.subject === subject));
+      const dropped = sameGrade.length - keep.length;
       const warnings = r0.warnings.filter((w) => !/başka derse yazıldı/.test(w));
       if (dropped)
         warnings.push(
@@ -394,6 +401,7 @@ export const KazanimBankasi: React.FC = () => {
             ? `${dropped} satırda ders yazmadığı için alınmadı (dosyada "Ders" sütunu yoksa yukarıdan dersi seçin).`
             : `Dosyadaki diğer derslerin ${dropped} kazanımı alınmadı (yalnız ${subject}).`
         );
+      if (otherGrade) warnings.push(`Dosyadaki başka sınıflara ait ${otherGrade} kazanım alınmadı (yalnız ${grade}. sınıf). Onları o sınıfı seçerek yükleyin.`);
       const r = { ...r0, rows: keep, warnings };
       setPreview(r);
       if (!r.rows.length) setMsg({ tone: 'danger', text: r.warnings.join(' ') || 'Dosyada kazanım bulunamadı.' });
@@ -414,7 +422,7 @@ export const KazanimBankasi: React.FC = () => {
   }, [preview, rows]);
   const previewSubjects = useMemo(() => {
     const keys = new Set((preview?.rows || []).map((r) => bankSubjectKey(r.subject)));
-    return LGS_SUBJECTS.filter((s) => keys.has(s.key)).map((s) => s.short);
+    return SUBJECTS.filter((s) => keys.has(s.key)).map((s) => s.short);
   }, [preview]);
 
   const doSave = async () => {
@@ -459,7 +467,7 @@ export const KazanimBankasi: React.FC = () => {
       // 2) Yapay zekâ: hâlâ konusu boş/kazanım cümlesi olan ders(ler) için (ya da istenirse hepsi)
       const notes: string[] = [];
       if (keys && (keys.gemini || keys.mistral)) {
-        const subjects = LGS_SUBJECTS.filter((s) => cur.some((r) => bankSubjectKey(r.subject) === s.key && (kfAll || isBadKonu(r.konu, r.text))));
+        const subjects = SUBJECTS.filter((s) => cur.some((r) => bankSubjectKey(r.subject) === s.key && (kfAll || isBadKonu(r.konu, r.text))));
         const state = newAiState(provider, fallback, keys);
         let i = 0;
         let done = 0;
@@ -474,7 +482,7 @@ export const KazanimBankasi: React.FC = () => {
               const list = cur.filter((r) => bankSubjectKey(r.subject) === s.key);
               const r = await aiCall(
                 state,
-                (p, avoid) => aiKonular({ provider: p, subject: { name: s.name }, items: list.slice(0, 400).map((x) => ({ kod: x.code, konu: x.konu, kazanim: x.text })), avoid }),
+                (p, avoid) => aiKonular({ provider: p, subject: { name: s.name }, grade, items: list.slice(0, 400).map((x) => ({ kod: x.code, konu: x.konu, kazanim: x.text })), avoid }),
                 { stop: () => stopRef.current, onWait: (w) => w && setKfProgress(w) }
               );
               done++;
@@ -566,7 +574,7 @@ export const KazanimBankasi: React.FC = () => {
 
   const noKeys = keys && !keys.gemini && !keys.mistral;
   const extractedGroups = extracted
-    ? LGS_SUBJECTS.map((s) => ({ key: s.key, name: s.name, rows: extracted.filter((r) => r.subject === s.name) })).filter((g) => g.rows.length)
+    ? SUBJECTS.map((s) => ({ key: s.key, name: s.name, rows: extracted.filter((r) => bankSubjectKey(r.subject) === s.key) })).filter((g) => g.rows.length)
     : [];
   const pickedCount = extracted ? extracted.filter((r) => pick[r.subject]).length : 0;
 
@@ -582,7 +590,7 @@ export const KazanimBankasi: React.FC = () => {
             <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-fg" />
             <span className="inline-flex items-center gap-1">
               Yapay zekâya yalnız kazanım sayfalarının metni gider.
-              <InfoTip text="PDF bilgisayarınızda metne çevrilir; yapay zekâya yalnızca 8. sınıf kazanımlarının geçtiği sayfaların metni gider. Tek ders ya da hepsi birden seçilebilir; yapay zekâ kazanımları kodu, metni ve konusuyla çıkarır. Kazanımlar bir kez çıkarılıp bankaya kaydedilir, sonraki denemelerde yeniden yükleme gerekmez." />
+              <InfoTip text="PDF bilgisayarınızda metne çevrilir; yapay zekâya yalnızca seçili sınıfın kazanımlarının geçtiği sayfaların metni gider. Tek ders ya da hepsi birden seçilebilir; yapay zekâ kazanımları kodu, metni ve konusuyla çıkarır. Kazanımlar bir kez çıkarılıp bankaya kaydedilir, sonraki denemelerde yeniden yükleme gerekmez." />
             </span>
           </p>
           {noKeys && (
@@ -640,7 +648,7 @@ export const KazanimBankasi: React.FC = () => {
                     </span>
                   ) : (
                     <span className={cx('ui-chip', f.relevant.length ? 'ui-chip-success' : 'ui-chip-warning')}>
-                      {f.relevant.length ? `8. sınıf: ${f.relevant.length} sayfa` : '8. sınıf kodu bulunamadı'}
+                      {f.relevant.length ? `${grade}. sınıf: ${f.relevant.length} sayfa` : `${grade}. sınıf kodu bulunamadı`}
                     </span>
                   )}
                   <select
@@ -651,7 +659,7 @@ export const KazanimBankasi: React.FC = () => {
                     onChange={(e) => setFiles((l) => l.map((x) => (x.id === f.id ? { ...x, subject: e.target.value } : x)))}
                   >
                     <option value="">Ders: yapay zekâ belirlesin</option>
-                    {LGS_SUBJECTS.map((s) => (
+                    {SUBJECTS.map((s) => (
                       <option key={s.key} value={s.key}>
                         {s.name}
                       </option>
@@ -790,7 +798,7 @@ export const KazanimBankasi: React.FC = () => {
                   }}
                 >
                   <option value={ALL}>Bütün dersler (Excel'deki "Ders" sütunu)</option>
-                  {LGS_SUBJECTS.map((s) => (
+                  {SUBJECTS.map((s) => (
                     <option key={s.key} value={s.name}>
                       {s.name}
                     </option>
@@ -818,7 +826,7 @@ export const KazanimBankasi: React.FC = () => {
               <textarea
                 id="kb-text"
                 className="ui-input min-h-40 font-mono text-xs"
-                placeholder={'F.8.1. Mevsimler ve İklim\nF.8.1.1. Mevsimlerin Oluşumu\nF.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur.\n…'}
+                placeholder={`F.${grade}.1. Ünite adı\nF.${grade}.1.1. Konu başlığı\nF.${grade}.1.1.1. Kazanım cümlesi.\n…`}
                 value={text}
                 onChange={(e) => {
                   setText(e.target.value);
@@ -873,7 +881,7 @@ export const KazanimBankasi: React.FC = () => {
         )}
       </Panel>
 
-      <YillikPlanPanel />
+      <YillikPlanPanel grade={grade} />
 
       {isHead && rows.length > 0 && (
         <Panel

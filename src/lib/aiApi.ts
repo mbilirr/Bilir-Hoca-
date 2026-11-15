@@ -124,7 +124,7 @@ export function aiProgram(input: { provider: AiProvider; text: string; grade: st
 }
 
 /** Kitapçık sayfalarının hangi derse ait olduğu ve görünen soru numaraları */
-export function aiPages(input: { provider: AiProvider; images: AiImage[]; avoid?: string[] }): Promise<AiResult> {
+export function aiPages(input: { provider: AiProvider; images: AiImage[]; avoid?: string[]; grade?: string }): Promise<AiResult> {
   return post({ action: 'pages', ...input });
 }
 
@@ -136,7 +136,7 @@ export interface AiSoru {
   metin: string;
   siklar: string[];
 }
-export function aiSorular(input: { provider: AiProvider; images: AiImage[]; avoid?: string[] }): Promise<AiResult> {
+export function aiSorular(input: { provider: AiProvider; images: AiImage[]; avoid?: string[]; grade?: string }): Promise<AiResult> {
   return post({ action: 'sorular', ...input });
 }
 
@@ -147,6 +147,7 @@ export function aiClassifyPage(input: {
   avoid?: string[];
   subjects: Array<{ key: string; name: string; count: number; kazanimlar: AiKazanimInput[]; hint?: string }>;
   fast?: boolean; // Aşama 162: zaman aşımından sonra tek sayfa yeniden gönderilirken kısa düşünme
+  grade?: string; // Aşama 271: denemenin sınıfı (yoksa 8)
 }): Promise<AiResult> {
   return post({ action: 'classify', ...input });
 }
@@ -158,6 +159,7 @@ export function aiMatchKazanim(input: {
   items: Array<{ no: number; text: string }>;
   kazanimlar: AiKazanimInput[];
   avoid?: string[];
+  grade?: string; // Aşama 271
 }): Promise<AiResult> {
   return post({ action: 'match', ...input });
 }
@@ -168,6 +170,7 @@ export function aiKonular(input: {
   subject: { name: string };
   items: Array<{ kod: string; konu: string; kazanim: string }>;
   avoid?: string[];
+  grade?: string; // Aşama 271
 }): Promise<AiResult> {
   return post({ action: 'konular', ...input });
 }
@@ -178,6 +181,7 @@ export function aiReadKey(input: {
   text: string;
   subjects: Array<{ key: string; name: string; count: number }>;
   avoid?: string[];
+  grade?: string; // Aşama 271
 }): Promise<AiResult> {
   return post({ action: 'key', ...input });
 }

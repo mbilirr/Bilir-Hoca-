@@ -25,6 +25,9 @@ export interface ExcelKeyResult {
   source?: 'excel' | 'pdf';
   table?: boolean; // Aşama 118: dersler "Ders" sütunlu tek tablodan okundu (ızgara okuması bunun yerine geçmez)
   kazanimOnly?: boolean; // Aşama 129b: dosyada cevap yok, yalnız soru → kazanım/konu listesi (ör. Özdebir)
+  // Aşama 271: dosya başlığındaki "Sınıf: 6" ve "Yanlış Etkisi: 3" (yoksa boş)
+  grade?: string;
+  wrongPerCorrect?: number;
 }
 
 const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
@@ -124,7 +127,10 @@ function headerHint(cells: string[], cols: Cols): string {
     .join(' | ');
 }
 
-const CODE_RE = /^\s*((?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\s*\.\s*)?\d{1,2}(?:\s*\.\s*\d{1,2}){1,4})\.?\s*[-–:)]?\s*(.*)$/s;
+// Aşama 271: Maarif kodları da tanınır: "T.O.5.24", "T.S.5.3.4", "MAT.5.1.2.9", "ENG. 5.R2.1" (iki harf öbeği, harfli bölüm)
+const CODE_PART = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\\s*\\.\\s*){0,2}\\d{1,2}(?:\\s*\\.\\s*[A-Za-z]?\\d{1,2}){1,4}';
+const CODE_RE = new RegExp(`^\\s*(${CODE_PART})\\.?\\s*[-–:)]?\\s*(.*)$`, 's');
+const CODE_REST = new RegExp(`^(\\s*[,;/]\\s*${CODE_PART}\\.?)+`);
 
 /** Hücrelerden kazanım kodu, metni ve konusunu çıkarır */
 export function splitKazanim(codeCell: string, textCell: string, konuCell: string): { code: string; text: string } {
@@ -137,7 +143,7 @@ export function splitKazanim(codeCell: string, textCell: string, konuCell: strin
     if (m) {
       code = m[1].replace(/\s+/g, '');
       // Aşama 118: "8.1.1.2,8.1.1.3" gibi birden çok kod: ilki (birincil) kullanılır, gerisi metne karışmaz
-      const rest = (m[2] || '').replace(/^(\s*[,;/]\s*(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\s*\.\s*)?\d{1,2}(?:\s*\.\s*\d{1,2}){1,4}\.?)+/, '').trim();
+      const rest = (m[2] || '').replace(CODE_REST, '').trim();
       if (rest.length > 3) text = rest;
     } else if (!/^\d+$/.test(c) || !cellText(textCell)) text = c; // kod sütununda metin yazılmış
     // Aşama 129b: yanında metin varsa noktasız yayınevi numarası (6004, 2080501) metne katılmaz (eşleme hafızası bozulmasın)
@@ -422,7 +428,30 @@ export async function readKeyExcel(file: File, subjects?: ExamSubject[]): Promis
     return { name, rows };
   });
   const D = await import('./anahtarDuzen');
-  return finishKey(D, { ...pickGrid(D, parseKeySheets(sheets, subjects), layout, subjects), source: 'excel' }, subjects);
+  const r = finishKey(D, { ...pickGrid(D, parseKeySheets(sheets, subjects), layout, subjects), source: 'excel' }, subjects);
+  return { ...r, ...headMeta(sheets) };
+}
+
+/**
+ * Aşama 271: başlık satırlarındaki "Sınıf:" ve "Yanlış Etkisi:" değerleri (değer aynı satırda sağdaki ilk dolu hücre).
+ * Yalnız ilk 8 satıra bakılır; geçersiz değerler yok sayılır.
+ */
+function headMeta(sheets: Array<{ rows: unknown[][] }>): { grade?: string; wrongPerCorrect?: number } {
+  const out: { grade?: string; wrongPerCorrect?: number } = {};
+  for (const sh of sheets) {
+    for (const row of sh.rows.slice(0, 8)) {
+      const cells = (row || []).map(cellText);
+      cells.forEach((c, i) => {
+        const h = hdr(c);
+        const val = cells.slice(i + 1).find((x) => x) || '';
+        const n = parseInt(val, 10);
+        if (!out.grade && /^sinif(i| duzeyi)?$/.test(h) && n >= 1 && n <= 12) out.grade = String(n);
+        if (out.wrongPerCorrect === undefined && /^yanlis (etkisi|dogru goturur)$/.test(h) && n >= 0 && n <= 10) out.wrongPerCorrect = n;
+      });
+    }
+    if (out.grade) break;
+  }
+  return out;
 }
 
 /**

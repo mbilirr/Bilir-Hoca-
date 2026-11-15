@@ -4,7 +4,7 @@
 // Başarı yüzdesi = doğru / soru sayısı (boş ve yanlış başarısız sayılır).
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LGS_SCORING, LGS_SUBJECTS, markOf, round2, type ExamSubject } from './lgs';
+import { LGS_SCORING, LGS_SUBJECTS, markOf, round2, type ExamSubject, type ScoringSettings, subjectsOfExams } from './lgs';
 import { isBadKonu } from './kazanimBank';
 
 export type Level = 'iyi' | 'tekrar' | 'etut' | 'kritik';
@@ -78,7 +78,7 @@ export function topicLabels(q: { konu?: string; kazanim?: string; alt?: string; 
 }
 
 /** Sonuçlardan ders → konu → alt kazanım başarı ağacı (öğrenci için tek sonuç, sınıf için çok sonuç) */
-export function topicAnalysis(exams: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = LGS_SUBJECTS): SubjectTopics[] {
+export function topicAnalysis(exams: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = subjectsOfExams(exams)): SubjectTopics[] {
   const byExam = new Map<string, DenemeResult[]>();
   for (const r of results) {
     if (!byExam.has(r.examId)) byExam.set(r.examId, []);
@@ -146,10 +146,15 @@ export function trendRows(exams: DenemeExam[], results: DenemeResult[], studentI
 }
 
 /** Hedefe ulaşmak için gereken puan ve yaklaşık net (4 katsayılı derslerde) */
-export function targetGap(lastScore: number | null, target: number | null): { points: number; weighted: number; mainNets: number; otherNets: number } | null {
+// Aşama 271: puan ayarı denemenin kendi kaydından (5-7'de ağırlıklı net başına puan farklıdır)
+export function targetGap(
+  lastScore: number | null,
+  target: number | null,
+  scoring: ScoringSettings = LGS_SCORING
+): { points: number; weighted: number; mainNets: number; otherNets: number } | null {
   if (lastScore === null || target === null) return null;
   const points = round2(target - lastScore);
-  const weighted = points > 0 ? round2(points / LGS_SCORING.perWeighted) : 0;
+  const weighted = points > 0 ? round2(points / scoring.perWeighted) : 0;
   return { points, weighted, mainNets: round2(weighted / 4), otherNets: round2(weighted) };
 }
 

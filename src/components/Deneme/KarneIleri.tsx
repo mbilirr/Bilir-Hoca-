@@ -601,7 +601,7 @@ export const CalismaPlaniView: React.FC<{
       <div className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-[11px] text-info-fg">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
-          <b>Kazanımlar nasıl seçildi?</b> Her kazanımın deneme başına kaybettirdiği yaklaşık LGS puanı hesaplanır (yanlış: 1 net + 1/3 net ceza, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı). Kazanılmış kazanımlar listeye girmez; eksik olanlar ve son denemede düşenler öne alınır. Soru sayısı: %30 altı 40, %30-49 30, %50-69 20 soru (1 katsayılı derslerde dörtte üçü).
+          <b>Kazanımlar nasıl seçildi?</b> Her kazanımın deneme başına kaybettirdiği yaklaşık puan hesaplanır (yanlış: 1 net + yanlış cezası, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı). Kazanılmış kazanımlar listeye girmez; eksik olanlar ve son denemede düşenler öne alınır. Soru sayısı: %30 altı 40, %30-49 30, %50-69 20 soru (1 katsayılı derslerde dörtte üçü).
         </span>
       </div>
 

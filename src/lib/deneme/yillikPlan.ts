@@ -68,14 +68,35 @@ export function weekStart(cell: string): { m: number; d: number } | null {
   return null;
 }
 
-/** Hücredeki 8. sınıf kodları (rakam anahtarı, en az üç basamak: 8.1.1) */
-export function codesIn(cell: string): string[] {
+/** Hücredeki bu sınıfın kodları (rakam anahtarı, en az üç basamak: 8.1.1). Aşama 271: sınıf parametresi (5-8) */
+export function codesIn(cell: string, grade = '8'): string[] {
+  const g = String(parseInt(grade, 10) || 8);
   const out: string[] = [];
-  const re = /(?:^|[^\d.,])((?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,3}\s*\.\s*)?8(?:\s*\.\s*\d{1,2}){2,3})(?![\d,])/g;
+  const re = new RegExp(`(?:^|[^\\d.,])((?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\\s*\\.\\s*)?${g}(?:\\s*\\.\\s*\\d{1,2}){2,3})(?![\\d,])`, 'g');
   let m: RegExpExecArray | null;
   while ((m = re.exec(cell || ''))) {
     const k = digitsKey(m[1]);
-    if (k.startsWith('8.') && k.split('.').length >= 3) out.push(k);
+    if (k.startsWith(`${g}.`) && k.split('.').length >= 3) out.push(k);
+  }
+  return out;
+}
+
+/**
+ * Aşama 271: planlar bütün sınıfların kodlarını birlikte tutar (kodun ilk sayısı sınıftır: 6.1.1.1).
+ * Bu sınıfın planı: yalnız "<sınıf>." ile başlayan kodlar (sınıf sayı değilse olduğu gibi).
+ */
+export function plansForGrade(plans: PlanMap | null | undefined, grade: string | null | undefined): PlanMap {
+  const out: PlanMap = {};
+  if (!plans) return out;
+  const g = String(parseInt(String(grade || ''), 10) || '');
+  for (const [k, m] of Object.entries(plans)) {
+    if (!g) {
+      out[k] = m;
+      continue;
+    }
+    const f = new Map<string, string>();
+    for (const [code, d] of m) if (code.startsWith(`${g}.`)) f.set(code, d);
+    if (f.size) out[k] = f;
   }
   return out;
 }
@@ -86,7 +107,7 @@ export function currentSchoolYear(now = new Date()): number {
 }
 
 /** Yıllık plan Excel'ini okur. `yearHint`: başlıkta "2026-2027" yoksa kullanılır. */
-export async function readPlanFile(file: File, yearHint: number): Promise<PlanParseResult> {
+export async function readPlanFile(file: File, yearHint: number, grade = '8'): Promise<PlanParseResult> {
   const XLSX = await import('xlsx');
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const warnings: string[] = [];
@@ -123,14 +144,14 @@ export async function readPlanFile(file: File, yearHint: number): Promise<PlanPa
       }
       if (!cur) continue;
       for (const ci of codeCols)
-        for (const k of codesIn(cells[ci] || '')) {
+        for (const k of codesIn(cells[ci] || '', grade)) {
           const old = first.get(k);
           if (!old || cur < old) first.set(k, cur);
         }
     }
   }
   if (!weeks) warnings.push('Dosyada "HAFTA" sütunu ya da hafta tarihleri (ör. "14-18 Eylül") bulunamadı.');
-  else if (!first.size) warnings.push('Dosyada kazanım kodu (ör. F.8.1.1.1) bulunamadı.');
+  else if (!first.size) warnings.push(`Dosyada ${grade}. sınıf kazanım kodu (ör. F.${grade}.1.1.1) bulunamadı.`);
   if (year === null && weeks) warnings.push(`Dosyada eğitim yılı yazmıyor; ${yearHint}-${yearHint + 1} kabul edildi.`);
   const items = Array.from(first.entries())
     .map(([code, start]) => ({ code, start }))

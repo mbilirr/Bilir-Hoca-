@@ -721,7 +721,11 @@ export interface YillikPlanInfo {
   last: string;
   year: string;
   own: boolean; // kurumun kendi planı mı (değilse ortak plan)
+  grade: string; // Aşama 271: planın sınıfı (kodun ilk sayısı)
 }
+
+/** Aşama 271: plan kodunun sınıfı ("5.1.1.2" → "5") */
+const planGradeOf = (code: string) => (/^\d+/.exec(String(code || '')) || [''])[0].replace(/^0+/, '');
 
 /** Görülebilen planlar: kurumun kendi planı varsa o, yoksa ortak plan. Tablo yoksa (SQL çalışmadıysa) boş döner. */
 export async function listYillikPlan(): Promise<{ plans: Record<string, Map<string, string>>; info: YillikPlanInfo[] }> {
@@ -734,23 +738,32 @@ export async function listYillikPlan(): Promise<{ plans: Record<string, Map<stri
   }
   const plans: Record<string, Map<string, string>> = {};
   const info: YillikPlanInfo[] = [];
-  for (const subject of Array.from(new Set(rows.map((r) => r.subject)))) {
-    const mine = rows.filter((r) => r.subject === subject && r.kurum_id);
-    const list = mine.length ? mine : rows.filter((r) => r.subject === subject && !r.kurum_id);
+  // Aşama 271: kurumun kendi planı / ortak plan seçimi ders + SINIF başına yapılır (kurumun 8. sınıf planı,
+  // ortak 5. sınıf planını gizlemez). Bir dersin bütün sınıflarının kodları aynı haritada durur (kodlar sınıfla başlar).
+  const keyOf = (r: { subject: string; code: string }) => `${r.subject}|${planGradeOf(r.code)}`;
+  for (const key of Array.from(new Set(rows.map(keyOf)))) {
+    const [subject, grade] = key.split('|');
+    const mine = rows.filter((r) => keyOf(r) === key && r.kurum_id);
+    const list = mine.length ? mine : rows.filter((r) => keyOf(r) === key && !r.kurum_id);
     if (!list.length) continue;
-    const m = new Map<string, string>();
-    for (const r of list) m.set(r.code, String(r.start_date).slice(0, 10));
-    plans[subject] = m;
-    const dates = Array.from(m.values()).sort();
-    info.push({ subject, count: m.size, first: dates[0], last: dates[dates.length - 1], year: list[0].egitim_yili || '', own: mine.length > 0 && !!myKurumId() });
+    const m = plans[subject] || (plans[subject] = new Map<string, string>());
+    const own = new Map<string, string>();
+    for (const r of list) {
+      m.set(r.code, String(r.start_date).slice(0, 10));
+      own.set(r.code, String(r.start_date).slice(0, 10));
+    }
+    const dates = Array.from(own.values()).sort();
+    info.push({ subject, grade, count: own.size, first: dates[0], last: dates[dates.length - 1], year: list[0].egitim_yili || '', own: mine.length > 0 && !!myKurumId() });
   }
   return { plans, info };
 }
 
 /** Bir dersin planını baştan yazar (önce eski plan silinir). Kurumsuz hesapta ortak plan yazılır. */
-export async function saveYillikPlan(subject: string, items: Array<{ code: string; start: string }>, year: number | null): Promise<number> {
+export async function saveYillikPlan(subject: string, items: Array<{ code: string; start: string }>, year: number | null, grade = '8'): Promise<number> {
   const kurum = myKurumId();
-  await deleteYillikPlan(subject);
+  // Aşama 271: yalnız bu sınıfın kodları yazılır ve yalnız bu sınıfın eski planı silinir
+  items = items.filter((i) => planGradeOf(i.code) === grade);
+  await deleteYillikPlan(subject, grade);
   const stamp = new Date().toISOString();
   const rows = items.map((i) => ({
     kurum_id: kurum,
@@ -768,9 +781,10 @@ export async function saveYillikPlan(subject: string, items: Array<{ code: strin
 }
 
 /** Bir dersin (bu kurumun ya da kurumsuz hesapta ortak) planını siler */
-export async function deleteYillikPlan(subject: string): Promise<void> {
+export async function deleteYillikPlan(subject: string, grade = '8'): Promise<void> {
   const kurum = myKurumId();
-  let q = supabase.from('deneme_yillik_plan').delete().eq('subject', subject);
+  // Aşama 271: yalnız bu sınıfın kodları ("8.%") silinir
+  let q = supabase.from('deneme_yillik_plan').delete().eq('subject', subject).like('code', `${grade}.%`);
   q = kurum ? q.eq('kurum_id', kurum) : q.is('kurum_id', null);
   const { error } = await q;
   if (error) fail(error, 'Yıllık plan silinemedi (sql/129_yillik_plan_ve_sms_kayit.sql çalıştırıldı mı?).');

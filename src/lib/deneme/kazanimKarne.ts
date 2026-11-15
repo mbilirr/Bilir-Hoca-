@@ -12,7 +12,7 @@
 //  * Madde analizi: soru başına doğru/yanlış/boş, şık dağılımı (çeldirici), kurum farkı, ayırt edicilik.
 // ============================================================================
 import type { BankRow, DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LGS_SCORING, LGS_SUBJECTS, markOf, round2, type ExamQuestion, type ExamSubject } from './lgs';
+import { examScoring, markOf, round2, type ExamQuestion, type ExamSubject, subjectsOfExams } from './lgs';
 import { LEVEL_INFO, levelOf, topicLabels } from './analiz';
 import { bankSubjectKey, codeKey, isBadKonu } from './kazanimBank';
 
@@ -135,12 +135,14 @@ export const kazKey = (code: string | undefined, label: string) => (code ? `c:${
  * Öğrencinin seçilen denemelerdeki kazanım durumları (ders ders).
  * results: YALNIZCA bir öğrencinin sonuçları. bank verilirse sorulmayan kazanımlar da listelenir.
  */
-export function kazanimTracking(exams: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = LGS_SUBJECTS, bank?: BankRow[] | null): KazSubject[] {
+export function kazanimTracking(exams: DenemeExam[], results: DenemeResult[], subjects: ExamSubject[] = subjectsOfExams(exams), bank?: BankRow[] | null): KazSubject[] {
   const rByExam = new Map<string, DenemeResult>();
   for (const r of results) if (!rByExam.has(r.examId)) rByExam.set(r.examId, r);
   const used = exams.filter((e) => rByExam.has(e.id));
   const examCount = used.length;
   const grades = new Set(used.map((e) => String(e.grade || '')).filter(Boolean));
+  // Aşama 271: puan kaybı son denemenin puan ayarıyla (5-7'de ağırlıklı net başına puan farklıdır)
+  const lastScoring = examScoring(used[used.length - 1]);
   const out: KazSubject[] = [];
   for (const sub of subjects) {
     const rows = new Map<string, KazRow>();
@@ -203,7 +205,8 @@ export function kazanimTracking(exams: DenemeExam[], results: DenemeResult[], su
         } else if (m === 'Y') {
           ap.y++;
           row.y++;
-          row.lostNet += 1 + (LGS_SCORING.wrongPerCorrect > 0 ? 1 / LGS_SCORING.wrongPerCorrect : 0);
+          const w = examScoring(ex).wrongPerCorrect;
+          row.lostNet += 1 + (w > 0 ? 1 / w : 0);
         } else {
           ap.b++;
           row.b++;
@@ -224,7 +227,7 @@ export function kazanimTracking(exams: DenemeExam[], results: DenemeResult[], su
       row.trend = trendOf(aps);
       row.status = statusOf(row.rate, row.lastRate);
       row.lostNet = round2(row.lostNet);
-      row.lostPoints = round2(row.lostNet * sub.coef * LGS_SCORING.perWeighted);
+      row.lostPoints = round2(row.lostNet * sub.coef * lastScoring.perWeighted);
       row.perExamLoss = examCount ? round2(row.lostPoints / examCount) : 0;
       row.fewData = row.questions < 3;
     }
@@ -345,7 +348,7 @@ export function studySuggestions(tracking: KazSubject[], max = 5): StudySuggesti
       all.push({
         row: r,
         subject: st.subject,
-        planSubject: PLAN_SUBJECT_NAME[st.subject.key] || st.subject.name,
+        planSubject: st.subject.key === 'sos' && /sosyal/i.test(st.subject.name) ? 'Sosyal Bilgiler' : PLAN_SUBJECT_NAME[st.subject.key] || st.subject.name, // Aşama 271
         questions: suggestedQuestionCount(r.lastRate ?? r.rate, st.subject.coef),
         advice: LEVEL_INFO[lv].advice,
         reason: `${r.examCount} denemede ${r.questions} soru: ${r.d} doğru, ${r.y} yanlış, ${r.b} boş · deneme başına yaklaşık ${String(r.perExamLoss).replace('.', ',')} puan kaybettiriyor`,
