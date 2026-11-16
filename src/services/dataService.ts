@@ -5691,7 +5691,9 @@ class DataService {
     if (!this.myKurum.supported) return this.canManageStudents();
     if (this.isHeadAdmin()) return true;
     // Aşama 143: kişiye özel "Öğrenci düzenleme" izni (kurum_student_editor ile aynı)
-    return (this.isKurumAdmin() || this.permOr('ogrenci_duzenle', () => this.roleWideView())) && this.canUseModule('manage_students');
+    // Aşama 270: rol yetkileri KAPALI kurumda da kişiye "Öğrenci düzenleme" Açık verilmişse geçerlidir (SQL 270 ile aynı)
+    const kisiIzni = !this.rolesActive() && !!this.myKurum.kurumId && (this.myKurum.sections?.allow || []).includes('izin:ogrenci_duzenle');
+    return (this.isKurumAdmin() || kisiIzni || this.permOr('ogrenci_duzenle', () => this.roleWideView())) && this.canUseModule('manage_students');
   }
   /** Bu öğrenci silinebilir mi (yönetici; müdür izin verdiyse Rehberlik / Ölçme Değerlendirme) */
   public canDeleteStudent(student?: Student | null): boolean {

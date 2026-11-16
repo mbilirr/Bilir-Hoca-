@@ -56,7 +56,7 @@ export const RolesOffWarning: React.FC<{ id: string }> = ({ id }) => (
     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
     <span>
       Bu kurumda <b>Rol yetkileri kapalı</b>. Verdiğiniz roller ve izinler kaydedilir ama uygulanmaz; açmak için Roller ve yetkiler &gt; Rol
-      yetkileri (genel yönetici).
+      yetkileri (genel yönetici). Tek istisna: İşlemler &gt; <b>Öğrenci düzenleme</b> “Açık” ise rol yetkileri kapalıyken de geçerlidir.
     </span>
   </p>
 );
