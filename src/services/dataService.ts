@@ -7454,7 +7454,7 @@ class DataService {
     const isAppAdmin = appRole === 'admin' || authUser.app_metadata?.is_admin === true ||
       (authUser.email || '').trim().toLowerCase() === ADMIN_EMAIL;
     if (appRole !== 'teacher' && !isAppAdmin) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw new Error(
         appRole === 'student' || appRole === 'applicant'
           ? 'Bu bir öğrenci hesabıdır. Lütfen "Öğrenci Portalı" sekmesinden giriş yapınız.'
@@ -7502,7 +7502,7 @@ class DataService {
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     } else if (!teacher) {
       if (!isAppAdmin) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
         throw new Error('Öğretmen kaydınız bulunamadı. Lütfen kurum yöneticinize başvurunuz.');
       }
       teacher = {
@@ -7524,11 +7524,11 @@ class DataService {
     }
 
     if (teacher.isSuspended || teacher.status === 'suspended') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw new Error('Hesabınız askıya alınmıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
     }
     if (teacher.status === 'pending' || teacher.status === 'rejected') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw new Error('Hesabınız henüz kurum yöneticisi tarafından onaylanmamıştır. Lütfen kurum yöneticinize başvurunuz.');
     }
 
@@ -7572,11 +7572,11 @@ class DataService {
     const appRole = authUser.app_metadata?.role;
 
     if (appRole === 'applicant') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw new Error('Kayıt başvurunuz henüz onaylanmadı. Yönetici onayladıktan sonra giriş yapabilirsiniz.');
     }
     if (appRole !== 'student') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw new Error('Bu bir öğretmen/yönetici hesabıdır. Lütfen "Öğretmen" sekmesinden giriş yapınız.');
     }
 
@@ -7584,7 +7584,7 @@ class DataService {
     try {
       return await this.ogrenciOturumu(authUser);
     } catch (e) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw e;
     }
   }
@@ -7841,13 +7841,10 @@ class DataService {
     this.pendingApplicationCount = 0;
     this.basitSifreId = null; // Aşama 145
     // Uygulama oturumu kapanınca Supabase oturumu da kapansın.
-    // Aşama 97: genel yönetici bir kurumdayken yalnızca bu sekmedeki oturum kapanır (kurum yöneticisinin kendi
-    // cihazlarındaki oturumları etkilenmez).
-    let inKurumGecis = false;
-    try {
-      inKurumGecis = !!sessionStorage.getItem('edu_sys_kurum_gecis');
-    } catch {}
-    (inKurumGecis ? supabase.auth.signOut({ scope: 'local' }) : supabase.auth.signOut()).catch(() => {});
+    // Aşama 275: çıkış (elle ya da hareketsizlikten) YALNIZ bu sekmedeki oturumu kapatır. Eskiden kapsam verilmediği için
+    // kişinin bütün cihazlarındaki oturumlar düşüyordu (telefon boşta kalınca bilgisayardaki oturum da kapanıyordu).
+    // Şifre değişiminde bütün cihazlardan çıkış aynen sürer (changeOwnPassword).
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);

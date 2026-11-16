@@ -40,7 +40,7 @@ export const PasswordRecoveryModal: React.FC = () => {
   const handleClose = () => {
     // Şifre belirlenmeden vazgeçildiyse sıfırlama bağlantısının açtığı geçici oturumu kapat
     if (!done) {
-      supabase.auth.signOut().catch(() => {});
+      supabase.auth.signOut({ scope: 'local' }).catch(() => {}); // Aşama 275: yalnız bu geçici oturum
     }
     clearPasswordRecovery();
     cleanUrl();
