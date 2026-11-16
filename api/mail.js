@@ -59,6 +59,14 @@ const CRON_TIME_BUDGET_MS = 40000;
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
+// Aşama 291: bir Gmail HESABINDAN 24 saatte çıkabilecek en fazla e-posta. Gmail'in kendi sınırı kişisel hesapta
+// 500, kurumsal (Workspace) hesapta 2000'dir; aşılırsa Google hesabı bir gün kapatır ve hiçbir e-posta gitmez.
+// Payla durulur: @gmail.com 450, kendi alan adlı (Workspace) hesap 1800. MAIL_DAILY_LIMIT ile değiştirilebilir.
+const dailyLimitFor = (addr) => {
+  const n = Number(process.env.MAIL_DAILY_LIMIT);
+  if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  return /@(gmail|googlemail)\.com$/i.test(String(addr || '')) ? 450 : 1800;
+};
 const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet', 'ders-devamsizlik-ders', 'ders-devamsizlik-sinir', 'ders-devamsizlik-sinir-idare']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet · Aşama 231: ders-devamsizlik-ders · Aşama 232: sınır
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
@@ -2108,6 +2116,9 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
       if (summary.noEmailNames.length < 40) summary.noEmailNames.push(it.toName);
     } else valid.push({ ...it, to: it.to.trim().toLowerCase() });
   }
+  // Aşama 291: yarıda kesilmiş bir çağrıdan "gönderiliyor"da kalan kayıtlar o kişiye e-postayı sonsuza dek
+  // kapatıyordu (yalnız zamanlanmış etütte temizlik vardı). Tek seferlik e-posta varsa önce onlar açılır.
+  if (valid.some((it) => ONCE_EVENTS.has(it.event))) await releaseStaleClaims();
   // Daha önce gönderilmiş "tek seferlik" e-postaları baştan ele (bağlantı açmadan)
   const onceGroups = new Map();
   for (const it of valid)
@@ -2182,6 +2193,25 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
       }
       summary.remaining += queue.length - room;
       summary.errors.push(`Saatlik e-posta sınırı (${HOURLY_LIMIT_PER_SENDER}): ${queue.length - room} e-posta sonraki tura kaldı.`);
+      queue.length = room;
+    }
+  }
+
+  // Aşama 291: HESAP başına günlük sınır (kurumun ortak hesabını bütün öğretmenler birlikte kullanır)
+  {
+    const limit = dailyLimitFor(sender.user);
+    const used = await accountSentSince(sender.user, new Date(Date.now() - 86400000).toISOString());
+    if (used !== null && used + queue.length > limit) {
+      const room = Math.max(0, limit - used);
+      const hesap = sender.via === 'kurum' ? 'Kurum e-posta hesabının' : 'E-posta hesabının';
+      if (!opts.partialHourly || room <= 0) {
+        summary.failed = queue.length;
+        summary.rateLimited = true;
+        summary.errors.push(`${hesap} günlük sınırına ulaşıldı (${limit}). Google hesabı kapatmasın diye gönderim durduruldu; yarın yeniden deneyin.`);
+        return summary;
+      }
+      summary.remaining += queue.length - room;
+      summary.errors.push(`${hesap} günlük sınırı (${limit}): ${queue.length - room} e-posta sonraki tura kaldı.`);
       queue.length = room;
     }
   }
@@ -2273,6 +2303,7 @@ function logBody(senderMeta, sender, it, status, error) {
     sender_auth_id: senderMeta.authId || null,
     sender_name: senderMeta.name || null,
     via: sender ? sender.via : null,
+    sender_addr: sender && sender.user ? String(sender.user).trim().toLowerCase() : null, // Aşama 291
     event: it.event,
     ref_id: it.refId || null,
     ref_title: (it.refTitle || '').slice(0, 200),
@@ -2284,14 +2315,53 @@ function logBody(senderMeta, sender, it, status, error) {
     error,
   };
 }
+// Aşama 291: hesaptan son 24 saatte çıkan e-posta sayısı. SQL 291 kurulu değilse null döner (sınır uygulanmaz,
+// eski davranış); bir kez denenir, sonraki çağrılar veritabanını yormaz.
+let hesapSayaciVar = true;
+async function accountSentSince(addr, since) {
+  if (!hesapSayaciVar || !addr) return null;
+  try {
+    const n = await rest('rpc/mail_hesap_sayisi', { token: 'service', method: 'POST', body: { p_addr: String(addr).trim().toLowerCase(), p_since: since } });
+    return typeof n === 'number' ? n : null;
+  } catch (err) {
+    if (err.status === 404 || err.code === 'PGRST202') hesapSayaciVar = false;
+    else console.error('[mail] hesap sayacı okunamadı:', err.message);
+    return null;
+  }
+}
+// Aşama 291: 15 dakikadan eski "gönderiliyor" kaydı yarıda kalmış sayılır ve "başarısız" yapılır; aynı e-posta
+// yeniden gönderilebilir. (Bir çağrı en çok ~1 dakika sürer; 15 dakika, süren bir gönderimi asla kesmez.)
+async function releaseStaleClaims() {
+  try {
+    const before = new Date(Date.now() - STALE_SENDING_MIN * 60000).toISOString();
+    await rest(`mail_log?status=eq.sending&created_at=lt.${encodeURIComponent(before)}`, {
+      token: 'service',
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { status: 'failed', error: 'Gönderim yarıda kaldı; yeniden denenebilir' },
+    });
+  } catch (err) {
+    console.error('[mail] takılı kayıtlar açılamadı:', err && err.message);
+  }
+}
+// Aşama 291: kayıt yazımı. SQL 291 henüz çalıştırılmadıysa (sender_addr sütunu yok) kayıt o alan olmadan yazılır;
+// böylece kurulum sırası karışsa bile "tek seferlik" denetimi ve gönderim kaydı bozulmaz.
+let adresSutunuVar = true;
+async function insertLog(body, prefer) {
+  const yaz = (b) => rest('mail_log', { token: 'service', method: 'POST', prefer, body: b });
+  const { sender_addr: _adres, ...eski } = body;
+  if (!adresSutunuVar) return yaz(eski);
+  try {
+    return await yaz(body);
+  } catch (err) {
+    if (err.code !== 'PGRST204' && !/sender_addr/.test(String(err.message || ''))) throw err;
+    adresSutunuVar = false;
+    return yaz(eski);
+  }
+}
 async function claimMail(senderMeta, sender, it) {
   try {
-    const rows = await rest('mail_log', {
-      token: 'service',
-      method: 'POST',
-      prefer: 'return=representation',
-      body: logBody(senderMeta, sender, it, 'sending', null),
-    });
+    const rows = await insertLog(logBody(senderMeta, sender, it, 'sending', null), 'return=representation');
     return rows && rows[0] ? rows[0].id : null;
   } catch (err) {
     if (err.status === 409) return 'taken';
@@ -2313,12 +2383,7 @@ async function finishClaim(id, status, error) {
 }
 async function logMail(senderMeta, sender, it, status, error) {
   try {
-    await rest('mail_log', {
-      token: 'service',
-      method: 'POST',
-      prefer: 'return=minimal',
-      body: logBody(senderMeta, sender, it, status, error),
-    });
+    await insertLog(logBody(senderMeta, sender, it, status, error), 'return=minimal');
   } catch (err) {
     if (err.status !== 409) console.error('[mail] kayıt yazılamadı:', err.message);
   }
