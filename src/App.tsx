@@ -19,6 +19,8 @@ import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
 import { supabase } from './lib/supabase';
 import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
+import { IkiAdimGirisi } from './components/Auth/IkiAdimGirisi'; // Aşama 294
+import { useIkiAdim } from './lib/ikiAdim';
 import { HesapSecimi } from './components/Auth/HesapSecimi'; // Aşama 256
 import { bagliHesabaGec, bagliHesaplar, hesapSecildi, hesapSecimiSifirla, hesapSecimiYapildi, hesapTercihOku, readGecis, type BagliHesap } from './lib/kurumGecis'; // Aşama 256
 import {
@@ -480,11 +482,13 @@ export default function App() {
   // Aşama 256: sistem sahibi girişte "Sistem sahibi / bağlı öğretmen hesabı" seçer (bağlı hesap yoksa sorulmaz).
   // Seçim bu oturumda bir kez yapılır; "hatırla" seçiliyse sorulmadan o hesap açılır.
   // Aşama 263: her öğretmen (bağlı hesabı yoksa sorulmaz)
-  const hesapSecimAday = authSession?.role === 'teacher' && !readGecis() && !hesapSecimiYapildi();
+  // Aşama 294: iki adımlı girişi açık hesapta (sistem sahibi) kod girilene kadar hiçbir seçim ekranı / panel açılmaz
+  const ikiAdim = useIkiAdim(!!authSession);
+  const hesapSecimAday = authSession?.role === 'teacher' && ikiAdim !== 'gerekli' && !readGecis() && !hesapSecimiYapildi();
   const [hesapListe, setHesapListe] = useState<BagliHesap[] | null>(null);
   const [hesapSecimBitti, setHesapSecimBitti] = useState(false);
   useEffect(() => {
-    if (!hesapSecimAday || hesapSecimBitti) return;
+    if (!hesapSecimAday || hesapSecimBitti || ikiAdim !== 'gerekmez') return; // Aşama 294: durum belli olunca
     let iptal = false;
     const bitir = () => {
       hesapSecildi();
@@ -510,7 +514,7 @@ export default function App() {
     return () => {
       iptal = true;
     };
-  }, [hesapSecimAday, hesapSecimBitti]);
+  }, [hesapSecimAday, hesapSecimBitti, ikiAdim]);
   const hesapSecimBekliyor = hesapSecimAday && !hesapSecimBitti;
 
   // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
@@ -531,6 +535,16 @@ export default function App() {
           students={students}
           teachers={dataService.getTeachers()}
         />
+      </div>
+    );
+  }
+
+  // Aşama 294: şifre doğru, ikinci adım bekleniyor (yetkiyi veritabanı da bu koda bağlar; ekran yalnız kodu sorar)
+  if (ikiAdim === 'gerekli') {
+    return (
+      <div className="relative min-h-screen">
+        <NetworkSyncStatusBanner />
+        <IkiAdimGirisi ad={authSession.role === 'teacher' ? (authSession.user as Teacher).name : undefined} onCikis={handleLogout} />
       </div>
     );
   }

@@ -21,6 +21,7 @@
 // ============================================================================
 import tls from 'node:tls';
 import crypto from 'node:crypto';
+import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
 // Aşama 75: yardımcı dosyalar (bildirim izinleri, SMS) GÜVENLİ yüklenir. Dosya eksik ya da hatalıysa
 // e-posta sistemi çökmez; izinler varsayılan (eski davranış) kalır, SMS gönderilmez. Hata Vercel günlüğüne yazılır.
 let policyModCache;
@@ -175,6 +176,7 @@ async function getCaller(req) {
   if (!token) throw new HttpError(401, 'Oturum bulunamadı. Lütfen yeniden giriş yapın.');
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+  if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
   const role = user.app_metadata && user.app_metadata.role;
   const isHead = (user.email || '').toLowerCase() === HEAD_ADMIN_EMAIL; // Aşama 109: tek sabit
   // Aşama 18: kurum bilgisi (17 numaralı SQL çalıştırılmadıysa eski davranış)

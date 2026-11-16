@@ -27,6 +27,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY  (zaten tanımlı)
 // ============================================================================
 import crypto from 'node:crypto';
+import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
 // Aşama 75: izin dosyası güvenli yüklenir; eksikse bildirimler eskisi gibi gider
 let policyModCache;
 async function policyMod() {
@@ -1073,6 +1074,7 @@ async function getCaller(req) {
   if (!token) throw new HttpError(401, 'Oturum bulunamadı. Lütfen yeniden giriş yapın.');
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+  if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
   const t = await rest(`teachers?select=id,name,status,is_admin&auth_user_id=eq.${user.id}`, { token: 'service' });
   if (t && t[0]) {
     if (t[0].status && t[0].status !== 'approved') throw new HttpError(403, 'Öğretmen hesabınız onaylı değil.');

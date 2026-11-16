@@ -25,6 +25,8 @@
 // SUPABASE_SERVICE_ROLE_KEY. Yeni ayar gerekmez.
 // ============================================================================
 
+import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
+
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
 
@@ -482,6 +484,7 @@ export default async function handler(req, res) {
     const arama = body.action === 'kisiAra' ? actionKisiAra(e, body).then((v) => ({ v }), (err) => ({ err })) : null;
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+    if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
     // Aşama 263: bağlı hesap işlemleri her onaylı öğretmene açık (şifre doğrulamasıyla bağlanmış hesaplar arasında)
     if (body.action === 'bagla' || body.action === 'bagliGir') {
       const owner = await bagliSahibi(e, user);
