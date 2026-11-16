@@ -13,10 +13,10 @@ const HEALTH_TEXT: Record<Health, { short: string; long: string }> = {
 // Bağlantı noktası: yeşil = canlı, sarı = aralıklı kontrol, kırmızı = internet yok
 const HealthDot: React.FC<{ health: Health }> = ({ health }) => (
   <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-    {health === 'live' && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />}
+    {health === 'live' && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success/40 opacity-60" />}
     <span
       className={`relative inline-flex rounded-full h-2 w-2 ${
-        health === 'live' ? 'bg-emerald-500' : health === 'offline' ? 'bg-rose-500' : 'bg-amber-400'
+        health === 'live' ? 'bg-success' : health === 'offline' ? 'bg-danger' : 'bg-warning/40'
       }`}
     />
   </span>

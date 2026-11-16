@@ -100,11 +100,11 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
     <div
       id="unattended-etut-banner"
       role="status"
-      className="px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-100 space-y-2"
+      className="px-4 py-3 rounded-2xl bg-danger/10 border border-danger/30 text-danger-fg space-y-2"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 text-sm">
-          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-300 shrink-0" />
+          <AlertCircle className="w-4 h-4 text-danger-fg shrink-0" />
           <span>
             <strong>{missing.length}</strong> etüt bitti ancak yoklaması alınmadı.
           </span>
@@ -113,7 +113,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
           <button
             type="button"
             onClick={goToEtuts}
-            className="ui-btn ui-btn-sm bg-rose-600 text-white hover:bg-rose-500 min-w-24"
+            className="ui-btn ui-btn-danger ui-btn-sm min-w-24"
           >
             Etütlere git
           </button>
@@ -121,7 +121,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
             type="button"
             onClick={dismiss}
             aria-label="Uyarıyı kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-rose-500/20"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-danger/20"
           >
             <X className="w-4 h-4" />
           </button>

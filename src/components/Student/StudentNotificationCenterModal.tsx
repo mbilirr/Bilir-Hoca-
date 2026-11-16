@@ -178,7 +178,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
   const modalContent = (
     <>
       <div
-        className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
+        className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
         onClick={onClose}
       >
         <OverlayLayer onClose={onClose} />
@@ -190,10 +190,10 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
             {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-canvas/50">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 relative">
+              <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg relative">
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center ring-2 ring-surface">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white rounded-full text-[10px] font-bold flex items-center justify-center ring-2 ring-surface">
                     {unreadCount}
                   </span>
                 )}
@@ -219,9 +219,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
           {/* Browser Notification Banner if not enabled */}
           {notificationPermission !== 'granted' && (
-            <div className="bg-indigo-50 dark:bg-indigo-950/40 border-b border-indigo-500/20 px-5 py-2.5 flex items-center justify-between text-xs gap-3">
-              <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-200">
-                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <div className="bg-brand-soft border-b border-brand/20 px-5 py-2.5 flex items-center justify-between text-xs gap-3">
+              <div className="flex items-center space-x-2 text-brand-fg">
+                <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
                 <span>Yeni ödev ve etütlerden anında haberdar olmak için tarayıcı bildirimlerini açın.</span>
               </div>
               <button
@@ -242,7 +242,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 onClick={() => setFilter('all')}
                 className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
                   filter === 'all'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
@@ -255,7 +255,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 onClick={() => setFilter('homework')}
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'homework'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
@@ -270,7 +270,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 onClick={() => setFilter('etuts')}
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'etuts'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
@@ -284,7 +284,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 onClick={() => setFilter('emails')}
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'emails'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
@@ -297,7 +297,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold flex items-center space-x-1"
+                className="text-xs text-brand-fg hover:text-brand-fg font-semibold flex items-center space-x-1"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Tümünü Okundu Say</span>
@@ -318,25 +318,25 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                   <div
                     key={email.id}
                     onClick={() => handleEmailClick(email)}
-                    className="p-3.5 rounded-xl bg-surface/90 border border-line hover:border-indigo-500/50 hover:bg-surface-2 transition-all cursor-pointer shadow-sm group"
+                    className="p-3.5 rounded-xl bg-surface/90 border border-line hover:border-brand/50 hover:bg-surface-2 transition-all cursor-pointer shadow-sm group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start space-x-3">
                         <div
                           className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                             email.type === 'homework_assigned'
-                              ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
-                              : 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
+                              ? 'bg-brand/15 text-brand-fg border border-brand/30'
+                              : 'bg-info/15 text-info-fg border border-info/30'
                           }`}
                         >
                           <Mail className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="text-xs font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
+                            <span className="text-xs font-bold text-fg group-hover:text-brand-fg transition-colors">
                               {email.subject}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-success/10 text-success-fg border border-success/20">
                               İletildi ✓
                             </span>
                           </div>
@@ -357,7 +357,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                         </div>
                       </div>
 
-                      <div className="flex items-center text-xs text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                      <div className="flex items-center text-xs text-brand-fg group-hover:translate-x-0.5 transition-transform shrink-0">
                         <span className="hidden sm:inline text-[11px] font-semibold mr-1">
                           E-Postayı Aç
                         </span>
@@ -380,7 +380,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm group ${
                     notif.read
                       ? 'bg-surface/60 border-line hover:border-line'
-                      : 'bg-surface-2/90 border-indigo-500/40 hover:border-indigo-400 ring-1 ring-indigo-500/20'
+                      : 'bg-surface-2/90 border-brand/40 hover:border-brand ring-1 ring-brand/20'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -388,16 +388,16 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                       <div
                         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                           notif.type === 'praise'
-                            ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 ring-2 ring-amber-500/20'
+                            ? 'bg-warning/20 text-warning-fg border border-warning/40 ring-2 ring-warning/20'
                             : notif.type === 'new_homework'
-                            ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                            ? 'bg-brand/15 text-brand-fg border border-brand/30'
                             : notif.type === 'new_etut'
-                            ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
-                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                            ? 'bg-info/15 text-info-fg border border-info/30'
+                            : 'bg-warning/15 text-warning-fg border border-warning/30'
                         }`}
                       >
                         {notif.type === 'praise' ? (
-                          <Award className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                          <Award className="w-4 h-4 text-warning-fg" />
                         ) : notif.type === 'new_homework' ? (
                           <BookOpen className="w-4 h-4" />
                         ) : notif.type === 'new_etut' ? (
@@ -413,20 +413,20 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                             className={`text-xs font-bold transition-colors ${
                               notif.read
                                 ? 'text-fg-2 group-hover:text-fg'
-                                : 'text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 font-extrabold'
+                                : 'text-fg group-hover:text-brand-fg font-extrabold'
                             }`}
                           >
                             {notif.title}
                           </span>
 
                           {!notif.read && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-600 text-white">
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-brand text-white">
                               YENİ
                             </span>
                           )}
 
                           {notif.emailSent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 flex items-center space-x-1">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-success/10 text-success-fg border border-success/20 flex items-center space-x-1">
                               <Mail className="w-2.5 h-2.5" />
                               <span>Mail Gönderildi</span>
                             </span>
@@ -457,7 +457,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                       </div>
                     </div>
 
-                    <div className="flex items-center text-xs text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                    <div className="flex items-center text-xs text-brand-fg group-hover:translate-x-0.5 transition-transform shrink-0">
                       <span className="hidden sm:inline text-[11px] font-semibold mr-1">
                         Detayı Gör
                       </span>

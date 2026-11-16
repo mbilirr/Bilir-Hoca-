@@ -22,7 +22,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 // Aşama 111: deneme listesi süzgeçleri (herkese aynı; öğretmende seçenekler yalnız görebildiği denemelerden gelir)
 const denemeYear = (e: DenemeExam) => (e.examDate ? currentAcademicYear(new Date(e.examDate + 'T12:00:00')) : '');
 const denemeGrade = (e: DenemeExam) => String(parseInt(String(e.grade), 10) || e.grade || '');
-const denemeSelectCls = 'h-8 w-full sm:w-36 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const denemeSelectCls = 'ui-field w-full sm:w-36 text-xs'; // Aşama 283: ortak açılır liste görünümü
 const DENEME_PAGE = 15;
 
 // Aşama 271: sayfa bir sınıf düzeyine göre çalışır ("Sınıf seçiniz"); seçim bu tarayıcıda hatırlanır
@@ -528,7 +528,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                 value={fQ}
                 onChange={(e) => setFQ(e.target.value)}
                 placeholder="Deneme ara…"
-                className="h-8 w-full sm:w-48 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="h-8 w-full sm:w-48 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-brand"
               />
               {examFiltersOn && (
                 <button

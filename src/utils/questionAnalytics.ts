@@ -347,7 +347,7 @@ export function computeWeeklyAnalytics(
   // Status assessment
   let trend: 'up' | 'stable' | 'down' = 'stable';
   let badgeText = 'İstikrarlı Çalışma';
-  let badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+  let badgeClass = 'bg-info/15 text-info-fg border-info/30';
   let reportSummary = '';
 
   if (previousWeekTotal === 0) {
@@ -360,28 +360,28 @@ export function computeWeeklyAnalytics(
     } else {
       trend = 'up';
       badgeText = 'Önceki haftada kayıt yok';
-      badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+      badgeClass = 'bg-info/15 text-info-fg border-info/30';
       reportSummary = `Öğrenci bu hafta ${solvedDaysCount} gün çalışarak toplam ${totalQuestions} soru çözdü. Önceki haftada soru kaydı olmadığı için karşılaştırma yapılamıyor.`;
     }
   } else if (totalQuestions === 0) {
     trend = 'down';
     badgeText = 'Bu hafta kayıt yok';
-    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    badgeClass = 'bg-warning/15 text-warning-fg border-warning/30';
     reportSummary = `Bu hafta soru kaydı yok; önceki hafta ${previousWeekTotal} soru çözülmüştü. Düzenli günlük çalışmaya dönülmesi önerilir.`;
   } else if (weeklyDifference > 20 || weeklyGrowthRate >= 15) {
     trend = 'up';
     badgeText = `Yükselen Başarı (+%${weeklyGrowthRate})`;
-    badgeClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+    badgeClass = 'bg-success/15 text-success-fg border-success/30';
     reportSummary = `Öğrenci bu hafta önceki haftaya göre ${Math.abs(weeklyDifference)} soru (+%${weeklyGrowthRate}) daha fazla çözdü. Soru çözme temposu yükseliyor.`;
   } else if (weeklyDifference < -20 || weeklyGrowthRate <= -15) {
     trend = 'down';
     badgeText = `Hacim Düşüşü (-%${Math.abs(weeklyGrowthRate)})`;
-    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    badgeClass = 'bg-warning/15 text-warning-fg border-warning/30';
     reportSummary = `Öğrencinin haftalık soru sayısı önceki haftaya göre ${Math.abs(weeklyDifference)} soru (-%${Math.abs(weeklyGrowthRate)}) azaldı. Soru çözülmeyen günlerin azaltılması ve düzenli günlük çalışma önerilir.`;
   } else {
     trend = 'stable';
     badgeText = 'Dengeli & İstikrarlı Süreç';
-    badgeClass = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+    badgeClass = 'bg-brand/15 text-brand-fg border-brand/30';
     reportSummary = `Öğrenci bu hafta önceki haftayla dengeli bir çalışma temposu sergilemiştir (Haftalık değişim: ${weeklyDifference >= 0 ? '+' : ''}${weeklyDifference} soru). Haftalık çalışma disiplini korunmakta olup başarı istikrarı devam etmektedir.`;
   }
 
@@ -555,7 +555,7 @@ export function computeMonthlyAnalytics(
 
   let trend: 'up' | 'stable' | 'down' = 'stable';
   let badgeText = 'İstikrarlı Aylık Performans';
-  let badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+  let badgeClass = 'bg-info/15 text-info-fg border-info/30';
   let reportSummary = '';
 
   if (previousMonthTotal === 0) {
@@ -567,28 +567,28 @@ export function computeMonthlyAnalytics(
     } else {
       trend = 'up';
       badgeText = 'Önceki ayda kayıt yok';
-      badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+      badgeClass = 'bg-info/15 text-info-fg border-info/30';
       reportSummary = `Öğrenci bu ay ${activeDatesSet.size} gün çalışarak toplam ${totalQuestions} soru çözdü. Önceki ayda soru kaydı olmadığı için karşılaştırma yapılamıyor.`;
     }
   } else if (totalQuestions === 0) {
     trend = 'down';
     badgeText = 'Bu ay kayıt yok';
-    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    badgeClass = 'bg-warning/15 text-warning-fg border-warning/30';
     reportSummary = `Bu ay soru kaydı yok; önceki ay ${previousMonthTotal} soru çözülmüştü.`;
   } else if (monthlyDifference > 80 || monthlyGrowthRate >= 15) {
     trend = 'up';
     badgeText = `Aylık Artış (+%${monthlyGrowthRate})`;
-    badgeClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+    badgeClass = 'bg-success/15 text-success-fg border-success/30';
     reportSummary = `Öğrenci bu ay önceki aya göre ${Math.abs(monthlyDifference)} soru (+%${monthlyGrowthRate}) daha fazla çözdü. Soru çözme temposu yükseliyor.`;
   } else if (monthlyDifference < -80 || monthlyGrowthRate <= -15) {
     trend = 'down';
     badgeText = `Aylık Düşüş (-%${Math.abs(monthlyGrowthRate)})`;
-    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    badgeClass = 'bg-warning/15 text-warning-fg border-warning/30';
     reportSummary = `Öğrencinin aylık soru sayısı önceki aya göre ${Math.abs(monthlyDifference)} soru (-%${Math.abs(monthlyGrowthRate)}) azaldı. Haftalık çalışma planının gözden geçirilmesi önerilir.`;
   } else {
     trend = 'stable';
     badgeText = 'Dengeli & İstikrarlı Süreç';
-    badgeClass = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+    badgeClass = 'bg-brand/15 text-brand-fg border-brand/30';
     reportSummary = `Öğrencinin aylık soru çözme performansı önceki ay ile dengeli ve istikrarlı düzeydedir (Aylık fark: ${monthlyDifference >= 0 ? '+' : ''}${monthlyDifference} soru). Düzenli test çözme disiplini korunmaktadır.`;
   }
 

@@ -87,13 +87,13 @@ export const UpdateAvailableBanner: React.FC = () => {
       role="status"
       aria-live="polite"
       id="update-available-banner"
-      className="fixed z-[100] left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-indigo-400/40 bg-indigo-600 text-white shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+      className="fixed z-[100] left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-brand/40 bg-brand text-white shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
     >
       <div className="flex items-start gap-2.5 flex-1 min-w-0">
         <RefreshCw className="w-5 h-5 shrink-0 mt-0.5" />
         <div className="min-w-0">
           <p className="text-sm font-bold">Yeni sürüm yayınlandı</p>
-          <p className="text-xs text-indigo-100">
+          <p className="text-xs text-brand-fg">
             Sistemin doğru çalışması için sayfayı yenileyin. Yarım kalan bir formunuz varsa önce kaydedin.
           </p>
         </div>
@@ -105,7 +105,7 @@ export const UpdateAvailableBanner: React.FC = () => {
             snoozeUntilRef.current = Date.now() + SNOOZE_MS;
             setVisible(false);
           }}
-          className="ui-btn ui-btn-sm text-indigo-100 hover:bg-indigo-500 min-w-24"
+          className="ui-btn ui-btn-sm text-brand-fg hover:bg-brand-hover min-w-24"
         >
           <X className="w-3.5 h-3.5" />
           Sonra
@@ -113,7 +113,7 @@ export const UpdateAvailableBanner: React.FC = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="ui-btn ui-btn-sm bg-surface text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 shadow-sm min-w-24"
+          className="ui-btn ui-btn-sm bg-surface text-brand-fg hover:bg-brand-soft shadow-sm min-w-24"
         >
           Şimdi Yenile
         </button>

@@ -398,7 +398,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         type="checkbox"
                         id={`kurum-grant-cred-${k.id}`}
                         data-testid="kurum-grant-cred"
-                        className="mt-0.5 accent-indigo-600"
+                        className="mt-0.5 accent-brand"
                         disabled={!credSrv}
                         checked={!!credDraft[k.id]}
                         onChange={(e) => setCredDraft((p) => ({ ...p, [k.id]: e.target.checked }))}
@@ -421,7 +421,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         type="checkbox"
                         id={`kurum-grant-move-${k.id}`}
                         data-testid="kurum-grant-move"
-                        className="mt-0.5 accent-indigo-600"
+                        className="mt-0.5 accent-brand"
                         disabled={!moveSrv}
                         checked={!!moveDraft[k.id]}
                         onChange={(e) => setMoveDraft((p) => ({ ...p, [k.id]: e.target.checked }))}

@@ -97,7 +97,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -108,11 +108,11 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
         {/* Header */}
         <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-inner">
+            <div className="w-10 h-10 rounded-2xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg shrink-0 shadow-inner">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-fg">Öğrenci Bilgilerini Güncelle</h3>
+              <h3 className="text-sm sm:text-base font-bold text-fg">Öğrenci Bilgilerini Güncelle</h3>
               <p className="text-[11px] sm:text-xs text-muted">
                 {student.className} • No: #{student.studentNumber || student.id}
               </p>
@@ -131,14 +131,14 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -146,7 +146,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-fg-2">
-              Ad Soyad <span className="text-rose-600 dark:text-rose-400">*</span>
+              Ad Soyad <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -234,7 +234,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <button
               type="submit"
               disabled={isSaving}
-              className="ui-btn ui-btn-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 min-w-24"
+              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
             >
               <Check className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kaydediliyor...' : 'Bilgileri Güncelle'}</span>
@@ -332,7 +332,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={isMandatory ? undefined : onClose}
     >
       <OverlayLayer onClose={isMandatory ? undefined : onClose} />
@@ -343,11 +343,11 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
         {/* Header */}
         <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0 shadow-inner">
+            <div className="w-10 h-10 rounded-2xl bg-warning/20 border border-warning/30 flex items-center justify-center text-warning-fg shrink-0 shadow-inner">
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-fg">
+              <h3 className="text-sm sm:text-base font-bold text-fg">
                 {isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Öğrenci Şifresi Değiştir'}
               </h3>
               <p className="text-[11px] sm:text-xs text-muted">
@@ -374,14 +374,14 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
         {/* Form */}
         <form onSubmit={handlePasswordSubmit} className="p-5 sm:p-6 space-y-4">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -390,7 +390,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
           {(
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-fg-2">
-                Mevcut Şifreniz <span className="text-rose-600 dark:text-rose-400">*</span>
+                Mevcut Şifreniz <span className="text-danger-fg">*</span>
               </label>
               <div className="relative">
                 <input
@@ -414,7 +414,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-fg-2">
-              Yeni Şifre <span className="text-rose-600 dark:text-rose-400">*</span>
+              Yeni Şifre <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <input
@@ -437,7 +437,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-fg-2">
-              Yeni Şifreyi Tekrar Girin <span className="text-rose-600 dark:text-rose-400">*</span>
+              Yeni Şifreyi Tekrar Girin <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <input
@@ -452,7 +452,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
           </div>
 
           <div className="p-3 bg-canvas/60 rounded-xl border border-line flex items-start space-x-2 text-[11px] text-muted">
-            <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <ShieldCheck className="w-4 h-4 text-brand-fg shrink-0 mt-0.5" />
             <span>Şifreniz güvenli bir şekilde sunucuda güncellenir. Unuttuğunuzda öğretmeninizden veya yöneticinizden şifrenizi sıfırlamasını isteyebilirsiniz.</span>
           </div>
 
@@ -470,7 +470,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             <button
               type="submit"
               disabled={isSaving}
-              className="ui-btn ui-btn-sm text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 min-w-24"
+              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
             >
               <Check className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Güncelleniyor...' : 'Şifreyi Değiştir'}</span>

@@ -213,7 +213,7 @@ export const NotificationPolicyPanel: React.FC = () => {
                           <label className="inline-flex items-center justify-center cursor-pointer p-1">
                             <input
                               type="checkbox"
-                              className="w-4 h-4 cursor-pointer accent-indigo-600"
+                              className="w-4 h-4 cursor-pointer accent-brand"
                               checked={on}
                               disabled={missing}
                               onChange={() => toggle(c.id, ch.id)}

@@ -40,11 +40,11 @@ export const NetworkSyncStatusBanner: React.FC = () => {
     return (
       <div
         id="offline-sync-alert-banner"
-        className="fixed top-0 inset-x-0 z-50 bg-amber-500 dark:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm py-2 px-4 shadow-lg flex items-center justify-center space-x-2 animate-in slide-in-from-top duration-300 border-b border-amber-600 dark:border-amber-700"
+        className="fixed top-0 inset-x-0 z-50 bg-warning text-slate-950 font-bold text-xs sm:text-sm py-2 px-4 shadow-lg flex items-center justify-center space-x-2 animate-in slide-in-from-top duration-300 border-b border-warning"
       >
         <WifiOff className="w-4 h-4 text-slate-950 animate-pulse shrink-0" />
         <span>İnternet bağlantısı yok</span>
-        <span className="text-[11px] font-normal bg-amber-600/30 dark:bg-amber-700/40 px-2 py-0.5 rounded-full ml-2 hidden sm:inline-block">
+        <span className="text-[11px] font-normal bg-warning/30 px-2 py-0.5 rounded-full ml-2 hidden sm:inline-block">
           Bağlantı gelene kadar yapılan değişiklikler kaydedilemez
         </span>
       </div>
@@ -56,14 +56,14 @@ export const NetworkSyncStatusBanner: React.FC = () => {
     return (
       <div
         id="online-sync-success-toast"
-        className="fixed top-3 right-3 sm:right-6 z-50 bg-emerald-600 text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xl flex items-center space-x-2.5 animate-in slide-in-from-top-3 duration-300 border border-emerald-500"
+        className="fixed top-3 right-3 sm:right-6 z-50 bg-success text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xl flex items-center space-x-2.5 animate-in slide-in-from-top-3 duration-300 border border-success"
       >
         <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
           <CheckCircle2 className="w-4 h-4 text-white" />
         </div>
         <div>
-          <div className="text-xs font-black">Senkronize edildi</div>
-          <div className="text-[11px] font-normal text-emerald-100">
+          <div className="text-xs font-bold">Senkronize edildi</div>
+          <div className="text-[11px] font-normal text-success-fg">
             İnternet bağlantısı sağlandı, bulut verileri güncellendi.
           </div>
         </div>

@@ -119,8 +119,8 @@ export const TeacherAnnouncements: React.FC = () => {
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Mesaj türü">
           {(
             [
-              { v: 'announcement', label: 'Duyuru', hint: 'Sınıfa / gruba genel haber', icon: Megaphone, on: 'border-orange-500 bg-orange-500/10' },
-              { v: 'note', label: 'Not', hint: 'Öğrenciye kısa kişisel mesaj', icon: StickyNote, on: 'border-purple-500 bg-purple-500/10' },
+              { v: 'announcement', label: 'Duyuru', hint: 'Sınıfa / gruba genel haber', icon: Megaphone, on: 'border-warning bg-warning/10' },
+              { v: 'note', label: 'Not', hint: 'Öğrenciye kısa kişisel mesaj', icon: StickyNote, on: 'border-brand bg-brand/10' },
             ] as const
           ).map((o) => (
             <button
@@ -195,7 +195,7 @@ export const TeacherAnnouncements: React.FC = () => {
                   aria-selected={target === o.v}
                   id={`ann-target-${o.v}`}
                   onClick={() => setTarget(o.v)}
-                  className={`ui-btn ui-btn-sm ${target === o.v ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
+                  className={`ui-btn ui-btn-sm ${target === o.v ? 'bg-brand text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                 >
                   <o.icon className="w-3.5 h-3.5" /> {o.label}
                 </button>
@@ -217,7 +217,7 @@ export const TeacherAnnouncements: React.FC = () => {
                         type="button"
                         aria-pressed={on}
                         onClick={() => setClassIds(toggle(classIds, c.id))}
-                        className={`ui-btn ui-btn-sm rounded-full border ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
+                        className={`ui-btn ui-btn-sm rounded-full border ${on ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
                       >
                         {c.name} <span className={on ? 'text-white/80' : 'text-muted'}>({classSize.get(c.id)})</span>
                       </button>
@@ -279,7 +279,7 @@ export const TeacherAnnouncements: React.FC = () => {
                 ) : (
                   visibleStudents.map((s) => (
                     <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer hover:bg-surface-2/60">
-                      <input type="checkbox" checked={studentIds.includes(s.id)} onChange={() => setStudentIds(toggle(studentIds, s.id))} className="accent-indigo-600" />
+                      <input type="checkbox" checked={studentIds.includes(s.id)} onChange={() => setStudentIds(toggle(studentIds, s.id))} className="accent-brand" />
                       <span className="flex-1 min-w-0 truncate text-fg font-medium">{s.name}</span>
                       <span className="text-muted shrink-0">{s.className}</span>
                     </label>
@@ -295,8 +295,8 @@ export const TeacherAnnouncements: React.FC = () => {
             role="status"
             className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${
               feedback.tone === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-                : 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                ? 'bg-success-soft border-success/30 text-success-fg'
+                : 'bg-danger-soft border-danger/30 text-danger-fg'
             }`}
           >
             {feedback.tone === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
@@ -333,7 +333,7 @@ export const TeacherAnnouncements: React.FC = () => {
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      g.kind === 'announcement' ? 'bg-orange-500/15 text-orange-700 dark:text-orange-300' : 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
+                      g.kind === 'announcement' ? 'bg-warning/15 text-warning-fg' : 'bg-brand/15 text-brand-fg'
                     }`}
                   >
                     {g.kind === 'announcement' ? 'Duyuru' : 'Not'}
@@ -349,7 +349,7 @@ export const TeacherAnnouncements: React.FC = () => {
                 <div className="pt-1">
                   {confirmDeleteId === g.groupId ? (
                     <span className="inline-flex items-center gap-2 text-xs">
-                      <span className="text-rose-700 dark:text-rose-300 font-semibold">Öğrencilerden de kaldırılsın mı?</span>
+                      <span className="text-danger-fg font-semibold">Öğrencilerden de kaldırılsın mı?</span>
                       <button type="button" onClick={() => handleDelete(g.groupId)} className="font-bold text-danger-fg hover:underline cursor-pointer">
                         Evet, sil
                       </button>

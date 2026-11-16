@@ -276,7 +276,7 @@ export const PlanWeekSummary: React.FC<{ data: PlanWallData; id?: string }> = ({
       <div id={id} className="p-3.5 bg-surface-2 rounded-xl border border-line text-xs text-fg-2 space-y-2.5" data-testid="plan-week-summary">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-fg">
-            <Award className="w-3.5 h-3.5 text-orange-600 dark:text-orange-300" />
+            <Award className="w-3.5 h-3.5 text-warning-fg" />
             <span>Haftalık soru dağılımı</span>
           </div>
           <span className="text-muted">
@@ -303,7 +303,7 @@ export const PlanWeekSummary: React.FC<{ data: PlanWallData; id?: string }> = ({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
-            <div className={`h-full rounded-full ${weekPct >= 100 ? 'bg-success' : 'bg-orange-500'}`} style={{ width: `${weekPct}%` }} />
+            <div className={`h-full rounded-full ${weekPct >= 100 ? 'bg-success' : 'bg-warning'}`} style={{ width: `${weekPct}%` }} />
           </div>
           <span className="tabular-nums text-muted">
             Hafta: {weekSolved} / {weekTarget} · %{weekPct}
@@ -450,13 +450,13 @@ const DayGhost: React.FC<{ wall: DayWall }> = ({ wall }) => (
         return (
           <li
             key={s.subject}
-            className={`flex items-start gap-1.5 font-semibold ${solved ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+            className={`flex items-start gap-1.5 font-semibold ${solved ? 'text-success-fg' : 'text-danger-fg'}`}
           >
             {solved ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
             <span className="min-w-0">
               {s.subject}
               {short ? ` – ${short}` : ''}
-              {solved && <span className="ml-1 font-black tabular-nums">· {s.solved}</span>}
+              {solved && <span className="ml-1 font-bold tabular-nums">· {s.solved}</span>}
             </span>
           </li>
         );
@@ -464,7 +464,7 @@ const DayGhost: React.FC<{ wall: DayWall }> = ({ wall }) => (
       {wall.offPlan.map((o) => (
         <li key={`x-${o.subject}`} className="font-semibold text-fg pl-5">
           {o.subject}
-          <span className="ml-1 font-black tabular-nums">· {o.count}</span>
+          <span className="ml-1 font-bold tabular-nums">· {o.count}</span>
         </li>
       ))}
     </ul>

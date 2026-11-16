@@ -200,7 +200,7 @@ export const CredentialSendModal: React.FC<{
 
         {allowReset && (
           <label className="flex items-start gap-2 cursor-pointer" htmlFor="gb-yeni-sifre">
-            <input id="gb-yeni-sifre" type="checkbox" className="mt-0.5 accent-indigo-600" checked={reset} onChange={(e) => setReset(e.target.checked)} disabled={busy} />
+            <input id="gb-yeni-sifre" type="checkbox" className="mt-0.5 accent-brand" checked={reset} onChange={(e) => setReset(e.target.checked)} disabled={busy} />
             <span>
               <strong className="text-fg">Şifresini değiştirenlere yeni ilk şifre ver.</strong> Bu öğrencilerin mevcut şifresi değişir; yeni şifre
               gönderilir ve ilk girişte değiştirmeleri istenir.

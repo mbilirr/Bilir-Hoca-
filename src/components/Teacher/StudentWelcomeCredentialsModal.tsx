@@ -291,7 +291,7 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
                       <td className="px-3 py-2.5 font-mono font-bold text-brand-fg select-all">
                         {c.student.studentNumber}
                       </td>
-                      <td className="px-3 py-2.5 font-mono font-bold text-amber-700 dark:text-amber-300 select-all">{c.password}</td>
+                      <td className="px-3 py-2.5 font-mono font-bold text-warning-fg select-all">{c.password}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1.5">
                           <button

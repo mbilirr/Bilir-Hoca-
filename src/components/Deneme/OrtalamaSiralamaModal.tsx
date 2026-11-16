@@ -14,7 +14,7 @@ import { gradeOf } from '../../lib/teacherGrades';
 // (DenemeAnalizi düğmeyi göstermez). Sonuçlar yalnız "Excel indir"e basınca, hafif sütunlarla okunur.
 // ============================================================================
 
-const sel = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const sel = 'ui-field w-full text-xs'; // Aşama 283: ortak açılır liste görünümü
 const lbl = 'block text-xs font-semibold text-muted mb-1';
 type Kapsam = Extract<ScopeKey, 'last3' | 'last5' | 'custom'>;
 const gradeOfExam = (e: DenemeExam) => String(parseInt(String(e.grade), 10) || e.grade || '');
@@ -189,7 +189,7 @@ export const OrtalamaSiralamaModal: React.FC<{
                   <label key={e.id} className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-surface-2/50">
                     <input
                       type="checkbox"
-                      className="w-3.5 h-3.5 accent-indigo-600"
+                      className="w-3.5 h-3.5 accent-brand"
                       checked={on}
                       onChange={() =>
                         setPicked((cur) => {

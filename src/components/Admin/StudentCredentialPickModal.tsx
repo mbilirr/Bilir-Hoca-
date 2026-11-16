@@ -131,7 +131,7 @@ export const StudentCredentialPickModal: React.FC<{
                 ) : (
                   visible.map((s) => (
                     <label key={s.id} className="flex h-8 items-center gap-2 px-3 cursor-pointer hover:bg-surface-2">
-                      <input type="checkbox" className="accent-indigo-600" checked={!off.has(s.id)} onChange={() => toggle(s.id)} />
+                      <input type="checkbox" className="accent-brand" checked={!off.has(s.id)} onChange={() => toggle(s.id)} />
                       <span className="truncate text-fg">{s.name}</span>
                       <span className="ml-auto shrink-0 text-muted">
                         {s.studentNumber}

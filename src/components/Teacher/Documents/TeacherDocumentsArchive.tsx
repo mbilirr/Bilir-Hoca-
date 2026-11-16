@@ -63,50 +63,50 @@ const CATEGORIES: CategoryConfig[] = [
     title: 'Yıllık Ders Planları',
     description: 'MEB onaylı yıllık çalışma ve ders planları',
     icon: Calendar,
-    color: 'text-emerald-700 dark:text-emerald-400',
-    bgLight: 'bg-emerald-50 dark:bg-emerald-950/40',
-    borderLight: 'border-emerald-500/30',
-    badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    color: 'text-success-fg',
+    bgLight: 'bg-success-soft',
+    borderLight: 'border-success/30',
+    badgeClass: 'bg-success/10 text-success-fg border-success/30',
   },
   {
     id: 'weekly_plan',
     title: 'Haftalık Ders Planları',
     description: 'Sınıf bazlı haftalık ünite ve konu işleniş çizelgeleri',
     icon: BookOpen,
-    color: 'text-cyan-700 dark:text-cyan-400',
-    bgLight: 'bg-cyan-50 dark:bg-cyan-950/40',
-    borderLight: 'border-cyan-500/30',
-    badgeClass: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+    color: 'text-info-fg',
+    bgLight: 'bg-info-soft',
+    borderLight: 'border-info/30',
+    badgeClass: 'bg-info/10 text-info-fg border-info/30',
   },
   {
     id: 'sample_exam',
     title: 'Örnek Yazılılar & Denemeler',
     description: '1. ve 2. dönem yazılı sınav örnekleri ve cevap anahtarları',
     icon: Award,
-    color: 'text-amber-700 dark:text-amber-400',
-    bgLight: 'bg-amber-50 dark:bg-amber-950/40',
-    borderLight: 'border-amber-500/30',
-    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
+    color: 'text-warning-fg',
+    bgLight: 'bg-warning-soft',
+    borderLight: 'border-warning/30',
+    badgeClass: 'bg-warning/10 text-warning-fg border-warning/30',
   },
   {
     id: 'meeting_minutes',
     title: 'Zümre Tutanakları & Kararlar',
     description: 'Dönem başı/sonu zümre öğretmenler kurulu kararları',
     icon: Users,
-    color: 'text-purple-600 dark:text-purple-400',
-    bgLight: 'bg-purple-50 dark:bg-purple-950/40',
-    borderLight: 'border-purple-500/30',
-    badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30',
+    color: 'text-brand-fg',
+    bgLight: 'bg-brand-soft',
+    borderLight: 'border-brand/30',
+    badgeClass: 'bg-brand/10 text-brand-fg border-brand/30',
   },
   {
     id: 'curriculum',
     title: 'Müfredat & Kazanım Çizelgesi',
     description: 'Öğrenme alanları ve ders kazanım tabloları',
     icon: Layers,
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgLight: 'bg-indigo-50 dark:bg-indigo-950/40',
-    borderLight: 'border-indigo-500/30',
-    badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+    color: 'text-brand-fg',
+    bgLight: 'bg-brand-soft',
+    borderLight: 'border-brand/30',
+    badgeClass: 'bg-brand/10 text-brand-fg border-brand/30',
   },
 ];
 
@@ -351,19 +351,19 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     switch (format) {
       case 'pdf':
         return {
-          bg: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30',
+          bg: 'bg-danger-soft text-danger-fg border-danger/30',
           label: 'PDF',
           icon: FileText,
         };
       case 'docx':
         return {
-          bg: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
+          bg: 'bg-info-soft text-info-fg border-info/30',
           label: 'WORD',
           icon: FileCode,
         };
       case 'xlsx':
         return {
-          bg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
+          bg: 'bg-success-soft text-success-fg border-success/30',
           label: 'EXCEL',
           icon: FileSpreadsheet,
         };
@@ -401,9 +401,9 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
       />
 
       {actionError && (
-        <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+        <div role="alert" className="p-3 bg-danger/10 border border-danger/30 rounded-xl text-danger-fg text-xs flex items-center justify-between gap-2">
           <span>{actionError}</span>
-          <button type="button" onClick={() => setActionError(null)} className="font-bold text-rose-600 dark:text-rose-200 hover:text-fg cursor-pointer">
+          <button type="button" onClick={() => setActionError(null)} className="font-bold text-danger-fg hover:text-fg cursor-pointer">
             Tamam
           </button>
         </div>
@@ -615,9 +615,9 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   <div className="border-t border-line bg-canvas/50 p-4 sm:p-5">
                     {/* HAFTALIK PLAN ÖZEL SINIF SEÇİM AÇILIR PENCERESİ (YALNIZCA SINIF İSİMLERİ: 5. Sınıf - 12. Sınıf) */}
                     {isWeeklyPlanCat && (
-                      <div className="mb-4 p-3.5 bg-surface border border-cyan-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="mb-4 p-3.5 bg-surface border border-info/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center space-x-2.5">
-                          <GraduationCap className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" />
+                          <GraduationCap className="w-4 h-4 text-info-fg shrink-0" />
                           <div>
                             <p className="text-xs font-bold text-fg">Sınıf Seçimi</p>
                             <p className="text-[11px] text-muted">
@@ -650,7 +650,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                     {/* Haftalık plan seçimi yapılmadıysa ve kullanıcı sınıf seçmek istiyorsa */}
                     {isWeeklyPlanCat && !weeklyPlanSelectedClass && allCatDocs.length > 0 ? (
                       <div className="p-6 text-center bg-surface/60 border border-line rounded-xl">
-                        <BookOpen className="w-8 h-8 text-cyan-700/80 dark:text-cyan-400/80 mx-auto mb-2" />
+                        <BookOpen className="w-8 h-8 text-info-fg/80 mx-auto mb-2" />
                         <p className="text-xs font-bold text-fg mb-1">
                           Haftalık Planlar Kapalı Durumda
                         </p>
@@ -663,7 +663,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                               key={cls}
                               type="button"
                               onClick={() => setWeeklyPlanSelectedClass(cls)}
-                              className="ui-btn ui-btn-sm bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/60 min-w-24"
+                              className="ui-btn ui-btn-sm bg-info-soft border border-info/30 text-info-fg hover:bg-info-soft min-w-24"
                             >
                               {cls}
                             </button>
@@ -697,7 +697,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             return (
                               <div
                                 key={doc.id}
-                                className="w-80 sm:w-88 shrink-0 snap-start bg-surface hover:bg-surface border border-line hover:border-indigo-400 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md transition-all group hover:shadow-xl hover:-translate-y-0.5 text-fg"
+                                className="w-80 sm:w-88 shrink-0 snap-start bg-surface hover:bg-surface border border-line hover:border-brand rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md transition-all group hover:shadow-xl hover:-translate-y-0.5 text-fg"
                               >
                                 {/* Üst Kısım */}
                                 <div>
@@ -711,7 +711,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                       </span>
 
                                       {doc.schoolType && (
-                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-soft text-brand-fg border border-brand/30">
                                           {doc.schoolType === 'Ortaokul'
                                             ? '🏫 Ortaokul'
                                             : doc.schoolType === 'Lise'
@@ -730,7 +730,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
                                   {/* Belge Başlığı */}
                                   <h4
-                                    className="text-sm font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
+                                    className="text-sm font-bold text-fg group-hover:text-brand-fg transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
                                     title={doc.title}
                                   >
                                     {doc.title}
@@ -738,9 +738,9 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
                                   {/* Özet Sayfa Görsel Kartı */}
                                   <div className="bg-surface-2/90 rounded-xl p-3 border border-line mb-3 space-y-1.5 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-200 dark:border-indigo-500/30" />
+                                    <div className="absolute top-0 right-0 w-8 h-8 bg-brand/10 rounded-bl-xl border-b border-l border-brand/30" />
 
-                                    <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold border-b border-line pb-1 pr-6">
+                                    <div className="flex items-center justify-between text-[11px] text-brand-fg font-semibold border-b border-line pb-1 pr-6">
                                       <span>{doc.subject}</span>
                                       <span className="text-muted font-mono">{doc.academicYear || '2026-2027'}</span>
                                     </div>
@@ -781,7 +781,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     type="button"
                                     onClick={() => handleOpenDocument(doc)}
                                     disabled={openingDocId === doc.id}
-                                    className="ui-btn ui-btn-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white min-w-24"
+                                    className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
                                     title="Tam Sayfa Olarak Aç ve İncele"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
@@ -801,7 +801,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     <button
                                       type="button"
                                       onClick={() => setDocToDelete(doc)}
-                                      className="p-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-xl text-xs border border-rose-200 dark:border-rose-500/30 transition-colors cursor-pointer"
+                                      className="p-2 bg-danger-soft hover:bg-danger-soft text-danger-fg hover:text-danger-fg rounded-xl text-xs border border-danger/30 transition-colors cursor-pointer"
                                       title="Belgeyi Sil"
                                       aria-label="Belgeyi Sil"
                                     >

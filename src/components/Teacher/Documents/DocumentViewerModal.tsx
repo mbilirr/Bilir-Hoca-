@@ -69,21 +69,21 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
   const formatConfig = {
     pdf: {
       label: 'PDF Belgesi',
-      badgeColor: 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/30',
+      badgeColor: 'bg-danger/20 text-danger-fg border-danger/30',
       icon: FileText,
-      iconColor: 'text-rose-600 dark:text-rose-400',
+      iconColor: 'text-danger-fg',
     },
     docx: {
       label: 'Word Belgesi (.docx)',
-      badgeColor: 'bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-500/30',
+      badgeColor: 'bg-info/20 text-info-fg border-info/30',
       icon: FileText,
-      iconColor: 'text-blue-600 dark:text-blue-400',
+      iconColor: 'text-info-fg',
     },
     xlsx: {
       label: 'Excel Çalışma Kitabı (.xlsx)',
-      badgeColor: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+      badgeColor: 'bg-success/20 text-success-fg border-success/30',
       icon: FileSpreadsheet,
-      iconColor: 'text-emerald-700 dark:text-emerald-400',
+      iconColor: 'text-success-fg',
     },
   }[document.fileFormat] || {
     label: 'Belge',
@@ -124,7 +124,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
   return (
     <div
       id="document-viewer-modal"
-      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
     >
       <OverlayLayer onClose={onClose} />
       <div
@@ -211,7 +211,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             <button
               onClick={onClose}
               aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-danger/20 hover:text-danger-fg"
               title="Kapat"
             >
               <X className="w-4 h-4" />
@@ -264,7 +264,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             {/* Sheet Tabs */}
             <div className="flex items-center space-x-1.5 overflow-x-auto">
               <span className="text-xs text-muted font-medium mr-1 flex items-center space-x-1">
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-success-fg" />
                 <span>Sayfalar:</span>
               </span>
               {document.tableSheets.map((sheet, sIdx) => (
@@ -276,7 +276,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                   }}
                   className={`ui-btn ui-btn-sm ${
                     activeSheetIndex === sIdx
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-success text-white shadow-sm'
                       : 'bg-surface-2 text-fg-2 hover:bg-surface-3'
                   }`}
                 >
@@ -329,7 +329,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                         {filteredRows[0]?.map((headerCell, colIdx) => (
                           <th
                             key={colIdx}
-                            className="py-2.5 px-3 border-r border-line whitespace-nowrap text-indigo-600 dark:text-indigo-300"
+                            className="py-2.5 px-3 border-r border-line whitespace-nowrap text-brand-fg"
                           >
                             {String(headerCell)}
                           </th>
@@ -340,7 +340,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                       {filteredRows.slice(1).map((row, rIdx) => (
                         <tr
                           key={rIdx}
-                          className="hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors group"
+                          className="hover:bg-brand-soft transition-colors group"
                         >
                           <td className="py-2 px-2 text-center text-muted border-r border-line font-mono text-[10px] bg-canvas/40 select-none">
                             {rIdx + 2}
@@ -351,7 +351,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                               className="py-2 px-3 border-r border-line text-fg-2 group-hover:text-fg text-xs align-top"
                             >
                               {cIdx === 3 && String(cell).startsWith('M.') ? (
-                                <span className="bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-mono px-1.5 py-0.5 rounded border border-indigo-500/30">
+                                <span className="bg-brand/20 text-brand-fg font-mono px-1.5 py-0.5 rounded border border-brand/30">
                                   {String(cell)}
                                 </span>
                               ) : (
@@ -371,7 +371,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                   {sheetSearchQuery && (
                     <button
                       onClick={() => setSheetSearchQuery('')}
-                      className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                      className="mt-2 text-xs text-brand-fg hover:underline"
                     >
                       Aramayı Temizle
                     </button>
@@ -438,12 +438,12 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-muted">
-                  <FileText className="w-16 h-16 text-rose-600 dark:text-rose-400 mb-3" />
+                  <FileText className="w-16 h-16 text-danger-fg mb-3" />
                   <p className="text-sm font-semibold text-fg mb-1">{document.title}</p>
                   <p className="text-xs text-muted mb-4">{document.fileSize} • PDF Formatı</p>
                   <button
                     onClick={() => onDownload(document)}
-                    className="ui-btn ui-btn-sm bg-rose-600 hover:bg-rose-500 text-white min-w-24"
+                    className="ui-btn ui-btn-danger ui-btn-sm min-w-24"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>PDF Olarak İndir</span>
@@ -457,7 +457,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
         {/* MODAL FOOTER */}
         <div className="px-5 py-3.5 bg-canvas border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs text-muted shrink-0">
           <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span className="w-2 h-2 rounded-full bg-success/40"></span>
             <span className="hidden sm:inline">Belge Sayfaya Uyumlu Güvenli Önizleme Modunda Açıldı</span>
             <span className="sm:hidden text-fg font-medium truncate max-w-[180px]">{document.fileName}</span>
           </div>
@@ -468,7 +468,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               type="button"
               onClick={() => onDownload(document)}
               id="btn-download-doc-modal-footer"
-              className="ui-btn ui-btn-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white min-w-24"
+              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
               title="Belgeyi Bilgisayara İndir"
             >
               <Download className="w-3.5 h-3.5" />

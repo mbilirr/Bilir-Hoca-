@@ -34,7 +34,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="bg-surface border border-line rounded-3xl p-6 sm:p-8 text-center shadow-xl space-y-4 my-4 max-w-lg mx-auto animate-in fade-in duration-200">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-warning/15 border border-warning/30 text-warning-fg flex items-center justify-center mx-auto">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div className="space-y-1">
@@ -46,7 +46,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
             </p>
           </div>
           {this.state.error && (
-            <div className="p-2.5 rounded-xl bg-canvas border border-line text-[11px] font-mono text-rose-600 dark:text-rose-400 break-words text-left max-h-24 overflow-y-auto">
+            <div className="p-2.5 rounded-xl bg-canvas border border-line text-[11px] font-mono text-danger-fg break-words text-left max-h-24 overflow-y-auto">
               {this.state.error.message || String(this.state.error)}
             </div>
           )}

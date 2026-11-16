@@ -290,10 +290,10 @@ export const ParentAnnouncements: React.FC = () => {
   const limit = useSms ? SMS_MAX : TEXT_MAX;
   const toneBox = (tone: string) =>
     tone === 'success'
-      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+      ? 'bg-success-soft border-success/30 text-success-fg'
       : tone === 'warning'
-        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500/30 text-amber-800 dark:text-amber-300'
-        : 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/30 text-rose-800 dark:text-rose-300';
+        ? 'bg-warning-soft border-warning/30 text-warning-fg'
+        : 'bg-danger-soft border-danger/30 text-danger-fg';
 
   return (
     <div className="max-w-3xl" id="parent-announcements">
@@ -309,9 +309,9 @@ export const ParentAnnouncements: React.FC = () => {
           <span className="text-xs font-semibold text-fg-2">Kime gitsin?</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label
-              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toParents ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toParents ? 'border-brand bg-brand/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
             >
-              <input type="checkbox" checked={toParents} onChange={(e) => setToParents(e.target.checked)} className="accent-indigo-600" id="pa-to-parents" />
+              <input type="checkbox" checked={toParents} onChange={(e) => setToParents(e.target.checked)} className="accent-brand" id="pa-to-parents" />
               <UserRound className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">Veliler</span>
@@ -319,9 +319,9 @@ export const ParentAnnouncements: React.FC = () => {
               </span>
             </label>
             <label
-              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toStudents ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toStudents ? 'border-brand bg-brand/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
             >
-              <input type="checkbox" checked={toStudents} onChange={(e) => setToStudents(e.target.checked)} className="accent-indigo-600" id="pa-to-students" />
+              <input type="checkbox" checked={toStudents} onChange={(e) => setToStudents(e.target.checked)} className="accent-brand" id="pa-to-students" />
               <GraduationCap className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">Öğrenciler</span>
@@ -357,9 +357,9 @@ export const ParentAnnouncements: React.FC = () => {
           <span className="text-xs font-semibold text-fg-2">Hangi yoldan gitsin?</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label
-              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${useMail ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${useMail ? 'border-brand bg-brand/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
             >
-              <input type="checkbox" checked={useMail} onChange={(e) => setUseMail(e.target.checked)} className="accent-indigo-600" id="pa-use-mail" />
+              <input type="checkbox" checked={useMail} onChange={(e) => setUseMail(e.target.checked)} className="accent-brand" id="pa-use-mail" />
               <Mail className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">E-posta</span>
@@ -367,9 +367,9 @@ export const ParentAnnouncements: React.FC = () => {
               </span>
             </label>
             <label
-              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${useSms ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${useSms ? 'border-brand bg-brand/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
             >
-              <input type="checkbox" checked={useSms} onChange={(e) => setUseSms(e.target.checked)} className="accent-indigo-600" id="pa-use-sms" />
+              <input type="checkbox" checked={useSms} onChange={(e) => setUseSms(e.target.checked)} className="accent-brand" id="pa-use-sms" />
               <MessageSquare className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">SMS</span>
@@ -378,7 +378,7 @@ export const ParentAnnouncements: React.FC = () => {
             </label>
           </div>
           {useSms && (
-            <p className="flex items-start gap-1.5 text-[11px] text-amber-800 dark:text-amber-300">
+            <p className="flex items-start gap-1.5 text-[11px] text-warning-fg">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
               <span>SMS’e öğrencinin notu, puanı, devamsızlığı gibi kişisel bilgi yazmayın. Mesajın başına okulun adı otomatik eklenir.</span>
             </p>
@@ -438,7 +438,7 @@ export const ParentAnnouncements: React.FC = () => {
                   aria-selected={target === o.v}
                   id={`pa-target-${o.v}`}
                   onClick={() => setTarget(o.v)}
-                  className={`ui-btn ui-btn-sm ${target === o.v ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
+                  className={`ui-btn ui-btn-sm ${target === o.v ? 'bg-brand text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                 >
                   <o.icon className="w-3.5 h-3.5" /> {o.label}
                 </button>
@@ -460,7 +460,7 @@ export const ParentAnnouncements: React.FC = () => {
                         type="button"
                         aria-pressed={on}
                         onClick={() => setClassIds(toggle(classIds, c.id))}
-                        className={`ui-btn ui-btn-sm rounded-full border ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
+                        className={`ui-btn ui-btn-sm rounded-full border ${on ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'}`}
                       >
                         {c.name} <span className={on ? 'text-white/80' : 'text-muted'}>({classSize.get(c.id)})</span>
                       </button>
@@ -522,7 +522,7 @@ export const ParentAnnouncements: React.FC = () => {
                 ) : (
                   visibleStudents.map((s) => (
                     <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer hover:bg-surface-2/60">
-                      <input type="checkbox" checked={studentIds.includes(s.id)} onChange={() => setStudentIds(toggle(studentIds, s.id))} className="accent-indigo-600" />
+                      <input type="checkbox" checked={studentIds.includes(s.id)} onChange={() => setStudentIds(toggle(studentIds, s.id))} className="accent-brand" />
                       <span className="flex-1 min-w-0 truncate text-fg font-medium">{s.name}</span>
                       <span className="text-muted shrink-0">{s.className}</span>
                     </label>
@@ -557,7 +557,7 @@ export const ParentAnnouncements: React.FC = () => {
                 gidecek.
               </p>
               {preview.noContact.length > 0 && (
-                <details className="text-amber-800 dark:text-amber-300">
+                <details className="text-warning-fg">
                   <summary className="cursor-pointer font-semibold">
                     {preview.noContact.length} öğrencinin seçtiğiniz yola uygun iletişim bilgisi yok (gönderilmeyecek)
                   </summary>
@@ -580,7 +580,7 @@ export const ParentAnnouncements: React.FC = () => {
         )}
 
         {confirming ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-indigo-500/40 bg-indigo-500/10 p-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-brand/40 bg-brand/10 p-3">
             <span className="text-xs text-fg">
               {useMail && (
                 <strong>

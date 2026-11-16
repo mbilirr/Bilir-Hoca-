@@ -78,13 +78,13 @@ interface Duyuru {
 }
 
 const KIND_STYLE: Record<DuyuruKind, { icon: React.ComponentType<{ className?: string }>; box: string; label: string }> = {
-  etut: { icon: Clock, box: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300', label: 'Etüt' },
-  odev: { icon: BookOpen, box: 'bg-orange-500/15 text-orange-700 dark:text-orange-300', label: 'Ödev' },
-  yeni_odev: { icon: BookOpen, box: 'bg-amber-500/15 text-amber-700 dark:text-amber-300', label: 'Yeni ödev' },
-  hedef: { icon: Target, box: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', label: 'Soru hedefi' },
-  not: { icon: Award, box: 'bg-purple-500/15 text-purple-700 dark:text-purple-300', label: 'Not' },
-  duyuru: { icon: Megaphone, box: 'bg-rose-500/15 text-rose-700 dark:text-rose-300', label: 'Öğretmen duyurusu' },
-  ogretmen_notu: { icon: StickyNote, box: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300', label: 'Öğretmen notu' },
+  etut: { icon: Clock, box: 'bg-info/15 text-info-fg', label: 'Etüt' },
+  odev: { icon: BookOpen, box: 'bg-warning/15 text-warning-fg', label: 'Ödev' },
+  yeni_odev: { icon: BookOpen, box: 'bg-warning/15 text-warning-fg', label: 'Yeni ödev' },
+  hedef: { icon: Target, box: 'bg-success/15 text-success-fg', label: 'Soru hedefi' },
+  not: { icon: Award, box: 'bg-brand/15 text-brand-fg', label: 'Not' },
+  duyuru: { icon: Megaphone, box: 'bg-danger/15 text-danger-fg', label: 'Öğretmen duyurusu' },
+  ogretmen_notu: { icon: StickyNote, box: 'bg-brand/15 text-brand-fg', label: 'Öğretmen notu' },
 };
 
 export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
@@ -330,8 +330,8 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
 
   return (
     <div id="student-agenda-wall" data-v={dataVersion} className="@container w-full bg-surface border border-line rounded-2xl p-3 sm:p-4 shadow-xl relative overflow-hidden">
-      <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 -left-20 w-80 h-80 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-info/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-3 items-stretch relative z-10">
         {/* =========================================================================
@@ -340,13 +340,13 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         <div id="student-announcements" className="min-w-0 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col shadow-lg">
           <div className="flex items-center justify-between pb-2 border-b border-line mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-700 dark:text-orange-400">
+              <div className="w-7 h-7 rounded-lg bg-warning/15 border border-warning/30 flex items-center justify-center text-warning-fg">
                 <Megaphone className="w-3.5 h-3.5" />
               </div>
-              <h3 className="text-sm font-black text-fg flex items-center gap-2">
+              <h3 className="text-sm font-bold text-fg flex items-center gap-2">
                 <span>Duyurular</span>
                 {duyurular.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-slate-950">{duyurular.length}</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-warning text-slate-950">{duyurular.length}</span>
                 )}
               </h3>
             </div>
@@ -354,7 +354,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             <button
               type="button"
               onClick={onOpenAvatarModal}
-              className="relative p-0.5 rounded-full ring-2 ring-indigo-500/40 hover:ring-indigo-400 transition-all cursor-pointer"
+              className="relative p-0.5 rounded-full ring-2 ring-brand/40 hover:ring-brand transition-all cursor-pointer"
               title="Profil Resmini Değiştir"
             >
               <img src={studentAvatarUrl} alt={student.name} className="w-6 h-6 rounded-full object-cover bg-surface" />
@@ -376,14 +376,14 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                       aria-expanded={expandable ? isOpen : undefined}
                       onClick={() => (expandable ? setOpenDuyuruId(isOpen ? null : d.id) : onNavigateTab(d.tab))}
                       className={`w-full text-left px-2.5 py-1.5 rounded-lg bg-surface/80 border hover:bg-surface transition-all flex items-center gap-2 cursor-pointer group ${
-                        expandable ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-line hover:border-orange-500/50'
+                        expandable ? 'border-danger/30 hover:border-danger/60' : 'border-line hover:border-warning/50'
                       }`}
                     >
                       <span className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${st.box}`} title={st.label}>
                         <Icon className="w-3.5 h-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-xs font-bold text-fg group-hover:text-orange-700 dark:group-hover:text-orange-300 ${isOpen ? '' : 'truncate'}`}>
+                        <span className={`block text-xs font-bold text-fg group-hover:text-warning-fg ${isOpen ? '' : 'truncate'}`}>
                           {d.title}
                         </span>
                         {d.detail && <span className="block text-[10px] text-muted truncate">{d.detail}</span>}
@@ -401,7 +401,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             </ul>
           ) : (
             <div className="py-4 text-center bg-surface/50 rounded-xl border border-line flex flex-col items-center gap-1" id="student-announcement-empty">
-              <Sparkles className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+              <Sparkles className="w-5 h-5 text-warning-fg" />
               <p className="text-xs font-bold text-fg">Bugün için yeni duyuru yok.</p>
               <p className="text-[10px] text-muted">Öğretmeninin duyuruları, etüt, ödev, soru hedefi veya yeni bir not olduğunda burada görünür.</p>
             </div>
@@ -414,8 +414,8 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         <div className="min-w-0 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col justify-between shadow-lg">
           <div className="flex items-center justify-between pb-1.5 border-b border-line">
             <div className="flex items-center space-x-2">
-              <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <h3 className="text-sm font-black text-fg">
+              <CalendarDays className="w-4 h-4 text-brand-fg" />
+              <h3 className="text-sm font-bold text-fg">
                 {TURKISH_MONTHS[viewMonth]} {viewYear}
               </h3>
             </div>
@@ -424,7 +424,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleGoToToday}
-                className="px-2 py-0.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-fg bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-lg transition-colors cursor-pointer"
+                className="px-2 py-0.5 text-[11px] font-bold text-brand-fg hover:text-fg bg-brand/20 hover:bg-brand-hover border border-brand/40 rounded-lg transition-colors cursor-pointer"
               >
                 Bugün
               </button>
@@ -449,7 +449,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
 
           <div className="grid grid-cols-7 gap-0.5 text-center py-1 border-b border-line">
             {WEEKDAY_NAMES.map((w, idx) => (
-              <span key={w} className={`text-[10px] font-bold ${idx >= 5 ? 'text-amber-700/80 dark:text-amber-400/80' : 'text-muted'}`}>
+              <span key={w} className={`text-[10px] font-bold ${idx >= 5 ? 'text-warning-fg/80' : 'text-muted'}`}>
                 {w}
               </span>
             ))}
@@ -469,15 +469,15 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                     !cell.isCurrentMonth
                       ? 'text-subtle opacity-40 hover:opacity-80'
                       : cell.isToday
-                      ? 'bg-indigo-600/25 text-fg ring-1 ring-indigo-500 font-black'
+                      ? 'bg-brand/25 text-fg ring-1 ring-brand font-bold'
                       : 'text-fg hover:bg-surface-2/80'
-                  } ${isSelected ? 'bg-indigo-600 text-white ring-1 ring-indigo-400 shadow-md z-10' : ''}`}
+                  } ${isSelected ? 'bg-brand text-white ring-1 ring-brand shadow-md z-10' : ''}`}
                 >
                   <span className="text-[11px] leading-none">{cell.dayNumber}</span>
                   {(hasHw || hasEtut) && (
                     <span className="flex items-center gap-0.5 mt-0.5">
-                      {hasHw && <span className="w-1 h-1 rounded-full bg-amber-400" title={`${cell.homeworkList.length} Ödev Teslimi`} />}
-                      {hasEtut && <span className="w-1 h-1 rounded-full bg-cyan-400" title={`${cell.etutList.length} Etüt Programı`} />}
+                      {hasHw && <span className="w-1 h-1 rounded-full bg-warning/40" title={`${cell.homeworkList.length} Ödev Teslimi`} />}
+                      {hasEtut && <span className="w-1 h-1 rounded-full bg-info/40" title={`${cell.etutList.length} Etüt Programı`} />}
                     </span>
                   )}
                 </button>
@@ -488,16 +488,16 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           <div className="mt-1.5 pt-1.5 border-t border-line space-y-1">
             <div className="flex items-center justify-between text-[11px] font-bold text-fg">
               <span className="flex items-center space-x-1.5">
-                <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                <Bookmark className="w-3 h-3 text-brand-fg" />
                 <span>{formatSelectedDateTurkish(selectedDateStr)}</span>
               </span>
               <span className="text-[10px] text-muted font-normal flex items-center gap-2">
                 <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning/40" />
                   {selectedDetails.homeworks.length} Ödev
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-info/40" />
                   {selectedDetails.etuts.length} Etüt
                 </span>
               </span>
@@ -509,7 +509,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={hw.id}
                     onClick={() => onNavigateTab('homework')}
-                    className="px-1.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-500/30 flex items-center justify-between text-[11px] text-amber-700 dark:text-amber-200 cursor-pointer"
+                    className="px-1.5 py-1 rounded-md bg-warning-soft border border-warning/30 flex items-center justify-between text-[11px] text-warning-fg cursor-pointer"
                   >
                     <span className="flex items-center space-x-1.5 truncate">
                       <BookOpen className="w-3 h-3 shrink-0" />
@@ -522,7 +522,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={et.id}
                     onClick={() => onNavigateTab('etuts')}
-                    className="px-1.5 py-1 rounded-md bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-[11px] text-cyan-700 dark:text-cyan-200 cursor-pointer"
+                    className="px-1.5 py-1 rounded-md bg-info-soft border border-info/30 flex items-center justify-between text-[11px] text-info-fg cursor-pointer"
                   >
                     <span className="flex items-center space-x-1.5 truncate">
                       <Clock className="w-3 h-3 shrink-0" />

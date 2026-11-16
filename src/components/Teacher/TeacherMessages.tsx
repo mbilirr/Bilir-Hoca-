@@ -44,9 +44,9 @@ function readMsgFilters(uid: string): MsgFilters {
   }
   return DEFAULT_MSG_FILTERS;
 }
-const msgSelectCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const msgSelectCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand';
 // Aşama 206: arama ve cevap kutusu süzgeç kutularıyla aynı ölçü
-const msgInputCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-3 text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const msgInputCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-3 text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand';
 
 interface TeacherMessagesProps {
   messages: StudentMessage[];
@@ -295,7 +295,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     onClick={() => handleSelectMessage(msg)}
                     className={cx(
                       'w-full px-3 py-2.5 text-left transition-colors flex items-start gap-2.5',
-                      isSelected ? 'bg-indigo-600/10 shadow-[inset_3px_0_0_var(--color-brand)]' : 'hover:bg-surface-2/40'
+                      isSelected ? 'bg-brand/10 shadow-[inset_3px_0_0_var(--color-brand)]' : 'hover:bg-surface-2/40'
                     )}
                   >
                     <img
@@ -324,7 +324,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                       <p className="text-xs text-fg-2 truncate mt-0.5" title={msg.text}>
                         {msg.toTeacherId && (
-                          <span className="mr-1 rounded bg-indigo-50 dark:bg-indigo-950/40 px-1 py-px text-[9px] font-bold text-indigo-700 dark:text-indigo-300" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
+                          <span className="mr-1 rounded bg-brand-soft px-1 py-px text-[9px] font-bold text-brand-fg" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
                             Özel{msg.toTeacherName ? ` → ${msg.toTeacherName}` : ''}
                           </span>
                         )}
@@ -334,14 +334,14 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     <span className="shrink-0 mt-1 flex items-center">
                       {msg.teacherReply ? (
                         <span
-                          className="text-emerald-700 dark:text-emerald-400"
+                          className="text-success-fg"
                           title={wide && msg.repliedByName ? `Cevaplandı · ${msg.repliedByName}` : 'Cevaplandı'}
                           aria-label="Cevaplandı"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                         </span>
                       ) : !msg.read ? (
-                        <span className="w-2 h-2 rounded-full bg-red-600" aria-label="Okunmadı"></span>
+                        <span className="w-2 h-2 rounded-full bg-danger" aria-label="Okunmadı"></span>
                       ) : null}
                     </span>
                   </button>
@@ -407,11 +407,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                   {/* Attachment Link if provided */}
                   {activeMessage.linkUrl && (
-                    <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-500/30 rounded-xl flex items-center justify-between">
+                    <div className="p-3.5 bg-brand-soft border border-brand/30 rounded-xl flex items-center justify-between">
                       <div className="flex items-center space-x-2 truncate">
-                        <ExternalLink className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                        <ExternalLink className="w-4 h-4 text-brand-fg flex-shrink-0" />
                         <div className="truncate">
-                          <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+                          <p className="text-xs font-semibold text-brand-fg">
                             Öğrencinin Eklediği Bağlantı / Çözüm Görseli:
                           </p>
                           <p className="text-xs text-fg-2 truncate underline">
@@ -432,8 +432,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                   {/* Existing Reply if already answered */}
                   {activeMessage.teacherReply && (
-                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
+                    <div className="p-4 bg-success-soft border border-success/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs text-success-fg font-bold">
                         <span>✓ {activeMessage.repliedByName ? `${activeMessage.repliedByName} yanıtı:` : 'Sizin Gönderdiğiniz Yanıt:'}</span>
                         {activeMessage.repliedAt && (
                           <span className="text-muted font-normal">

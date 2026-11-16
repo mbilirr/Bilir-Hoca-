@@ -42,10 +42,10 @@ export const StudentPraiseToast: React.FC<{
       role="status"
       aria-live="polite"
       id="student-praise-toast"
-      className="fixed z-[90] top-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-[22rem] rounded-2xl border border-amber-300/60 dark:border-amber-500/40 bg-surface shadow-pop overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300"
+      className="fixed z-[90] top-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-[22rem] rounded-2xl border border-warning/30 bg-surface shadow-pop overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300"
     >
       <div className="flex items-start gap-3 p-3.5">
-        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shrink-0 text-lg shadow-sm" aria-hidden>
+        <span className="w-9 h-9 rounded-xl bg-warning-soft text-warning-fg flex items-center justify-center shrink-0 text-lg shadow-sm" aria-hidden>
           ⭐
         </span>
         <div className="min-w-0 flex-1">
@@ -72,9 +72,9 @@ export const StudentPraiseToast: React.FC<{
         </button>
       </div>
       {/* kalan süre */}
-      <div className="h-1 bg-amber-100 dark:bg-amber-500/15">
+      <div className="h-1 bg-warning-soft">
         <div
-          className="h-full bg-gradient-to-r from-amber-400 to-orange-500 ease-linear"
+          className="h-full bg-warning ease-linear"
           style={{ width: run ? '0%' : '100%', transition: run ? `width ${SHOW_MS}ms linear` : 'none' }}
         />
       </div>

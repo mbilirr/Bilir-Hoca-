@@ -6,14 +6,16 @@
    .ak-inp, .ak-toast…) iki temada da doğru renkte çizilir. Bütün sınıflar .ak-odak altında.
    ============================================================================ */
 .ak.ak-odak {
-  --canvas: #f3f5f9; --surface: #fff; --surface-2: #eaeef5; --surface-3: #e2e7f0;
-  --line: #e2e7f0; --line-strong: #cdd5e2;
-  --fg: #0f172a; --fg-2: #334155; --muted: #5b6679; --subtle: #94a0b4;
-  --brand: #4f46e5; --brand-soft: #eef0ff; --brand-fg: #4338ca;
-  --success: #0f8a5f; --success-soft: #dff5ec; --success-fg: #0f8a5f;
-  --warning: #d97706; --warning-soft: #fdf1dc; --warning-fg: #b45309;
-  --danger: #be123c; --danger-soft: #fde8ee; --danger-fg: #be123c;
-  --info-soft: #e6f4fb; --info-fg: #0369a1;
+  /* Aşama 283: TEK RENK KAYNAĞI — Odak renkleri src/index.css tokenlarından gelir (açık ve koyu tema orada tanımlı).
+     Burada yalnız ana sayfa kabuğunun kısa adlarına bağlanır; renk değişecekse yalnız index.css değişir. */
+  --canvas: var(--color-canvas); --surface: var(--color-surface); --surface-2: var(--color-surface-2); --surface-3: var(--color-surface-3);
+  --line: var(--color-line); --line-strong: var(--color-line-strong);
+  --fg: var(--color-fg); --fg-2: var(--color-fg-2); --muted: var(--color-muted); --subtle: var(--color-subtle);
+  --brand: var(--color-brand); --brand-soft: var(--color-brand-soft); --brand-fg: var(--color-brand-fg);
+  --success: var(--color-success); --success-soft: var(--color-success-soft); --success-fg: var(--color-success-fg);
+  --warning: var(--color-warning); --warning-soft: var(--color-warning-soft); --warning-fg: var(--color-warning-fg);
+  --danger: var(--color-danger); --danger-soft: var(--color-danger-soft); --danger-fg: var(--color-danger-fg);
+  --info: var(--color-info); --info-soft: var(--color-info-soft); --info-fg: var(--color-info-fg);
   --shadow-card: 0 1px calc(0.125 * var(--ak-rem)) rgb(15 23 42 / .04), 0 calc(0.25 * var(--ak-rem)) calc(1 * var(--ak-rem)) calc(-0.5 * var(--ak-rem)) rgb(15 23 42 / .10);
   --shadow-pop: 0 calc(1.5 * var(--ak-rem)) calc(3.75 * var(--ak-rem)) calc(-1 * var(--ak-rem)) rgb(15 23 42 / .28), 0 calc(0.125 * var(--ak-rem)) calc(0.5 * var(--ak-rem)) rgb(15 23 42 / .06);
   --r-md: calc(0.875 * var(--ak-rem)); --r-lg: calc(1.25 * var(--ak-rem));
@@ -27,12 +29,6 @@
   grid-template-columns: calc(4.75 * var(--ak-rem)) minmax(0, 1fr);
 }
 :root[data-theme="dark"] .ak.ak-odak {
-  --canvas: #0b0f18; --surface: #131926; --surface-2: #1b2333; --surface-3: #212a3b;
-  --line: #212a3b; --line-strong: #2e3a50;
-  --fg: #e8edf7; --fg-2: #c4ccdb; --muted: #93a0b8; --subtle: #64708a;
-  --brand: #818cf8; --brand-soft: #1f2650; --brand-fg: #a5b4fc;
-  --success-soft: #0f2c22; --success-fg: #34d399; --warning-soft: #33270d; --warning-fg: #fbbf24;
-  --danger-soft: #3a1420; --danger-fg: #fb7185; --info-soft: #0c2838; --info-fg: #38bdf8;
   --shadow-card: 0 1px 0 rgb(255 255 255 / .02) inset, 0 calc(0.375 * var(--ak-rem)) calc(1.25 * var(--ak-rem)) calc(-0.375 * var(--ak-rem)) rgb(0 0 0 / .45);
   --shadow-pop: 0 calc(1.125 * var(--ak-rem)) calc(2.5 * var(--ak-rem)) calc(-0.625 * var(--ak-rem)) rgb(0 0 0 / .6), 0 calc(0.125 * var(--ak-rem)) calc(0.5 * var(--ak-rem)) rgb(0 0 0 / .35);
 }

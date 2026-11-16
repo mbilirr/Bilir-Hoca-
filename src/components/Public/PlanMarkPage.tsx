@@ -132,14 +132,14 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                   Görevlerini yaptıkça yanındaki daireye dokun. İşaretlerin hemen kaydedilir{data.teacherName ? ` ve ${data.teacherName} öğretmenin görür` : ''}.
                 </p>
                 <p className="text-right shrink-0">
-                  <span className="block text-2xl font-black tabular-nums" id="plan-mark-count">
+                  <span className="block text-2xl font-bold tabular-nums" id="plan-mark-count">
                     {done}/{total}
                   </span>
                   <span className="text-[11px] text-muted">görev</span>
                 </p>
               </div>
               <div className="h-2 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
-                <div className={cx('h-full rounded-full transition-all', pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500')} style={{ width: `${pct}%` }} />
+                <div className={cx('h-full rounded-full transition-all', pct === 100 ? 'bg-success' : 'bg-brand')} style={{ width: `${pct}%` }} />
               </div>
               {pct === 100 && (
                 <p className="text-sm font-bold text-success-fg flex items-center gap-1.5" id="plan-mark-alldone">
@@ -161,7 +161,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                   <div className={cx('flex items-center justify-between px-4 py-2.5 border-b border-line', isToday ? 'bg-brand-soft/60' : 'bg-surface-2/60')}>
                     <p className="text-sm font-bold text-fg">
                       {x.name} <span className="font-medium text-muted">· {shortDate(date)}</span>
-                      {isToday && <span className="ml-2 text-[10px] font-black uppercase tracking-wide text-brand-fg">Bugün</span>}
+                      {isToday && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-brand-fg">Bugün</span>}
                     </p>
                     <span className="text-xs font-semibold text-muted tabular-nums">
                       {dDone}/{x.list.length}
@@ -181,7 +181,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                             onClick={() => toggle(i.id)}
                             className={cx(
                               'mt-0.5 w-9 h-9 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all active:scale-90',
-                              isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-line-strong text-transparent hover:border-emerald-400'
+                              isDone ? 'bg-success border-success text-white' : 'border-line-strong text-transparent hover:border-success'
                             )}
                           >
                             <Check className="w-5 h-5" strokeWidth={3} />

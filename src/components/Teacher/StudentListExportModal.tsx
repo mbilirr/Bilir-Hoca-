@@ -236,7 +236,7 @@ export const StudentListExportModal: React.FC<{
           </SelectBox>
           {scope === 'all' && (
             <label className="mt-2 flex items-center gap-2 text-xs text-fg-2 cursor-pointer">
-              <input type="checkbox" checked={separateSheets} onChange={(e) => setSeparateSheets(e.target.checked)} className="accent-indigo-600" />
+              <input type="checkbox" checked={separateSheets} onChange={(e) => setSeparateSheets(e.target.checked)} className="accent-brand" />
               Her sınıf Excel'de ayrı sayfada olsun (işaretli değilse tek liste)
             </label>
           )}
@@ -252,10 +252,10 @@ export const StudentListExportModal: React.FC<{
                   <label
                     key={c.key}
                     className={`flex items-center gap-2 h-10 px-3 rounded-xl border text-sm cursor-pointer transition-colors ${
-                      on ? 'border-indigo-500 bg-indigo-500/10 text-fg' : 'border-line bg-surface text-fg-2 hover:bg-surface-2'
+                      on ? 'border-brand bg-brand/10 text-fg' : 'border-line bg-surface text-fg-2 hover:bg-surface-2'
                     }`}
                   >
-                    <input type="checkbox" checked={on} onChange={() => toggle(c.key)} className="accent-indigo-600" />
+                    <input type="checkbox" checked={on} onChange={() => toggle(c.key)} className="accent-brand" />
                     <span className="truncate">{c.label}</span>
                   </label>
                 );

@@ -251,7 +251,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
@@ -260,8 +260,8 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 <span
                   className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
                     activeClass && selectedSubject
-                      ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20'
-                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                      ? 'bg-brand/10 text-brand-fg border border-brand/20'
+                      : 'bg-warning/10 text-warning-fg border border-warning/20'
                   }`}
                 >
                   {activeClass && selectedSubject
@@ -276,7 +276,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         {/* Class & Subject Selectors */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
-            <Users className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400 shrink-0" />
+            <Users className="w-3.5 h-3.5 text-brand-fg shrink-0" />
             <select
               aria-label="Sınıf"
               value={selectedClassId}
@@ -297,7 +297,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
-            <BookOpen className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <BookOpen className="w-3.5 h-3.5 text-success-fg shrink-0" />
             <select
               aria-label="Ders"
               value={selectedSubject}
@@ -320,7 +320,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           {/* Aşama 98: öğretmene göre (birden fazla öğretmenin kaydı görünüyorsa) */}
           {(teacherOptions.length > 1 || teacherFilter !== 'all') && (
             <div className="flex items-center gap-1.5 h-8 bg-canvas border border-line rounded-lg px-2.5">
-              <Filter className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <Filter className="w-3.5 h-3.5 text-warning-fg shrink-0" />
               <select
                 id="grades-filter-teacher"
                 aria-label="Öğretmene göre"
@@ -345,7 +345,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       {/* KONTROL: Sınıf ve ders seçilmeden altta sınıf ve öğrenci listesi hemen açılmasın! */}
       {!selectedClassId || !selectedSubject ? (
         <div className="bg-surface/90 border border-line rounded-2xl p-10 sm:p-14 text-center shadow-lg">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-700 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 text-brand-fg flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8" />
           </div>
           <h3 className="text-lg font-bold text-fg mb-2">
@@ -357,11 +357,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <div
               className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-semibold ${
                 selectedClassId
-                  ? 'bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  ? 'bg-success/30 text-success-fg border-success/30'
                   : 'bg-canvas text-fg-2 border-line'
               }`}
             >
-              <Users className="w-4 h-4 text-indigo-700 dark:text-indigo-400" />
+              <Users className="w-4 h-4 text-brand-fg" />
               <span>
                 {selectedClassId ? `Sınıf Seçildi: ${activeClass?.name}` : '1. Adım: Yukarıdan Sınıf Seçiniz'}
               </span>
@@ -370,11 +370,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <div
               className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-semibold ${
                 selectedSubject
-                  ? 'bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  ? 'bg-success/30 text-success-fg border-success/30'
                   : 'bg-canvas text-fg-2 border-line'
               }`}
             >
-              <BookOpen className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+              <BookOpen className="w-4 h-4 text-success-fg" />
               <span>
                 {selectedSubject ? `Ders Seçildi: ${selectedSubject}` : '2. Adım: Yukarıdan Ders Seçiniz'}
               </span>
@@ -386,7 +386,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       <div className="flex items-center justify-between border-b border-line pb-3 flex-wrap gap-3">
         {/* Aşama 198: "Etüt yoklamaları" sekmesi kalktı (eski kopyalar silindi); etüt yoklaması Etüt ekranında */}
         <span id="grades-tab-grades" className="flex items-center gap-1.5 text-xs font-semibold text-fg">
-          <Award className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400" />
+          <Award className="w-3.5 h-3.5 text-brand-fg" />
           Not çizelgesi ({classGrades.length})
         </span>
 
@@ -403,7 +403,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 {
                   value: 'batch',
                   label: 'Toplu not',
-                  badge: batchEnteredCount > 0 ? <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" aria-hidden="true"></span> : undefined,
+                  badge: batchEnteredCount > 0 ? <span className="w-2 h-2 rounded-full bg-warning/40 animate-pulse" aria-hidden="true"></span> : undefined,
                 },
               ]}
             />
@@ -433,13 +433,13 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <div>
                 <span className="text-[11px] font-semibold text-muted">Sınıf Başarı Ortalaması</span>
                 <div className="text-xl font-extrabold text-fg mt-0.5 flex items-baseline space-x-1">
-                  <span className={averageScore >= 70 ? 'text-emerald-700 dark:text-emerald-400' : averageScore >= 50 ? 'text-amber-700 dark:text-amber-400' : 'text-rose-700 dark:text-rose-400'}>
+                  <span className={averageScore >= 70 ? 'text-success-fg' : averageScore >= 50 ? 'text-warning-fg' : 'text-danger-fg'}>
                     {averageScore > 0 ? averageScore : '-'}
                   </span>
                   <span className="text-xs text-subtle font-normal">/ 100</span>
                 </div>
               </div>
-              <Award className="w-6 h-6 text-indigo-700 dark:text-indigo-400/60" />
+              <Award className="w-6 h-6 text-brand-fg" />
             </div>
 
             <div className="p-3.5 bg-surface border border-line rounded-2xl flex items-center justify-between">
@@ -447,15 +447,15 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 <span className="text-[11px] font-semibold text-muted">Toplam Not Kaydı</span>
                 <div className="text-xl font-extrabold text-fg mt-0.5">{classGrades.length} Giriş</div>
               </div>
-              <FileSpreadsheet className="w-6 h-6 text-blue-700 dark:text-blue-400/60" />
+              <FileSpreadsheet className="w-6 h-6 text-info-fg" />
             </div>
 
             <div className="p-3.5 bg-surface border border-line rounded-2xl flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-semibold text-muted">Kayıtlı Öğrenci Sayısı</span>
-                <div className="text-xl font-extrabold text-indigo-700 dark:text-indigo-400 mt-0.5">{classStudents.length} Öğrenci</div>
+                <div className="text-xl font-extrabold text-brand-fg mt-0.5">{classStudents.length} Öğrenci</div>
               </div>
-              <Users className="w-6 h-6 text-indigo-700 dark:text-indigo-400/60" />
+              <Users className="w-6 h-6 text-brand-fg" />
             </div>
           </div>
 
@@ -493,17 +493,17 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       className="w-full text-left p-3.5 sm:px-4 flex items-center justify-between hover:bg-surface-2/60 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center space-x-3 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg shrink-0">
                           <Award className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex items-center space-x-2">
                           <h3 className="text-xs sm:text-sm font-bold text-fg">{type}</h3>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-brand/10 text-brand-fg border border-brand/20">
                             {groupGrades.length} Not
                           </span>
                           {groupAvg > 0 && (
                             <span className="text-[11px] text-muted hidden sm:inline">
-                              • Grup Ortalaması: <strong className="text-emerald-700 dark:text-emerald-400">{groupAvg}</strong>
+                              • Grup Ortalaması: <strong className="text-success-fg">{groupAvg}</strong>
                             </span>
                           )}
                         </div>
@@ -557,12 +557,12 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                     <span
                                       className={`text-sm font-extrabold px-2 py-0.5 rounded-lg border ${
                                         g.score >= 85
-                                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+                                          ? 'bg-success/10 text-success-fg border-success/20'
                                           : g.score >= 70
-                                          ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20'
+                                          ? 'bg-info/10 text-info-fg border-info/20'
                                           : g.score >= 50
-                                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20'
-                                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+                                          ? 'bg-warning/10 text-warning-fg border-warning/20'
+                                          : 'bg-danger/10 text-danger-fg border-danger/20'
                                       }`}
                                     >
                                       {g.score}
@@ -573,7 +573,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setGradeToDelete(g)}
-                                    className="p-1.5 text-subtle hover:text-rose-400 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                                    className="p-1.5 text-subtle hover:text-danger-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                                     title="Notu Sil"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -620,7 +620,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                         <tr key={g.id} className="hover:bg-surface-2/30 transition-colors">
                           <td className="px-4 py-3 font-bold text-fg">{g.studentName}</td>
                           <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-brand/10 text-brand-fg border border-brand/20">
                               {g.examType}
                             </span>
                           </td>
@@ -628,12 +628,12 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                             <span
                               className={
                                 g.score >= 85
-                                  ? 'text-emerald-700 dark:text-emerald-400'
+                                  ? 'text-success-fg'
                                   : g.score >= 70
-                                  ? 'text-blue-700 dark:text-blue-400'
+                                  ? 'text-info-fg'
                                   : g.score >= 50
-                                  ? 'text-amber-700 dark:text-amber-400'
-                                  : 'text-rose-700 dark:text-rose-400'
+                                  ? 'text-warning-fg'
+                                  : 'text-danger-fg'
                               }
                             >
                               {g.score}
@@ -646,7 +646,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                             <button
                               type="button"
                               onClick={() => setGradeToDelete(g)}
-                              className="p-1 text-subtle hover:text-rose-400 rounded transition-colors cursor-pointer"
+                              className="p-1 text-subtle hover:text-danger-fg rounded transition-colors cursor-pointer"
                               title="Notu Sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -666,7 +666,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 bg-surface/90 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg shrink-0">
                     <Award className="w-4 h-4" />
                   </div>
                   <div>
@@ -738,7 +738,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                           </td>
                           <td className="px-4 py-3 text-right">
                             {hasEntered ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-warning/20 text-warning-fg border border-warning/30">
                                 Kaydedilmedi
                               </span>
                             ) : (
@@ -756,13 +756,13 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <div className="p-4 bg-canvas/90 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center space-x-2 text-xs">
                   {batchSaveFeedback ? (
-                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-success/15 text-success-fg border border-success/30 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-success-fg" />
                       <span>{batchSaveFeedback}</span>
                     </span>
                   ) : batchEnteredCount > 0 ? (
-                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold animate-pulse">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-warning/15 text-warning-fg border border-warning/30 font-semibold animate-pulse">
+                      <AlertTriangle className="w-3.5 h-3.5 text-warning-fg" />
                       <span>{batchEnteredCount} öğrenci için not girildi</span>
                     </span>
                   ) : null}
@@ -809,7 +809,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           <div className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
               <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <Award className="w-4 h-4 text-indigo-700 dark:text-indigo-400" />
+                <Award className="w-4 h-4 text-brand-fg" />
                 <span>Yeni Not / Değerlendirme Ekle</span>
               </h3>
               <button

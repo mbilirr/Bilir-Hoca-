@@ -43,7 +43,7 @@ export const KarneSmsModal: React.FC<{
   const send = () => onSend(aud.veli && rels.length ? { ...aud, veliYakinlik: rels } : aud);
   const box = (key: 'ogrenci' | 'veli', label: string) => (
     <label className={cx('flex h-8 flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-semibold', aud[key] ? 'border-brand/40 bg-brand-soft text-fg' : 'border-line text-fg-2')}>
-      <input type="checkbox" checked={aud[key]} onChange={() => setAud((a) => ({ ...a, [key]: !a[key] }))} className="accent-indigo-600" data-aud={key} />
+      <input type="checkbox" checked={aud[key]} onChange={() => setAud((a) => ({ ...a, [key]: !a[key] }))} className="accent-brand" data-aud={key} />
       {label}
     </label>
   );

@@ -64,7 +64,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
+      className="fixed inset-0 z-[10000] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -76,14 +76,14 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
           {/* Header Bar */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-canvas/60">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <div className="w-8 h-8 rounded-lg bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg">
               <Mail className="w-4 h-4" />
             </div>
             <div>
               <span className="text-xs font-bold text-fg tracking-wide">
                 E-Posta Önizlemesi & İletim Kaydı
               </span>
-              <div className="flex items-center space-x-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <div className="flex items-center space-x-1.5 text-[11px] text-success-fg">
                 <CheckCircle2 className="w-3 h-3" />
                 <span>Otomatik Olarak İletildi</span>
               </div>
@@ -98,7 +98,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
                 onClick={() => setViewMode('html')}
                 className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                   viewMode === 'html'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'text-muted hover:text-fg'
                 }`}
               >
@@ -109,7 +109,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
                 onClick={() => setViewMode('text')}
                 className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                   viewMode === 'text'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : 'text-muted hover:text-fg'
                 }`}
               >
@@ -136,7 +136,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
             <div className="flex items-center space-x-2 text-fg-2">
-              <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <User className="w-3.5 h-3.5 text-brand-fg shrink-0" />
               <span className="text-muted">Gönderen:</span>
               <span className="font-semibold text-fg">
                 {email.senderName}{' '}
@@ -147,7 +147,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             </div>
 
             <div className="flex items-center space-x-2 text-fg-2">
-              <Mail className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+              <Mail className="w-3.5 h-3.5 text-success-fg shrink-0" />
               <span className="text-muted">Alıcı:</span>
               <span className="font-semibold text-fg">
                 {email.recipientName}{' '}
@@ -158,14 +158,14 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             </div>
 
             <div className="flex items-center space-x-2 text-fg-2">
-              <Clock className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400 shrink-0" />
+              <Clock className="w-3.5 h-3.5 text-info-fg shrink-0" />
               <span className="text-muted">Tarih:</span>
               <span className="text-fg">{formattedDate}</span>
             </div>
 
             <div className="flex items-center space-x-2">
               <span className="text-muted">Durum:</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/15 text-success-fg border border-success/30">
                 ✓ Başarıyla Teslim Edildi
               </span>
             </div>
@@ -200,8 +200,8 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                  <span className="text-emerald-700 dark:text-emerald-400">Kopyalandı</span>
+                  <Check className="w-3.5 h-3.5 text-success-fg" />
+                  <span className="text-success-fg">Kopyalandı</span>
                 </>
               ) : (
                 <>
@@ -215,7 +215,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
               href={mailtoLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300 text-xs font-semibold border border-line transition-colors"
+              className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-brand-fg text-xs font-semibold border border-line transition-colors"
               title="Varsayılan Mail Uygulamasında Aç"
             >
               <ExternalLink className="w-3.5 h-3.5" />

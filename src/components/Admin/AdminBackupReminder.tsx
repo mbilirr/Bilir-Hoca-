@@ -32,10 +32,10 @@ export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ on
     <div
       id="admin-backup-reminder"
       role="status"
-      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-emerald-700 dark:text-emerald-100"
+      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-success/10 border border-success/40 text-success-fg"
     >
       <div className="flex items-center gap-2.5 text-sm">
-        <DatabaseBackup className="w-4 h-4 text-emerald-700 dark:text-emerald-300 shrink-0" />
+        <DatabaseBackup className="w-4 h-4 text-success-fg shrink-0" />
         <span>
           {days === null ? 'Henüz hiç veri yedeği alınmadı.' : `Son veri yedeği ${days} gün önce alındı.`} Haftada bir yedek
           almanız önerilir.
@@ -45,7 +45,7 @@ export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ on
         <button
           type="button"
           onClick={onOpenBackup}
-          className="ui-btn ui-btn-sm bg-emerald-500 text-slate-950 hover:bg-emerald-400 min-w-24"
+          className="ui-btn ui-btn-sm bg-success text-slate-950 hover:bg-success/40 min-w-24"
         >
           Yedek Al
         </button>
@@ -53,7 +53,7 @@ export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ on
           type="button"
           onClick={() => setDismissed(true)}
           aria-label="Hatırlatmayı kapat"
-          className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/20"
+          className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-success-fg hover:bg-success/20"
         >
           <X className="w-4 h-4" />
         </button>

@@ -118,7 +118,7 @@ export const AdminMaintenancePanel: React.FC = () => {
       {/* YEDEK */}
       <section className="bg-surface border border-line rounded-2xl p-5 shadow-lg space-y-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-success/15 border border-success/30 text-success-fg flex items-center justify-center shrink-0">
             <DatabaseBackup className="w-5 h-5" />
           </div>
           <div>
@@ -126,7 +126,7 @@ export const AdminMaintenancePanel: React.FC = () => {
             <p className="text-xs text-muted">Öğrenciler, sınıflar, ödevler, teslimler, notlar, yoklama, etütler, mesajlar…</p>
           </div>
         </div>
-        <p className={`text-xs ${backupOverdue ? 'text-amber-700 dark:text-amber-300' : 'text-fg-2'}`}>
+        <p className={`text-xs ${backupOverdue ? 'text-warning-fg' : 'text-fg-2'}`}>
           Son yedek: <strong>{lastText}</strong>
         </p>
         {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
@@ -139,7 +139,7 @@ export const AdminMaintenancePanel: React.FC = () => {
           type="button"
           onClick={handleBackup}
           disabled={backupBusy}
-          className="w-full sm:w-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full sm:w-auto px-4 py-1.5 bg-success hover:bg-success disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center justify-center gap-2 cursor-pointer"
         >
           {backupBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {backupBusy ? backupProgress || 'Hazırlanıyor…' : 'Yedeği İndir (Excel + JSON)'}
@@ -149,8 +149,8 @@ export const AdminMaintenancePanel: React.FC = () => {
             role={backupMsg.type === 'err' ? 'alert' : 'status'}
             className={`p-3 rounded-xl text-xs border flex gap-2 ${
               backupMsg.type === 'ok'
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/30 text-emerald-700 dark:text-emerald-200'
-                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-500/30 text-rose-600 dark:text-rose-200'
+                ? 'bg-success-soft border-success/30 text-success-fg'
+                : 'bg-danger-soft border-danger/30 text-danger-fg'
             }`}
           >
             {backupMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
@@ -162,7 +162,7 @@ export const AdminMaintenancePanel: React.FC = () => {
       {/* ESKİ DOSYALAR */}
       <section className="bg-surface border border-line rounded-2xl p-5 shadow-lg space-y-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-brand/15 border border-brand/30 text-brand-fg flex items-center justify-center shrink-0">
             <FolderSync className="w-5 h-5" />
           </div>
           <div>
@@ -189,7 +189,7 @@ export const AdminMaintenancePanel: React.FC = () => {
               type="button"
               onClick={handleMove}
               disabled={moveBusy}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center gap-2 cursor-pointer"
+              className="px-4 py-1.5 bg-brand hover:bg-brand-hover disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center gap-2 cursor-pointer"
             >
               {moveBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderSync className="w-4 h-4" />}
               {moveBusy && moveProgress ? `Taşınıyor… ${moveProgress.done}/${moveProgress.total}` : `${scan.totalFiles} Dosyayı Taşı`}
@@ -199,7 +199,7 @@ export const AdminMaintenancePanel: React.FC = () => {
         {scan && (
           <div role="status" className="text-xs text-fg-2 bg-canvas/60 border border-line rounded-xl p-3 space-y-1">
             {scan.totalFiles === 0 ? (
-              <p className="text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+              <p className="text-success-fg flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Taşınacak eski dosya kalmadı.
               </p>
             ) : (
@@ -220,8 +220,8 @@ export const AdminMaintenancePanel: React.FC = () => {
             role={moveResult.failed.length ? 'alert' : 'status'}
             className={`p-3 rounded-xl text-xs border ${
               moveResult.failed.length
-                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/30 text-amber-700 dark:text-amber-200'
-                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/30 text-emerald-700 dark:text-emerald-200'
+                ? 'bg-warning-soft border-warning/30 text-warning-fg'
+                : 'bg-success-soft border-success/30 text-success-fg'
             }`}
           >
             <p className="font-bold">{moveResult.moved} dosya depoya taşındı.</p>
@@ -240,7 +240,7 @@ export const AdminMaintenancePanel: React.FC = () => {
           </div>
         )}
         {legacyError && (
-          <div role="alert" className="p-3 rounded-xl text-xs border bg-rose-50 dark:bg-rose-950/40 border-rose-500/30 text-rose-600 dark:text-rose-200">
+          <div role="alert" className="p-3 rounded-xl text-xs border bg-danger-soft border-danger/30 text-danger-fg">
             {legacyError}
           </div>
         )}

@@ -522,7 +522,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           </h1>
           <div className="hidden md:flex items-center gap-2.5" aria-hidden="true">
             <span className="auth-pill">
-              <b className="bg-amber-400" />
+              <b className="bg-warning/40" />
               Öğrenci
             </span>
             <span className="auth-pill">
@@ -530,7 +530,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               Öğretmen
             </span>
             <span className="auth-pill">
-              <b className="bg-emerald-300" />
+              <b className="bg-success/40" />
               Veli
             </span>
           </div>

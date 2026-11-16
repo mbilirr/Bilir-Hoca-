@@ -50,10 +50,10 @@ const subjectSplit = (t: WeeklyQuestionTarget): Array<[string, number]> => {
 
 // Hücre renkleri: tamam = yeşil, eksik = turuncu, hiç girilmedi = kırmızı, bugün = mavi, gelecek = gri
 const CELL: Record<TargetDayRow['status'], string> = {
-  met: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200',
-  partial: 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200',
-  none: 'bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200',
-  today: 'bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200',
+  met: 'bg-success-soft text-success-fg',
+  partial: 'bg-warning-soft text-warning-fg',
+  none: 'bg-danger-soft text-danger-fg',
+  today: 'bg-info-soft text-info-fg',
   future: 'text-muted',
 };
 
@@ -170,13 +170,13 @@ export const TargetSummaryTable: React.FC<{
               return (
                 <li
                   key={it.id}
-                  className={cx('flex items-start gap-1.5 font-semibold', solved ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}
+                  className={cx('flex items-start gap-1.5 font-semibold', solved ? 'text-success-fg' : 'text-danger-fg')}
                 >
                   {solved ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
                   <span className="min-w-0">
                     {normalizeSubject(it.subject)}
                     {task ? ` – ${task}` : ''}
-                    {solved && <span className="ml-1 font-black tabular-nums">· {count}</span>}
+                    {solved && <span className="ml-1 font-bold tabular-nums">· {count}</span>}
                   </span>
                 </li>
               );
@@ -184,7 +184,7 @@ export const TargetSummaryTable: React.FC<{
             {offPlan.map((s) => (
               <li key={`x-${s}`} className="font-semibold text-fg pl-5">
                 {s}
-                <span className="ml-1 font-black tabular-nums">· {rec?.bySubject.get(s) || 0}</span>
+                <span className="ml-1 font-bold tabular-nums">· {rec?.bySubject.get(s) || 0}</span>
               </li>
             ))}
           </ul>
@@ -220,10 +220,10 @@ export const TargetSummaryTable: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted" aria-label="Renk açıklaması">
-          <Legend cls="bg-emerald-500" text="Tamam" />
-          <Legend cls="bg-amber-500" text="Eksik" />
-          <Legend cls="bg-rose-500" text="Girilmedi" />
-          <Legend cls="bg-sky-500" text="Bugün" />
+          <Legend cls="bg-success" text="Tamam" />
+          <Legend cls="bg-warning" text="Eksik" />
+          <Legend cls="bg-danger" text="Girilmedi" />
+          <Legend cls="bg-info" text="Bugün" />
         </div>
       </header>
 
@@ -238,7 +238,7 @@ export const TargetSummaryTable: React.FC<{
                 <th
                   key={d}
                   scope="col"
-                  className={cx('font-semibold px-1.5 py-2.5 text-center whitespace-nowrap', d === today && 'text-sky-700 dark:text-sky-300')}
+                  className={cx('font-semibold px-1.5 py-2.5 text-center whitespace-nowrap', d === today && 'text-info-fg')}
                 >
                   <span className="block">{GUN[i]}</span>
                   <span className="block text-[10px] font-normal text-muted">{shortDate(d)}</span>
@@ -280,7 +280,7 @@ export const TargetSummaryTable: React.FC<{
                         {split.length > 0 && (
                           <div className="text-[11px] text-fg-2 mt-1 flex flex-wrap gap-x-2">
                             {split.map(([s, n]) => (
-                              <span key={s} className={cx((bySubject[s] || 0) >= n && 'text-emerald-700 dark:text-emerald-300 font-semibold')}>
+                              <span key={s} className={cx((bySubject[s] || 0) >= n && 'text-success-fg font-semibold')}>
                                 {s} {bySubject[s] || 0}/{n}
                               </span>
                             ))}
@@ -342,7 +342,7 @@ export const TargetSummaryTable: React.FC<{
                       {res.solved} / {res.total}
                     </div>
                     <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
-                      <div className={cx('h-full rounded-full', done ? 'bg-emerald-500' : 'bg-amber-500')} style={{ width: `${res.percent}%` }} />
+                      <div className={cx('h-full rounded-full', done ? 'bg-success' : 'bg-warning')} style={{ width: `${res.percent}%` }} />
                     </div>
                     <div className="text-[10px] text-muted mt-0.5">%{res.percent}</div>
                   </td>
@@ -389,7 +389,7 @@ export const TargetSummaryTable: React.FC<{
                     key={d}
                     className={cx(
                       'px-1.5 py-2 text-center font-bold tabular-nums',
-                      future ? 'text-muted' : g > 0 && n >= g ? 'text-emerald-700 dark:text-emerald-300' : g > 0 && d < today ? 'text-rose-700 dark:text-rose-300' : 'text-fg'
+                      future ? 'text-muted' : g > 0 && n >= g ? 'text-success-fg' : g > 0 && d < today ? 'text-danger-fg' : 'text-fg'
                     )}
                   >
                     {future && n === 0 && !planItems.some((it) => it.date === d) ? (

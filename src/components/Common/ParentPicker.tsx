@@ -117,7 +117,7 @@ export const ParentChecklist: React.FC<{
           >
             <input
               type="checkbox"
-              className="accent-indigo-600"
+              className="accent-brand"
               checked={reach && on.has(i)}
               disabled={!reach}
               onChange={() => onChange(on.has(i) ? value.filter((x) => x !== i) : [...value, i].sort())}

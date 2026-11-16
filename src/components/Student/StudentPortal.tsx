@@ -610,7 +610,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   <div>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-brand/20 text-brand-fg border border-brand/30">
                         {hw.subject}
                       </span>
 
@@ -631,7 +631,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Resources (Video, Link, PDF) from Teacher */}
                     {((hw.resources && hw.resources.length > 0) || hw.attachmentUrl) && (
                       <div className="mb-4 p-3 bg-canvas/60 rounded-xl border border-line">
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-1.5">
+                        <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
                           📎 Ödev Materyalleri & Kaynaklar
                         </span>
                         <HomeworkResourceViewer
@@ -644,7 +644,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Learning Outcomes (Kazanımlar) */}
                     {outcomes.length > 0 && (
                       <div className="mb-4 bg-canvas/40 p-3 rounded-xl border border-line">
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-1.5">
+                        <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
                           🎯 İlgili Kazanımlar
                         </span>
                         <ul className="space-y-1">
@@ -653,7 +653,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                               key={idx}
                               className="text-xs text-fg-2 flex items-center space-x-1.5"
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0"></span>
                               <span className="truncate">{outcome}</span>
                             </li>
                           ))}
@@ -664,7 +664,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Due Date & Submission Info */}
                     <div className="flex items-center justify-between text-xs text-muted mb-4">
                       <div className="flex items-center space-x-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                        <Clock className="w-3.5 h-3.5 text-warning-fg" />
                         <span>
                           Son Teslim:{' '}
                           <strong className="text-fg font-medium">
@@ -683,7 +683,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Student's own submitted resources */}
                     {mySubmission?.resources && mySubmission.resources.length > 0 && (
                       <div className="p-3 bg-canvas/50 border border-line rounded-xl mb-4 text-xs">
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-300 uppercase block mb-1">
+                        <span className="text-[10px] font-bold text-brand-fg uppercase block mb-1">
                           📤 Gönderdiğiniz Çözüm Materyalleri:
                         </span>
                         <HomeworkResourceViewer resources={mySubmission.resources} isCompact />
@@ -692,8 +692,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Teacher Feedback / Grade if available */}
                     {mySubmission?.score !== undefined && mySubmission.score !== null && (
-                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-xl mb-4 text-xs">
-                        <div className="flex items-center justify-between font-bold text-emerald-700 dark:text-emerald-300 mb-1">
+                      <div className="p-3 bg-success-soft border border-success/30 rounded-xl mb-4 text-xs">
+                        <div className="flex items-center justify-between font-bold text-success-fg mb-1">
                           <span>Öğretmen Değerlendirmesi:</span>
                           <span className="text-sm font-extrabold">{mySubmission.score} / 100</span>
                         </div>
@@ -712,7 +712,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       className={`ui-btn ui-btn-sm ${
                         mySubmission
                           ? 'bg-surface-2 hover:bg-surface-3 text-fg'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                          : 'bg-brand hover:bg-brand-hover text-white'
                       }`}
                     >
                       <UploadCloud className="w-3.5 h-3.5" />
@@ -723,7 +723,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       href={createGoogleCalendarUrlForHomework(hw)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/30 rounded-xl text-xs transition-all"
+                      className="p-2 bg-info/10 hover:bg-info/20 text-info-fg border border-info/30 rounded-xl text-xs transition-all"
                       title="Google Takvime Ekle"
                     >
                       <CalendarCheck className="w-3.5 h-3.5" />
@@ -759,7 +759,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface border border-line p-4 rounded-2xl">
             <div>
               <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <Calendar className="w-5 h-5 text-brand-fg" />
                 <span>Etütlerim & Çalışma Programım</span>
               </h3>
               <p className="text-xs text-muted mt-0.5">
@@ -773,7 +773,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 onClick={() => setEtutViewMode('calendar')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   etutViewMode === 'calendar'
-                    ? 'bg-indigo-600 text-white font-bold shadow'
+                    ? 'bg-brand text-white font-bold shadow'
                     : 'text-muted hover:text-fg'
                 }`}
               >
@@ -784,7 +784,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 onClick={() => setEtutViewMode('cards')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   etutViewMode === 'cards'
-                    ? 'bg-indigo-600 text-white font-bold shadow'
+                    ? 'bg-brand text-white font-bold shadow'
                     : 'text-muted hover:text-fg'
                 }`}
               >
@@ -814,7 +814,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
                           {etut.subject}
                         </span>
                         <span className="flex items-center gap-2">
@@ -832,13 +832,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                       <div className="space-y-2 text-xs text-muted mb-4 bg-surface-2 p-3 rounded-xl border border-line">
                         <div className="flex items-center space-x-2">
-                          <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
+                          <Clock className="w-3.5 h-3.5 text-warning-fg" />
                           <span className="text-fg font-medium">
                             {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                          <MapPin className="w-3.5 h-3.5 text-danger-fg" />
                           <span className="text-fg-2 font-medium">{etut.location}</span>
                         </div>
                         {etut.notes && (
@@ -847,8 +847,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           </p>
                         )}
                         {etut.teacherFeedback && (
-                          <div className="mt-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-900 dark:text-amber-200">
-                            <strong className="text-amber-800 dark:text-amber-200 font-semibold block text-[11px]">💬 Öğretmen notu:</strong>
+                          <div className="mt-2 p-2.5 rounded-lg bg-warning-soft border border-warning/30 text-xs text-warning-fg">
+                            <strong className="text-warning-fg font-semibold block text-[11px]">💬 Öğretmen notu:</strong>
                             <p className="italic text-fg-2 mt-0.5">"{etut.teacherFeedback}"</p>
                           </div>
                         )}
@@ -860,9 +860,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         href={createGoogleCalendarUrlForEtut(etut)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-xs font-semibold transition-all"
+                        className="inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-brand-soft hover:bg-brand-soft text-brand-fg border border-brand/30 rounded-xl text-xs font-semibold transition-all"
                       >
-                        <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+                        <CalendarCheck className="w-3.5 h-3.5 text-brand-fg" />
                         <span>Google Takvime Ekle</span>
                       </a>
 
@@ -911,19 +911,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Katılım Durumu</span>
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{presentDays} etüt</div>
+              <div className="text-2xl font-bold text-success-fg mt-1">{presentDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Devamsızlık (Yok)</span>
-              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{absentDays} etüt</div>
+              <div className="text-2xl font-bold text-danger-fg mt-1">{absentDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">Geç Kalma</span>
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{lateDays} etüt</div>
+              <div className="text-2xl font-bold text-warning-fg mt-1">{lateDays} etüt</div>
             </div>
             <div className="p-4 bg-surface border border-line rounded-2xl">
               <span className="text-xs text-muted">İzinli / Raporlu</span>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{excusedDays} etüt</div>
+              <div className="text-2xl font-bold text-info-fg mt-1">{excusedDays} etüt</div>
             </div>
           </div>
           )}
@@ -931,7 +931,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           {/* Grades Table */}
           <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-xl">
             <div className="p-4 border-b border-line font-bold text-fg flex items-center space-x-2">
-              <Award className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Award className="w-4 h-4 text-brand-fg" />
               <span>Ders Notlarım & Sınav Sonuçları</span>
             </div>
             <table className="w-full text-left text-sm text-fg-2">
@@ -956,7 +956,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     <tr key={g.id} className="hover:bg-surface-2/30">
                       <td className="px-6 py-4 font-semibold text-fg">{g.subject}</td>
                       <td className="px-6 py-4">
-                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-brand/10 text-brand-fg border border-brand/20">
                           {g.examType}
                         </span>
                       </td>
@@ -964,10 +964,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         <span
                           className={
                             g.score >= 85
-                              ? 'text-emerald-700 dark:text-emerald-400'
+                              ? 'text-success-fg'
                               : g.score >= 70
-                              ? 'text-blue-600 dark:text-blue-400'
-                              : 'text-amber-700 dark:text-amber-400'
+                              ? 'text-info-fg'
+                              : 'text-warning-fg'
                           }
                         >
                           {g.score}
@@ -992,14 +992,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <div className="lg:col-span-5 bg-surface border border-line rounded-2xl p-6 shadow-xl space-y-4">
             <div>
               <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <HelpCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <HelpCircle className="w-4 h-4 text-brand-fg" />
                 <span>Öğretmene Soru / Mesaj İlet</span>
               </h3>
             </div>
 
             {messageSentFeedback && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+              <div className="p-3 bg-success-soft border border-success/30 rounded-xl text-xs text-success-fg flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-success-fg" />
                 <span>Mesajınız başarıyla öğretmene iletildi!</span>
               </div>
             )}
@@ -1118,7 +1118,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         href={safeHttpUrl(msg.linkUrl) as string}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="inline-flex items-center space-x-1 text-xs text-brand-fg hover:underline"
                       >
                         <ExternalLink className="w-3 h-3" />
                         <span>Eklenen Bağlantı</span>
@@ -1127,14 +1127,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Teacher Reply */}
                     {msg.teacherReply ? (
-                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1">
-                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">
+                      <div className="p-3 bg-success-soft border border-success/30 rounded-xl space-y-1">
+                        <span className="text-[10px] font-bold text-success-fg block">
                           ✓ {msg.repliedByName ? `${msg.repliedByName} yanıtladı:` : 'Öğretmeninizin Yanıtı:'}
                         </span>
                         <p className="text-xs text-fg">{msg.teacherReply}</p>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 flex items-center space-x-1">
+                      <div className="text-[11px] text-warning-fg/80 flex items-center space-x-1">
                         <Clock className="w-3 h-3" />
                         <span>Öğretmenin yanıtı bekleniyor...</span>
                       </div>
@@ -1169,7 +1169,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       {/* SUBMISSION MODAL */}
       {submittingHw && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <OverlayLayer onClose={cancelSubmittingHw} />
           <div className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-fg mb-2">Ödevi Teslim Et</h3>
@@ -1188,7 +1188,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 onBusyChange={setIsSubmissionUploadBusy}
               />
               {pendingSubmissionResource && (
-                <p className="text-[11px] text-indigo-600 dark:text-indigo-300 -mt-2">
+                <p className="text-[11px] text-brand-fg -mt-2">
                   Yazdığınız bağlantı ("{pendingSubmissionResource.title}") teslim ederken otomatik olarak eklenecek.
                 </p>
               )}
@@ -1207,7 +1207,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </div>
 
               {submitError && (
-                <div role="alert" className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-500/40 rounded-xl text-xs text-rose-600 dark:text-rose-300">
+                <div role="alert" className="p-3 bg-danger-soft border border-danger/40 rounded-xl text-xs text-danger-fg">
                   {submitError}
                 </div>
               )}

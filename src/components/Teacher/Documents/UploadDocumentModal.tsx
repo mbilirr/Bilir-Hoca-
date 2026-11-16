@@ -280,7 +280,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
     >
       <form id="upload-document-form" onSubmit={handleSubmit} className="space-y-3.5">
         {errorMsg && (
-          <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2">
+          <div role="alert" className="p-3 bg-danger/10 border border-danger/30 rounded-xl text-danger-fg text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -367,13 +367,13 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
-              isDragOver ? 'border-brand bg-brand-soft/40' : selectedFile ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-line bg-surface-2/50 hover:border-line-strong'
+              isDragOver ? 'border-brand bg-brand-soft/40' : selectedFile ? 'border-success/50 bg-success/5' : 'border-line bg-surface-2/50 hover:border-line-strong'
             }`}
           >
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".docx,.doc,.pdf,.xlsx,.xls" className="hidden" />
             {selectedFile ? (
               <div className="flex items-center justify-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                <div className="p-2 rounded-xl bg-success/15 text-success-fg border border-success/30">
                   {fileFormat === 'xlsx' ? <FileSpreadsheet className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                 </div>
                 <div className="text-left min-w-0">

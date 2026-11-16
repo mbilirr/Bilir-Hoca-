@@ -167,7 +167,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -179,7 +179,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Header */}
           <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg">
                 <User className="w-5 h-5" />
               </div>
               <div>
@@ -199,14 +199,14 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
+              <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
+              <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
@@ -223,7 +223,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full border border-surface shadow-md cursor-pointer transition-transform hover:scale-110"
+                    className="absolute -bottom-1 -right-1 p-1.5 bg-brand hover:bg-brand-hover text-white rounded-full border border-surface shadow-md cursor-pointer transition-transform hover:scale-110"
                     title="Bilgisayardan Fotoğraf Seç"
                   >
                     <Camera className="w-3.5 h-3.5" />
@@ -257,7 +257,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                       <button
                         type="button"
                         onClick={() => setAvatar('')}
-                        className="ui-btn ui-btn-sm text-rose-600 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-500/20 min-w-24"
+                        className="ui-btn ui-btn-sm text-danger-fg hover:text-danger-fg hover:bg-danger-soft border border-danger/20 min-w-24"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Kaldır</span>
@@ -294,7 +294,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Adı Soyadı */}
           <div>
             <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Ad Soyad <span className="text-rose-600 dark:text-rose-400">*</span>
+              Ad Soyad <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -313,9 +313,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-fg-2">
-                Kullanıcı Adı <span className="text-rose-600 dark:text-rose-400">*</span>
+                Kullanıcı Adı <span className="text-danger-fg">*</span>
               </label>
-              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Giriş yaparken kullanılır</span>
+              <span className="text-[10px] text-brand-fg font-medium">Giriş yaparken kullanılır</span>
             </div>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted font-bold text-xs">@</span>
@@ -341,7 +341,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Branş */}
           <div>
             <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Branş <span className="text-rose-600 dark:text-rose-400">*</span>
+              Branş <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <BookOpen className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -502,7 +502,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
       onClick={isMandatory ? undefined : onClose}
     >
       <OverlayLayer onClose={isMandatory ? undefined : onClose} />
@@ -514,7 +514,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Header */}
           <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400">
+              <div className="w-9 h-9 rounded-xl bg-warning/20 border border-warning/30 flex items-center justify-center text-warning-fg">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
@@ -538,14 +538,14 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -554,7 +554,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Mevcut Şifre */}
           <div>
             <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Mevcut Şifre <span className="text-rose-600 dark:text-rose-400">*</span>
+              Mevcut Şifre <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -579,7 +579,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Yeni Şifre */}
           <div>
             <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Yeni Şifre <span className="text-rose-600 dark:text-rose-400">*</span>
+              Yeni Şifre <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -604,7 +604,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Yeni Şifre Tekrar */}
           <div>
             <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Yeni Şifre (Tekrar) <span className="text-rose-600 dark:text-rose-400">*</span>
+              Yeni Şifre (Tekrar) <span className="text-danger-fg">*</span>
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />

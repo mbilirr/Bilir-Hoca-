@@ -42,7 +42,7 @@ export const ExpandableStrip: React.FC<ExpandableStripProps> = ({
   children,
   noun = 'kayıt',
   className,
-  accent = 'border-l-indigo-500',
+  accent = 'border-l-brand',
 }) => (
   <div
     id={id}
@@ -51,7 +51,7 @@ export const ExpandableStrip: React.FC<ExpandableStripProps> = ({
     className={cx(
       'rounded-xl border border-l-4 bg-surface transition-all scroll-mt-24',
       accent,
-      open ? 'border-indigo-300 dark:border-indigo-500/50 shadow-md ring-1 ring-indigo-500/10' : 'border-line hover:border-line-strong shadow-sm',
+      open ? 'border-brand/30 shadow-md ring-1 ring-brand/10' : 'border-line hover:border-line-strong shadow-sm',
       className
     )}
   >
@@ -86,7 +86,7 @@ export const ExpandableStrip: React.FC<ExpandableStripProps> = ({
           className={cx(
             // Telefonda gizli: şeridin kendisine dokunmak yeterli (yer kazanmak için)
             'hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors border',
-            open ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-surface-2 border-line text-fg-2 hover:bg-surface-3'
+            open ? 'bg-brand border-brand text-white' : 'bg-surface-2 border-line text-fg-2 hover:bg-surface-3'
           )}
         >
           <span>{open ? 'Kapat' : 'Ayrıntı'}</span>
@@ -110,9 +110,9 @@ export const StripAction: React.FC<
     className={cx(
       'p-1.5 rounded-lg transition-colors cursor-pointer text-subtle',
       tone === 'danger'
-        ? 'hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10'
+        ? 'hover:text-danger-fg hover:bg-danger-soft'
         : tone === 'success'
-          ? 'hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+          ? 'hover:text-success-fg hover:bg-success-soft'
           : 'hover:text-fg-2 hover:bg-surface-2',
       className
     )}
@@ -141,7 +141,7 @@ export const StripProgress: React.FC<{ label: string; value: number; total: numb
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden mt-1">
-        <div className={cx('h-full rounded-full transition-all', done || (total > 0 && value >= total) ? 'bg-emerald-500' : 'bg-indigo-500')} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className={cx('h-full rounded-full transition-all', done || (total > 0 && value >= total) ? 'bg-success' : 'bg-brand')} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
     </div>
   );

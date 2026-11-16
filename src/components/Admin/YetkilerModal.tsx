@@ -289,7 +289,7 @@ export const YetkilerModal: React.FC<{
                       on ? 'border-brand bg-brand-soft text-fg font-semibold' : 'border-line bg-surface text-fg-2 hover:bg-surface-2'
                     )}
                   >
-                    <input type="checkbox" checked={on} disabled={locked} onChange={() => toggleRole(r.code)} className="accent-indigo-600" data-role={r.code} />
+                    <input type="checkbox" checked={on} disabled={locked} onChange={() => toggleRole(r.code)} className="accent-brand" data-role={r.code} />
                     <span className="truncate">{r.label}</span>
                     {r.code === 'mudur' && mudurLocked && <Lock className="w-3 h-3 ml-auto shrink-0" />}
                   </label>

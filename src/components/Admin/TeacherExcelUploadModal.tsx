@@ -48,7 +48,7 @@ export interface TeacherExcelUploadModalProps {
 type Stage = 'select' | 'creating' | 'done';
 type MailState = 'idle' | 'sending' | 'done';
 
-const inputCls = 'h-8 w-full px-2.5 bg-canvas border border-line rounded-lg text-fg text-xs focus:outline-none focus:border-indigo-500';
+const inputCls = 'h-8 w-full px-2.5 bg-canvas border border-line rounded-lg text-fg text-xs focus:outline-none focus:border-brand';
 const credentialText = (c: TeacherCredential) =>
   `Merhaba ${c.name},\nbiliredu öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${c.username}\nŞifre: ${c.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`;
 
@@ -431,7 +431,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
           {stage === 'creating' && (
             <div className="space-y-1" aria-live="polite">
               <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-indigo-600 transition-[width]" style={{ width: `${Math.round((progress / Math.max(1, valid.length)) * 100)}%` }} />
+                <div className="h-full bg-brand transition-[width]" style={{ width: `${Math.round((progress / Math.max(1, valid.length)) * 100)}%` }} />
               </div>
               <div className="text-muted">Hesaplar açılıyor: {progress} / {valid.length}</div>
             </div>
@@ -478,7 +478,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                         <div className="text-[11px] text-muted">{c.branch}</div>
                       </td>
                       <td className="px-2 py-1.5 font-mono font-bold text-brand-fg select-all">{c.username}</td>
-                      <td className="px-2 py-1.5 font-mono font-bold text-amber-700 dark:text-amber-300 select-all">{c.password}</td>
+                      <td className="px-2 py-1.5 font-mono font-bold text-warning-fg select-all">{c.password}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{c.phone || '—'}</td>
                       <td className="px-2 py-1.5">
                         <div className="flex items-center justify-end gap-1">

@@ -166,7 +166,7 @@ const TeacherCredentialSendContent: React.FC<{ onClose: () => void; teachers: Te
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Öğretmen ara"
-            className="h-8 flex-1 px-2.5 bg-canvas border border-line rounded-lg text-fg text-xs focus:outline-none focus:border-indigo-500"
+            className="h-8 flex-1 px-2.5 bg-canvas border border-line rounded-lg text-fg text-xs focus:outline-none focus:border-brand"
             disabled={busy || !!result}
           />
           <button type="button" className={`${BTN} ui-btn-secondary`} onClick={toggleAll} disabled={busy || !!result || !shown.length}>
@@ -210,7 +210,7 @@ const TeacherCredentialSendContent: React.FC<{ onClose: () => void; teachers: Te
             {newCreds.map((c, i) => (
               <div key={i} className="flex justify-between gap-2 font-mono">
                 <span className="truncate">{c.name} · {c.username}</span>
-                <span className="font-bold text-amber-700 dark:text-amber-300">{c.password}</span>
+                <span className="font-bold text-warning-fg">{c.password}</span>
               </div>
             ))}
             <button type="button" className={`${BTN} ui-btn-secondary`} onClick={() => void copyNew()}>
