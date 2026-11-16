@@ -726,10 +726,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 className={`bg-surface ${status === 'past' ? 'opacity-90' : ''}`}
                 badges={
                   <>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-soft text-brand-fg">
                       {etut.subject}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-warning-soft text-warning-fg inline-flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {dateText} · {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                     </span>
@@ -737,13 +737,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       {ETUT_STATUS_STYLE[status].label}
                     </span>
                     {missingAtt && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 inline-flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-danger-soft text-danger-fg inline-flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
                         Yoklama alınmadı
                       </span>
                     )}
                     {etut.gradeLevel && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-info-soft text-info-fg">
                         {etut.gradeLevel}
                       </span>
                     )}
@@ -759,15 +759,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <span className="text-muted block">Yoklama</span>
                     {att.length > 0 ? (
                       <span className="flex flex-wrap gap-x-2">
-                        <span className="text-emerald-700 dark:text-emerald-300">{present} Geldi</span>
-                        <span className="text-rose-600 dark:text-rose-300">{absent} Gelmedi</span>
-                        {late > 0 && <span className="text-amber-700 dark:text-amber-300">{late} Geç</span>}
+                        <span className="text-success-fg">{present} Geldi</span>
+                        <span className="text-danger-fg">{absent} Gelmedi</span>
+                        {late > 0 && <span className="text-warning-fg">{late} Geç</span>}
                       </span>
                     ) : (
                       missingAtt ? (
-                        <span className="text-rose-700 dark:text-rose-300 font-bold">Alınmadı</span>
+                        <span className="text-danger-fg font-bold">Alınmadı</span>
                       ) : (
-                        <span className="text-amber-700 dark:text-amber-300 font-normal">Yoklama henüz alınmadı</span>
+                        <span className="text-warning-fg font-normal">Yoklama henüz alınmadı</span>
                       )
                     )}
                   </div>
@@ -806,18 +806,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <div className="grid gap-4 lg:grid-cols-2" data-etut-detail>
                   <div className="space-y-2 text-xs text-muted min-w-0">
                     <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
+                      <Clock className="w-3.5 h-3.5 text-warning-fg" />
                       <span className="text-fg font-medium">
                         {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <MapPin className="w-3.5 h-3.5 text-danger-fg" />
                       <span className="text-fg-2 font-medium">{etut.location}</span>
                     </div>
                     {etut.teacherName && (
-                      <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-semibold">
-                        <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+                      <div className="flex items-center gap-2 text-brand-fg font-semibold">
+                        <Users className="w-3.5 h-3.5 text-brand-fg" />
                         <span>
                           Öğretmen: <strong>{etut.teacherName}</strong> {etut.teacherBranch ? `(${etut.teacherBranch})` : ''}
                         </span>
@@ -830,7 +830,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       </p>
                     )}
                     {etut.teacherFeedback && (
-                      <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1">
+                      <div className="p-2.5 rounded-xl bg-warning-soft border border-warning/30 text-warning-fg space-y-1">
                         <div className="flex items-center gap-1.5 font-bold text-[11px]">
                           <MessageSquareQuote className="w-3.5 h-3.5 shrink-0" />
                           <span>Öğretmen Görüş ve Düşünceleri:</span>
@@ -849,7 +849,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         className="ui-btn ui-btn-secondary ui-btn-sm"
                         title="WhatsApp ve Mail ile İlet"
                       >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" /> WhatsApp / Mail
+                        <MessageCircle className="w-3.5 h-3.5 text-success-fg" /> WhatsApp / Mail
                       </button>
                       )}
                       <a
@@ -859,7 +859,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         className="ui-btn ui-btn-secondary ui-btn-sm"
                         title="Google Takvime Ekle"
                       >
-                        <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" /> Google Takvim
+                        <CalendarCheck className="w-3.5 h-3.5 text-info-fg" /> Google Takvim
                       </a>
                       <button
                         type="button"
@@ -884,7 +884,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center justify-between">
                       <span>Katılacak Öğrenciler ({assignedStudents.length})</span>
-                      {etut.assignedStudentIds === 'all' && <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold">Tümü Dahil</span>}
+                      {etut.assignedStudentIds === 'all' && <span className="text-[10px] text-brand-fg font-bold">Tümü Dahil</span>}
                     </p>
                     <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                       {assignedStudents.map((std) => {
@@ -897,12 +897,12 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               setReportSelectedStudentId(std.id);
                               setIsReportModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[11px] bg-surface-2 hover:bg-brand-soft text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
                             title={`${std.name} için etüt analizini görüntüle`}
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full ${
-                                st === 'present' ? 'bg-emerald-500' : st === 'absent' ? 'bg-rose-500' : st === 'late' ? 'bg-amber-500' : 'bg-indigo-500'
+                                st === 'present' ? 'bg-success' : st === 'absent' ? 'bg-danger' : st === 'late' ? 'bg-warning' : 'bg-brand'
                               }`}
                             ></span>
                             <span>{std.name}</span>
@@ -1062,7 +1062,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <h3 className="text-base font-bold text-fg">
                         Yoklama
                       </h3>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-brand/10 text-brand-fg border border-brand/20">
                         {assignedStudents.length} Kayıtlı Öğrenci
                       </span>
                     </div>
@@ -1086,21 +1086,21 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
                     <span className="text-base font-bold text-fg">{assignedStudents.length}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Geldi</span>
-                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-300">{countPresent}</span>
+                  <div className="p-2.5 rounded-xl bg-success/10 border border-success/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-success-fg block">Geldi</span>
+                    <span className="text-base font-bold text-success-fg">{countPresent}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 block">Gelmedi</span>
-                    <span className="text-base font-bold text-rose-600 dark:text-rose-300">{countAbsent}</span>
+                  <div className="p-2.5 rounded-xl bg-danger/10 border border-danger/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-danger-fg block">Gelmedi</span>
+                    <span className="text-base font-bold text-danger-fg">{countAbsent}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block">Geç Kaldı</span>
-                    <span className="text-base font-bold text-amber-700 dark:text-amber-300">{countLate}</span>
+                  <div className="p-2.5 rounded-xl bg-warning/10 border border-warning/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-warning-fg block">Geç Kaldı</span>
+                    <span className="text-base font-bold text-warning-fg">{countLate}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">İzinli</span>
-                    <span className="text-base font-bold text-sky-700 dark:text-sky-300">{countExcused}</span>
+                  <div className="p-2.5 rounded-xl bg-info/10 border border-info/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-info-fg block">İzinli</span>
+                    <span className="text-base font-bold text-info-fg">{countExcused}</span>
                   </div>
                 </div>
 
@@ -1113,7 +1113,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('present')}
-                      className="ui-btn ui-btn-sm bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
+                      className="ui-btn ui-btn-sm bg-success/20 hover:bg-success/30 border border-success/30 text-success-fg min-w-24"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Tümü geldi</span>
@@ -1121,7 +1121,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('absent')}
-                      className="ui-btn ui-btn-sm bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 min-w-24"
+                      className="ui-btn ui-btn-sm bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger-fg min-w-24"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       <span>Tümü gelmedi</span>
@@ -1129,7 +1129,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('excused')}
-                      className="ui-btn ui-btn-sm bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
+                      className="ui-btn ui-btn-sm bg-info/20 hover:bg-info/30 border border-info/30 text-info-fg min-w-24"
                     >
                       <Info className="w-3.5 h-3.5" />
                       <span>Tümü izinli</span>
@@ -1180,8 +1180,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'present')}
                               className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'present'
-                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-                                  : 'bg-surface hover:bg-emerald-600/20 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-500/40'
+                                  ? 'bg-success text-white ring-2 ring-success'
+                                  : 'bg-surface hover:bg-success/20 text-fg-2 hover:text-success-fg border border-line hover:border-success/40'
                               }`}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1194,8 +1194,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'absent')}
                               className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'absent'
-                                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
-                                  : 'bg-surface hover:bg-rose-600/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border border-line hover:border-rose-500/40'
+                                  ? 'bg-danger text-white ring-2 ring-danger'
+                                  : 'bg-surface hover:bg-danger/20 text-fg-2 hover:text-danger-fg border border-line hover:border-danger/40'
                               }`}
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -1208,8 +1208,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'late')}
                               className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'late'
-                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
-                                  : 'bg-surface hover:bg-amber-600/20 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-500/40'
+                                  ? 'bg-warning text-white ring-2 ring-warning'
+                                  : 'bg-surface hover:bg-warning/20 text-fg-2 hover:text-warning-fg border border-line hover:border-warning/40'
                               }`}
                             >
                               <AlertCircle className="w-3.5 h-3.5" />
@@ -1222,8 +1222,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               onClick={() => handleSingleAttendanceChange(std.id, std.name, 'excused')}
                               className={`ui-btn ui-btn-sm ${
                                 currentStatus === 'excused'
-                                  ? 'bg-sky-600 text-white ring-2 ring-sky-400'
-                                  : 'bg-surface hover:bg-sky-600/20 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-500/40'
+                                  ? 'bg-info text-white ring-2 ring-info'
+                                  : 'bg-surface hover:bg-info/20 text-fg-2 hover:text-info-fg border border-line hover:border-info/40'
                               }`}
                             >
                               <Info className="w-3.5 h-3.5" />
@@ -1260,7 +1260,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         if (attEtuts.length === 0) {
           return (
             <div className="bg-surface border border-line rounded-2xl p-12 text-center shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 text-brand-fg flex items-center justify-center mx-auto mb-4">
                 <CalendarCheck className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-bold text-fg mb-2">Henüz Kayıtlı Etüt Bulunmuyor</h3>
@@ -1285,8 +1285,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           <div className="space-y-5">
             {/* Bildirim Çubuğu */}
             {attendanceFeedback && (
-              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+              <div className="p-3 bg-success/15 border border-success/30 text-success-fg rounded-xl text-xs font-semibold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-success-fg shrink-0" />
                 <span>{attendanceFeedback}</span>
               </div>
             )}
@@ -1651,7 +1651,7 @@ const TeacherPicker: React.FC<{
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {blink && totalMissing > 0 && (
-            <span className="text-[10px] font-black text-rose-600 dark:text-rose-300" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
+            <span className="text-[10px] font-bold text-danger-fg" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
               ⚠ {missingTeachers}
             </span>
           )}
@@ -1694,7 +1694,7 @@ const TeacherPicker: React.FC<{
                   <span className="truncate">
                     {t} ({n})
                   </span>
-                  {showMiss && <span className="shrink-0 text-[11px] font-black text-rose-700 dark:text-rose-300">{miss} yoklama eksik</span>}
+                  {showMiss && <span className="shrink-0 text-[11px] font-bold text-danger-fg">{miss} yoklama eksik</span>}
                 </button>
               </li>
             );

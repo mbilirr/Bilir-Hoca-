@@ -181,7 +181,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -192,20 +192,20 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface/95 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+            <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                 <span>Etüt Yoklama ve Devamsızlık Takibi</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand-fg border border-brand/20">
                   {etut.subject}
                 </span>
               </h3>
               <p className="text-xs text-muted flex items-center space-x-2 mt-0.5">
                 <span>{etut.topic || 'Genel Konu'}</span>
                 <span>•</span>
-                <span className="text-amber-700 dark:text-amber-400">{new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}</span>
+                <span className="text-warning-fg">{new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}</span>
               </p>
             </div>
           </div>
@@ -249,19 +249,19 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         <div className="px-6 py-3 bg-canvas/70 border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2 text-xs">
             <span className="text-muted">Katılım Durumu:</span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20">
+            <span className="px-2 py-0.5 rounded-md bg-success/15 text-success-fg font-bold border border-success/20">
               {presentCount} Geldi
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold border border-rose-500/20">
+            <span className="px-2 py-0.5 rounded-md bg-danger/15 text-danger-fg font-bold border border-danger/20">
               {absentCount} Gelmedi
             </span>
             {lateCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold border border-amber-500/20">
+              <span className="px-2 py-0.5 rounded-md bg-warning/15 text-warning-fg font-bold border border-warning/20">
                 {lateCount} Geç
               </span>
             )}
             {excusedCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
+              <span className="px-2 py-0.5 rounded-md bg-info/15 text-info-fg font-bold border border-info/20">
                 {excusedCount} İzinli
               </span>
             )}
@@ -271,7 +271,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={() => setAllStatus('present')}
-              className="ui-btn ui-btn-sm w-28 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+              className="ui-btn ui-btn-sm w-28 bg-success/20 hover:bg-success/30 text-success-fg border border-success/30"
               title="Bütün öğrencileri 'Geldi' yap"
             >
               ✓ Hepsi geldi
@@ -279,7 +279,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={() => setAllStatus('absent')}
-              className="ui-btn ui-btn-sm w-28 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30"
+              className="ui-btn ui-btn-sm w-28 bg-danger/20 hover:bg-danger/30 text-danger-fg border border-danger/30"
               title="Bütün öğrencileri 'Gelmedi' yap"
             >
               ✕ Hepsi gelmedi
@@ -336,12 +336,12 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                   key={std.id}
                   className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     currentStatus === 'present'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500/30'
+                      ? 'bg-success-soft border-success/30'
                       : currentStatus === 'absent'
-                      ? 'bg-rose-50 dark:bg-rose-950/25 border-rose-500/30'
+                      ? 'bg-danger-soft border-danger/30'
                       : currentStatus === 'late'
-                      ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-500/30'
-                      : 'bg-blue-50 dark:bg-blue-950/20 border-blue-500/30'
+                      ? 'bg-warning-soft border-warning/30'
+                      : 'bg-info-soft border-info/30'
                   }`}
                 >
                   {/* Student details */}
@@ -369,8 +369,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         onClick={() => handleStatusChange(std.id, std.name, 'present')}
                         className={`ui-btn ui-btn-sm ${
                           currentStatus === 'present'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-muted hover:text-emerald-700 dark:hover:text-emerald-400'
+                            ? 'bg-success text-white shadow-sm'
+                            : 'text-muted hover:text-success-fg'
                         }`}
                       >
                         Geldi
@@ -380,8 +380,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         onClick={() => handleStatusChange(std.id, std.name, 'absent')}
                         className={`ui-btn ui-btn-sm ${
                           currentStatus === 'absent'
-                            ? 'bg-rose-600 text-white shadow-sm'
-                            : 'text-muted hover:text-rose-600 dark:hover:text-rose-400'
+                            ? 'bg-danger text-white shadow-sm'
+                            : 'text-muted hover:text-danger-fg'
                         }`}
                       >
                         Gelmedi
@@ -391,8 +391,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         onClick={() => handleStatusChange(std.id, std.name, 'late')}
                         className={`ui-btn ui-btn-sm ${
                           currentStatus === 'late'
-                            ? 'bg-amber-600 text-white shadow-sm'
-                            : 'text-muted hover:text-amber-700 dark:hover:text-amber-400'
+                            ? 'bg-warning text-white shadow-sm'
+                            : 'text-muted hover:text-warning-fg'
                         }`}
                       >
                         Geç
@@ -402,8 +402,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         onClick={() => handleStatusChange(std.id, std.name, 'excused')}
                         className={`ui-btn ui-btn-sm ${
                           currentStatus === 'excused'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-muted hover:text-blue-600 dark:hover:text-blue-400'
+                            ? 'bg-info text-white shadow-sm'
+                            : 'text-muted hover:text-info-fg'
                         }`}
                       >
                         İzinli
@@ -442,7 +442,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
           <div className="text-xs text-muted">
             {saveError && <span role="alert" className="text-danger-fg font-semibold">{saveError}</span>}
             {savedSuccess && (
-              <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center space-x-1.5 animate-in fade-in">
+              <span className="text-success-fg font-bold flex items-center space-x-1.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Yoklama başarıyla kaydedildi ve tüm cihazlarla eşitlendi!</span>
               </span>
@@ -461,7 +461,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-60 min-w-24"
+              className="ui-btn ui-btn-success ui-btn-sm disabled:opacity-60 min-w-24"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>

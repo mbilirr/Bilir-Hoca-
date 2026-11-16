@@ -285,12 +285,12 @@ export const EtutTakipView: React.FC<{
               <span className="ui-chip ui-chip-danger">Yoklama yok</span>
             ) : (
               <>
-                <span className="text-emerald-700 dark:text-emerald-300">{f.present + f.late} geldi</span>
-                <span className="text-rose-600 dark:text-rose-300">{f.absent} gelmedi</span>
+                <span className="text-success-fg">{f.present + f.late} geldi</span>
+                <span className="text-danger-fg">{f.absent} gelmedi</span>
               </>
             )}
             {f.comments > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-300" title="Yorumlu kayıt">
+              <span className="inline-flex items-center gap-0.5 text-warning-fg" title="Yorumlu kayıt">
                 <MessageSquareQuote className="w-3.5 h-3.5" />
                 {f.comments}
               </span>
@@ -484,7 +484,7 @@ export const EtutTakipView: React.FC<{
                       </span>
                       <span className="text-xs tabular-nums text-fg-2 w-16 text-right">{r.etuts.length} etüt</span>
                       <span className={cx('ui-chip w-24 justify-center', r.absent ? 'ui-chip-danger' : 'ui-chip-neutral')}>{r.absent} gelmedi</span>
-                      <span className="text-xs tabular-nums text-amber-700 dark:text-amber-300 w-12 text-right inline-flex items-center justify-end gap-0.5" title="Yorum">
+                      <span className="text-xs tabular-nums text-warning-fg w-12 text-right inline-flex items-center justify-end gap-0.5" title="Yorum">
                         <MessageSquareQuote className="w-3.5 h-3.5" />
                         {r.comments}
                       </span>

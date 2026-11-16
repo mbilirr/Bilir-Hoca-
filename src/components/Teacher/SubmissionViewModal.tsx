@@ -15,11 +15,11 @@ const TEACHER_CHECK_NOTES = new Set([
 ]);
 
 const CHECK_LABELS: Record<HomeworkCheckStatus, { label: string; cls: string }> = {
-  yapti: { label: 'Yaptı', cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30' },
-  yapmadi: { label: 'Yapmadı', cls: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30' },
-  eksik: { label: 'Eksik', cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' },
-  izinli: { label: 'İzinli', cls: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' },
-  gelmedi: { label: 'Gelmedi', cls: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30' },
+  yapti: { label: 'Yaptı', cls: 'bg-success-soft text-success-fg border-success/30' },
+  yapmadi: { label: 'Yapmadı', cls: 'bg-danger-soft text-danger-fg border-danger/30' },
+  eksik: { label: 'Eksik', cls: 'bg-warning-soft text-warning-fg border-warning/30' },
+  izinli: { label: 'İzinli', cls: 'bg-info-soft text-info-fg border-info/30' },
+  gelmedi: { label: 'Gelmedi', cls: 'bg-surface-2 text-fg-2 border-line-strong' },
 };
 
 // Öğrencinin kendi yazdığı not (öğretmenin otomatik notu sayılmaz)
@@ -72,7 +72,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -87,7 +87,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
           {/* Başlık */}
           <div className="flex items-start justify-between gap-3 pb-4 border-b border-line mb-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">Öğrenci Teslimi</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-fg">Öğrenci Teslimi</p>
               <h3 className="text-lg font-bold text-fg truncate">{studentName}</h3>
               <p className="text-xs text-muted truncate">
                 {student?.studentNumber ? `No: ${student.studentNumber} · ` : ''}
@@ -113,7 +113,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
             ) : (
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                  isLate ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
+                  isLate ? 'bg-warning-soft text-warning-fg border-warning/30' : 'bg-success-soft text-success-fg border-success/30'
                 }`}
               >
                 {isLate ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -136,7 +136,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
           {/* Öğrenci notu */}
           <div className="mb-4">
             <h4 className="text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
-              <MessageSquareText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <MessageSquareText className="w-4 h-4 text-brand-fg" />
               Öğrencinin Notu
             </h4>
             {note ? (
@@ -151,7 +151,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
           {/* Ekler */}
           <div>
             <h4 className="text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
-              <Paperclip className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Paperclip className="w-4 h-4 text-brand-fg" />
               Gönderilen Dosya ve Bağlantılar
             </h4>
             {hasAttachments ? (

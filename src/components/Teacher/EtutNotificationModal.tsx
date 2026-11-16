@@ -129,7 +129,7 @@ biliredu`.trim();
 
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -138,9 +138,9 @@ biliredu`.trim();
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="bg-gradient-to-r from-teal-50 dark:from-teal-900/80 via-surface to-indigo-50 dark:to-indigo-950/80 px-5 py-4 border-b border-line flex items-center justify-between">
+        <div className="bg-surface-2 px-5 py-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-700 dark:text-teal-300">
+            <div className="w-10 h-10 rounded-xl bg-success/20 border border-success/40 flex items-center justify-center text-success-fg">
               <CalendarDays className="w-5 h-5" />
             </div>
             <div>
@@ -167,8 +167,8 @@ biliredu`.trim();
         <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Automatic System Delivery Banner */}
           {/* Aşama 185: büyük kutu tek satıra indi */}
-          <div className="px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <div className="px-3 py-2 bg-success-soft border border-success/30 rounded-xl flex items-center gap-2 text-xs text-success-fg">
+            <CheckCircle2 className="w-4 h-4 text-success-fg shrink-0" />
             <span className="font-semibold">E-posta ve bildirim öğrencilere otomatik gönderildi.</span>
           </div>
 
@@ -176,10 +176,10 @@ biliredu`.trim();
           <div className="bg-canvas/60 border border-line rounded-xl p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">Ders & Konu</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-success-fg">Ders & Konu</span>
                 <h4 className="text-sm font-bold text-fg flex items-center space-x-2">
                   <span>{etut.subject}:</span>
-                  <span className="text-teal-700 dark:text-teal-300">{etut.topic}</span>
+                  <span className="text-success-fg">{etut.topic}</span>
                 </h4>
               </div>
               <div className="text-right">
@@ -211,8 +211,8 @@ biliredu`.trim();
             )}
 
             {etut.teacherFeedback && (
-              <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/25 text-xs text-amber-700 dark:text-amber-200">
-                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 block">💬 Öğretmen Düşünce ve Görüşleri:</span>
+              <div className="bg-warning/10 p-2.5 rounded-lg border border-warning/25 text-xs text-warning-fg">
+                <span className="text-[10px] font-bold text-warning-fg block">💬 Öğretmen Düşünce ve Görüşleri:</span>
                 <p className="mt-0.5 italic text-fg">"{etut.teacherFeedback}"</p>
               </div>
             )}
@@ -220,8 +220,8 @@ biliredu`.trim();
 
           {/* Feedback message */}
           {dispatchFeedback && (
-            <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl flex items-center space-x-2 text-xs text-emerald-700 dark:text-emerald-300 animate-in fade-in">
-              <Check className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <div className="p-3 bg-success/15 border border-success/30 rounded-xl flex items-center space-x-2 text-xs text-success-fg animate-in fade-in">
+              <Check className="w-4 h-4 text-success-fg shrink-0" />
               <span className="font-semibold">{dispatchFeedback}</span>
             </div>
           )}
@@ -230,7 +230,7 @@ biliredu`.trim();
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-fg flex items-center space-x-1.5">
-                <Users className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
+                <Users className="w-3.5 h-3.5 text-success-fg" />
                 <span>Atanan Öğrenciler ({targetStudents.length}) - Hızlı WhatsApp İletimi:</span>
               </h4>
               <button
@@ -241,8 +241,8 @@ biliredu`.trim();
               >
                 {copiedKey === 'all' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                    <span className="text-emerald-700 dark:text-emerald-400">Kopyalandı</span>
+                    <Check className="w-3.5 h-3.5 text-success-fg" />
+                    <span className="text-success-fg">Kopyalandı</span>
                   </>
                 ) : (
                   <>
@@ -265,7 +265,7 @@ biliredu`.trim();
                     className="p-2.5 bg-canvas/60 border border-line rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-line transition-colors"
                   >
                     <div className="flex items-center space-x-2.5">
-                      <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-700 dark:text-teal-300 font-bold text-xs shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-success/20 border border-success/40 flex items-center justify-center text-success-fg font-bold text-xs shrink-0">
                         {std.name.substring(0, 2).toLocaleUpperCase('tr-TR')}
                       </div>
                       <div>
@@ -278,7 +278,7 @@ biliredu`.trim();
                       <button
                         type="button"
                         onClick={() => handleOpenStudentWhatsApp(std)}
-                        className="ui-btn ui-btn-sm bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm min-w-24"
+                        className="ui-btn ui-btn-success ui-btn-sm min-w-24"
                         title={`${std.name} için WhatsApp ile Gönder`}
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
@@ -293,7 +293,7 @@ biliredu`.trim();
                           className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line min-w-24"
                           title={`${std.name} için Gmail'de Aç`}
                         >
-                          <Mail className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          <Mail className="w-3.5 h-3.5 text-danger-fg" />
                           <span className="hidden sm:inline">Gmail</span>
                         </button>
                       )}
@@ -307,7 +307,7 @@ biliredu`.trim();
           {/* Quick Copy / Preview Box */}
           <div className="p-3 bg-canvas/80 border border-line rounded-xl space-y-1.5">
             <span className="text-[11px] font-bold text-muted block flex items-center space-x-1">
-              <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <FileText className="w-3.5 h-3.5 text-brand-fg" />
               <span>Hazır Bildirim Mesajı Önizlemesi:</span>
             </span>
             <pre className="text-[11px] text-fg-2 font-sans whitespace-pre-wrap bg-surface/80 p-2.5 rounded-lg border border-line leading-relaxed select-all">

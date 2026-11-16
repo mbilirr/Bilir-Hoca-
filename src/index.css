@@ -584,7 +584,10 @@ html, body {
   input[type="time"],
   input[type="search"],
   select,
-  textarea {
+  textarea,
+  /* Aşama 282: açılır liste gibi çalışan düğmeler (öğretmen / öğrenci / ders seçici) telefonda yanındaki listelerle aynı punto */
+  button.ui-input,
+  button.ui-field {
     font-size: 16px !important;
   }
 }

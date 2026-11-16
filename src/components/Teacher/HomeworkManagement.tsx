@@ -455,10 +455,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const diff = Math.round((startOf(d) - startOf(new Date())) / 86400000);
     if (diff < 0) return { label: 'Süresi doldu', cls: 'bg-surface-2 text-muted' };
-    if (diff === 0) return { label: 'Bugün son gün', cls: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300' };
-    if (diff === 1) return { label: 'Yarın son gün', cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300' };
-    if (diff <= 3) return { label: `${diff} gün kaldı`, cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300' };
-    return { label: `${diff} gün kaldı`, cls: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300' };
+    if (diff === 0) return { label: 'Bugün son gün', cls: 'bg-danger-soft text-danger-fg' };
+    if (diff === 1) return { label: 'Yarın son gün', cls: 'bg-warning-soft text-warning-fg' };
+    if (diff <= 3) return { label: `${diff} gün kaldı`, cls: 'bg-warning-soft text-warning-fg' };
+    return { label: `${diff} gün kaldı`, cls: 'bg-info-soft text-info-fg' };
   };
 
   // HIZ (Aşama 84): ödev başına teslimler ve hedef öğrenciler bir kez hesaplanır (her tuş vuruşunda
@@ -699,13 +699,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       />
 
       {saveFeedback && (
-        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-semibold animate-in fade-in">
+        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-success/10 text-success-fg border border-success/20 rounded-xl text-xs font-semibold animate-in fade-in">
           <Check className="w-3.5 h-3.5" />
           <span>{saveFeedback}</span>
         </div>
       )}
       {saveError && (
-        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold animate-in fade-in">
+        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-danger/10 text-danger-fg border border-danger/30 rounded-xl text-xs font-semibold animate-in fade-in">
           <AlertCircle className="w-3.5 h-3.5" />
           <span>{saveError}</span>
         </div>
@@ -720,7 +720,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         if (homeworks.length === 0) {
           return (
             <div className="bg-surface border border-line rounded-2xl p-12 text-center shadow-sm">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 text-brand-fg flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-bold text-fg mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
@@ -922,7 +922,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         setStudentSearchInput('');
                       }}
                       className={`ui-field w-auto font-medium cursor-pointer ${
-                        effectiveClassId ? 'border-line text-fg-2' : 'border-indigo-300 dark:border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                        effectiveClassId ? 'border-line text-fg-2' : 'border-brand/30 text-brand-fg'
                       }`}
                     >
                       <option value="">Sınıf Seçiniz</option>
@@ -985,7 +985,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             {/* Sınıf seçilmeden önce yönlendirme */}
             {!currentClass ? (
               <div className="bg-surface border border-line rounded-2xl p-10 text-center shadow-sm space-y-3">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-brand-soft text-brand-fg flex items-center justify-center mx-auto">
                   <School className="w-7 h-7" />
                 </div>
                 <p className="text-sm font-bold text-fg">Kontrol edilecek sınıfı seçin</p>
@@ -1039,7 +1039,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       key={hw.id}
                       className={`rounded-2xl border bg-surface transition-all scroll-mt-24 ${
                         isOpen
-                          ? 'border-indigo-400 dark:border-indigo-500/60 ring-2 ring-indigo-500/15 shadow-md'
+                          ? 'border-brand ring-2 ring-brand/15 shadow-md'
                           : 'border-line hover:border-line-strong shadow-sm'
                       }`}
                       id={`hw-strip-${hw.id}`}
@@ -1052,12 +1052,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         className="w-full text-left p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-5 cursor-pointer"
                       >
                         <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <span className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                          <span className="w-9 h-9 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center shrink-0">
                             <BookOpen className="w-4 h-4" />
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-brand-soft text-brand-fg">
                                 {hw.subject}
                               </span>
                               <span
@@ -1092,21 +1092,21 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             </div>
                             <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden mt-1">
                               <div
-                                className={`h-full rounded-full transition-all ${checked === total && total > 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                                className={`h-full rounded-full transition-all ${checked === total && total > 0 ? 'bg-success' : 'bg-brand'}`}
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
                             <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-1.5 text-[11px] font-semibold">
-                              <span className="text-emerald-700 dark:text-emerald-300">Yaptı {tally.yapti}</span>
-                              <span className="text-rose-700 dark:text-rose-300">Yapmadı {tally.yapmadi}</span>
-                              <span className="text-amber-700 dark:text-amber-300">Eksik {tally.eksik}</span>
-                              {tally.izinli > 0 && <span className="text-sky-700 dark:text-sky-300">İzinli {tally.izinli}</span>}
-                              {tally.gelmedi > 0 && <span className="text-purple-700 dark:text-purple-300">Gelmedi {tally.gelmedi}</span>}
+                              <span className="text-success-fg">Yaptı {tally.yapti}</span>
+                              <span className="text-danger-fg">Yapmadı {tally.yapmadi}</span>
+                              <span className="text-warning-fg">Eksik {tally.eksik}</span>
+                              {tally.izinli > 0 && <span className="text-info-fg">İzinli {tally.izinli}</span>}
+                              {tally.gelmedi > 0 && <span className="text-fg-2">Gelmedi {tally.gelmedi}</span>}
                             </div>
                           </div>
                           <span
                             className={`shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-                              isOpen ? 'bg-indigo-600 text-white' : 'bg-surface-2 text-fg-2 border border-line'
+                              isOpen ? 'bg-brand text-white' : 'bg-surface-2 text-fg-2 border border-line'
                             }`}
                           >
                             {isOpen ? 'Kapat' : 'Kontrol Et'}
@@ -1123,7 +1123,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               <h3 className="text-sm sm:text-base font-bold text-fg truncate">
                                 {currentClass.name} — Öğrenci Listesi
                               </h3>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 shrink-0">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-brand-soft text-brand-fg shrink-0">
                                 {classStudents.length} öğrenci
                               </span>
                             </div>
@@ -1145,25 +1145,25 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
                               <span className="text-base font-bold text-fg">{classStudents.length}</span>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 block">Yaptı</span>
-                              <span className="text-base font-bold text-emerald-800 dark:text-emerald-200">{countYapti}</span>
+                            <div className="p-2.5 rounded-xl bg-success-soft border border-success/30 text-center">
+                              <span className="text-[10px] uppercase font-bold text-success-fg block">Yaptı</span>
+                              <span className="text-base font-bold text-success-fg">{countYapti}</span>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-300 block">Yapmadı</span>
-                              <span className="text-base font-bold text-rose-800 dark:text-rose-200">{countYapmadi}</span>
+                            <div className="p-2.5 rounded-xl bg-danger-soft border border-danger/30 text-center">
+                              <span className="text-[10px] uppercase font-bold text-danger-fg block">Yapmadı</span>
+                              <span className="text-base font-bold text-danger-fg">{countYapmadi}</span>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 block">Eksik</span>
-                              <span className="text-base font-bold text-amber-800 dark:text-amber-200">{countEksik}</span>
+                            <div className="p-2.5 rounded-xl bg-warning-soft border border-warning/30 text-center">
+                              <span className="text-[10px] uppercase font-bold text-warning-fg block">Eksik</span>
+                              <span className="text-base font-bold text-warning-fg">{countEksik}</span>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-300 block">İzinli</span>
-                              <span className="text-base font-bold text-sky-800 dark:text-sky-200">{countIzinli}</span>
+                            <div className="p-2.5 rounded-xl bg-info-soft border border-info/30 text-center">
+                              <span className="text-[10px] uppercase font-bold text-info-fg block">İzinli</span>
+                              <span className="text-base font-bold text-info-fg">{countIzinli}</span>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-300 block">Gelmedi</span>
-                              <span className="text-base font-bold text-purple-800 dark:text-purple-200">{countGelmedi}</span>
+                            <div className="p-2.5 rounded-xl bg-surface-2 border border-line-strong text-center">
+                              <span className="text-[10px] uppercase font-bold text-fg-2 block">Gelmedi</span>
+                              <span className="text-base font-bold text-fg-2">{countGelmedi}</span>
                             </div>
                           </div>
 
@@ -1176,35 +1176,35 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('yapti')}
-                                className="ui-btn ui-btn-sm bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 min-w-24"
+                                className="ui-btn ui-btn-sm bg-success-soft hover:bg-success-soft border border-success/30 text-success-fg min-w-24"
                               >
                                 ✓ Tümünü Yaptı
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('yapmadi')}
-                                className="ui-btn ui-btn-sm bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 min-w-24"
+                                className="ui-btn ui-btn-sm bg-danger-soft hover:bg-danger-soft border border-danger/30 text-danger-fg min-w-24"
                               >
                                 ✕ Tümünü Yapmadı
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('eksik')}
-                                className="ui-btn ui-btn-sm bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 min-w-24"
+                                className="ui-btn ui-btn-sm bg-warning-soft hover:bg-warning-soft border border-warning/30 text-warning-fg min-w-24"
                               >
                                 ⚠ Tümünü Eksik
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('izinli')}
-                                className="ui-btn ui-btn-sm bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 min-w-24"
+                                className="ui-btn ui-btn-sm bg-info-soft hover:bg-info-soft border border-info/30 text-info-fg min-w-24"
                               >
                                 ℹ Tümünü İzinli
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleBulkStatusChange('gelmedi')}
-                                className="ui-btn ui-btn-sm bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 min-w-24"
+                                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-2 border border-line-strong text-fg-2 min-w-24"
                               >
                                 ○ Tümünü Gelmedi
                               </button>
@@ -1252,7 +1252,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                             <button
                                               type="button"
                                               onClick={() => setViewingSubmissionKey({ homeworkId: currentHw.id, studentId: std.id })}
-                                              className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 hover:underline cursor-pointer"
+                                              className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-fg hover:text-brand-fg hover:underline cursor-pointer"
                                             >
                                               <Paperclip className="w-3 h-3" />
                                               <span>
@@ -1273,8 +1273,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         onClick={() => handleStatusClick(std.id, 'yapti')}
                                         className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'yapti'
-                                            ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
-                                            : 'bg-surface-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-300 dark:hover:border-emerald-500/30'
+                                            ? 'bg-success text-white shadow-xs ring-2 ring-success'
+                                            : 'bg-surface-2 hover:bg-success-soft text-fg-2 hover:text-success-fg border border-line hover:border-success/30'
                                         }`}
                                       >
                                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1287,8 +1287,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         onClick={() => handleStatusClick(std.id, 'yapmadi')}
                                         className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'yapmadi'
-                                            ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400'
-                                            : 'bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-fg-2 hover:text-rose-700 dark:hover:text-rose-300 border border-line hover:border-rose-300 dark:hover:border-rose-500/30'
+                                            ? 'bg-danger text-white shadow-xs ring-2 ring-danger'
+                                            : 'bg-surface-2 hover:bg-danger-soft text-fg-2 hover:text-danger-fg border border-line hover:border-danger/30'
                                         }`}
                                       >
                                         <XCircle className="w-3.5 h-3.5" />
@@ -1301,8 +1301,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         onClick={() => handleStatusClick(std.id, 'eksik')}
                                         className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'eksik'
-                                            ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
-                                            : 'bg-surface-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-300 dark:hover:border-amber-500/30'
+                                            ? 'bg-warning text-white shadow-xs ring-2 ring-warning'
+                                            : 'bg-surface-2 hover:bg-warning-soft text-fg-2 hover:text-warning-fg border border-line hover:border-warning/30'
                                         }`}
                                       >
                                         <AlertCircle className="w-3.5 h-3.5" />
@@ -1315,8 +1315,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         onClick={() => handleStatusClick(std.id, 'izinli')}
                                         className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'izinli'
-                                            ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400'
-                                            : 'bg-surface-2 hover:bg-sky-50 dark:hover:bg-sky-500/10 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-300 dark:hover:border-sky-500/30'
+                                            ? 'bg-info text-white shadow-xs ring-2 ring-info'
+                                            : 'bg-surface-2 hover:bg-info-soft text-fg-2 hover:text-info-fg border border-line hover:border-info/30'
                                         }`}
                                       >
                                         <Info className="w-3.5 h-3.5" />
@@ -1329,8 +1329,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         onClick={() => handleStatusClick(std.id, 'gelmedi')}
                                         className={`ui-btn ui-btn-sm ${
                                           currentStatus === 'gelmedi'
-                                            ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400'
-                                            : 'bg-surface-2 hover:bg-purple-50 dark:hover:bg-purple-500/10 text-fg-2 hover:text-purple-700 dark:hover:text-purple-300 border border-line hover:border-purple-300 dark:hover:border-purple-500/30'
+                                            ? 'bg-muted text-white shadow-xs ring-2 ring-line-strong'
+                                            : 'bg-surface-2 hover:bg-surface-2 text-fg-2 hover:text-fg-2 border border-line hover:border-line-strong'
                                         }`}
                                       >
                                         <HelpCircle className="w-3.5 h-3.5" />
@@ -1531,17 +1531,17 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       noun="Ödev"
                       open={isExpanded}
                       onToggle={() => setExpandedHwId(isExpanded ? null : hw.id)}
-                      accent={isOverdue ? 'border-l-slate-300 dark:border-l-slate-600' : 'border-l-indigo-500'}
+                      accent={isOverdue ? 'border-l-slate-300 dark:border-l-slate-600' : 'border-l-brand'}
                       badges={
                         <>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-soft text-brand-fg">
                             {hw.subject}
                           </span>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 ${
                               isOverdue
-                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                ? 'bg-danger-soft text-danger-fg'
+                                : 'bg-warning-soft text-warning-fg'
                             }`}
                           >
                             <Clock className="w-3 h-3" />
@@ -1657,7 +1657,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                   key={student.id}
                                   className={`flex items-center justify-between p-2 rounded-xl text-xs border ${
                                     sub
-                                      ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                                      ? 'bg-success-soft/60 border-success/30 text-success-fg'
                                       : 'bg-surface-2 border-line text-muted'
                                   }`}
                                 >
@@ -1676,7 +1676,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
-                                        className="px-2 py-0.5 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-[11px] font-bold cursor-pointer"
+                                        className="px-2 py-0.5 rounded-lg bg-surface border border-brand/30 text-brand-fg hover:bg-brand-soft text-[11px] font-bold cursor-pointer"
                                       >
                                         Gör
                                       </button>
@@ -1710,7 +1710,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
         <div
-          className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
           onClick={closeEditResourcesModal}
         >
           <OverlayLayer onClose={closeEditResourcesModal} />
@@ -1721,7 +1721,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             >
               <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
                 <div className="flex items-center space-x-2">
-                  <Paperclip className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  <Paperclip className="w-5 h-5 text-brand-fg" />
                   <div>
                     <h3 className="text-lg font-bold text-fg">Ödev Materyallerini Düzenle</h3>
                     <p className="text-xs text-muted truncate max-w-md">{editingResourcesHw.title}</p>
