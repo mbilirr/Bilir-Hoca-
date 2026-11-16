@@ -1125,6 +1125,53 @@ if (typeof window !== 'undefined') {
   });
 }
 
+type GeriAlmaListe =
+  | 'classes' | 'students' | 'homeworks' | 'submissions' | 'etuts' | 'attendance'
+  | 'grades' | 'messages' | 'documents' | 'questionLogs' | 'weeklyQuestionTargets';
+
+/**
+ * Aşama 286: başarısız yazmada yalnız o işlemin dokunduğu kayıtları eski hâline döndürür.
+ *  simdi   : hata anındaki liste (yazma sürerken canlı kanaldan gelenler dahil)
+ *  once    : işlem öncesi liste
+ *  yazarken: yerel değişiklik uygulanmış liste (yazma başlarken)
+ * Dokunulan kayıt = once ile yazarken arasında eklenen, silinen ya da içeriği değişen. Diğer kayıtlar `simdi`deki
+ * güncel hâliyle kalır. Kimliği olmayan kayıt varsa null döner (çağıran eski davranışı korur).
+ */
+export function geriAlYalnizDokunulan<T extends { id?: string }>(simdi: T[], once: T[], yazarken: T[] | undefined): T[] | null {
+  if (!Array.isArray(yazarken)) return null;
+  const kimlikli = (l: T[]) => l.every((x) => x && typeof x.id === 'string' && x.id);
+  if (!kimlikli(simdi) || !kimlikli(once) || !kimlikli(yazarken)) return null;
+  const onceMap = new Map(once.map((x, i) => [x.id as string, { x, i }] as const));
+  const yazMap = new Map(yazarken.map((x) => [x.id as string, x] as const));
+  const ayni = (a: T, b: T) => {
+    if (a === b) return true;
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+  };
+  const dokunulan = new Set<string>();
+  onceMap.forEach(({ x }, id) => {
+    const y = yazMap.get(id);
+    if (!y || !ayni(x, y)) dokunulan.add(id); // silinmiş ya da değiştirilmiş
+  });
+  yazMap.forEach((_y, id) => { if (!onceMap.has(id)) dokunulan.add(id); }); // eklenmiş
+  if (dokunulan.size === 0) return simdi;
+  const sonuc: T[] = [];
+  const var_ = new Set<string>();
+  for (const x of simdi) {
+    const id = x.id as string;
+    if (!dokunulan.has(id)) { sonuc.push(x); var_.add(id); continue; }
+    const eski = onceMap.get(id);
+    if (eski) { sonuc.push(eski.x); var_.add(id); } // değiştirilmişti: eski hâli, aynı yerde
+    // eklenmişti: atılır
+  }
+  // silinmişti (şimdi listede yok): işlem öncesindeki sırasına yakın yere geri konur
+  const geriGelen = Array.from(dokunulan)
+    .map((id) => onceMap.get(id))
+    .filter((e): e is { x: T; i: number } => !!e && !var_.has(e.x.id as string))
+    .sort((a, b) => a.i - b.i);
+  for (const e of geriGelen) sonuc.splice(Math.min(e.i, sonuc.length), 0, e.x);
+  return sonuc;
+}
+
 function saveData<T>(key: string, data: T): void {
   if (onDataChanged) onDataChanged();
   if (DEFERRED_SAVE_KEYS.has(key)) {
@@ -3989,6 +4036,9 @@ class DataService {
     userMessage: string,
     options?: { silent?: boolean }
   ): Promise<boolean> {
+    // Aşama 286: yazma başlarken listelerin o anki hâli (yalnız başvuru; kopya değil). Çağıranlar yerel değişikliği
+    // yapıp hemen bu işlevi çağırır; yani bu an "yerel değişiklik uygulanmış" hâldir.
+    const yazarken = this.geriAlmaGoruntusu();
     let error: any = null;
     try {
       const res = await op();
@@ -3998,7 +4048,9 @@ class DataService {
     }
     if (!error) return true;
 
+    const hataAninda = this.geriAlmaGoruntusu();
     rollback();
+    this.geriAlmayiDaralt(yazarken, hataAninda);
     this.notify();
     const reason =
       error?.code === '42501'
@@ -4008,6 +4060,51 @@ class DataService {
     if (options?.silent) return false;
     this.showFloatingErrorToast(`Hata: ${userMessage} (${reason}). Değişiklikler geri alındı.`);
     throw new Error(`${userMessage}: ${reason}`);
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Aşama 286: GERİ ALMA YALNIZ O KAYDI ETKİLER
+  //  Eskiden başarısız yazmada listenin TAMAMI işlem öncesi hâline dönüyordu; yazma sürerken canlı kanaldan gelen başka
+  //  kayıtlar (başka öğretmenin notu, yeni mesaj…) bir sonraki eşitlemeye kadar ekrandan kayboluyordu.
+  //  Artık: geri alma işlevi listeyi eski hâline koyduktan sonra, bu işlemin DOKUNMADIĞI kayıtlar güncel hâlleriyle
+  //  geri getirilir. "Bu işlemin dokunduğu kayıt" = işlem öncesi liste ile yazma başlarkenki liste arasında farklı olan.
+  //  Kimliği olmayan kayıt içeren ya da geri almada değişmeyen listelere dokunulmaz (eski davranış aynen sürer).
+  // ---------------------------------------------------------------------------------------------------------------
+  private static readonly GERI_ALMA_LISTELERI: Array<[GeriAlmaListe, string | null]> = [
+    ['classes', STORAGE_KEYS.CLASSES],
+    ['students', STORAGE_KEYS.STUDENTS],
+    ['homeworks', STORAGE_KEYS.HOMEWORK],
+    ['submissions', STORAGE_KEYS.SUBMISSIONS],
+    ['etuts', STORAGE_KEYS.ETUTS],
+    ['attendance', STORAGE_KEYS.ATTENDANCE],
+    ['grades', STORAGE_KEYS.GRADES],
+    ['messages', STORAGE_KEYS.MESSAGES],
+    ['documents', null], // belgeler kendi yerel kayıt işleviyle yazılır (persistDocumentsLocal)
+    ['questionLogs', STORAGE_KEYS.QUESTION_LOGS],
+    ['weeklyQuestionTargets', STORAGE_KEYS.WEEKLY_QUESTION_TARGETS],
+  ];
+
+  private geriAlmaGoruntusu(): Record<GeriAlmaListe, any[]> {
+    const g = {} as Record<GeriAlmaListe, any[]>;
+    for (const [ad] of DataService.GERI_ALMA_LISTELERI) g[ad] = (this as any)[ad];
+    return g;
+  }
+
+  private geriAlmayiDaralt(yazarken: Record<GeriAlmaListe, any[]>, hataAninda: Record<GeriAlmaListe, any[]>): void {
+    for (const [ad, anahtar] of DataService.GERI_ALMA_LISTELERI) {
+      try {
+        const once: any[] = (this as any)[ad]; // geri alma işlevinin koyduğu "işlem öncesi" liste
+        const simdi = hataAninda[ad];
+        if (once === simdi || !Array.isArray(once) || !Array.isArray(simdi)) continue; // bu liste geri alınmadı
+        const birlesik = geriAlYalnizDokunulan(simdi, once, yazarken[ad]);
+        if (!birlesik) continue; // kimliksiz kayıt var: eski davranış
+        (this as any)[ad] = birlesik;
+        if (anahtar) saveData(anahtar, birlesik);
+        else if (ad === 'documents') this.persistDocumentsLocal();
+      } catch (e) {
+        console.warn('[CloudWrite] geri alma daraltılamadı, liste işlem öncesi hâlinde bırakıldı:', ad, e);
+      }
+    }
   }
 
   // RLS bir silmeyi engellerse Supabase hata DÖNDÜRMEZ, sadece 0 satır siler.
