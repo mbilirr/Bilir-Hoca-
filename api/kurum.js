@@ -295,13 +295,23 @@ async function actionGozuBitir(e, body, owner) {
 //  bagla: kullanıcı adı (ya da e-posta) + o hesabın şifresi sunucuda doğrulanır, sonra bağ yazılır.
 //  bagliGir: yalnız bağlanmış hesaba şifresiz oturum açılır (sekme o hesapla açılır; logodan geri dönülür).
 // ============================================================================
+// Aşama 276: deneme sayacı veritabanında tutulur (bagla_deneme_kaydet). Eskiden yalnız bellekteydi; sunucu her uyanışta
+// sıfırlandığı için şifre denemesine karşı gerçek koruma değildi. SQL 276 kurulu değilse bellekteki sayaç yedek olarak sürer.
 const baglaDenemeleri = new Map();
-function baglaSiniri(ownerId) {
+const BAGLA_COK = 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin.';
+async function baglaSiniri(e, ownerId) {
   const now = Date.now();
   const list = (baglaDenemeleri.get(ownerId) || []).filter((t) => now - t < 10 * 60_000);
-  if (list.length >= 8) throw new HttpError(429, 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin.');
+  if (list.length >= 8) throw new HttpError(429, BAGLA_COK);
   list.push(now);
   baglaDenemeleri.set(ownerId, list);
+  const r = await fetch(`${e.url}/rest/v1/rpc/bagla_deneme_kaydet`, {
+    method: 'POST',
+    headers: serviceHeaders(e),
+    body: JSON.stringify({ p_sahip: ownerId }),
+  }).catch(() => null);
+  if (!r || !r.ok) return; // SQL 276 kurulu değil ya da ağ hatası: bellekteki sayaç geçerli
+  if ((await readJson(r)) === false) throw new HttpError(429, BAGLA_COK);
 }
 
 // Aşama 263: çağıran sistem sahibi ya da onaylı (askıda olmayan) bir öğretmen olmalı
@@ -320,7 +330,7 @@ async function actionBagla(e, body, owner, gozuSid = null) {
   const sifre = String(body.sifre || '');
   if (kim.length < 3 || kim.length > 200) throw new HttpError(400, 'Kullanıcı adını yazın.');
   if (sifre.length < 6 || sifre.length > 200) throw new HttpError(400, 'O hesabın şifresini yazın.');
-  baglaSiniri(owner.id);
+  await baglaSiniri(e, owner.id);
   const alan = kim.includes('@') ? 'email' : 'username';
   const rows = await rest(e, `teachers?select=id,name,kurum_id,status,auth_user_id&${alan}=eq.${encodeURIComponent(kim)}&auth_user_id=not.is.null`);
   const adaylar = rows.filter((r) => r.auth_user_id !== owner.id);
@@ -416,7 +426,8 @@ async function actionBagliGir(e, body, owner) {
   const hedef = String(body.authUserId || '');
   if (!UUID.test(hedef)) throw new HttpError(400, 'Geçersiz hesap.');
   const bag = await rest(e, `bagli_hesaplar?select=hedef_auth_id&sahip_auth_id=eq.${owner.id}&hedef_auth_id=eq.${hedef}`);
-  if (!bag[0]) throw new HttpError(403, 'Bu hesap sizin hesabınıza bağlı değil.');
+  // Aşama 276: hesabın şifresi değişince bağ veritabanında kendiliğinden düşer (tetik zz276_sifre_degisince_bag_dus)
+  if (!bag[0]) throw new HttpError(403, 'Bu hesap artık bağlı değil (şifresi değişmiş ya da bağ kaldırılmış olabilir). Bağlı hesaplarım bölümünden yeniden bağlayın.');
   const [tRows, ur] = await Promise.all([
     rest(e, `teachers?select=id,name,kurum_id,status&auth_user_id=eq.${hedef}`),
     fetch(`${e.url}/auth/v1/admin/users/${hedef}`, { headers: serviceHeaders(e) }),
@@ -442,7 +453,7 @@ async function actionBagliGir(e, body, owner) {
 async function bagliSahibeGir(e, body, owner, authUser, t) {
   const sifre = String(body.sifre || '');
   if (sifre.length < 6 || sifre.length > 200) throw new HttpError(400, 'Sistem sahibi şifrenizi yazın.');
-  baglaSiniri(owner.id);
+  await baglaSiniri(e, owner.id);
   const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
