@@ -68,7 +68,7 @@ export const StudentDersProgrami: React.FC = () => {
   }, [v]);
 
   if (v === undefined) return null; // ilk okuma: bölüm sessizce gelir
-  if (!v || !ayar?.kayitli) return hata ? <p className="text-xs font-semibold text-danger-fg">{hata}</p> : null;
+  if (!v || !ayar?.kayitli) return hata ? <p data-ders-hata role="alert" className="text-xs font-semibold text-danger-fg">{hata}</p> : null;
   if (!v.hucreler.length && !tatil.size && bas === haftaBasi(bugun)) return null; // sınıfın programı yok
 
   return (

@@ -67,6 +67,8 @@ const OgrenciAnaSayfa = lazyNamed<React.ComponentProps<typeof import('./OgrenciA
 
 // Aşama 109: üst menüdeki bütün kutular aynı en ve boyda (en uzun yazıya göre), içerik sola dayalı
 const NAV_BOX = 'inline-flex items-center justify-start gap-2 h-9 w-48 px-2.5 rounded-lg text-xs font-semibold text-left';
+// Aşama 292: alt sıra düğmesi — telefonda ızgara hücresini doldurur (eşit üç düğme, ortalı), tablette NAV_BOX ölçüsü
+const ALT_BOX = 'inline-flex items-center justify-center md:justify-start gap-1.5 md:gap-2 h-9 w-full min-w-0 md:w-48 px-2 md:px-2.5 rounded-lg text-xs font-semibold';
 // Aşama 109: üst menüdeki altı ana bölüm (sabit; her çizimde yeniden kurulmaz)
 const STUDENT_TILES: Array<{ tab: StudentTabType; id: string; label: string; icon: typeof BookOpen; tone: Tone }> = [
   { tab: 'homework', id: 'student-nav-homework-card-btn', label: 'Ödevlerim', icon: BookOpen, tone: 'warning' },
@@ -453,7 +455,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
       {/* Aşama 253: ana sayfada bölümler soldaki menüde (telefonda alt menüde); bu üst duvar yalnız diğer bölümlerde görünür */}
       {activeTab !== 'home' && (
-      <div id="student-top-navigation-wall" className="@container min-[901px]:hidden static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="@container min-[901px]:hidden static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-2 md:p-3.5 shadow-sm md:space-y-3 transition-all">
         {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
         <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
           {tiles.map((t) => {
@@ -478,26 +480,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           })}
         </div>
 
-        {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
-        <div id="student-bottom-nav-row" className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line">
-          <div className="flex items-center flex-wrap gap-2">
-            {/* Küçültülmüş Ana Sayfa Butonu */}
+        {/* Row 2 · Aşama 292: telefonda tek satır, eşit üç düğme (Ana Sayfa alt menüde zaten var; sınıf bilgisi
+            yer kaplamasın diye telefonda gizli). Eskiden dört düğme alt alta yarım genişlikte duruyor, ilk ekranın
+            üçte birini kaplıyordu. Tablette (md+) eski yerleşim: Ana Sayfa + Bildirimler solda, sınıf sağda. */}
+        <div id="student-bottom-nav-row" className="flex items-center justify-between gap-2 md:pt-2 md:border-t md:border-line">
+          <div className="grid flex-1 grid-cols-3 gap-2 md:flex md:flex-none md:items-center">
             <button
               id="student-subnav-home-btn"
               type="button"
               onClick={() => setActiveTab('home')}
-              className={`ui-btn ui-btn-sm ${NAV_BOX} ui-btn-secondary`}
+              className={`ui-btn ui-btn-sm ${NAV_BOX} ui-btn-secondary max-md:!hidden`}
             >
               <Home className="w-3.5 h-3.5" />
               <span>Ana Sayfa</span>
             </button>
 
-            {/* Küçültülmüş Bildirimler Butonu */}
             <button
               id="student-subnav-notifications-btn"
               type="button"
               onClick={() => setIsNotificationModalOpen(true)}
-              className={`ui-btn ui-btn-sm ui-btn-secondary ${NAV_BOX} relative`}
+              className={`ui-btn ui-btn-sm ui-btn-secondary ${ALT_BOX} relative`}
               title="Gelen Bildirimler ve E-Postalar"
             >
               <div className="relative">
@@ -508,7 +510,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   </span>
                 )}
               </div>
-              <span>Bildirimler</span>
+              <span className="truncate">Bildirimler</span>
             </button>
 
             {/* Öğretmene Soru Sor / Deneme: geniş ekranda üst sırada; burada yalnız mobilde görünür (Aşama 109) */}
@@ -516,11 +518,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             <button
               id="student-subnav-messages-btn"
               type="button"
+              aria-pressed={activeTab === 'messages'}
+              title="Öğretmene Soru Sor"
               onClick={() => setActiveTab('messages')}
-              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'messages' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
+              className={`ui-btn ui-btn-sm ${ALT_BOX} ${activeTab === 'messages' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span>Öğretmene Soru Sor ({myMessages.length})</span>
+              <span className="truncate">Soru Sor{myMessages.length ? ` (${myMessages.length})` : ''}</span>
             </button>
             )}
 
@@ -529,22 +533,24 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             <button
               id="student-subnav-deneme-btn"
               type="button"
+              aria-pressed={activeTab === 'deneme'}
+              title="Deneme Sonuçlarım"
               onClick={() => setActiveTab('deneme')}
-              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'deneme' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
+              className={`ui-btn ui-btn-sm ${ALT_BOX} ${activeTab === 'deneme' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
-              <span>Deneme Sonuçlarım</span>
+              <span className="truncate">Denemeler</span>
             </button>
             )}
           </div>
 
           {/* Sınıf ve Öğrenci Bilgisi */}
-          <div id="student-class-info-badge" className="flex items-center space-x-1.5 sm:space-x-2 text-xs text-muted font-medium">
-            <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-surface-2 border border-line text-fg font-bold text-[11px] sm:text-xs whitespace-nowrap">
+          <div id="student-class-info-badge" className="hidden md:flex items-center space-x-2 text-xs text-muted font-medium">
+            <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-line text-fg font-bold text-xs whitespace-nowrap">
               {currentStudent.className || 'Sınıf'}
             </span>
             {currentStudent.studentNumber && (
-              <span className="font-semibold text-muted text-[11px] sm:text-xs">
+              <span className="font-semibold text-muted text-xs">
                 #{currentStudent.studentNumber}
               </span>
             )}
@@ -896,12 +902,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         <div className="space-y-6">
           {/* Aşama 223: ders saati yoklamasından kendi devamsızlığı (yalnız bu sekme açılınca okunur) */}
           {/* Aşama 231: kendi sınıfının haftalık ders programı (ders programı kullanılmayan kurumda görünmez) */}
-          <Suspense fallback={null}>
-            <StudentDersProgrami />
-          </Suspense>
-          <Suspense fallback={null}>
-            <StudentDersDevamsizlik />
-          </Suspense>
+          {/* Aşama 292: iki bölüm de aynı bağlantı hatasını yazarsa uyarı bir kez görünür */}
+          <div className="space-y-6 [&>[data-ders-hata]~[data-ders-hata]]:hidden">
+            <Suspense fallback={null}>
+              <StudentDersProgrami />
+            </Suspense>
+            <Suspense fallback={null}>
+              <StudentDersDevamsizlik />
+            </Suspense>
+          </div>
           {/* Quick Metrics · Aşama 198: etütlerin kendi yoklamasından; yalnız kayıt varsa, "Etüt yoklamalarım" adıyla.
               Ders devamsızlığıyla karışmaz (üstteki bölüm yalnız ders saati yoklamasıdır) */}
           {presentDays + absentDays + lateDays + excusedDays > 0 && (
@@ -934,7 +943,27 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <Award className="w-4 h-4 text-brand-fg" />
               <span>Ders Notlarım & Sınav Sonuçları</span>
             </div>
-            <table className="w-full text-left text-sm text-fg-2">
+            {/* Aşama 292: telefonda beş sütunlu tablo sağdan taşıyordu; dar ekranda her not bir satır kartıdır */}
+            <ul className="sm:hidden divide-y divide-line">
+              {myGrades.length === 0 ? (
+                <li className="px-4 py-8 text-center text-sm text-muted">Henüz girilmiş bir sınav veya performans notunuz yok.</li>
+              ) : (
+                myGrades.map((g) => (
+                  <li key={g.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-fg truncate">{g.subject}</p>
+                      <p className="text-xs text-muted">{g.examType} · {g.date}</p>
+                      {g.remarks && <p className="text-xs text-fg-2 italic mt-0.5">{g.remarks}</p>}
+                    </div>
+                    <p className="shrink-0 text-sm font-bold tabular-nums">
+                      <span className={g.score >= 85 ? 'text-success-fg' : g.score >= 70 ? 'text-info-fg' : 'text-warning-fg'}>{g.score}</span>
+                      <span className="text-muted text-xs font-normal"> / {g.maxScore}</span>
+                    </p>
+                  </li>
+                ))
+              )}
+            </ul>
+            <table className="hidden sm:table w-full text-left text-sm text-fg-2">
               <thead className="bg-surface-2/60 text-xs uppercase tracking-wider text-muted border-b border-line">
                 <tr>
                   <th className="px-6 py-3.5 font-semibold">Ders</th>

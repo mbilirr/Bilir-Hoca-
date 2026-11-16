@@ -36,7 +36,7 @@ export const StudentDersDevamsizlik: React.FC = () => {
   }, []);
 
   if (v === undefined) return <p className="text-xs text-muted">Ders devamsızlığı okunuyor…</p>;
-  if (hata) return <p className="text-xs font-semibold text-danger-fg">{hata}</p>;
+  if (hata) return <p data-ders-hata role="alert" className="text-xs font-semibold text-danger-fg">{hata}</p>;
   const s = v?.sayilar || {};
   const toplam = (s.present || 0) + (s.absent || 0) + (s.late || 0) + (s.excused || 0);
   if (!v || toplam === 0) return null;

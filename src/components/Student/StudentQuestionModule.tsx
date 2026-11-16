@@ -1525,7 +1525,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-fg tracking-tight">
-                Günlük Soru Çözümü ve Başarı İlerleme Modülü
+                Soru Çözümü ve İlerleme
               </h2>
             </div>
           </div>
@@ -1563,15 +1563,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <Layers className="w-3.5 h-3.5 text-fg" />
               Çalışma Modülü & Analiz Boyutu
             </label>
-            <div className="flex rounded-lg bg-surface border border-line-strong p-0.5">
+            {/* Aşama 292: telefonda dört sekme tek satıra sığmıyordu (son sekme kesik); dar ekranda 2×2 eşit ızgara.
+                Seçili sekme her dördünde aynı renk (lacivert). */}
+            <div className="grid grid-cols-2 sm:flex gap-0.5 rounded-lg bg-surface border border-line-strong p-0.5">
               <button
                 type="button"
                 id="btn-student-tab-entry"
                 onClick={() => setActiveTab('entry')}
                 className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'entry'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-muted hover:text-brand-fg'
+                    ? 'bg-fg text-surface shadow-xs'
+                    : 'text-muted hover:text-fg'
                 }`}
               >
                 + Soru Kaydet

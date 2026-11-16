@@ -1475,8 +1475,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       onClick={() => {
                         openHomeworkForm('create');
                       }}
-                      className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm min-w-24"
+                      className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas shadow-sm min-w-24 max-lg:!hidden"
                     >
+                      {/* Aşama 292: dar ekranda sayfa başındaki "Ödev Oluştur" hemen üstte; aynı düğme iki kez görünmesin */}
                       <Plus className="w-3.5 h-3.5" />
                       <span>Yeni Ödev Oluştur</span>
                     </button>

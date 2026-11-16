@@ -85,9 +85,11 @@ function parseRouteHash(): { role: UserRole | null; tab: TeacherTabType } {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/');
   const hRole = parts[0] === 'student' ? 'student' : parts[0] === 'teacher' ? 'teacher' : null;
   const hTab = parts[1];
+  // Aşama 292: tanımsız bölüm adresi (ör. #/teacher/documents, eski yer imi) boş sayfa açıyordu; ana sayfaya düşer
+  const bilinen = !!hTab && (hTab === 'home' || hTab === 'user_management' || hTab in PAGE_LOADERS);
   return {
     role: hRole,
-    tab: hRole === 'teacher' && hTab ? (hTab as TeacherTabType) : 'home',
+    tab: hRole === 'teacher' && bilinen ? (hTab as TeacherTabType) : 'home',
   };
 }
 
