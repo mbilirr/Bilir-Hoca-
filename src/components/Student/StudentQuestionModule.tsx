@@ -228,8 +228,8 @@ export const TargetLineLabel: React.FC<{ viewBox?: { x?: number; y?: number }; t
   const width = Math.round(text.length * 6.3 + 12);
   return (
     <g pointerEvents="none">
-      <rect x={x} y={y} width={width} height={17} rx={5} fill="var(--color-surface)" stroke="#ea580c" strokeWidth={1} opacity={0.95} />
-      <text x={x + 6} y={y + 12.5} fill="#ea580c" fontSize={11} fontWeight={700}>
+      <rect x={x} y={y} width={width} height={17} rx={5} fill="var(--color-surface)" stroke="var(--color-warning)" strokeWidth={1} opacity={0.95} />
+      <text x={x + 6} y={y + 12.5} fill="var(--color-warning)" fontSize={11} fontWeight={700}>
         {text}
       </text>
     </g>
@@ -247,10 +247,10 @@ export const CHART_LINE_CURSOR = { stroke: 'var(--color-line-strong)', strokeWid
 /** Grafik renkleri */
 export const CHART_COLORS = {
   met: 'var(--chart-1)',
-  below: '#3b82f6',
-  zero: '#f43f5e',
-  target: '#ea580c',
-  noTarget: '#94a3b8', // hedef verilmeyen günde çözülen sorular
+  below: 'var(--color-info)', // Aşama 279: grafik renkleri token'dan (koyu temada da doğru)
+  zero: 'var(--color-danger)',
+  target: 'var(--color-warning)',
+  noTarget: 'var(--color-subtle)', // hedef verilmeyen günde çözülen sorular
 };
 
 /** Haftalık grafiğin açıklaması (iki ekranda aynı). targetText: "Günlük hedef (50)" vb. */
@@ -268,7 +268,7 @@ export const WeeklyChartLegend: React.FC<{ targetText: string; mode: 'bar' | 'ar
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.below }} /> Hedefin altında
         </span>
-        <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-300">
+        <span className="flex items-center gap-1.5 text-danger-fg">
           <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.zero }} /> 0 Soru
         </span>
         {showNoTarget && (
@@ -282,8 +282,8 @@ export const WeeklyChartLegend: React.FC<{ targetText: string; mode: 'bar' | 'ar
         <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.met }} /> Çözülen Soru
       </span>
     )}
-    <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-300">
-      <span className="w-4 border-t-2 border-dashed border-orange-500 inline-block" /> {targetText}
+    <span className="flex items-center gap-1.5 text-warning-fg">
+      <span className="w-4 border-t-2 border-dashed border-warning inline-block" /> {targetText}
     </span>
   </div>
 );
@@ -323,8 +323,8 @@ export const MonthlyBucketTooltip: React.FC<{ active?: boolean; payload?: any[];
         <div className="flex justify-between text-muted">
           <span>Doğru / Yanlış:</span>
           <span>
-            <strong className="text-emerald-700 dark:text-emerald-300">{w.totalCorrect}</strong> /{' '}
-            <strong className="text-rose-700 dark:text-rose-300">{w.totalWrong}</strong>
+            <strong className="text-success-fg">{w.totalCorrect}</strong> /{' '}
+            <strong className="text-danger-fg">{w.totalWrong}</strong>
           </span>
         </div>
       ) : null}
@@ -1451,7 +1451,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <span className="font-bold text-fg text-xs">
               {data.dayName ? `${data.dayName} (${formatTurkishDate(data.dateStr)})` : data.weekLabel}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand-fg border border-brand/30">
               {data.totalQuestions > 0 ? `${data.totalQuestions} Soru` : '0 Soru'}
             </span>
           </div>
@@ -1464,25 +1464,25 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
             {data.totalCorrect !== undefined && data.totalCorrect > 0 && (
               <div className="flex justify-between items-center text-muted">
-                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> Doğru:
+                <span className="flex items-center gap-1 text-success-fg">
+                  <span className="w-2 h-2 rounded-full bg-success" /> Doğru:
                 </span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-300">{data.totalCorrect}</span>
+                <span className="font-bold text-success-fg">{data.totalCorrect}</span>
               </div>
             )}
 
             {data.totalWrong !== undefined && data.totalWrong > 0 && (
               <div className="flex justify-between items-center text-muted">
-                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                  <span className="w-2 h-2 rounded-full bg-rose-500" /> Yanlış:
+                <span className="flex items-center gap-1 text-danger-fg">
+                  <span className="w-2 h-2 rounded-full bg-danger" /> Yanlış:
                 </span>
-                <span className="font-bold text-rose-700 dark:text-rose-300">{data.totalWrong}</span>
+                <span className="font-bold text-danger-fg">{data.totalWrong}</span>
               </div>
             )}
 
             {data.totalQuestions >= goal ? (
-              <div className="text-[11px] text-emerald-600 dark:text-emerald-300 font-semibold flex items-center gap-1 pt-1 border-t border-line">
-                <CheckCircle2 className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
+              <div className="text-[11px] text-success-fg font-semibold flex items-center gap-1 pt-1 border-t border-line">
+                <CheckCircle2 className="w-3 h-3 text-success-fg" />
                 <span>
                   {goal > 0
                     ? `Günlük Hedefe Ulaşıldı (%${Math.round((data.totalQuestions / goal) * 100)})`
@@ -1490,12 +1490,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </span>
               </div>
             ) : data.totalQuestions > 0 ? (
-              <div className="text-[11px] text-orange-600 dark:text-orange-300 font-medium pt-1 border-t border-line">
+              <div className="text-[11px] text-brand-fg font-medium pt-1 border-t border-line">
                 Hedefe {goal - data.totalQuestions} soru kaldı (günün hedefi {goal})
               </div>
             ) : (
-              <div className="text-[11px] text-rose-600 dark:text-rose-300 font-medium flex items-center gap-1 pt-1 border-t border-line">
-                <AlertCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+              <div className="text-[11px] text-danger-fg font-medium flex items-center gap-1 pt-1 border-t border-line">
+                <AlertCircle className="w-3 h-3 text-danger-fg" />
                 <span>Bu gün soru çözülmedi</span>
               </div>
             )}
@@ -1520,8 +1520,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-fg text-surface flex items-center justify-center shadow-md shadow-slate-900/10">
-              <BarChart3 className="w-5 h-5 text-orange-400" />
+            <div className="w-10 h-10 rounded-xl bg-fg text-surface flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-brand-fg" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-fg tracking-tight">
@@ -1538,7 +1538,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                 className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
               >
-                <Download className="w-3.5 h-3.5 text-orange-400" />
+                <Download className="w-3.5 h-3.5 text-brand-fg" />
                 <span>Haftalık Raporu İndir (PDF)</span>
               </button>
             )}
@@ -1548,7 +1548,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                 className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
               >
-                <Download className="w-3.5 h-3.5 text-orange-400" />
+                <Download className="w-3.5 h-3.5 text-brand-fg" />
                 <span>Aylık Raporu İndir (PDF)</span>
               </button>
             )}
@@ -1560,7 +1560,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {/* Görünüm Modu / Sekme Seçimi */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line w-full">
             <label className="block text-[11px] font-bold text-fg-2 mb-1 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#1e3a8a] dark:text-blue-200" />
+              <Layers className="w-3.5 h-3.5 text-fg" />
               Çalışma Modülü & Analiz Boyutu
             </label>
             <div className="flex rounded-lg bg-surface border border-line-strong p-0.5">
@@ -1570,8 +1570,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 onClick={() => setActiveTab('entry')}
                 className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'entry'
-                    ? 'bg-orange-600 text-white shadow-xs'
-                    : 'text-muted hover:text-orange-600 dark:hover:text-orange-300'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-muted hover:text-brand-fg'
                 }`}
               >
                 + Soru Kaydet
@@ -1643,36 +1643,36 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 id="btn-student-open-week-picker"
                 type="button"
                 onClick={() => setIsWeekModalOpen(true)}
-                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-orange-50/60 dark:hover:bg-orange-500/10 border border-line-strong hover:border-orange-500 rounded-2xl transition-all shadow-xs cursor-pointer text-left"
+                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left"
                 title="Geçmiş haftaları görüntülemek için tıklayın"
               >
-                <div className="w-8 h-8 rounded-xl bg-orange-100/80 dark:bg-orange-500/15 group-hover:bg-orange-600 text-orange-600 dark:text-orange-300 group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-300 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block">
                       {weekOffset === 0 ? 'Güncel Hafta' : weekOffset === -1 ? 'Geçen Hafta' : `${Math.abs(weekOffset)} Hafta Önce`}
                     </span>
                     {weekOffset !== 0 ? (
-                      <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
                         Geçmiş Hafta
                       </span>
                     ) : (
-                      <span className="text-[9px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
                         Aktif Hafta
                       </span>
                     )}
                   </div>
                   <h3 className="text-xs sm:text-sm font-bold text-fg flex items-center gap-1">
                     <span className="text-muted font-medium">Haftalık İnceleme:</span>
-                    <span className="text-[#1e3a8a] dark:text-blue-200 underline decoration-orange-400/60 decoration-2 underline-offset-2">
+                    <span className="text-fg underline decoration-brand/60 decoration-2 underline-offset-2">
                       {weeklyAnalytics.weekLabel}
                     </span>
                   </h3>
                 </div>
-                <div className="ml-1 pl-2 border-l border-line text-subtle group-hover:text-orange-600 dark:group-hover:text-orange-300 flex items-center gap-1 text-xs font-semibold shrink-0">
-                  <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 dark:text-orange-300" />
+                <div className="ml-1 pl-2 border-l border-line text-subtle group-hover:text-brand-fg flex items-center gap-1 text-xs font-semibold shrink-0">
+                  <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-brand-fg" />
                 </div>
               </button>
 
@@ -1694,7 +1694,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setWeekOffset(0)}
-                  className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 min-w-24"
+                  className="ui-btn ui-btn-sm ui-btn-secondary min-w-24"
                   title="Güncel Haftaya Dön"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1706,7 +1706,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={openTodayEntry}
-                className="ui-btn ui-btn-sm bg-orange-600 hover:bg-orange-500 text-white shadow-sm min-w-24"
+                className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Bugünün Sorularını Ekle</span>
@@ -1951,11 +1951,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         statusText = targetDayStatusText(goalRow, generalTargetRes?.daily || dailyQuestionTarget);
                         statusCls =
                           goalRow.status === 'met'
-                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
+                            ? 'bg-success-soft text-success-fg border-success/30'
                             : goalRow.status === 'partial'
-                              ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
+                              ? 'bg-info-soft text-info-fg border-info/30'
                               : goalRow.status === 'none'
-                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30'
+                                ? 'bg-danger-soft text-danger-fg border-danger/30'
                                 : 'bg-surface-2 text-muted border-line';
                       } else if (!hasGoal) {
                         statusText = isFuture ? 'Henüz gelmedi' : d.hasSolved ? `Hedef yok · ${d.totalQuestions} soru` : 'Hedef verilmedi';
@@ -1966,19 +1966,19 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       } else if (d.hasSolved) {
                         statusText = metTarget ? 'Hedef Tamamlandı' : isToday ? `Bugün · ${goal - d.totalQuestions} kaldı` : 'Kısmi Çözüm';
                         statusCls = metTarget
-                          ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
-                          : 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30';
+                          ? 'bg-success-soft text-success-fg border-success/30'
+                          : 'bg-info-soft text-info-fg border-info/30';
                       } else {
                         statusText = isToday ? 'Bugün · henüz girilmedi' : '0 Soru ⚠️';
                         statusCls = isToday
                           ? 'bg-surface-2 text-muted border-line'
-                          : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
+                          : 'bg-danger-soft text-danger-fg border-danger/30';
                       }
                       return (
                         <tr
                           key={d.dateStr}
                           data-testid="merged-daily-row"
-                          className={`hover:bg-surface-2 transition-colors max-md:block max-md:rounded-xl max-md:border max-md:border-line max-md:px-3 max-md:py-2 ${isToday ? 'bg-orange-50/40 dark:bg-orange-500/5' : ''}`}
+                          className={`hover:bg-surface-2 transition-colors max-md:block max-md:rounded-xl max-md:border max-md:border-line max-md:px-3 max-md:py-2 ${isToday ? 'bg-brand-soft/40' : ''}`}
                         >
                           <td className="px-2 lg:px-3 py-2.5 whitespace-nowrap max-md:block max-md:px-0 max-md:pt-0 max-md:pb-1.5 max-md:mb-1 max-md:border-b max-md:border-line">
                             <span className="font-bold text-fg">{d.dayName}</span>
@@ -1993,9 +1993,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           <td data-label="Doğru / Yanlış" className={`px-2 lg:px-3 py-2.5 text-center whitespace-nowrap ${CELL_LABEL}`}>
                             {d.totalCorrect || d.totalWrong ? (
                               <span>
-                                <span className="font-bold text-emerald-700 dark:text-emerald-300">{d.totalCorrect}</span>
+                                <span className="font-bold text-success-fg">{d.totalCorrect}</span>
                                 <span className="text-muted"> / </span>
-                                <span className="font-bold text-rose-700 dark:text-rose-300">{d.totalWrong}</span>
+                                <span className="font-bold text-danger-fg">{d.totalWrong}</span>
                               </span>
                             ) : (
                               <span className="text-subtle">—</span>
@@ -2012,7 +2012,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               <span
                                 key={label}
                                 className={`block text-[10px] font-semibold leading-snug ${
-                                  r.status === 'met' ? 'text-emerald-700 dark:text-emerald-300' : r.status === 'future' ? 'text-muted' : 'text-orange-700 dark:text-orange-300'
+                                  r.status === 'met' ? 'text-success-fg' : r.status === 'future' ? 'text-muted' : 'text-brand-fg'
                                 }`}
                                 title={`${label} hedefi`}
                               >
@@ -2026,7 +2026,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             <div className="inline-flex items-center gap-1.5">
                               <div className="w-12 bg-surface-3 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className={`h-1.5 rounded-full ${metTarget ? 'bg-emerald-500' : 'bg-orange-500'}`}
+                                  className={`h-1.5 rounded-full ${metTarget ? 'bg-success' : 'bg-brand'}`}
                                   style={{ width: `${isFuture && !d.hasSolved ? 0 : completionRate}%` }}
                                 />
                               </div>
@@ -2049,7 +2049,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4">
               <div>
                 <h4 className="text-sm font-bold text-fg mb-3 pb-2 border-b border-line flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-orange-600 dark:text-orange-300" />
+                  <BookOpen className="w-4 h-4 text-brand-fg" />
                   Derslere Göre Soru Dağılımı
                 </h4>
                 {weeklyAnalytics.subjectBreakdown.length > 0 ? (
@@ -2058,14 +2058,14 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       <div key={sub.subject} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-fg">{sub.subject}</span>
-                          <span className="font-bold text-orange-600 dark:text-orange-300">
+                          <span className="font-bold text-brand-fg">
                             {sub.count} Soru (%{sub.percentage})
                           </span>
                         </div>
                         <div className="w-full bg-surface-2 rounded-full h-2 overflow-hidden">
                           <div
                             className={`h-2 rounded-full ${
-                              i === 0 ? 'bg-fg' : i === 1 ? 'bg-orange-500' : 'bg-[var(--chart-1)]'
+                              i === 0 ? 'bg-fg' : i === 1 ? 'bg-brand' : 'bg-[var(--chart-1)]'
                             }`}
                             style={{ width: `${sub.percentage}%` }}
                           />
@@ -2079,7 +2079,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
                 <div className="mt-5 p-3.5 bg-surface-2 rounded-xl border border-line text-xs text-fg-2 space-y-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-fg">
-                    <Award className="w-3.5 h-3.5 text-orange-600 dark:text-orange-300" />
+                    <Award className="w-3.5 h-3.5 text-brand-fg" />
                     <span>Haftalık Rehberlik Tavsiyesi</span>
                   </div>
                   <p className="leading-relaxed text-muted">
@@ -2093,7 +2093,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                   className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
                 >
-                  <Download className="w-3.5 h-3.5 text-orange-400" />
+                  <Download className="w-3.5 h-3.5 text-brand-fg" />
                   <span>Haftalık Raporumu İndir</span>
                 </button>
               </div>
@@ -2127,38 +2127,38 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 id="btn-student-open-month-picker"
                 type="button"
                 onClick={() => setIsMonthModalOpen(true)}
-                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-orange-50/60 dark:hover:bg-orange-500/10 border border-line-strong hover:border-orange-500 rounded-2xl transition-all shadow-xs cursor-pointer text-left"
+                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left"
                 title="Geçmiş ayları görüntülemek için tıklayın"
               >
-                <div className="w-8 h-8 rounded-xl bg-orange-100/80 dark:bg-orange-500/15 group-hover:bg-orange-600 text-orange-600 dark:text-orange-300 group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
                   <CalendarDays className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-300 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block">
                       {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth()
                         ? 'Güncel Ay'
                         : 'Geçmiş Dönem'}
                     </span>
                     {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth() ? (
-                      <span className="text-[9px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
                         Aktif Ay
                       </span>
                     ) : (
-                      <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
                         Geçmiş Ay
                       </span>
                     )}
                   </div>
                   <h3 className="text-xs sm:text-sm font-bold text-fg flex items-center gap-1">
                     <span className="text-muted font-medium">Analiz Ayı:</span>
-                    <span className="text-[#1e3a8a] dark:text-blue-200 underline decoration-orange-400/60 decoration-2 underline-offset-2">
+                    <span className="text-fg underline decoration-brand/60 decoration-2 underline-offset-2">
                       {monthlyAnalytics.monthLabel}
                     </span>
                   </h3>
                 </div>
-                <div className="ml-1 pl-2 border-l border-line text-subtle group-hover:text-orange-600 dark:group-hover:text-orange-300 flex items-center gap-1 text-xs font-semibold shrink-0">
-                  <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 dark:text-orange-300" />
+                <div className="ml-1 pl-2 border-l border-line text-subtle group-hover:text-brand-fg flex items-center gap-1 text-xs font-semibold shrink-0">
+                  <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-brand-fg" />
                 </div>
               </button>
 
@@ -2183,7 +2183,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     const now = new Date();
                     setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
                   }}
-                  className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 min-w-24"
+                  className="ui-btn ui-btn-sm ui-btn-secondary min-w-24"
                   title="Güncel Aya Dön"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -2197,7 +2197,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
               <span className="text-xs font-semibold text-muted">Aylık Toplam Soru</span>
               <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-fg">{monthlyAnalytics.totalQuestions}</span>
+                <span className="text-3xl font-bold text-fg">{monthlyAnalytics.totalQuestions}</span>
                 <span className="text-xs font-semibold text-muted">Soru</span>
               </div>
               <div className="mt-3 text-[11px] text-muted">
@@ -2208,12 +2208,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
               <span className="text-xs font-semibold text-muted">Aylık Hedef Bitirme</span>
               <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-orange-600 dark:text-orange-300">%{monthlyTargetCompletionRate}</span>
+                <span className="text-3xl font-bold text-brand-fg">%{monthlyTargetCompletionRate}</span>
                 <span className="text-xs font-semibold text-muted">Tamamlandı</span>
               </div>
               <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
                 <div
-                  className="bg-orange-500 h-2 rounded-full"
+                  className="bg-brand h-2 rounded-full"
                   style={{ width: `${Math.min(100, monthlyTargetCompletionRate)}%` }}
                 />
               </div>
@@ -2228,7 +2228,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
               <span className="text-xs font-semibold text-muted">Aktif Çalışma Günleri</span>
               <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-fg">{monthlyAnalytics.activeDaysCount}</span>
+                <span className="text-3xl font-bold text-fg">{monthlyAnalytics.activeDaysCount}</span>
                 <span className="text-xs font-semibold text-muted">Gün</span>
               </div>
               <div className="mt-3 text-[11px] text-muted">
@@ -2240,9 +2240,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <span className="text-xs font-semibold text-muted">Geçmiş Aya Göre Gelişim</span>
               <div className="flex items-baseline gap-2 mt-2">
                 {monthlyAnalytics.monthlyDifference >= 0 ? (
-                  <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300">+{monthlyAnalytics.monthlyDifference} Soru</span>
+                  <span className="text-2xl font-bold text-success-fg">+{monthlyAnalytics.monthlyDifference} Soru</span>
                 ) : (
-                  <span className="text-2xl font-black text-rose-700 dark:text-rose-300">{monthlyAnalytics.monthlyDifference} Soru</span>
+                  <span className="text-2xl font-bold text-danger-fg">{monthlyAnalytics.monthlyDifference} Soru</span>
                 )}
               </div>
               <div className="mt-3 text-[11px] text-muted">
@@ -2328,7 +2328,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div
               id="qe-success"
               role="status"
-              className="p-3 bg-success-soft border border-emerald-200 dark:border-emerald-500/30 text-success-fg rounded-xl text-xs font-bold flex items-center gap-2"
+              className="p-3 bg-success-soft border border-success/30 text-success-fg rounded-xl text-xs font-bold flex items-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{saveSuccessMsg}</span>
@@ -2339,7 +2339,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-surface-2 p-3.5 rounded-xl border border-line">
               <label htmlFor="qe-date" className="block text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#1e3a8a] dark:text-blue-200" />
+                <Calendar className="w-3.5 h-3.5 text-fg" />
                 Soru Çözülen Tarih
               </label>
               <input
@@ -2356,7 +2356,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   setEntryDate(e.target.value);
                 }}
                 className={`ui-field w-full font-bold ${
-                  dateError ? 'border-rose-500' : 'border-line-strong'
+                  dateError ? 'border-danger' : 'border-line-strong'
                 }`}
               />
               {dateError ? (
@@ -2393,7 +2393,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div
               id="qe-edit-notice"
               role="note"
-              className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-warning-soft text-warning-fg text-xs flex items-start gap-2"
+              className="p-3 rounded-xl border border-warning/30 bg-warning-soft text-warning-fg text-xs flex items-start gap-2"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
@@ -2413,12 +2413,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {manualPlanTasks.length > 0 && !dateError && (
             <div
               id="qe-plan-tasks"
-              className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 space-y-2"
+              className="p-3 rounded-xl border border-brand/30 bg-brand-soft/60 space-y-2"
             >
-              <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-1.5">
+              <p className="text-xs font-bold text-brand-fg flex items-center gap-1.5">
                 <ClipboardList className="w-4 h-4" />
                 {formatTurkishDate(entryDate)} günlük planındaki görevler
-                <span className="font-medium text-indigo-700/80 dark:text-indigo-300/80">(isteğe bağlı · tıklayınca konu kutusuna aktarılır)</span>
+                <span className="font-medium text-brand-fg/80">(isteğe bağlı · tıklayınca konu kutusuna aktarılır)</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {manualPlanTasks.map((it) => {
@@ -2431,19 +2431,19 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       disabled={!text}
                       onClick={() => transferPlanTasks(it.subject, [it])}
                       title={text ? 'Konu / Test kutusuna aktar' : 'Bu görevde aktarılacak yazı yok'}
-                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-[11px] text-fg hover:border-indigo-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-brand/30 text-[11px] text-fg hover:border-brand cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span className="font-bold text-indigo-700 dark:text-indigo-300 shrink-0">{it.subject}</span>
+                      <span className="font-bold text-brand-fg shrink-0">{it.subject}</span>
                       <span className="truncate">{text || '—'}</span>
-                      {it.questionCount > 0 && <span className="shrink-0 font-bold text-indigo-700 dark:text-indigo-300">· {it.questionCount} soru</span>}
+                      {it.questionCount > 0 && <span className="shrink-0 font-bold text-brand-fg">· {it.questionCount} soru</span>}
                       {it.doneAt && <Check className="w-3 h-3 text-success-fg shrink-0" aria-label="yapıldı" />}
-                      <Plus className="w-3 h-3 text-indigo-600 dark:text-indigo-300 shrink-0" />
+                      <Plus className="w-3 h-3 text-brand-fg shrink-0" />
                     </button>
                   );
                 })}
               </div>
               {planInfo && (
-                <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300" role="status">
+                <p className="text-[11px] font-semibold text-brand-fg" role="status">
                   {planInfo}
                 </p>
               )}
@@ -2454,12 +2454,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {nextWeekPlan && (
             <div
               id="qe-next-week"
-              className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 space-y-2"
+              className="p-3 rounded-xl border border-brand/30 bg-brand-soft/60 space-y-2"
             >
-              <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-1.5">
+              <p className="text-xs font-bold text-brand-fg flex items-center gap-1.5">
                 <Target className="w-4 h-4" />
                 Gelecek hafta hedefin
-                <span className="font-medium text-indigo-700/80 dark:text-indigo-300/80">
+                <span className="font-medium text-brand-fg/80">
                   ({formatTurkishDate(nextWeekPlan.start)} – {formatTurkishDate(nextWeekPlan.end)})
                 </span>
               </p>
@@ -2471,16 +2471,16 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     <div
                       key={d.date}
                       data-testid="qe-next-week-day"
-                      className={`min-w-0 rounded-lg border px-1 py-1 text-center ${empty ? 'border-line bg-surface-2/40' : 'border-indigo-200 dark:border-indigo-500/30 bg-surface'}`}
+                      className={`min-w-0 rounded-lg border px-1 py-1 text-center ${empty ? 'border-line bg-surface-2/40' : 'border-brand/30 bg-surface'}`}
                       title={d.topics.map((x) => `${x.subject}: ${x.topic}`).join('\n') || undefined}
                     >
                       <span className="block text-[10px] font-bold text-fg leading-tight">
                         {dt ? ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][dt.getDay()] : ''}
                       </span>
                       <span className="block text-[9px] text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
-                      {d.general > 0 && <span className="block text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">Toplam:{d.general}</span>}
+                      {d.general > 0 && <span className="block text-[10px] font-semibold text-brand-fg">Toplam:{d.general}</span>}
                       {d.subjects.map(([s, n]) => (
-                        <span key={s} className="block text-[10px] leading-tight font-semibold text-indigo-700 dark:text-indigo-300 break-words">
+                        <span key={s} className="block text-[10px] leading-tight font-semibold text-brand-fg break-words">
                           {shortSubjectName(s)}:{n}
                         </span>
                       ))}
@@ -2500,9 +2500,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {generalDayTarget !== null && !dateError && (
             <div
               id="qe-general-target"
-              className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-orange-200 dark:border-orange-500/30 bg-orange-50/60 dark:bg-orange-500/10 text-xs"
+              className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-brand/30 bg-brand-soft/60 text-xs"
             >
-              <Target className="w-4 h-4 text-orange-600 dark:text-orange-300" />
+              <Target className="w-4 h-4 text-brand-fg" />
               <span className="font-bold text-fg">
                 {formatTurkishDate(entryDate)} için toplam girmen gereken: {generalDayTarget} soru
               </span>
@@ -2511,12 +2511,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span
                   role="alert"
                   data-testid="qe-general-below-target"
-                  className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold"
+                  className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger text-white font-bold"
                 >
                   <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({generalDayTarget - formTotal} eksik)
                 </span>
               ) : formTotal >= generalDayTarget ? (
-                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold">
+                <span className="inline-flex items-center gap-1 text-success-fg font-bold">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Günlük hedef tamam
                 </span>
               ) : null}
@@ -2544,7 +2544,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   const rowMet = rowTarget !== null && rowEntered && (check.count || 0) >= rowTarget;
                   const rowPlanTasks = planTasksFor(row.subject);
                   const inputBase =
-                    'w-full h-8 bg-surface border rounded-lg px-2 py-0 text-xs text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20'; // Aşama 212: ortak 32 px
+                    'w-full h-8 bg-surface border rounded-lg px-2 py-0 text-xs text-center focus:outline-none focus:ring-2 focus:ring-brand/20'; // Aşama 212: ortak 32 px
                   return (
                     <div
                       key={row.subject}
@@ -2571,7 +2571,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           onKeyDown={blockNonDigitKeys}
                           onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'questionCount', v))}
                           onChange={(e) => updateListRow(idx, 'questionCount', e.target.value)}
-                          className={`${inputBase} font-bold text-fg ${check.invalid.count ? 'border-rose-500' : 'border-line-strong focus:border-orange-500'}`}
+                          className={`${inputBase} font-bold text-fg ${check.invalid.count ? 'border-danger' : 'border-line-strong focus:border-brand'}`}
                         />
                       </label>
                       <label className="block">
@@ -2590,7 +2590,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           onKeyDown={blockNonDigitKeys}
                           onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'correctCount', v))}
                           onChange={(e) => updateListRow(idx, 'correctCount', e.target.value)}
-                          className={`${inputBase} text-emerald-700 dark:text-emerald-300 font-semibold ${check.invalid.correct ? 'border-rose-500' : 'border-line-strong focus:border-emerald-500'}`}
+                          className={`${inputBase} text-success-fg font-semibold ${check.invalid.correct ? 'border-danger' : 'border-line-strong focus:border-success'}`}
                         />
                       </label>
                       <label className="block">
@@ -2609,7 +2609,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           onKeyDown={blockNonDigitKeys}
                           onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'wrongCount', v))}
                           onChange={(e) => updateListRow(idx, 'wrongCount', e.target.value)}
-                          className={`${inputBase} text-rose-700 dark:text-rose-300 font-semibold ${check.invalid.wrong ? 'border-rose-500' : 'border-line-strong focus:border-rose-500'}`}
+                          className={`${inputBase} text-danger-fg font-semibold ${check.invalid.wrong ? 'border-danger' : 'border-line-strong focus:border-danger'}`}
                         />
                       </label>
                       <div>
@@ -2642,7 +2642,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               onClick={() => transferPlanTasks(row.subject, rowPlanTasks)}
                               title={`Günlük plandaki görevi aktar: ${rowPlanTasks.map(planTaskText).join(', ')}`}
                               aria-label={`${row.subject} için günlük plandaki görevi konu kutusuna aktar`}
-                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold hover:bg-indigo-100 dark:hover:bg-indigo-500/20 cursor-pointer"
+                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md border border-brand/30 bg-brand-soft text-brand-fg text-[10px] font-bold hover:bg-brand-soft cursor-pointer"
                             >
                               <ClipboardList className="w-3 h-3" />
                               Plan
@@ -2652,20 +2652,20 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       </div>
                       {rowTarget !== null && (
                         <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap items-center gap-2 text-[11px]" data-testid="qe-row-target">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 font-bold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft border border-brand/30 text-brand-fg font-bold">
                             <Target className="w-3 h-3" /> Bugün girmen gereken: {rowTarget} soru
                           </span>
                           {rowBelow && (
                             <span
                               role="alert"
                               data-testid="qe-row-below-target"
-                              className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold"
+                              className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger text-white font-bold"
                             >
                               <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({rowTarget - (check.count || 0)} eksik)
                             </span>
                           )}
                           {rowMet && (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold">
+                            <span className="inline-flex items-center gap-1 text-success-fg font-bold">
                               <CheckCircle2 className="w-3 h-3" /> Hedef tamam
                             </span>
                           )}
@@ -2729,7 +2729,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     className="ui-field w-full font-bold"
                   />
                   {subjectDayTarget(singleSubject) !== null && (
-                    <span className="block mt-1 text-[10px] font-bold text-orange-700 dark:text-orange-300" id="qe-single-target-hint">
+                    <span className="block mt-1 text-[10px] font-bold text-brand-fg" id="qe-single-target-hint">
                       Hedef: {subjectDayTarget(singleSubject)} soru
                     </span>
                   )}
@@ -2752,7 +2752,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       setSingleError('');
                       setSingleCorrect(e.target.value);
                     }}
-                    className="ui-field w-full text-emerald-700 dark:text-emerald-300 font-semibold"
+                    className="ui-field w-full text-success-fg font-semibold"
                   />
                 </div>
 
@@ -2773,7 +2773,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       setSingleError('');
                       setSingleWrong(e.target.value);
                     }}
-                    className="ui-field w-full text-rose-700 dark:text-rose-300 font-semibold"
+                    className="ui-field w-full text-danger-fg font-semibold"
                   />
                 </div>
 
@@ -2796,7 +2796,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         onClick={() => transferPlanTasks(singleSubject, planTasksFor(singleSubject))}
                         title="Günlük plandaki görevi aktar"
                         aria-label="Günlük plandaki görevi konu kutusuna aktar"
-                        className="ui-btn ui-btn-sm shrink-0 border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 min-w-24"
+                        className="ui-btn ui-btn-sm shrink-0 border border-brand/30 bg-brand-soft text-brand-fg min-w-24"
                       >
                         <ClipboardList className="w-3 h-3" />
                         Plan
@@ -2809,7 +2809,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="submit"
                     id="qe-single-add"
-                    className="ui-btn ui-btn-sm w-full bg-orange-600 hover:bg-orange-500 text-white"
+                    className="ui-btn ui-btn-sm ui-btn-primary w-full"
                   >
                     <Plus className="w-3.5 h-3.5" /> Ekle
                   </button>
@@ -2843,17 +2843,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             D {c} · Y {w} · B {Math.max(0, item.questionCount - c - w)}
                           </span>
                           {tgt !== null && (
-                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 font-bold text-[11px]" data-testid="qe-single-row-target">
+                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft border border-brand/30 text-brand-fg font-bold text-[11px]" data-testid="qe-single-row-target">
                               <Target className="w-3 h-3" /> Girmen gereken: {tgt}
                             </span>
                           )}
                           {below && (
-                            <span role="alert" className="qe-blink ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold text-[11px]" data-testid="qe-single-row-below">
+                            <span role="alert" className="qe-blink ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger text-white font-bold text-[11px]" data-testid="qe-single-row-below">
                               <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({(tgt as number) - item.questionCount} eksik)
                             </span>
                           )}
                           {tgt !== null && !below && (
-                            <span className="ml-2 inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                            <span className="ml-2 inline-flex items-center gap-1 text-success-fg font-bold text-[11px]">
                               <CheckCircle2 className="w-3 h-3" /> Hedef tamam
                             </span>
                           )}
@@ -2862,7 +2862,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveSingleEntry(idx)}
-                          className="text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 text-xs font-semibold cursor-pointer"
+                          className="text-danger-fg hover:text-danger-fg text-xs font-semibold cursor-pointer"
                         >
                           Kaldır
                         </button>
@@ -2878,7 +2878,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div
               id="qe-error-summary"
               role="alert"
-              className="p-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-danger-soft text-danger-fg text-xs space-y-1"
+              className="p-3 rounded-xl border border-danger/30 bg-danger-soft text-danger-fg text-xs space-y-1"
             >
               <p className="font-bold flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4 shrink-0" /> Kayıt yapılamadı, lütfen şunları düzelt:
@@ -2909,7 +2909,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               disabled={isSaving}
               className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm disabled:opacity-60 disabled:cursor-wait min-w-24"
             >
-              <Check className="w-3.5 h-3.5 text-orange-400" />
+              <Check className="w-3.5 h-3.5 text-brand-fg" />
               <span>{isSaving ? 'Kaydediliyor…' : isEditMode ? 'Kaydı Güncelle' : 'Soru Kaydını Tamamla ve Gönder'}</span>
             </button>
           </div>
@@ -2943,7 +2943,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-baseline gap-3">
                         <span className="font-bold text-fg text-sm">{formatTurkishDate(log.date)}</span>
-                        <span className="font-extrabold text-[#1e3a8a] dark:text-blue-200 text-sm" data-testid="qh-total">
+                        <span className="font-extrabold text-fg text-sm" data-testid="qh-total">
                           {log.totalQuestions} Soru
                         </span>
                         <span className="text-[11px] text-muted" data-testid="qh-dyb">
@@ -2979,7 +2979,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               }
                             }
                           }}
-                          className="p-1.5 text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-danger-fg hover:text-danger-fg hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
                           title="Kaydı Sil"
                           aria-label="Kaydı Sil"
                         >
@@ -3021,9 +3021,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
           <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-center justify-between bg-gradient-to-r from-orange-50/70 dark:from-orange-500/10 via-surface to-surface-2">
+            <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shadow-sm">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
@@ -3086,17 +3086,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       }}
                       className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
-                          ? 'border-orange-500 bg-orange-50/70 dark:bg-orange-500/10 shadow-xs ring-1 ring-orange-500/40'
-                          : 'border-line hover:border-orange-300 dark:hover:border-orange-500/30 hover:bg-surface-2'
+                          ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
+                          : 'border-line hover:border-brand/30 hover:bg-surface-2'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
                             isSelected
-                              ? 'bg-orange-600 text-white shadow-xs'
+                              ? 'bg-brand text-white shadow-xs'
                               : item.hasActivity
-                              ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                              ? 'bg-success-soft text-success-fg'
                               : 'bg-surface-2 text-muted'
                           }`}
                         >
@@ -3104,16 +3104,16 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-black text-fg">
+                            <span className="text-xs font-bold text-fg">
                               {item.relativeLabel}
                             </span>
                             {item.offset === 0 && (
-                              <span className="text-[9px] font-extrabold bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
+                              <span className="text-[9px] font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
                                 Güncel
                               </span>
                             )}
                             {item.hasActivity && (
-                              <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                              <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
                                 {item.activeDaysCount} Gün Çözüm
                               </span>
                             )}
@@ -3126,7 +3126,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
                       <div className="flex items-center justify-between sm:justify-end gap-3 sm:border-l sm:border-line sm:pl-3">
                         <div className="text-right">
-                          <span className="text-sm font-black text-[#1e3a8a] dark:text-blue-200 block">
+                          <span className="text-sm font-bold text-fg block">
                             {item.totalQuestions} Soru
                           </span>
                           <span className="text-[10px] text-muted block">
@@ -3137,8 +3137,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           type="button"
                           className={`ui-btn ui-btn-sm ${
                             isSelected
-                              ? 'bg-orange-600 text-white'
-                              : 'bg-surface-2 hover:bg-orange-500 hover:text-white text-fg-2'
+                              ? 'bg-brand text-white'
+                              : 'bg-surface-2 hover:bg-brand-hover hover:text-white text-fg-2'
                           }`}
                         >
                           {isSelected ? 'Seçili' : 'İncele'}
@@ -3173,9 +3173,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
           <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-center justify-between bg-gradient-to-r from-orange-50/70 dark:from-orange-500/10 via-surface to-surface-2">
+            <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shadow-sm">
                   <CalendarDays className="w-5 h-5" />
                 </div>
                 <div>
@@ -3240,17 +3240,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       }}
                       className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
-                          ? 'border-orange-500 bg-orange-50/70 dark:bg-orange-500/10 shadow-xs ring-1 ring-orange-500/40'
-                          : 'border-line hover:border-orange-300 dark:hover:border-orange-500/30 hover:bg-surface-2'
+                          ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
+                          : 'border-line hover:border-brand/30 hover:bg-surface-2'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
                             isSelected
-                              ? 'bg-orange-600 text-white shadow-xs'
+                              ? 'bg-brand text-white shadow-xs'
                               : item.hasActivity
-                              ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                              ? 'bg-success-soft text-success-fg'
                               : 'bg-surface-2 text-muted'
                           }`}
                         >
@@ -3258,11 +3258,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-black text-fg">
+                            <span className="text-xs font-bold text-fg">
                               {item.monthLabel}
                             </span>
                             {isCurrent && (
-                              <span className="text-[9px] font-extrabold bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
+                              <span className="text-[9px] font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
                                 Güncel Ay
                               </span>
                             )}
@@ -3271,7 +3271,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             </span>
                           </div>
                           {item.hasActivity && (
-                            <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold mt-0.5">
+                            <p className="text-[11px] text-success-fg font-semibold mt-0.5">
                               {item.activeDaysCount} Gün Çözüm Kaydı
                             </p>
                           )}
@@ -3280,7 +3280,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
                       <div className="flex items-center justify-between sm:justify-end gap-3 sm:border-l sm:border-line sm:pl-3">
                         <div className="text-right">
-                          <span className="text-sm font-black text-[#1e3a8a] dark:text-blue-200 block">
+                          <span className="text-sm font-bold text-fg block">
                             {item.totalQuestions} Soru
                           </span>
                           <span className="text-[10px] text-muted block">
@@ -3291,8 +3291,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           type="button"
                           className={`ui-btn ui-btn-sm ${
                             isSelected
-                              ? 'bg-orange-600 text-white'
-                              : 'bg-surface-2 hover:bg-orange-500 hover:text-white text-fg-2'
+                              ? 'bg-brand text-white'
+                              : 'bg-surface-2 hover:bg-brand-hover hover:text-white text-fg-2'
                           }`}
                         >
                           {isSelected ? 'Seçili' : 'İncele'}
