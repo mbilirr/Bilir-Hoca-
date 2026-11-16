@@ -94,8 +94,7 @@ export const YonetimSayfasi: React.FC<{
   classes: ClassGroup[];
   currentTeacher?: Teacher | null;
   onNavigateHome?: () => void;
-  onOpenGuide?: () => void;
-}> = ({ classes, currentTeacher, onNavigateHome, onOpenGuide }) => {
+}> = ({ classes, currentTeacher, onNavigateHome }) => {
   const [tick, setTick] = useState(0);
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const isHead = dataService.isHeadAdmin();
@@ -363,13 +362,6 @@ export const YonetimSayfasi: React.FC<{
         tone="warning"
         title="Yönetim"
         description="Kurumlar, bildirimler, yedek ve kendi kayıtlarınız"
-        actions={
-          onOpenGuide ? (
-            <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={onOpenGuide}>
-              Aşama 25 rehberi
-            </button>
-          ) : undefined
-        }
       />
       <Segmented
         value={ust}

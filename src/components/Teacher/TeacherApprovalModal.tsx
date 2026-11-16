@@ -115,7 +115,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -125,16 +125,16 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-line bg-surface-2 flex items-center justify-between shrink-0">
+        <div className="p-5 sm:p-6 border-b border-line bg-gradient-to-r from-surface via-indigo-50 dark:via-indigo-950/40 to-surface flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-warning/15 border border-warning/30 text-warning-fg flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2 flex-wrap gap-y-1">
                 <span>Öğretmenler & Sınıf İzinleri Yönetimi</span>
                 {pendingTeachers.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-warning/20 text-warning-fg border border-warning/30">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                     {pendingTeachers.length} Onay Bekleyen
                   </span>
                 )}
@@ -165,7 +165,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                 onClick={() => setActiveTab('pending')}
                 className={`ui-btn ui-btn-sm ${
                   activeTab === 'pending'
-                    ? 'bg-warning/20 text-warning-fg border border-warning/40'
+                    ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
                     : 'text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
@@ -179,7 +179,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
               onClick={() => setActiveTab('teachers')}
               className={`ui-btn ui-btn-sm ${
                 activeTab === 'teachers'
-                  ? 'bg-brand text-white'
+                  ? 'bg-indigo-600 text-white'
                   : 'text-muted hover:text-fg hover:bg-surface-2'
               }`}
             >
@@ -195,15 +195,15 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
             className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line disabled:opacity-50 min-w-24"
             title="Buluttaki güncel kayıtları hemen tara"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-brand-fg ${isSyncing ? 'animate-spin' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Yenileniyor...' : 'Buluttan Yenile'}</span>
           </button>
         </div>
 
         {/* Feedback Message */}
         {actionMsg && (
-          <div className="mx-6 mt-3 p-3 rounded-xl bg-brand/20 text-brand-fg border border-brand/40 text-xs font-semibold flex items-center space-x-2 animate-in fade-in shrink-0">
-            <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
+          <div className="mx-6 mt-3 p-3 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-200 border border-indigo-500/40 text-xs font-semibold flex items-center space-x-2 animate-in fade-in shrink-0">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <span>{actionMsg}</span>
           </div>
         )}
@@ -216,7 +216,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
               {pendingTeachers.length === 0 ? (
                 <div className="py-12 text-center">
                   <div className="w-12 h-12 rounded-2xl bg-surface-2 border border-line text-muted flex items-center justify-center mx-auto mb-3">
-                    <UserCheck className="w-6 h-6 text-success-fg" />
+                    <UserCheck className="w-6 h-6 text-emerald-700 dark:text-emerald-400" />
                   </div>
                   <h4 className="text-sm font-bold text-fg">Bekleyen Öğretmen Başvurusu Yok</h4>
                   <p className="text-xs text-muted mt-1 max-w-sm mx-auto">
@@ -238,7 +238,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
                           <h4 className="font-bold text-sm text-fg truncate">{t.name}</h4>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-brand-soft text-brand-fg border border-brand/30">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                             {t.branch || 'Genel Branş'}
                           </span>
                         </div>
@@ -266,7 +266,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleApprove(t.id, t.name)}
-                        className="ui-btn ui-btn-success ui-btn-sm min-w-24"
+                        className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
                       >
                         <UserCheck className="w-3.5 h-3.5" />
                         <span>Onayla</span>
@@ -275,7 +275,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleReject(t.id, t.name)}
-                        className="ui-btn ui-btn-sm bg-warning-soft hover:bg-warning-soft text-warning-fg border border-warning/30 min-w-24"
+                        className="ui-btn ui-btn-sm bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 min-w-24"
                       >
                         <UserX className="w-3.5 h-3.5" />
                         <span>Reddet</span>
@@ -284,7 +284,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleDelete(t.id, t.name)}
-                        className="p-2 text-subtle hover:text-danger-fg hover:bg-danger-soft rounded-xl transition-colors cursor-pointer"
+                        className="p-2 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
                         title="Başvuruyu Sil"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -299,8 +299,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           {/* TAB 2: ALL TEACHERS & CLASS PERMISSIONS */}
           {activeTab === 'teachers' && (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-brand/10 border border-brand/20 text-xs text-brand-fg flex items-start space-x-2.5">
-                <AlertCircle className="w-4 h-4 text-brand-fg shrink-0 mt-0.5" />
+              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-600 dark:text-indigo-300 flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">Veri Gizliliği & Yetkilendirme Kuralı:</span>
                   <p className="mt-0.5 text-fg-2 text-[11px] leading-relaxed">
@@ -315,7 +315,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                     key={teacher.id}
                     className={`p-4 rounded-2xl border transition-all ${
                       teacher.isAdmin
-                        ? 'bg-warning-soft/60 border-warning/30 shadow-sm'
+                        ? 'bg-amber-50/60 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 shadow-sm'
                         : 'bg-surface border-line shadow-sm hover:shadow-md hover:border-line-strong'
                     } text-subtle`}
                   >
@@ -333,8 +333,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h4 className="font-bold text-sm text-fg truncate">{teacher.name}</h4>
                             {teacher.isAdmin ? (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-warning-soft text-warning-fg border border-warning/30 flex items-center space-x-1">
-                                <Crown className="w-3 h-3 text-warning-fg" />
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 flex items-center space-x-1">
+                                <Crown className="w-3 h-3 text-amber-600 dark:text-amber-300" />
                                 <span>Kurum Yöneticisi (Admin)</span>
                               </span>
                             ) : (
@@ -342,7 +342,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                                 Öğretmen
                               </span>
                             )}
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-brand-soft text-brand-fg border border-brand/30">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                               {teacher.branch || 'Genel Branş'}
                             </span>
                           </div>
@@ -361,19 +361,19 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           onClick={() => handleToggleAdmin(teacher)}
                           className={`ui-btn ui-btn-sm ${
                             teacher.isAdmin
-                              ? 'bg-warning-soft text-warning-fg border border-warning/30 hover:bg-warning-soft'
+                              ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 hover:bg-amber-200 dark:hover:bg-amber-500/20'
                               : 'bg-surface-2 text-fg-2 hover:bg-surface-3 border border-line'
                           }`}
                           title={teacher.isAdmin ? 'Yöneticilik yetkisini kaldır' : 'Kurum Yöneticisi yap'}
                         >
-                          <Crown className="w-3.5 h-3.5 text-warning-fg" />
+                          <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
                           <span>{teacher.isAdmin ? 'Admin Yetkili' : 'Admin Yap'}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleDelete(teacher.id, teacher.name)}
-                          className="p-1.5 text-subtle hover:text-danger-fg hover:bg-danger-soft rounded-xl transition-colors cursor-pointer"
+                          className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
                           title="Öğretmeni Sil"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -384,15 +384,15 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                     {/* Class Permissions Selector */}
                     <div className="pt-3">
                       {teacher.isAdmin ? (
-                        <div className="flex items-center space-x-2 text-xs text-warning-fg bg-warning-soft p-2.5 rounded-xl border border-warning/30">
-                          <Crown className="w-4 h-4 text-warning-fg shrink-0" />
+                        <div className="flex items-center space-x-2 text-xs text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30">
+                          <Crown className="w-4 h-4 text-amber-600 dark:text-amber-300 shrink-0" />
                           <span>
                             <strong>Yönetici Erişimi:</strong> Bu öğretmen kurum yöneticisi olduğu için tüm sınıfları ve tüm öğrencileri otomatik olarak görebilir ve yönetebilir.
                           </span>
                         </div>
                       ) : (
                         <div className="flex items-center space-x-2 text-xs text-fg-2 bg-surface-2 p-2.5 rounded-xl border border-line" data-k="onay-erisim-matrisi-notu">
-                          <ShieldCheck className="w-4 h-4 text-brand-fg shrink-0" />
+                          <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-300 shrink-0" />
                           <span>
                             Sınıf ve öğrenci erişimi <strong>Yönetim › Öğretmenler › Erişim Matrisi</strong> ile verilir (kaydedilen yetki öğretmende hemen görünür).
                           </span>

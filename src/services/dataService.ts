@@ -4743,7 +4743,7 @@ class DataService {
         this.syncQuestionLogsAndTargetsFromSupabase(isBackground),
         this.syncTeacherDocumentsFromSupabase(isBackground),
         this.syncTeachersFromSupabase(isBackground),
-        this.refreshPendingApplicationCount(),
+        // Aşama 284: öğrenci başvuru sayısı artık sorulmuyor (bölüm kullanılmıyor; her eşitlemede boşa istekti)
         this.syncMyTeacherAccess(),
         this.syncMyKurum(),
         this.syncStudentBrand(),

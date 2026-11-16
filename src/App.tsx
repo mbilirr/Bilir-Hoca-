@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition } from 'react';
-import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
 import { TeacherBottomNav } from './components/Layout/BottomNav';
@@ -9,7 +9,6 @@ import { AuthPortal } from './components/Auth/AuthPortal';
 import { PortalSecimi } from './components/Auth/PortalSecimi'; // Aşama 243
 import { SolMenu, ogretmenMenuOgeleri } from './components/Layout/SolMenu'; // Aşama 260
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
-import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
 import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
@@ -18,7 +17,6 @@ import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
-const TeacherApprovalModal = lazyNamed(() => import('./components/Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
 import { supabase } from './lib/supabase';
 import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
 import { HesapSecimi } from './components/Auth/HesapSecimi'; // Aşama 256
@@ -77,7 +75,6 @@ const RehberlikAnaSayfa = lazyNamed(() => import('./components/Home/RehberlikAna
 const OlcmeAnaSayfa = lazyNamed(() => import('./components/Home/OlcmeAnaSayfa'), 'OlcmeAnaSayfa'); // Aşama 253
 const EtutAnaSayfa = lazyNamed(() => import('./components/Home/EtutAnaSayfa'), 'EtutAnaSayfa'); // Aşama 253
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
-const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
 // Aşama 107: önizlemede öğrenci seçme kutusu (yalnız önizleme açılınca indirilir)
 const StudentSearchSelect = lazyNamed(() => import('./components/Common/StudentSearchSelect'), 'StudentSearchSelect');
@@ -133,8 +130,6 @@ export default function App() {
   const currentTeacher = authSession?.role === 'teacher' ? (authSession.user as Teacher) : null;
 
   // Modals
-  const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
-  const [isAsama25GuideOpen, setIsAsama25GuideOpen] = useState(false);
 
   // Teacher active navigation tab — sayfa yenilenirse URL hash'inden geri yüklenir, yoksa 'home'
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>(() => parseRouteHash().tab);
@@ -154,7 +149,6 @@ export default function App() {
   const [messages, setMessages] = useState<StudentMessage[]>(dataService.getMessages());
   const [documents, setDocuments] = useState<TeacherDocument[]>(dataService.getTeacherDocuments());
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(dataService.getQuestionLogs());
-  const [pendingApplications, setPendingApplications] = useState<number>(dataService.getPendingApplicationCount());
   const [, setDataRev] = useState(0);
   // Aşama 125: bildirimde oturumun değişip değişmediğini anlamak için son çizilen oturum
   const authSessionRef = useRef<AuthSession | null>(authSession);
@@ -193,7 +187,6 @@ export default function App() {
         setMessages(dataService.getMessages());
         setDocuments(dataService.getTeacherDocuments());
         setQuestionLogs(dataService.getQuestionLogs());
-        setPendingApplications(dataService.getPendingApplicationCount());
       });
     };
     const unsubscribe = dataService.subscribe(() => {
@@ -789,12 +782,7 @@ export default function App() {
         ) : role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
-            {/* Kurum Yöneticisi Admin Onay Bildirimi Duvarı */}
-            {(dataService.yoneticiKaydi(activeTeacher) || dataService.yoneticiKaydi(currentTeacher)) && dataService.isHeadAdmin() && (
-              <AdminTeacherApprovalBanner
-                onOpenFullModal={() => setIsAdminApprovalModalOpen(true)}
-              />
-            )}
+            {/* Aşama 284: öğretmen onayı ve öğrenci başvurusu duvarları kaldırıldı (kayıtları kurum açar; kullanılmıyordu) */}
 
             {/* Yönetici: veri yedeği hatırlatması (son yedek 7 günden eskiyse) */}
             {dataService.yoneticiKaydi(activeTeacher) && dataService.isHeadAdmin() && teacherTab !== 'user_management' && (
@@ -806,24 +794,6 @@ export default function App() {
               <UnattendedEtutBanner onOpenEtuts={() => setTeacherTab('etuts')} />
             )}
 
-            {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
-            {dataService.canReviewApplications() && pendingApplications > 0 && teacherTab !== 'user_management' && (
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-warning-soft border border-line text-fg">
-                <div className="flex items-center gap-2.5 text-sm">
-                  <Bell className="w-4 h-4 text-warning-fg shrink-0" />
-                  <span>
-                    <strong>{pendingApplications}</strong> öğrenci kayıt başvurusu onayınızı bekliyor.
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTeacherTab('user_management')}
-                  className="ui-btn ui-btn-warning ui-btn-sm"
-                >
-                  Başvuruları İncele
-                </button>
-              </div>
-            )}
 
             {/* Aşama 105: yalnız Etüt Öğretmeni rolü olan kişiye Etütler bölümü kapalıysa boş sayfa yerine bilgi */}
             {teacherTab === 'home' && dataService.roleEtutOnly() && !dataService.canUseTab('etuts') && (
@@ -925,7 +895,6 @@ export default function App() {
                       classes={classes}
                       currentTeacher={currentTeacher}
                       onNavigateHome={() => setTeacherTab('home')}
-                      onOpenGuide={() => setIsAsama25GuideOpen(true)}
                     />
                   )}
                   </Suspense>
@@ -1004,19 +973,6 @@ export default function App() {
       {/* MODALS */}
       {/* Aşama 173: eski "Veritabanı Kurulum Rehberi" kaldırıldı (herkese açık kural SQL'i içeriyordu) */}
 
-      {/* Admin Teacher Approvals & Permissions Modal */}
-      {isAdminApprovalModalOpen && (
-        <Suspense fallback={null}>
-          <TeacherApprovalModal isOpen onClose={() => setIsAdminApprovalModalOpen(false)} />
-        </Suspense>
-      )}
-
-      {/* Aşama 25 rehberi (yalnızca genel yönetici, Yönetim sayfasındaki düğmeyle açılır) */}
-      {isAsama25GuideOpen && (
-        <Suspense fallback={null}>
-          <Asama25Rehberi isOpen={isAsama25GuideOpen} onClose={() => setIsAsama25GuideOpen(false)} />
-        </Suspense>
-      )}
 
       {/* Şifre sıfırlama bağlantısıyla gelindiyse yeni şifre penceresi */}
       <PasswordRecoveryModal />
