@@ -1013,7 +1013,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 setIsStudentDropdownOpen((prev) => !prev);
                 setStudentSearchQuery('');
               }}
-              className="w-full h-8 bg-surface border border-line-strong text-xs font-semibold rounded-lg pl-3 pr-3 py-0 flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
+              className="ui-field w-full font-semibold flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
             >
               {activeStudent ? (
                 <div className="flex items-center gap-1.5 truncate">

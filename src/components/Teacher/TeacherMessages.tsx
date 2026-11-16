@@ -44,7 +44,7 @@ function readMsgFilters(uid: string): MsgFilters {
   }
   return DEFAULT_MSG_FILTERS;
 }
-const msgSelectCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand';
+const msgSelectCls = 'ui-field w-full text-xs'; // Aşama 288: ortak açılır liste görünümü (ince ok)
 // Aşama 206: arama ve cevap kutusu süzgeç kutularıyla aynı ölçü
 const msgInputCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-3 text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand';
 

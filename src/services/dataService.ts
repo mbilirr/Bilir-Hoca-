@@ -11106,14 +11106,14 @@ class DataService {
         return {
           label: 'Zamanında Teslim Edildi',
           emoji: '🌟',
-          badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          badgeClass: 'bg-success-soft text-success-fg border-success/30', // Aşama 288: Odak tokenları (eski sınıflar koyu zemine göreydi; açık temada yazı okunmuyordu)
           status: 'on_time',
         };
       } else {
         return {
           label: 'Gecikmeli Teslim',
           emoji: '⚠️',
-          badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          badgeClass: 'bg-warning-soft text-warning-fg border-warning/30',
           status: 'late',
         };
       }
@@ -11127,14 +11127,14 @@ class DataService {
         return {
           label: 'Teslim Edilmedi (Gecikti)',
           emoji: '🚨',
-          badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+          badgeClass: 'bg-danger-soft text-danger-fg border-danger/30',
           status: 'not_submitted',
         };
       } else if (diffHours <= 48) {
         return {
           label: 'Yaklaşıyor (Son 48s)',
           emoji: '⏳',
-          badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          badgeClass: 'bg-warning-soft text-warning-fg border-warning/30',
           status: 'due_soon',
         };
       }
@@ -11143,7 +11143,7 @@ class DataService {
     return {
       label: 'Bekliyor',
       emoji: '📝',
-      badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+      badgeClass: 'bg-surface-2 text-fg-2 border-line-strong',
       status: 'not_submitted',
     };
   }
