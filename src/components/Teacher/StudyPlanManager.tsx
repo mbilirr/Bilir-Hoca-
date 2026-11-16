@@ -64,6 +64,7 @@ import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { User as UserIcon, School, Lock } from 'lucide-react';
 import { ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
+import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -298,6 +299,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [reload]);
+  // Aşama 277: açık duran ekranda da anlık (öğrenci işaretleyince ya da başka öğretmen görev ekleyince sessizce yenilenir)
+  usePlanCanli(!!studentId && mode !== 'class', () => void reload(true), { ilgili: (id) => id === studentId });
 
   const [notice, setNotice] = useState<Notice | null>(null);
   const noticeTimer = useRef<number | null>(null);

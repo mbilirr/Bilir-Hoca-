@@ -38,6 +38,7 @@ import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import { StudyPlanUnsendModal } from './StudyPlanUnsendModal';
 import { transferPlansForStudents } from '../../lib/planToTarget';
+import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
@@ -240,6 +241,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [reload]);
+  // Aşama 277: görünen öğrencilerden birinin planı değişince sessizce yenilenir (toplu değişiklik tek okumaya iner)
+  const viewIdSet = useMemo(() => new Set(viewKey ? viewKey.split(',') : []), [viewKey]);
+  usePlanCanli(viewIdSet.size > 0, () => void reload(true), { ilgili: (id) => viewIdSet.has(id) });
 
   const [notice, setNotice] = useState<Notice | null>(null);
   const noticeTimer = useRef<number | null>(null);

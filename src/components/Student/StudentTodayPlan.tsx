@@ -16,6 +16,7 @@ import {
   type PlanItem,
 } from '../../services/studyPlanService';
 import { planGorevIsaretle } from '../../lib/planGorev';
+import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 
 // ============================================================================
 // Öğrenci ana sayfası: "Bugün yapılması gerekenler" (Aşama 19)
@@ -76,12 +77,10 @@ export const StudentTodayPlan: React.FC<{
       if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVis);
-    const timer = window.setInterval(() => void refresh(), 90000);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      window.clearInterval(timer);
-    };
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, [refresh]);
+  // Aşama 277: anlık sinyal; kanal yoksa 90 sn'lik yedek okuma yalnız sekme görünürken
+  usePlanCanli(true, () => void refresh(), { studentId: dataService.getAuthSession()?.user?.id || null, yedekMs: 90_000 });
 
   const today = new Date();
   const todayIdx = dayIndexOf(today, weekStart);

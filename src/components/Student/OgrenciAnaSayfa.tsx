@@ -11,6 +11,7 @@ import { computeTargetDays, isPendingPlanTarget, weekDayGoal } from '../../utils
 import { formatDateISO, getWeekStartOf } from '../../utils/questionAnalytics';
 import { useDataVersion } from '../../lib/useDataVersion';
 import { useSeenIds } from '../../lib/useSeenIds';
+import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 import { dayIndexOf, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
 import { planGorevIsaretle } from '../../lib/planGorev';
 import { devamsizligim, haftaBasi, ogrenciProgrami, trBugun, type Devamsizligim, type OgrenciProgram } from '../../services/dersService';
@@ -236,12 +237,10 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     void planOku();
     const vis = () => document.visibilityState === 'visible' && void planOku();
     document.addEventListener('visibilitychange', vis);
-    const t = setInterval(() => void planOku(), 90_000);
-    return () => {
-      document.removeEventListener('visibilitychange', vis);
-      clearInterval(t);
-    };
+    return () => document.removeEventListener('visibilitychange', vis);
   }, [can.plan, preview, planOku]);
+  // Aşama 277: plan değişince anlık sinyalle okunur (eskiden 90 sn'de bir, sekme arka plandayken de sorgu atılıyordu)
+  usePlanCanli(can.plan && !preview, () => void planOku(), { studentId: student.id, yedekMs: 90_000 });
   const bugunIdx = plan ? dayIndexOf(simdi, plan.weekStart) : -1;
   const bugunGorev = useMemo(() => (plan ? plan.items.filter((i) => i.day === bugunIdx) : []), [plan, bugunIdx]);
   const geciken = useMemo(() => (plan ? plan.items.filter((i) => i.day < bugunIdx && !i.doneAt).length : 0), [plan, bugunIdx]);
