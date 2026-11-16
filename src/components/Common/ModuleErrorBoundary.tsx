@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { hataBildir } from '../../lib/hataKaydi';
 
 interface Props {
   moduleName?: string;
@@ -24,6 +25,7 @@ export class ModuleErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.warn(`[ModuleErrorBoundary] Error in module [${this.props.moduleName || 'Unknown'}]:`, error, errorInfo);
+    hataBildir(error, 'ekran', this.props.moduleName); // Aşama 293
   }
 
   private handleRetry = () => {

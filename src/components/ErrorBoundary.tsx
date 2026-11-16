@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { hataBildir } from '../lib/hataKaydi';
 
 interface Props {
   children: ReactNode;
@@ -22,6 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error in EduTrack application:', error, errorInfo);
+    hataBildir(error, 'ekran', 'uygulama'); // Aşama 293
 
     // Sanal DOM veya dış tarayıcı çeviri eklentisi (Google Translate vb.) kaynaklı removeChild/insertBefore hatalarında otomatik temiz remount
     const isDOMClash =

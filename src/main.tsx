@@ -8,6 +8,10 @@ import { installAvatarGuard } from './lib/localAvatar';
 import { installEscClose } from './lib/escClose';
 import { installIntlCache } from './lib/intlCache';
 import { installAutofillGuard } from './lib/autofillGuard';
+import { installHataKaydi } from './lib/hataKaydi';
+
+// Aşama 293: yakalanmamış hatalar kendi veritabanımıza yazılır (sistem sahibi Yönetim › Yedek ve bakım'da görür)
+installHataKaydi();
 
 // Aşama 84: tarih biçimlendirme ve Türkçe sıralama için kurulan biçimlendiriciler tekrar kullanılır (listeler hızlanır)
 installIntlCache();

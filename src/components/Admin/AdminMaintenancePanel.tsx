@@ -14,6 +14,7 @@ import {
 
 import { BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { HataKayitlariPanel } from './HataKayitlariPanel'; // Aşama 293
 export { BACKUP_REMINDER_DAYS };
 
 const daysSince = (d: Date) => Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
@@ -245,6 +246,9 @@ export const AdminMaintenancePanel: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* Aşama 293: kullanıcı ekranlarında oluşan hatalar */}
+      <HataKayitlariPanel />
     </div>
   );
 };
