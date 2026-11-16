@@ -450,39 +450,39 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     const DUPLICATE_THEMES = [
       {
-        nameColor: 'text-amber-800 dark:text-amber-200 font-black',
-        badgeBg: 'bg-amber-100 dark:bg-amber-500/15',
-        badgeText: 'text-amber-950 dark:text-amber-200 font-bold',
-        badgeBorder: 'border-amber-400',
-        rowBg: 'bg-amber-50/90 dark:bg-amber-500/10',
-        rowHover: 'hover:bg-amber-100/80 dark:hover:bg-amber-500/15',
-        borderLeft: 'border-l-4 border-l-amber-500',
-        ringColor: 'ring-amber-500',
-        pillBg: 'bg-amber-600',
+        nameColor: 'text-warning-fg font-bold',
+        badgeBg: 'bg-warning-soft',
+        badgeText: 'text-warning-fg font-bold',
+        badgeBorder: 'border-warning',
+        rowBg: 'bg-warning-soft/90',
+        rowHover: 'hover:bg-warning-soft/80',
+        borderLeft: 'border-l-4 border-l-warning',
+        ringColor: 'ring-warning',
+        pillBg: 'bg-warning',
         label: '1. Kayıt',
       },
       {
-        nameColor: 'text-rose-800 dark:text-rose-200 font-black',
-        badgeBg: 'bg-rose-100 dark:bg-rose-500/15',
-        badgeText: 'text-rose-950 dark:text-rose-200 font-bold',
-        badgeBorder: 'border-rose-400',
-        rowBg: 'bg-rose-50/90 dark:bg-rose-500/10',
-        rowHover: 'hover:bg-rose-100/80 dark:hover:bg-rose-500/15',
-        borderLeft: 'border-l-4 border-l-rose-500',
-        ringColor: 'ring-rose-500',
-        pillBg: 'bg-rose-600',
+        nameColor: 'text-danger-fg font-bold',
+        badgeBg: 'bg-danger-soft',
+        badgeText: 'text-danger-fg font-bold',
+        badgeBorder: 'border-danger',
+        rowBg: 'bg-danger-soft/90',
+        rowHover: 'hover:bg-danger-soft/80',
+        borderLeft: 'border-l-4 border-l-danger',
+        ringColor: 'ring-danger',
+        pillBg: 'bg-danger',
         label: '2. Kayıt',
       },
       {
-        nameColor: 'text-purple-800 dark:text-purple-200 font-black',
-        badgeBg: 'bg-purple-100 dark:bg-purple-500/15',
-        badgeText: 'text-purple-950 dark:text-purple-200 font-bold',
-        badgeBorder: 'border-purple-400',
-        rowBg: 'bg-purple-50/90 dark:bg-purple-500/10',
-        rowHover: 'hover:bg-purple-100/80 dark:hover:bg-purple-500/15',
-        borderLeft: 'border-l-4 border-l-purple-500',
-        ringColor: 'ring-purple-500',
-        pillBg: 'bg-purple-600',
+        nameColor: 'text-info-fg font-bold',
+        badgeBg: 'bg-info-soft',
+        badgeText: 'text-info-fg font-bold',
+        badgeBorder: 'border-info',
+        rowBg: 'bg-info-soft/90',
+        rowHover: 'hover:bg-info-soft/80',
+        borderLeft: 'border-l-4 border-l-info',
+        ringColor: 'ring-info',
+        pillBg: 'bg-info',
         label: '3. Kayıt',
       },
     ];
@@ -1334,9 +1334,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     <div className="space-y-6">
       {/* Success Notification Alert */}
       {studentSuccessFeedback && (
-        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-emerald-700 dark:text-emerald-200 text-sm shadow-xl shadow-emerald-950/30 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="p-4 bg-success-soft border border-success/40 rounded-2xl flex items-center justify-between text-success-fg text-sm shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-success/20 border border-success/40 flex items-center justify-center text-success-fg shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <span className="font-medium">{studentSuccessFeedback}</span>
@@ -1344,7 +1344,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <button
             onClick={() => setStudentSuccessFeedback(null)}
             aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-emerald-700 dark:text-emerald-400"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-success-fg"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1485,23 +1485,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
           {/* Duplicate Students System Warning Banner */}
           {duplicateStudentGroups.totalDuplicates > 0 && (
-            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-xs">
-              <div className="p-2.5 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl shrink-0 mt-0.5">
-                <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300 animate-bounce" />
+            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-warning-fg flex items-start gap-3 shadow-xs">
+              <div className="p-2.5 bg-warning/20 text-warning-fg rounded-xl shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-warning-fg" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-extrabold text-sm text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                  <h4 className="font-extrabold text-sm text-warning-fg flex items-center gap-1.5">
                     <span>⚠️ Sistem Uyarısı: Aynı İsim, Sınıf ve Numaraya Sahip Öğrenciler Tespit Edildi!</span>
                   </h4>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 dark:bg-amber-500/20 text-amber-950 dark:text-amber-200 font-black border border-amber-300 dark:border-amber-500/30">
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-warning-soft text-warning-fg font-bold border border-warning/30">
                     {duplicateStudentGroups.totalDuplicates} Kayıt İşaretlendi
                   </span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-500/20 text-rose-950 dark:text-rose-200 font-black border border-rose-300 dark:border-rose-500/30">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-danger-soft text-danger-fg font-bold border border-danger/30">
                     {Object.keys(duplicateStudentGroups.groups).filter(k => duplicateStudentGroups.groups[k].length > 1).length} Çakışan Grup
                   </span>
                 </div>
-                <p className="text-xs text-amber-950/90 dark:text-amber-200/90 mt-1.5 leading-relaxed">
+                <p className="text-xs text-warning-fg/90 mt-1.5 leading-relaxed">
                   {/* Aşama 184: kısaltıldı */}
                   <strong>Aynı ad, sınıf ve numaralı</strong> kayıtlar listede yan yana gösteriliyor (1. kayıt turuncu, 2. kayıt kırmızı).
                 </p>
@@ -1511,8 +1511,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Quick Class Change Feedback Banner */}
           {quickClassChangeFeedback && (
-            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
-              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-300 shrink-0" />
+            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-success/15 border-2 border-success/30 text-success-fg text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
+              <Check className="w-4 h-4 text-success-fg shrink-0" />
               <span>{quickClassChangeFeedback}</span>
             </div>
           )}
@@ -1591,16 +1591,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Toplu İşlem & Çoklu Silme Barı */}
           {selectedStudentIds.length > 0 && (
-            <div className="px-4 sm:px-6 py-3 bg-rose-50 dark:bg-rose-500/10 border-b border-rose-200 dark:border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-fg transition-all animate-in fade-in duration-200">
+            <div className="px-4 sm:px-6 py-3 bg-danger-soft border-b border-danger/30 flex flex-wrap items-center justify-between gap-3 text-fg transition-all animate-in fade-in duration-200">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                <div className="w-7 h-7 rounded-lg bg-danger text-white flex items-center justify-center text-xs font-bold shadow-xs">
                   {selectedStudentIds.length}
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-rose-950 dark:text-rose-200">
+                  <span className="text-xs font-bold text-danger-fg">
                     {selectedStudentIds.length} Öğrenci Seçildi
                   </span>
-                  <span className="text-[11px] text-rose-700 dark:text-rose-300 ml-1.5 hidden sm:inline">
+                  <span className="text-[11px] text-danger-fg ml-1.5 hidden sm:inline">
                     (Listelenen {filteredStudents.length} öğrenci arasından)
                   </span>
                 </div>
@@ -1612,7 +1612,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   onClick={handleToggleSelectAll}
                   className="ui-btn ui-btn-sm text-fg-2 bg-surface border border-line-strong hover:bg-surface-2 min-w-24"
                 >
-                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+                  <CheckSquare className="w-3.5 h-3.5 text-brand-fg" />
                   <span>{allFilteredSelected ? 'Tümünün Seçimini Kaldır' : `Tümünü Seç (${filteredStudents.length})`}</span>
                 </button>
                 <button
@@ -1638,7 +1638,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsBulkDeleteModalOpen(true)}
-                  className="ui-btn ui-btn-sm text-white bg-rose-600 hover:bg-rose-700 shadow-sm min-w-24"
+                  className="ui-btn ui-btn-danger ui-btn-sm min-w-24"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Seçilen Öğrencileri Sil ({selectedStudentIds.length})</span>
@@ -1748,7 +1748,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         }}
                         onChange={handleToggleSelectAll}
                         title={allFilteredSelected ? 'Tümünün Seçimini Kaldır' : 'Hepsini Seç'}
-                        className="w-4 h-4 rounded border-line-strong text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-line-strong text-brand-fg focus:ring-brand cursor-pointer"
                       />
                     </div>
                   </th>
@@ -1779,7 +1779,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       key={std.id}
                       className={
                         isSelected
-                          ? 'bg-indigo-50/70 dark:bg-indigo-500/10 hover:bg-indigo-100/70 dark:hover:bg-indigo-500/15 transition-colors border-l-4 border-l-indigo-600'
+                          ? 'bg-brand-soft/70 hover:bg-brand-soft/70 transition-colors border-l-4 border-l-brand'
                           : isDuplicate && dupInfo
                           ? `${dupInfo.colorTheme.rowBg} ${dupInfo.colorTheme.rowHover} transition-colors ${dupInfo.colorTheme.borderLeft}`
                           : 'hover:bg-surface-2/80 transition-colors'
@@ -1790,7 +1790,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleStudent(std.id)}
-                          className="w-4 h-4 rounded border-line-strong text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-line-strong text-brand-fg focus:ring-brand cursor-pointer"
                         />
                       </td>
 
@@ -1803,7 +1803,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             alt={std.name}
                             className={`w-10 h-10 rounded-full object-cover ring-2 ${
                               isSelected
-                                ? 'bg-indigo-100 dark:bg-indigo-500/15 ring-indigo-400 shadow-xs'
+                                ? 'bg-brand-soft ring-brand shadow-xs'
                                 : isDuplicate && dupInfo
                                 ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.ringColor} shadow-xs`
                                 : 'bg-surface-2 ring-line'
@@ -1813,7 +1813,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                               {isDuplicate && dupInfo && (
                                 <span
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-white shadow-2xs ${dupInfo.colorTheme.pillBg}`}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider text-white shadow-2xs ${dupInfo.colorTheme.pillBg}`}
                                   title={`${dupInfo.colorTheme.label} - Bu öğrenci ile aynı isim, sınıf ve okul numarasına sahip ${dupInfo.groupCount} kayıt bulunmaktadır.`}
                                 >
                                   {dupInfo.colorTheme.label}
@@ -1822,7 +1822,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               <span
                                 className={`text-sm ${
                                   isSelected
-                                    ? 'text-indigo-950 dark:text-indigo-200 font-bold'
+                                    ? 'text-brand-fg font-bold'
                                     : isDuplicate && dupInfo
                                     ? dupInfo.colorTheme.nameColor
                                     : 'text-fg font-bold'
@@ -1850,10 +1850,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           options={grantedQuickOptions}
                           allowNone={false}
                           onPick={(v) => handleQuickChangeStudentClass(std, v)}
-                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer transition-all shadow-2xs ${
                             isDuplicate && dupInfo
                               ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
-                              : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/15'
+                              : 'bg-brand-soft text-brand-fg border-brand/30 hover:border-brand hover:bg-brand-soft'
                           }`}
                           title="Genel yöneticinin açtığı sınıflar arasında taşımak için seçiniz"
                         />
@@ -1864,12 +1864,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           value={std.classId || 'unassigned'}
                           options={quickClassOptions}
                           onPick={(v) => handleQuickChangeStudentClass(std, v)}
-                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer transition-all shadow-2xs ${
                             isStudentUnassigned(std)
                               ? 'bg-surface-2 text-fg-2 border-line-strong hover:border-line-strong'
                               : isDuplicate && dupInfo
                               ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
-                              : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/15'
+                              : 'bg-brand-soft text-brand-fg border-brand/30 hover:border-brand hover:bg-brand-soft'
                           }`}
                           title="Öğrencinin sınıfını anında değiştirmek için seçiniz"
                         />
@@ -1892,7 +1892,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <div className="flex items-center space-x-2">
                           {std.auth_user_id ? (
                             <span
-                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30"
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-success-soft text-success-fg border border-success/30"
                               title="Öğrenci, öğrenci numarası ve şifresiyle giriş yapabilir"
                             >
                               <CheckCircle2 className="w-3 h-3" />
@@ -1900,7 +1900,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30"
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-warning-soft text-warning-fg border border-warning/30"
                               title="Bu öğrencinin giriş hesabı yok. Şifre belirleyerek hesap açabilirsiniz."
                             >
                               <Lock className="w-3 h-3" />
@@ -1915,7 +1915,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               setPasswordTargetValue(dataService.generatePassword());
                               setPasswordTargetError(null);
                             }}
-                            className="p-1 text-muted hover:text-indigo-700 dark:hover:text-indigo-300 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
+                            className="p-1 text-muted hover:text-brand-fg rounded hover:bg-brand-soft transition-colors cursor-pointer"
                             title={std.auth_user_id ? 'Yeni şifre belirle' : 'Şifre belirleyip giriş hesabı aç'}
                           >
                             <Key className="w-3.5 h-3.5" />
@@ -1933,13 +1933,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <span>Mükerrer ({dupInfo.colorTheme.label})</span>
                           </span>
                         ) : std.isSuspended || std.status === 'suspended' ? (
-                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-danger-soft text-danger-fg border border-danger/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-danger"></span>
                             <span>Askıda</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-success-soft text-success-fg border border-success/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
                             <span>Aktif Öğrenci</span>
                           </span>
                         )}
@@ -1960,7 +1960,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setStudentToDelete(std)}
-                              className="p-2 bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 dark:hover:text-rose-300 border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
+                              className="p-2 bg-surface-2 hover:bg-danger-soft text-muted hover:text-danger-fg border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
                               title="Öğrenciyi Sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1992,8 +1992,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         <div className="space-y-4">
           {!isAdmin && (
             /* Aşama 184: büyük bilgi kutusu tek satıra indi, ayrıntı ⓘ içinde */
-            <div className="px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 text-indigo-600 dark:text-indigo-200 text-xs flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+            <div className="px-3 py-2 rounded-xl bg-brand-soft border border-brand/30 text-brand-fg text-xs flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-brand-fg" />
               <span className="flex-1">Yetkili olduğunuz {classes.length} sınıf görünüyor.</span>
               <InfoTip text="Yalnız kurum yöneticisinin size yetki verdiği sınıflar listelenir. Sınıf ekleme, düzenleme ve silme yöneticiye aittir." />
             </div>
@@ -2013,9 +2013,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   badges={
                     <>
                       {cls.schoolLevel && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300">{cls.schoolLevel}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning-fg">{cls.schoolLevel}</span>
                       )}
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">{branchText}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-brand/10 text-brand-fg">{branchText}</span>
                       {cls.kurumId && dataService.isHeadAdmin() && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-info-soft text-info-fg" data-kurum-badge>
                           {dataService.getKurumNameForId(cls.kurumId)}
@@ -2032,7 +2032,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   meta={[cls.academicYear, cls.description].filter(Boolean).join(' · ') || undefined}
                   stats={
                     <div className="flex items-center gap-2 text-xs text-muted">
-                      <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <Users className="w-3.5 h-3.5 text-brand-fg" />
                       <span>
                         <strong className="text-fg">{classStudents.length}</strong> Kayıtlı Öğrenci
                       </span>
@@ -2090,7 +2090,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           className="ui-btn ui-btn-secondary ui-btn-sm"
                           title="Sistemdeki öğrencileri tek tek veya toplu bu sınıfa aktar"
                         >
-                          <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> Öğrenci Aktar
+                          <ArrowRightLeft className="w-3.5 h-3.5 text-success-fg" /> Öğrenci Aktar
                         </button>
                       )}
                       {dataService.canAddStudentToClass(cls) && (
@@ -2105,7 +2105,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           className="ui-btn ui-btn-secondary ui-btn-sm"
                           title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
                         >
-                          <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Yeni Öğrenci
+                          <Plus className="w-3.5 h-3.5 text-brand-fg" /> Yeni Öğrenci
                         </button>
                       )}
                       <button
@@ -3154,7 +3154,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         return (
           <div
-            className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
             onClick={() => setViewingClassStudents(null)}
           >
             <OverlayLayer onClose={() => setViewingClassStudents(null)} />
@@ -3165,7 +3165,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               {/* Header */}
               <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand-fg">
                     <School className="w-5 h-5" />
                   </div>
                   <div>
@@ -3174,14 +3174,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         {formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel)} — Kayıtlı Öğrenci Listesi
                       </h3>
                       {viewingClassStudents.schoolLevel && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning-fg border border-warning/20">
                           {viewingClassStudents.schoolLevel}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-muted mt-0.5">
                       {viewingClassStudents.branch} • {viewingClassStudents.academicYear} • Toplam{' '}
-                      <strong className="text-indigo-600 dark:text-indigo-300 font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
+                      <strong className="text-brand-fg font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
                     </p>
                   </div>
                 </div>
@@ -3235,7 +3235,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setTransferSelectedStudentIds([]);
                       setTransferSearchTerm('');
                     }}
-                    className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
+                    className="ui-btn ui-btn-success ui-btn-sm min-w-24"
                     title="Sistemdeki öğrencileri tek tek veya toplu olarak bu sınıfa aktar"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -3262,7 +3262,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     }}
                     className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line min-w-24"
                   >
-                    <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <Eye className="w-3.5 h-3.5 text-brand-fg" />
                     <span>Tabloda Aç</span>
                   </button>
                 </div>
@@ -3304,7 +3304,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           setTransferSelectedStudentIds([]);
                           setTransferSearchTerm('');
                         }}
-                        className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 text-white min-w-24"
+                        className="ui-btn ui-btn-success ui-btn-sm min-w-24"
                       >
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                         <span>Sistemdeki Öğrencileri Aktar</span>
@@ -3337,7 +3337,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             key={std.id}
                             className={
                               isDuplicate
-                                ? 'bg-amber-50/90 dark:bg-amber-500/10 hover:bg-amber-100/90 dark:hover:bg-amber-500/15 transition-colors border-l-4 border-l-amber-500'
+                                ? 'bg-warning-soft/90 hover:bg-warning-soft/90 transition-colors border-l-4 border-l-warning'
                                 : 'hover:bg-surface-2/80 transition-colors'
                             }
                           >
@@ -3351,18 +3351,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                   alt={std.name}
                                   className={`w-7 h-7 rounded-full object-cover border ${
                                     isDuplicate
-                                      ? 'bg-amber-100 dark:bg-amber-500/15 ring-2 ring-amber-400'
+                                      ? 'bg-warning-soft ring-2 ring-warning'
                                       : 'bg-surface-2 border-line'
                                   }`}
                                   referrerPolicy="no-referrer"
                                 />
                                 <div className="flex items-center space-x-2 flex-wrap">
-                                  <span className={`font-bold ${isDuplicate ? 'text-amber-950 dark:text-amber-200 font-extrabold' : 'text-fg'}`}>
+                                  <span className={`font-bold ${isDuplicate ? 'text-warning-fg font-extrabold' : 'text-fg'}`}>
                                     {std.name}
                                   </span>
                                   {isDuplicate && (
-                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30">
-                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-700 dark:text-amber-300" />
+                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30">
+                                      <AlertTriangle className="w-2.5 h-2.5 text-warning-fg" />
                                       <span>Mükerrer</span>
                                     </span>
                                   )}
@@ -3373,8 +3373,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               <span
                                 className={`font-mono px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                   isDuplicate
-                                    ? 'bg-amber-200 dark:bg-amber-500/20 text-amber-950 dark:text-amber-200 border-amber-400 font-bold'
-                                    : 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-150 dark:border-indigo-500/30'
+                                    ? 'bg-warning-soft text-warning-fg border-warning font-bold'
+                                    : 'text-brand-fg bg-brand-soft border-brand/30'
                                 }`}
                               >
                                 #{std.studentNumber || '-'}
@@ -3399,7 +3399,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                     setViewingClassStudents(null);
                                     openEditStudent(std);
                                   }}
-                                  className="p-1.5 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-muted hover:text-brand-fg hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Düzenle"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -3416,7 +3416,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                       }
                                     }
                                   }}
-                                  className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-subtle hover:text-danger-fg hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Bu Sınıftan Çıkar"
                                 >
                                   <UserMinus className="w-3.5 h-3.5" />
@@ -3523,7 +3523,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         return (
           <div
-            className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
             onClick={() => setTransferTargetClass(null)}
           >
             <OverlayLayer onClose={() => setTransferTargetClass(null)} />
@@ -3534,13 +3534,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               {/* Header */}
               <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                  <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center">
                     <ArrowRightLeft className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                       <span>Öğrenci Aktarımı</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/20 text-brand-fg border border-brand/30">
                         {transferTargetClass.name}
                       </span>
                     </h3>
@@ -3580,7 +3580,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       onClick={() => setTransferOnlyUnassigned(false)}
                       className={`ui-btn ui-btn-sm ${
                         !transferOnlyUnassigned
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-brand text-white shadow-sm'
                           : 'text-muted hover:text-fg'
                       }`}
                     >
@@ -3591,7 +3591,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       onClick={() => setTransferOnlyUnassigned(true)}
                       className={`ui-btn ui-btn-sm ${
                         transferOnlyUnassigned
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-brand text-white shadow-sm'
                           : 'text-muted hover:text-fg'
                       }`}
                     >
@@ -3608,12 +3608,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       checked={isAllSelected}
                       onChange={toggleSelectAll}
                       disabled={filteredTransferStudents.length === 0}
-                      className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 bg-surface-2 border-line cursor-pointer"
+                      className="w-4 h-4 rounded text-brand-fg focus:ring-brand bg-surface-2 border-line cursor-pointer"
                     />
                     <span>
                       Tümünü Seç ({filteredTransferStudents.length})
                       {transferSelectedStudentIds.length > 0 && (
-                        <strong className="text-indigo-600 dark:text-indigo-400 ml-1.5">
+                        <strong className="text-brand-fg ml-1.5">
                           ({transferSelectedStudentIds.length} seçildi)
                         </strong>
                       )}
@@ -3624,7 +3624,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     type="button"
                     onClick={handleTransferBulk}
                     disabled={transferSelectedStudentIds.length === 0}
-                    className="ui-btn ui-btn-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white disabled:cursor-not-allowed min-w-24"
+                    className="ui-btn ui-btn-success ui-btn-sm disabled:opacity-40 disabled:cursor-not-allowed min-w-24"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Seçilenleri Toplu Aktar ({transferSelectedStudentIds.length})</span>
@@ -3646,7 +3646,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         key={std.id}
                         className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
                           isSelected
-                            ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500/50'
+                            ? 'bg-brand-soft border-brand/50'
                             : 'bg-surface/60 border-line hover:bg-surface-2/50'
                         }`}
                       >
@@ -3655,7 +3655,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelectStudent(std.id)}
-                            className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 bg-surface-2 border-line cursor-pointer"
+                            className="w-4 h-4 rounded text-brand-fg focus:ring-brand bg-surface-2 border-line cursor-pointer"
                           />
                           <img loading="lazy" decoding="async"
                             src={
@@ -3678,7 +3678,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                                   !std.className || std.className === 'Atanmadı'
                                     ? 'bg-surface-2 text-muted'
-                                    : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20'
+                                    : 'bg-brand/10 text-brand-fg border border-brand/20'
                                 }`}
                               >
                                 {std.className || 'Sınıfsız'}

@@ -247,6 +247,20 @@
   select.ui-field {
     @apply h-8 py-0;
   }
+  /* Aşama 280: BÜTÜN açılır listeler aynı modern görünümde: tarayıcının kendi oku yerine ince ok simgesi, sağda boşluk.
+     Ortak SelectBox kendi okunu çizdiği için (appearance-none sınıfı) burada ayrı tutulur; çoklu seçim listesi hariç. */
+  select.ui-input:not(.appearance-none):not([multiple]),
+  select.ui-field:not(.appearance-none):not([multiple]) {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a0b4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 0.875rem;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
   /* Aşama 211: açılır liste gibi çalışan düğmeler (öğrenci / öğretmen / ders seçiciler) de aynı 32 px */
   button.ui-input,
   button.ui-field {
