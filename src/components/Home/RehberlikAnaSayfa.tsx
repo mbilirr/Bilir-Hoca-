@@ -24,6 +24,7 @@ import { givenNamesOf } from '../../lib/greeting';
 import { setQuickFocus } from '../../lib/quickFocus';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './rehberlik.css';
+import { usePlanCanli } from '../../lib/planCanli';
 
 // ============================================================================
 // Aşama 249: REHBERLİK ANA SAYFASI (taslak: "rehberlik 2.html" + "Okulun nabzı" v3, Odak renkleri)
@@ -191,6 +192,9 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
       document.removeEventListener('visibilitychange', yenile);
     };
   }, [can.plan, kurumId, okuPlan]);
+  // Aşama 285: plan özeti anlık. Öğrenci görevi işaretleyince ya da öğretmen plan gönderince (sql/277 sinyali) özet
+  // 10 sn içinde tek okumayla yenilenir; 5 dakikalık okuma yalnız yedek olarak kalır (277 kurulu değilse de çalışır).
+  usePlanCanli(!!can.plan && !!kurumId, () => void okuPlan(), { toplaMs: 10_000 });
 
   // ================================================================ DENEME (Deneme bölümü açıksa)
   const [denemeler, setDenemeler] = useState<DenemeOzet[]>([]);

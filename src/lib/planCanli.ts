@@ -69,11 +69,13 @@ const BEKLE_MS = 1000; // art arda gelen sinyaller (toplu gönderim) tek okumaya
  * "sekmeye dönünce yenile" kuralı çalışır).
  *  - studentId: öğrenci oturumunda kendi kimliği; öğretmende null (kurumun bütün sinyalleri gelir, `ilgili` ile süzülür).
  *  - yedekMs: kanal canlı DEĞİLKEN ve sekme görünürken bu aralıkla okunur (öğrenci ekranları).
+ *  - toplaMs (Aşama 285): kurum özeti gibi PAHALI okumalar için. İlk sinyalden bu kadar sonra TEK okuma yapılır; arada
+ *    gelen sinyaller süreyi uzatmaz (büyük kurumda art arda işaretlemeler özeti saniyede bir okutmaz).
  */
 export function usePlanCanli(
   aktif: boolean,
   yenile: () => void,
-  secenek: { studentId?: string | null; ilgili?: (studentId: string) => boolean; yedekMs?: number } = {},
+  secenek: { studentId?: string | null; ilgili?: (studentId: string) => boolean; yedekMs?: number; toplaMs?: number } = {},
 ): void {
   const yenileRef = useRef(yenile);
   yenileRef.current = yenile;
@@ -81,6 +83,7 @@ export function usePlanCanli(
   ilgiliRef.current = secenek.ilgili;
   const studentId = secenek.studentId || null;
   const yedekMs = secenek.yedekMs || 0;
+  const toplaMs = secenek.toplaMs || 0;
   useEffect(() => {
     if (!aktif) return;
     let canli = false;
@@ -89,11 +92,14 @@ export function usePlanCanli(
     const birak = planCanliDinle(studentId, {
       degisti: (id) => {
         if (ilgiliRef.current && !ilgiliRef.current(id)) return;
-        if (bekle) clearTimeout(bekle);
+        if (bekle) {
+          if (toplaMs) return; // bekleyen okuma bu sinyali de kapsar
+          clearTimeout(bekle);
+        }
         bekle = setTimeout(() => {
           bekle = null;
           if (document.visibilityState === 'visible') yenileRef.current();
-        }, BEKLE_MS);
+        }, toplaMs || BEKLE_MS);
       },
       durum: (c) => {
         // kanal yeniden bağlandıysa arada kaçan değişiklik için bir kez okunur
@@ -112,5 +118,5 @@ export function usePlanCanli(
       if (bekle) clearTimeout(bekle);
       if (yedek) clearInterval(yedek);
     };
-  }, [aktif, studentId, yedekMs]);
+  }, [aktif, studentId, yedekMs, toplaMs]);
 }
