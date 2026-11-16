@@ -8,7 +8,7 @@
 import type { ClassGroup, Student } from '../../types';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import type { ExamSubject } from './lgs';
-import { round2 } from './lgs';
+import { oturumaGirdi, round2, tamOturum } from './lgs';
 import { dateTr } from './karneModel';
 import { downloadStyledXlsx, safeSheetName, type Cell, type CellStyle, type StyledSheet } from '../xlsxStyled';
 
@@ -57,6 +57,7 @@ export function buildSiralama(exams: DenemeExam[], results: DenemeResult[], stud
   type Acc = { r: DenemeResult; lastIdx: number; n: number; scoreSum: number; scoreN: number; netSum: number; netN: number; sub: Record<string, { s: number; n: number }> };
   const acc = new Map<string, Acc>();
   const seenPair = new Set<string>();
+  const dersOturumu = new Map(exams.map((e) => [e.id, new Map((e.subjects || []).map((s) => [s.key, s.session] as const))] as const));
   for (const r of results) {
     if (!examIds.has(r.examId) || !r.studentId) continue;
     const pk = `${r.examId}|${r.studentId}`;
@@ -70,11 +71,14 @@ export function buildSiralama(exams: DenemeExam[], results: DenemeResult[], stud
       a.r = r; // en son denemedeki ad / sınıf
     }
     a.n++;
-    if (typeof r.score === 'number' && Number.isFinite(r.score)) {
+    // Aşama 289: eksik oturumlu denemenin puanı ve toplam neti ortalamaya girmez; girdiği oturumun dersleri girer
+    const tam = tamOturum(r);
+    const oturumu = dersOturumu.get(r.examId);
+    if (tam && typeof r.score === 'number' && Number.isFinite(r.score)) {
       a.scoreSum += r.score;
       a.scoreN++;
     }
-    if (typeof r.totalNet === 'number' && Number.isFinite(r.totalNet)) {
+    if (tam && typeof r.totalNet === 'number' && Number.isFinite(r.totalNet)) {
       a.netSum += r.totalNet;
       a.netN++;
     }
@@ -82,6 +86,8 @@ export function buildSiralama(exams: DenemeExam[], results: DenemeResult[], stud
     for (const k in st) {
       const net = st[k]?.net;
       if (typeof net !== 'number' || !Number.isFinite(net)) continue;
+      const ot = oturumu?.get(k);
+      if (ot && !oturumaGirdi(r, { session: ot })) continue;
       const x = a.sub[k] || (a.sub[k] = { s: 0, n: 0 });
       x.s += net;
       x.n++;

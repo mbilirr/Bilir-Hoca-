@@ -193,14 +193,21 @@ export function gradeSubject(aOrder: string, qs: ExamQuestion[], s: ScoringSetti
   return { d, y, b, net };
 }
 
+/** Aşama 289: dersin yuvarlanmamış neti (doğru/yanlış sayısından); sayılar yoksa kayıtlı net */
+const hamNet = (st: SubjectStat, s: ScoringSettings) =>
+  typeof st.d === 'number' && typeof st.y === 'number' ? st.d - (s.wrongPerCorrect > 0 ? st.y / s.wrongPerCorrect : 0) : st.net;
+
+// Aşama 289: puan, 2 haneye yuvarlanmış ders netlerinden değil gerçek netten hesaplanır (1 yanlışta 9,67 değil
+// 9,6667); yayınevi karnesiyle ikinci ondalıkta fark kalmaz. Gösterilen ders neti yine 2 hanedir.
 export function scoreOf(stats: Record<string, SubjectStat>, subjects: ExamSubject[], s: ScoringSettings = LGS_SCORING): { weighted: number; score: number; totalNet: number } {
   let weighted = 0;
   let totalNet = 0;
   for (const sub of subjects) {
     const st = stats[sub.key];
     if (!st) continue;
-    weighted += sub.coef * st.net;
-    totalNet += st.net;
+    const net = hamNet(st, s);
+    weighted += sub.coef * net;
+    totalNet += net;
   }
   weighted = Math.max(0, weighted);
   const score = Math.min(500, Math.max(0, s.base + weighted * s.perWeighted));
@@ -278,9 +285,14 @@ export interface ExamSummary {
   maxScore: number;
   avgNet: Record<string, number>;
   avgTotalNet: number;
-  classes: Record<string, { name: string; count: number; avgScore: number; avgNet: Record<string, number>; avgTotalNet: number }>;
+  classes: Record<string, { name: string; count: number; avgScore: number; avgNet: Record<string, number>; avgTotalNet: number; tam?: number }>;
   questionRates?: Record<string, number[]>; // ders → her sorunun doğru oranı (0-100)
+  tam?: number; // Aşama 289: bütün oturumlara giren öğrenci sayısı (sıralama ve puan ortalaması bunlar üzerinden)
+  surum?: number; // Aşama 289: özetin hesap kuralı (2 = eksik oturum hesap dışı)
 }
+
+/** Aşama 289: özet ve sıralamanın hesap kuralı; eski kayıtlar (surum yok) "Yeniden hesapla" ile güncellenir */
+export const OZET_SURUM = 2;
 
 interface RankableResult {
   studentId: string;
@@ -292,12 +304,29 @@ interface RankableResult {
   stats: ResultStats;
 }
 
+type OturumBilgisi = { stats?: { missing?: string[] } | null };
+
+/**
+ * Aşama 289: öğrenci bu dersin oturumuna girdi mi? Girmediği oturumun dersleri o öğrenci için HESAP DIŞIDIR:
+ * ders ortalamasına 0 net olarak girmez, soru doğru oranının paydasında sayılmaz, kazanım analizinde "boş" olmaz.
+ */
+export const oturumaGirdi = (r: OturumBilgisi, sub: { session: string }) => !r.stats?.missing?.includes(sub.session);
+
+/**
+ * Aşama 289: bütün oturumlara girdi mi? Eksik oturumlu öğrencinin puanı yarım sınavın puanıdır; sıralamaya ve
+ * puan / toplam net ortalamasına girmez (yayınevlerinin uygulaması). Kendi karnesinde puanı yine görünür.
+ */
+export const tamOturum = (r: OturumBilgisi) => !r.stats?.missing?.length;
+
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+const sayilar = (xs: Array<number | null | undefined>) => xs.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
 
 /** Sıralamaları sonuçlara yazar ve kişisel bilgi içermeyen özeti döndürür */
 export function rankAndSummarize<T extends RankableResult>(results: T[], subjects: ExamSubject[], qs: ExamQuestions): ExamSummary {
   const byScore = (a: T, b: T) => (b.score ?? 0) - (a.score ?? 0) || (b.totalNet ?? 0) - (a.totalNet ?? 0);
-  const all = results.slice().sort(byScore);
+  // Aşama 289: sıralama yalnız bütün oturumlara giren ve puanı olan öğrenciler arasında yapılır
+  const siralanir = (r: T) => tamOturum(r) && typeof r.score === 'number' && Number.isFinite(r.score);
+  const all = results.filter(siralanir).sort(byScore);
   const rankIn = (list: T[]) => {
     const ranks = new Map<string, number>();
     let prev: number | null = null;
@@ -311,58 +340,68 @@ export function rankAndSummarize<T extends RankableResult>(results: T[], subject
     return ranks;
   };
   const overall = rankIn(all);
-  const byClass = new Map<string, T[]>();
-  for (const r of all) {
+  const byClass = new Map<string, T[]>(); // sınıftaki bütün öğrenciler (katılım)
+  const byClassTam = new Map<string, T[]>(); // sıralamaya girenler (puana göre dizili)
+  for (const r of results) {
     const k = r.classId || '-';
     if (!byClass.has(k)) byClass.set(k, []);
     byClass.get(k)!.push(r);
   }
+  for (const r of all) {
+    const k = r.classId || '-';
+    if (!byClassTam.has(k)) byClassTam.set(k, []);
+    byClassTam.get(k)!.push(r);
+  }
   const classRanks = new Map<string, Map<string, number>>();
-  byClass.forEach((list, k) => classRanks.set(k, rankIn(list)));
+  byClassTam.forEach((list, k) => classRanks.set(k, rankIn(list)));
   for (const r of results as RankableResult[]) {
     const k = r.classId || '-';
-    r.stats = {
-      ...r.stats,
-      rank: {
-        overall: overall.get(r.studentId) || 0,
-        overallCount: results.length,
-        cls: classRanks.get(k)?.get(r.studentId) || 0,
-        clsCount: byClass.get(k)?.length || 0,
-      },
-    };
+    const { rank: _eski, ...rest } = r.stats;
+    void _eski;
+    const o = overall.get(r.studentId);
+    r.stats = o
+      ? { ...rest, rank: { overall: o, overallCount: all.length, cls: classRanks.get(k)?.get(r.studentId) || 0, clsCount: byClassTam.get(k)?.length || 0 } }
+      : rest; // sıralama dışı: sıra yazılmaz (ekran ve karneler "—" gösterir)
   }
+  // Ders ortalaması: yalnız o dersin oturumuna girenler
   const netAvg = (list: T[]) => {
     const o: Record<string, number> = {};
-    for (const s of subjects) o[s.key] = round2(avg(list.map((r) => r.stats.subjects[s.key]?.net ?? 0)));
+    for (const s of subjects) o[s.key] = round2(avg(sayilar(list.filter((r) => oturumaGirdi(r, s)).map((r) => r.stats.subjects[s.key]?.net))));
     return o;
   };
+  const puanOrt = (list: T[]) => round2(avg(sayilar(list.filter(tamOturum).map((r) => r.score))));
+  const netOrt = (list: T[]) => round2(avg(sayilar(list.filter(tamOturum).map((r) => r.totalNet))));
   const classes: ExamSummary['classes'] = {};
   byClass.forEach((list, k) => {
     classes[k] = {
       name: list[0]?.className || 'Sınıfsız',
       count: list.length,
-      avgScore: round2(avg(list.map((r) => r.score ?? 0))),
+      avgScore: puanOrt(list),
       avgNet: netAvg(list),
-      avgTotalNet: round2(avg(list.map((r) => r.totalNet ?? 0))),
+      avgTotalNet: netOrt(list),
+      tam: list.filter(tamOturum).length,
     };
   });
   const questionRates: Record<string, number[]> = {};
   for (const s of subjects) {
     const list = qs[s.key] || [];
+    const girenler = results.filter((r) => oturumaGirdi(r, s));
     questionRates[s.key] = list.map((q, i) => {
-      if (!results.length) return 0;
-      const ok = results.filter((r) => markOf((r.answers[s.key] || '')[i], q) === 'D').length;
-      return Math.round((ok / results.length) * 100);
+      if (!girenler.length) return 0;
+      const ok = girenler.filter((r) => markOf((r.answers[s.key] || '')[i], q) === 'D').length;
+      return Math.round((ok / girenler.length) * 100);
     });
   }
   return {
     count: results.length,
-    avgScore: round2(avg(results.map((r) => r.score ?? 0))),
-    maxScore: round2(Math.max(0, ...results.map((r) => r.score ?? 0))),
+    avgScore: puanOrt(results),
+    maxScore: round2(Math.max(0, ...sayilar(all.map((r) => r.score)))),
     avgNet: netAvg(results),
-    avgTotalNet: round2(avg(results.map((r) => r.totalNet ?? 0))),
+    avgTotalNet: netOrt(results),
     classes,
     questionRates,
+    tam: results.filter(tamOturum).length,
+    surum: OZET_SURUM,
   };
 }
 

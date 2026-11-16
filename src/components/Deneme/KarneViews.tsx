@@ -3,7 +3,7 @@ import { Award, CheckCircle2, ChevronDown, ChevronRight, CircleSlash, Target, XC
 import { cx } from '../ui/kit';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from '../../lib/deneme/analiz';
-import { examScoring, fmtNet, fmtScore, puanAdi, round2 } from '../../lib/deneme/lgs';
+import { examScoring, fmtNet, fmtScore, puanAdi, round2, tamOturum } from '../../lib/deneme/lgs';
 import { HEAT_MAX_EXAMS, dateRange, dateTr, denemeEtiketleri, gelisimPanoData, isiNoktaData, usedSubjects } from '../../lib/deneme/karneModel';
 import { averageKarneData, type KarneData } from '../../lib/deneme/karneOrtalama';
 import { examKarneData, percentile } from '../../lib/deneme/karneDetay';
@@ -599,7 +599,11 @@ export const ClassKarneView: React.FC<{ exams: DenemeExam[]; results: DenemeResu
     byStudent.get(r.studentId)!.push(r);
   }
   const ranking = Array.from(byStudent.values())
-    .map((rs) => ({ name: rs[0].studentName, n: rs.length, avgScore: rs.reduce((a, r) => a + (r.score ?? 0), 0) / rs.length, avgNet: rs.reduce((a, r) => a + (r.totalNet ?? 0), 0) / rs.length }))
+    .map((rs) => {
+      const tam = rs.filter(tamOturum); // Aşama 289: eksik oturumlu deneme ortalamaya girmez
+      const bol = Math.max(1, tam.length);
+      return { name: rs[0].studentName, n: rs.length, avgScore: tam.reduce((a, r) => a + (r.score ?? 0), 0) / bol, avgNet: tam.reduce((a, r) => a + (r.totalNet ?? 0), 0) / bol };
+    })
     .sort((a, b) => b.avgScore - a.avgScore);
   return (
     <div className="space-y-4">

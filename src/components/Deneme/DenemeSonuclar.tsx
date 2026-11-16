@@ -3,7 +3,7 @@ import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload }
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { LGS_SCORING, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, type ExamQuestions } from '../../lib/deneme/lgs';
+import { LGS_SCORING, OZET_SURUM, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, tamOturum, type ExamQuestions } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
@@ -104,6 +104,10 @@ export const DenemeSonuclar: React.FC<{
   const subs = exam.subjects;
   const sum = exam.summary;
   const clsSum = classFilter ? (sum.classes || {})[classFilter] : undefined;
+  // Aşama 289
+  const eksikSayi = results.filter((r) => !tamOturum(r)).length;
+  const eskiOzet = eksikSayi > 0 && (sum.surum ?? 0) < OZET_SURUM;
+  const enYuksek = (list: DenemeResult[]) => Math.max(0, ...list.filter(tamOturum).map((r) => r.score ?? 0));
 
   const togglePublish = async () => {
     setBusy(true);
@@ -201,7 +205,7 @@ export const DenemeSonuclar: React.FC<{
               ['Öğrenci', String(list.length)],
               ['Ortalama puan', fmtScore(c?.avgScore)],
               ['Ortalama net', fmtNet(c?.avgTotalNet)],
-              ['En yüksek puan', fmtScore(Math.max(0, ...list.map((r) => r.score ?? 0)))],
+              ['En yüksek puan', fmtScore(enYuksek(list))],
               ...subs.map((s) => [`${s.short} ort. net`, fmtNet(c?.avgNet?.[s.key])] as [string, string]),
             ],
           },
@@ -253,6 +257,26 @@ export const DenemeSonuclar: React.FC<{
     } catch (e: any) {
       setNotice(e?.message || 'Silinemedi.');
       setConfirmDelete(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Aşama 289: eski kuralla (eksik oturum 0 net sayılarak) kaydedilmiş özet ve sıralama, kayıtlı cevaplardan
+  // yeni kuralla yeniden hesaplanır. Cevaplar ve anahtar değişmez; yalnız özet, sıra ve puan yenilenir.
+  const yenidenHesapla = async () => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const plan = planBRemap(subs, exam.questions, exam.questions, results, exam.scoring && exam.scoring.base ? exam.scoring : LGS_SCORING);
+      const summary = rankAndSummarize(plan.next, subs, exam.questions);
+      const saved = await saveExam({ ...exam, summary });
+      await saveResults(exam.id, plan.next, false);
+      setExam(saved);
+      setResults(plan.next);
+      setNotice('Ortalamalar ve sıralama yeniden hesaplandı: girilmeyen oturumlar hesap dışı.');
+    } catch (e: any) {
+      setNotice(e?.message || 'Yeniden hesaplanamadı.');
     } finally {
       setBusy(false);
     }
@@ -336,6 +360,18 @@ export const DenemeSonuclar: React.FC<{
       )}
       {notice && <p role="status" className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2">{notice}</p>}
 
+      {/* Aşama 289: eski kuralla hesaplanmış deneme (oturuma girmeyen öğrenci 0 net sayılmış) */}
+      {!readOnly && eskiOzet && (
+        <div role="status" id="deneme-yeniden-hesapla" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-fg">
+          <p className="font-semibold">
+            {eksikSayi} öğrenci bir oturuma girmemiş; bu denemenin ortalamaları ve sıralaması onları 0 net sayarak hesaplanmış.
+          </p>
+          <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm w-36 justify-center" disabled={busy} onClick={() => void yenidenHesapla()}>
+            Yeniden hesapla
+          </button>
+        </div>
+      )}
+
       {!readOnly && bCheck && bCheck.issues.length > 0 && (
         <div role="alert" id="b-kitapcik-uyum" className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2.5 text-xs text-warning-fg space-y-1.5">
           <p className="font-bold">
@@ -418,7 +454,7 @@ export const DenemeSonuclar: React.FC<{
         <StatCard label="Öğrenci" value={classFilter ? clsSum?.count ?? 0 : sum.count ?? results.length} />
         <StatCard label="Ortalama puan" value={fmtScore(classFilter ? clsSum?.avgScore : sum.avgScore)} />
         <StatCard label="Ortalama toplam net" value={fmtNet(classFilter ? clsSum?.avgTotalNet : sum.avgTotalNet)} />
-        <StatCard label="En yüksek puan" value={fmtScore(classFilter ? Math.max(0, ...shown.map((r) => r.score ?? 0)) : sum.maxScore)} />
+        <StatCard label="En yüksek puan" value={fmtScore(classFilter ? enYuksek(shown) : sum.maxScore)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -501,12 +537,12 @@ export const DenemeSonuclar: React.FC<{
                 ) : (
                   pagedRows.visible.map((r) => (
                     <tr key={r.id} className="hover:bg-surface-2/30 transition-colors">
-                      <td className="px-3 py-1.5 text-center tabular-nums font-semibold">{classFilter ? r.stats.rank?.cls : r.stats.rank?.overall}</td>
+                      <td className="px-3 py-1.5 text-center tabular-nums font-semibold">{(classFilter ? r.stats.rank?.cls : r.stats.rank?.overall) || '—'}</td>
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-fg">{r.studentName}</p>
                         {(r.stats.missing?.length || r.stats.bookletGuessed) && (
                           <p className="text-[10px] text-warning-fg">
-                            {r.stats.missing?.length ? `${r.stats.missing.map((m) => (m === 'sozel' ? 'Sözel' : 'Sayısal')).join(', ')} oturumu boş` : ''}
+                            {r.stats.missing?.length ? `${r.stats.missing.map((m) => (m === 'sozel' ? 'Sözel' : 'Sayısal')).join(', ')} oturumuna girmedi · sıralama dışı` : ''}
                             {r.stats.bookletGuessed ? `${r.stats.missing?.length ? ' · ' : ''}Kitapçık tahmin edildi` : ''}
                           </p>
                         )}

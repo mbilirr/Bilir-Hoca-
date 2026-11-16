@@ -24,6 +24,7 @@ import {
   fmtScore,
   normalizeQuestions,
   rankAndSummarize,
+  tamOturum,
   recomputeFromAnswers,
   type ExamQuestions,
 } from '../../lib/deneme/lgs';
@@ -1568,8 +1569,9 @@ export const DenemeWizard: React.FC<{
         <Panel title="Kontrol ve kayıt" icon={CheckCircle2} tone="success">
           {(() => {
             const n = computed.list.length;
-            const scores = computed.list.map((r) => r.score ?? 0);
-            const avg = n ? scores.reduce((a, b) => a + b, 0) / n : 0;
+            // Aşama 289: puan ortalaması yalnız bütün oturumlara girenlerle
+            const scores = computed.list.filter(tamOturum).map((r) => r.score ?? 0);
+            const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
             const missingSozel = computed.list.filter((r) => r.stats.missing?.includes('sozel')).length;
             const missingSayisal = computed.list.filter((r) => r.stats.missing?.includes('sayisal')).length;
             return (
@@ -1594,8 +1596,8 @@ export const DenemeWizard: React.FC<{
                 </div>
                 {(missingSozel > 0 || missingSayisal > 0 || computed.guessed > 0) && (
                   <ul className="text-xs text-warning-fg bg-warning-soft rounded-xl px-3 py-2 space-y-0.5">
-                    {missingSozel > 0 && <li>• {missingSozel} öğrencinin sözel oturumunda hiç cevap yok (girmemiş olabilir).</li>}
-                    {missingSayisal > 0 && <li>• {missingSayisal} öğrencinin sayısal oturumunda hiç cevap yok (girmemiş olabilir).</li>}
+                    {missingSozel > 0 && <li>• {missingSozel} öğrencinin sözel oturumunda hiç cevap yok: sözel dersleri ortalamaya girmez, öğrenci sıralama dışı kalır.</li>}
+                    {missingSayisal > 0 && <li>• {missingSayisal} öğrencinin sayısal oturumunda hiç cevap yok: sayısal dersleri ortalamaya girmez, öğrenci sıralama dışı kalır.</li>}
                     {computed.guessed > 0 && <li>• {computed.guessed} öğrencinin kitapçık türü boştu; cevaplarına göre tahmin edildi.</li>}
                   </ul>
                 )}

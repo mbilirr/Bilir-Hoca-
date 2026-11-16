@@ -4,7 +4,7 @@
 // Başarı yüzdesi = doğru / soru sayısı (boş ve yanlış başarısız sayılır).
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { LGS_SCORING, LGS_SUBJECTS, markOf, round2, type ExamSubject, type ScoringSettings, subjectsOfExams } from './lgs';
+import { LGS_SCORING, LGS_SUBJECTS, markOf, oturumaGirdi, round2, tamOturum, type ExamSubject, type ScoringSettings, subjectsOfExams } from './lgs';
 import { isBadKonu } from './kazanimBank';
 
 export type Level = 'iyi' | 'tekrar' | 'etut' | 'kritik';
@@ -91,7 +91,9 @@ export function topicAnalysis(exams: DenemeExam[], results: DenemeResult[], subj
     for (const ex of exams) {
       if (!ex.subjects.some((s) => s.key === sub.key)) continue;
       const list = ex.questions[sub.key] || [];
-      const rs = byExam.get(ex.id) || [];
+      // Aşama 289: bu dersin oturumuna girmeyen öğrencinin soruları "boş" sayılmaz (kazanımı Kritik çıkarırdı)
+      const oturum = ex.subjects.find((s) => s.key === sub.key) || sub;
+      const rs = (byExam.get(ex.id) || []).filter((r) => oturumaGirdi(r, oturum));
       if (!rs.length) continue;
       list.forEach((q, i) => {
         if (!q.answer) return;
@@ -175,17 +177,23 @@ export function classAverages(results: DenemeResult[], subjects: ExamSubject[] =
     if (!m.has(k)) m.set(k, []);
     m.get(k)!.push(r);
   }
-  const avg = (xs: number[]) => (xs.length ? round2(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
+  // Aşama 289: ders ortalaması yalnız o oturuma girenlerle, puan ve toplam net yalnız bütün oturumlara girenlerle;
+  // puanı boş sonuç 0 sayılmaz
+  const avg = (xs: Array<number | null | undefined>) => {
+    const v = xs.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+    return v.length ? round2(v.reduce((a, b) => a + b, 0) / v.length) : 0;
+  };
   return Array.from(m.entries())
     .map(([k, list]) => {
       const avgNet: Record<string, number> = {};
-      for (const s of subjects) avgNet[s.key] = avg(list.map((r) => r.stats.subjects?.[s.key]?.net ?? 0));
+      for (const s of subjects) avgNet[s.key] = avg(list.filter((r) => oturumaGirdi(r, s)).map((r) => r.stats.subjects?.[s.key]?.net));
+      const tam = list.filter(tamOturum);
       return {
         classId: k,
         className: list[0]?.className || 'Sınıfsız',
         count: list.length,
-        avgScore: avg(list.map((r) => r.score ?? 0)),
-        avgTotalNet: avg(list.map((r) => r.totalNet ?? 0)),
+        avgScore: avg(tam.map((r) => r.score)),
+        avgTotalNet: avg(tam.map((r) => r.totalNet)),
         avgNet,
       };
     })
@@ -217,6 +225,9 @@ export function studentTopicRows(exams: DenemeExam[], results: DenemeResult[], s
   for (const r of results) {
     const ex = exMap.get(r.examId);
     if (!ex) continue;
+    // Aşama 289: girmediği oturumun dersi için öğrenci etüt listesine yazılmaz
+    const oturum = ex.subjects.find((s) => s.key === subjectKey);
+    if (oturum && !oturumaGirdi(r, oturum)) continue;
     const list = ex.questions[subjectKey] || [];
     const ans = r.answers[subjectKey] || '';
     list.forEach((q, i) => {

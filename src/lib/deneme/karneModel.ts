@@ -4,7 +4,7 @@
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from './analiz';
-import { examScoring, fmtNet, fmtScore, puanAdi, puanNotu, round2, subjectsOfExams, type ExamSubject } from './lgs';
+import { examScoring, fmtNet, fmtScore, puanAdi, puanNotu, round2, subjectsOfExams, tamOturum, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile } from './karneDetay';
 import { averageKarneData, type KarneData } from './karneOrtalama';
@@ -851,11 +851,12 @@ export function classKarneBlocks(inp: ClassKarneInput): PdfBlock[] {
   const ranking = Array.from(byStudent.values())
     .map((rs) => {
       const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+      const tam = rs.filter(tamOturum); // Aşama 289: eksik oturumlu deneme ortalamaya girmez
       return {
         name: rs[0].studentName,
         n: rs.length,
-        avgScore: round2(avg(rs.map((r) => r.score ?? 0))),
-        avgNet: round2(avg(rs.map((r) => r.totalNet ?? 0))),
+        avgScore: round2(avg(tam.map((r) => r.score ?? 0))),
+        avgNet: round2(avg(tam.map((r) => r.totalNet ?? 0))),
         last: rs.find((r) => r.examId === lastExamId)?.score ?? null,
       };
     })
