@@ -204,6 +204,20 @@ function encryptPayload(p256dh, authSecret, text) {
   return Buffer.concat([salt, rs, Buffer.from([asPublic.length]), asPublic, enc]);
 }
 
+// Aşama 290: sunucunun istek atabileceği bildirim servisleri (Chrome/Edge/Samsung/Opera: FCM; Safari: Apple;
+// Firefox: Mozilla; eski Edge: Windows). Abonelik adresini istemci gönderdiği için başka adres kabul edilmez.
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^[a-z0-9-]+\.push\.apple\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^[a-z0-9-]+\.notify\.windows\.com$/];
+export function pushEndpointOk(endpoint) {
+  try {
+    const u = new URL(String(endpoint || ''));
+    if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return false;
+    const h = u.hostname.toLowerCase();
+    return PUSH_HOSTS.some((re) => re.test(h));
+  } catch {
+    return false;
+  }
+}
+
 async function sendOne(sub, text, { TTL = 6 * 3600, urgency = 'high' } = {}) {
   const body = encryptPayload(sub.keys.p256dh, sub.keys.auth, text);
   const r = await fetch(sub.endpoint, {
@@ -216,6 +230,7 @@ async function sendOne(sub, text, { TTL = 6 * 3600, urgency = 'high' } = {}) {
       Urgency: urgency,
     },
     body,
+    redirect: 'error', // Aşama 290: bildirim servisi başka adrese yönlendiremez
   });
   if (r.status >= 200 && r.status < 300) return;
   const err = new Error(`Bildirim servisi ${r.status}`);
@@ -240,6 +255,34 @@ async function claim(key) {
   }
 }
 
+// Aşama 290: çok anahtar için tek istek. Dönen küme = ilk kez yazılabilen (gönderilecek) anahtarlar.
+// Hata olursa boş küme döner: çift bildirim göndermektense hiç göndermemek (claim ile aynı kural).
+async function claimMany(keys) {
+  const list = uniq(keys.map((k) => String(k).slice(0, 300)));
+  if (!list.length) return new Set();
+  try {
+    const rows = await rest('push_log?on_conflict=key', {
+      token: 'service',
+      method: 'POST',
+      body: list.map((key) => ({ key })),
+      prefer: 'resolution=ignore-duplicates,return=representation',
+    });
+    return new Set((Array.isArray(rows) ? rows : []).map((r) => r.key));
+  } catch (err) {
+    console.error('[push] toplu kayıt hatası', err && err.message);
+    return new Set();
+  }
+}
+
+// Aşama 290: en çok n iş aynı anda (bildirim servislerini ve işlev belleğini zorlamadan paralel gönderim)
+async function havuz(items, n, fn) {
+  let i = 0;
+  const isci = async () => {
+    while (i < items.length) await fn(items[i++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, isci));
+}
+
 /**
  * Verilen kullanıcılara (auth id) bildirim gönderir.
  * payload: { title, body, url, tag }
@@ -258,9 +301,11 @@ export async function sendToUsers(userIds, payload, { dedupe, deadline, policy }
   }
   const ids = uniq(userIds);
   if (!ids.length) return out;
-  const subs = await chunked(ids, 100, (part) =>
+  const hepsi = await chunked(ids, 100, (part) =>
     rest(`push_subscriptions?select=endpoint,p256dh,auth,user_id&user_id=in.${inList(part)}`, { token: 'service' })
   );
+  // Aşama 290: bilinen bildirim servisi olmayan adrese sunucu istek atmaz (eski kayıtlar için de)
+  const subs = hepsi.filter((s) => pushEndpointOk(s.endpoint));
   out.devices = subs.length;
   if (!subs.length) return out;
   const byUser = new Map();
@@ -271,12 +316,18 @@ export async function sendToUsers(userIds, payload, { dedupe, deadline, policy }
     url: payload.url || '/',
     tag: payload.tag || undefined,
   });
-  for (const [uid, list] of byUser) {
+  // Aşama 290: eskiden her kullanıcı için sırayla bir kayıt isteği + gönderim yapılıyordu; 500+ alıcıda süre dolunca
+  // döngü kesiliyor, kalanlar bildirimi hiç almıyordu. Artık "bir kez gönder" kaydı 200'lük toplu istekle alınır,
+  // gönderim 25 cihaz birden yapılır (500 alıcı ≈ 3 kayıt isteği + 20 tur).
+  const uids = Array.from(byUser.keys());
+  for (let i = 0; i < uids.length; i += 200) {
     if (deadline && Date.now() > deadline) break;
-    if (dedupe && !(await claim(`${dedupe}:${uid}`))) continue;
-    out.users++;
-    await Promise.all(
-      list.map(async (s) => {
+    const part = uids.slice(i, i + 200);
+    const izinli = dedupe ? await claimMany(part.map((u) => `${dedupe}:${u}`)) : null;
+    const gidecek = izinli ? part.filter((u) => izinli.has(`${dedupe}:${u}`.slice(0, 300))) : part;
+    out.users += gidecek.length;
+    const cihazlar = gidecek.flatMap((u) => byUser.get(u));
+    await havuz(cihazlar, 25, async (s) => {
         try {
           await sendOne({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, { TTL: 6 * 3600, urgency: 'high' });
           out.sent++;
@@ -295,8 +346,7 @@ export async function sendToUsers(userIds, payload, { dedupe, deadline, policy }
             console.error('[push] gönderilemedi', code, err && err.body ? String(err.body).slice(0, 200) : err && err.message);
           }
         }
-      })
-    );
+    });
   }
   return out;
 }
@@ -962,8 +1012,9 @@ export async function notifyMessageNew(caller, body, deadline) {
   const m = rows && rows[0];
   if (!m || m.student_id !== caller.studentId || m.kind === 'announcement' || m.kind === 'note') throw new HttpError(404, 'Mesaj bulunamadı.');
   // Alıcılar: öğrencinin sınıfına ya da kendisine erişim izni olan öğretmenler; yoksa yönetici(ler)
-  const st = await rest(`students?select=id,class_id&id=eq.${encodeURIComponent(caller.studentId)}`, { token: 'service' });
+  const st = await rest(`students?select=id,class_id,kurum_id&id=eq.${encodeURIComponent(caller.studentId)}`, { token: 'service' });
   const classId = st && st[0] ? st[0].class_id : null;
+  const kurumId = st && st[0] ? st[0].kurum_id : null;
   const [byClass, byStudent] = await Promise.all([
     classId ? rest(`teacher_class_access?select=teacher_auth_id&class_id=eq.${encodeURIComponent(classId)}`, { token: 'service' }).catch(() => []) : [],
     rest(`teacher_student_access?select=teacher_auth_id&student_id=eq.${encodeURIComponent(caller.studentId)}`, { token: 'service' }).catch(() => []),
@@ -979,9 +1030,15 @@ export async function notifyMessageNew(caller, body, deadline) {
   }
   if (!users.length) {
     try {
-      const admins = await rest(`teachers?select=auth_user_id,email,status&is_admin=eq.true`, { token: 'service' });
-      const head = (admins || []).filter((a) => (a.email || '').toLowerCase() === HEAD_ADMIN_EMAIL);
-      users = uniq((head.length ? head : admins || []).filter((a) => !a.status || a.status === 'approved').map((a) => a.auth_user_id));
+      // Aşama 290: yedek alıcı öğrencinin KENDİ kurumunun yöneticileridir. Eskiden sistem sahibine, o bulunamazsa
+      // bütün kurumların yöneticilerine gidiyordu (kurumlar arası sızıntı). Kurumsuz öğrenci (sistem sahibinin
+      // kendi alanı) için alıcı yine sistem sahibidir.
+      const admins = await rest(
+        `teachers?select=auth_user_id,email,status&is_admin=eq.true&${kurumId ? `kurum_id=eq.${encodeURIComponent(kurumId)}` : 'kurum_id=is.null'}`,
+        { token: 'service' }
+      );
+      const liste = kurumId ? admins || [] : (admins || []).filter((a) => (a.email || '').toLowerCase() === HEAD_ADMIN_EMAIL);
+      users = uniq(liste.filter((a) => !a.status || a.status === 'approved').map((a) => a.auth_user_id));
     } catch {}
   }
   return sendToUsers(
@@ -1056,6 +1113,8 @@ function cleanSubscription(sub) {
   const endpoint = sub && typeof sub.endpoint === 'string' ? sub.endpoint : '';
   const keys = (sub && sub.keys) || {};
   if (!/^https:\/\/[^\s]{10,800}$/.test(endpoint)) throw new HttpError(400, 'Geçersiz abonelik.');
+  // Aşama 290: yalnız tarayıcıların bildirim servisleri (yoksa sunucu, girilen herhangi bir adrese istek atardı)
+  if (!pushEndpointOk(endpoint)) throw new HttpError(400, 'Bu tarayıcının bildirim servisi desteklenmiyor.');
   if (typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string' || keys.p256dh.length > 200 || keys.auth.length > 100)
     throw new HttpError(400, 'Geçersiz abonelik anahtarı.');
   return { endpoint, p256dh: keys.p256dh, auth: keys.auth };

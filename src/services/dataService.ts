@@ -61,7 +61,7 @@ import { setKurumBrand } from '../lib/kurumBrand';
 import { sunucuSaatiAyarla } from '../lib/trSaat'; // Aşama 234
 import { loadOgrBolumCache, resetOgrBolum, syncOgrBolum } from '../lib/ogrenciBolum';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
-import { notifyPush } from '../lib/push';
+import { disablePush, notifyPush } from '../lib/push';
 import {
   purgeExpiredSecureCache,
   wipeSecureCache,
@@ -7908,7 +7908,12 @@ class DataService {
     this.notify();
   }
 
-  public logout(): void {
+  /**
+   * Aşama 290: elle = kullanıcı "Çıkış yap"a bastı. O zaman bu cihazın telefon bildirimi de kapatılır; yoksa ortak
+   * bilgisayarda çıkış yapan kişinin bildirimleri sonraki kullanıcıya görünmeye devam eder. Hareketsizlikten ya da
+   * süresi dolan oturumdan çıkışta abonelik durur (kişinin kendi telefonu boşta kalınca bildirimleri kesilmesin).
+   */
+  public logout(elle = false): void {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };
@@ -7941,7 +7946,10 @@ class DataService {
     // Aşama 275: çıkış (elle ya da hareketsizlikten) YALNIZ bu sekmedeki oturumu kapatır. Eskiden kapsam verilmediği için
     // kişinin bütün cihazlarındaki oturumlar düşüyordu (telefon boşta kalınca bilgisayardaki oturum da kapanıyordu).
     // Şifre değişiminde bütün cihazlardan çıkış aynen sürer (changeOwnPassword).
-    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    // Aşama 290: abonelik silme isteği oturum anahtarıyla gider; bu yüzden oturum ondan SONRA kapanır (en çok 4 sn beklenir)
+    const oturumuKapat = () => supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    if (elle) void Promise.race([disablePush(), new Promise((r) => setTimeout(r, 4000))]).then(oturumuKapat, oturumuKapat);
+    else void oturumuKapat();
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);

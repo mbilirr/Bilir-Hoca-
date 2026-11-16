@@ -410,7 +410,7 @@ export default function App() {
 
   // Logout handler (returns to AuthPortal entrance and resets to home)
   const handleLogout = () => {
-    dataService.logout();
+    dataService.logout(true); // Aşama 290: elle çıkışta bu cihazın bildirimi de kapanır
     resetRouteHash();
     setAuthSession(null);
     setCurrentStudent(null);
