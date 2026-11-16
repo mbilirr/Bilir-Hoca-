@@ -9,6 +9,7 @@ import { installEscClose } from './lib/escClose';
 import { installIntlCache } from './lib/intlCache';
 import { installAutofillGuard } from './lib/autofillGuard';
 import { installHataKaydi } from './lib/hataKaydi';
+import { acikKalDevam } from './lib/kurumGecis';
 
 // Aşama 293: yakalanmamış hatalar kendi veritabanımıza yazılır (sistem sahibi Yönetim › Yedek ve bakım'da görür)
 installHataKaydi();
@@ -109,7 +110,10 @@ if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' 
   window.addEventListener('load', () => (ric ? ric(registerSw, { timeout: 8000 }) : setTimeout(registerSw, 3000)), { once: true });
 }
 
-createRoot(document.getElementById('root')!).render(
+// Aşama 295: "Bu cihazda açık kal" oturumu varsa yeni sekmede önce o kurulur (giriş ekranı bir an bile görünmez).
+// Öbür bütün açılışlarda (kutu işaretsiz, sayfa yenileme, herkese açık sayfalar) beklemeden hemen çizilir.
+const ciz = () =>
+  createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       {attendanceToken ? (
@@ -127,4 +131,5 @@ createRoot(document.getElementById('root')!).render(
     {!isPublicPage && <UpdateAvailableBanner />}
   </StrictMode>,
 );
-
+if (isPublicPage) ciz();
+else void acikKalDevam().then(ciz, ciz);

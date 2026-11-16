@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { oturumDeposu } from './acikKal';
 
 // Safe placeholder key for initialisation when VITE_SUPABASE_ANON_KEY is not yet set in environment.
 // This prevents @supabase/supabase-js from throwing fatal synchronous "Error: supabaseKey is required." during module startup.
@@ -33,37 +34,16 @@ const initialUrlIsRecovery =
   typeof window !== 'undefined' &&
   /type=recovery/.test(`${window.location.hash}${window.location.search}`);
 
-// GÜVENLİK: Giriş oturumu (JWT) yalnızca bu sekme açıkken saklanır (sessionStorage).
-// Sekme/tarayıcı kapanınca oturum da biter; uygulamanın kendi oturumuyla aynı ömre sahiptir.
-// Böylece "uygulamadan çıkılmış ama arka planda geçerli oturum kalmış" (hayalet oturum) durumu oluşmaz.
-function getSessionScopedStorage(): Storage | undefined {
-  try {
-    if (typeof window === 'undefined') return undefined;
-    const probe = '__sb_probe__';
-    window.sessionStorage.setItem(probe, '1');
-    window.sessionStorage.removeItem(probe);
-    return window.sessionStorage;
-  } catch {
-    return undefined;
-  }
-}
-
-// Önceki sürümlerden kalan kalıcı (localStorage) oturum anahtarlarını temizle
-try {
-  if (typeof window !== 'undefined') {
-    Object.keys(window.localStorage)
-      .filter((key) => /^sb-.*-auth-token/.test(key))
-      .forEach((key) => window.localStorage.removeItem(key));
-  }
-} catch {
-  // depolama erişilemiyor: yok say
-}
+// GÜVENLİK: Giriş oturumu (JWT) varsayılan olarak yalnızca bu sekme açıkken saklanır (sessionStorage).
+// Sekme/tarayıcı kapanınca oturum da biter; "uygulamadan çıkılmış ama arka planda geçerli oturum kalmış" durumu oluşmaz.
+// Aşama 295: kişi girişte "Bu cihazda açık kal"ı işaretlediyse oturum 30 gün cihazda durur (lib/acikKal.ts).
+// Eski sürümlerden kalan kalıcı oturum anahtarlarını da o dosya açılışta temizler.
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storage: getSessionScopedStorage(),
+    storage: oturumDeposu,
   },
 });
 

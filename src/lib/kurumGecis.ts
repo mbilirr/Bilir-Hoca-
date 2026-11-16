@@ -1,6 +1,7 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { dataService } from '../services/dataService';
 import type { Teacher } from '../types';
+import { acikKalSekmesi, acikKalVazgec } from './acikKal';
 
 // ============================================================================
 // Aşama 97: KURUMLAR ARASI GEÇİŞ (yalnızca genel yönetici)
@@ -122,6 +123,45 @@ async function teacherOfAuth(authUser: { id: string; created_at: string; app_met
   } as Teacher;
 }
 
+/** Aşama 295: "Bu cihazda açık kal" ile cihazda duran oturumdan, YENİ açılan sekmede uygulama oturumunu kurar (şifre sorulmaz).
+ *  Ekran çizilmeden önce çağrılır (main.tsx). Hesap geçişinden sonraki açılışla aynı yol: oturum kaydı sekmeye yazılır,
+ *  veriler olağan eşitlemeyle gelir. Hesap silinmiş / askıda ise cihazdaki oturum da silinir; bağlantı yoksa dokunulmaz. */
+export async function acikKalDevam(): Promise<void> {
+  if (!acikKalSekmesi()) return;
+  try {
+    if (window.sessionStorage.getItem(AUTH_KEY)) return; // sayfa yenilemesi: oturum zaten bu sekmede
+  } catch {
+    return;
+  }
+  const kapat = async () => {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    acikKalVazgec();
+  };
+  try {
+    const { data, error: oturumHata } = await supabase.auth.getSession();
+    const authUser = data.session?.user;
+    if (!authUser) {
+      // anahtar yok ya da artık geçersiz (şifre değişti, hesap kapandı): cihazdan silinir, giriş ekranı açılır.
+      // Yalnız bağlantı sorunuysa dokunulmaz (bağlantı gelince yeni sekmede kaldığı yerden sürer).
+      const baglanti = oturumHata?.name === 'AuthRetryableFetchError' || (typeof navigator !== 'undefined' && navigator.onLine === false);
+      if (!baglanti) await kapat();
+      return;
+    }
+    let session: { role: 'student' | 'teacher'; user: unknown };
+    if (authUser.app_metadata?.role === 'student') {
+      session = { role: 'student', user: await dataService.ogrenciOturumu(authUser) };
+    } else {
+      const { data: row, error } = await supabase.from('teachers').select('status').eq('auth_user_id', authUser.id).maybeSingle();
+      if (error) return; // bağlantı sorunu: giriş ekranı açılır, cihazdaki oturum durur
+      if (!row || (row.status && row.status !== 'approved')) return void (await kapat());
+      session = { role: 'teacher', user: await teacherOfAuth(authUser) };
+    }
+    window.sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
+  } catch {
+    /* kurulamadı: giriş ekranı açılır */
+  }
+}
+
 /** Sekmeyi verilen oturuma geçirir ve sayfayı yeniler.
  *  Aşama 251: önce yeni oturum kurulur ve öğretmen kaydı okunur; sekmedeki veriler ancak bunlar başarılıysa, yenilemeden
  *  hemen önce silinir (hata olursa ekran boşalmaz). Kullanıcı bilgisi setSession'ın döndürdüğünden alınır (fazladan istek yok). */
@@ -167,6 +207,7 @@ function perdeKapat(): void {
 
 async function switchTab(tokens: { access_token: string; refresh_token: string }, next: GecisState | null): Promise<never> {
   perdeAc(); // Aşama 269: setSession'dan önce (önceki hesabın sayfası bir an bile görünmesin)
+  acikKalVazgec(); // Aşama 295: hesap geçişinde "bu cihazda açık kal" biter; geçilen hesap eskisi gibi yalnız bu sekmede yaşar
   const { data, error } = await supabase.auth.setSession(tokens);
   if (error) {
     perdeKapat();

@@ -62,6 +62,7 @@ import { sunucuSaatiAyarla } from '../lib/trSaat'; // Aşama 234
 import { loadOgrBolumCache, resetOgrBolum, syncOgrBolum } from '../lib/ogrenciBolum';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { disablePush, notifyPush } from '../lib/push';
+import { acikKalCikis } from '../lib/acikKal';
 import {
   purgeExpiredSecureCache,
   wipeSecureCache,
@@ -6268,6 +6269,10 @@ class DataService {
   }
 
   // Baş yönetici (gerçek e-posta ile giriş yapan kurum yöneticisi) mi?
+  /** Aşama 295: bu hesap sistem sahibi mi (giriş anında, kurum bilgisi gelmeden) */
+  public sistemSahibiHesabi(t?: Teacher | null): boolean {
+    return this.isHeadAdminTeacher(t);
+  }
   private isHeadAdminTeacher(t?: Teacher | null): boolean {
     if (!t) return false;
     return (t.email || '').trim().toLowerCase() === ADMIN_EMAIL || t.id === 'admin-mustafa-bilir';
@@ -7949,6 +7954,7 @@ class DataService {
     // kişinin bütün cihazlarındaki oturumlar düşüyordu (telefon boşta kalınca bilgisayardaki oturum da kapanıyordu).
     // Şifre değişiminde bütün cihazlardan çıkış aynen sürer (changeOwnPassword).
     // Aşama 290: abonelik silme isteği oturum anahtarıyla gider; bu yüzden oturum ondan SONRA kapanır (en çok 4 sn beklenir)
+    acikKalCikis(); // Aşama 295: "bu cihazda açık kal" oturumu çıkışta cihazdan da silinir
     const oturumuKapat = () => supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     if (elle) void Promise.race([disablePush(), new Promise((r) => setTimeout(r, 4000))]).then(oturumuKapat, oturumuKapat);
     else void oturumuKapat();

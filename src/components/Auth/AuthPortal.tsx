@@ -4,6 +4,7 @@ import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types
 import { dataService } from '../../services/dataService';
 import { Button } from '../ui/Button';
 import { profilResmi } from '../../lib/profilResmi';
+import { acikKalGiris, acikKalVazgec } from '../../lib/acikKal';
 import {
   getBiometricSupport,
   getBiometricProfile,
@@ -160,6 +161,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [rememberedTeacher, setRememberedTeacher] = useState(() => dataService.getRememberedUser('teacher'));
   const [rememberedStudent, setRememberedStudent] = useState(() => dataService.getRememberedUser('student'));
   const [rememberMe, setRememberMe] = useState(() => Boolean(dataService.getRememberedUser(readLastRole())));
+  const [acikKal, setAcikKal] = useState(false); // Aşama 295: her girişte boş gelir (ortak bilgisayarda yanlışlıkla açık kalmasın)
 
   // Listen to dataService updates so remembered users & teachers stay synchronized
   useEffect(() => {
@@ -324,7 +326,20 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // Kullanıcı adı + şifreyle doğrular. Başarılıysa oturum nesnesi, hatalı bilgide null döner.
+  // Aşama 295: "Bu cihazda açık kal" işaretliyse oturum cihaza yazılır (30 gün); giriş tutmazsa ya da hesap sistem sahibiyse
+  // (iki adımlı giriş, 294) cihazda hiçbir şey bırakılmaz.
   const authenticate = async (role: UserRole, cleanUser: string, cleanPass: string): Promise<AuthSession | null> => {
+    acikKalGiris(acikKal);
+    try {
+      const session = await kimlikDogrula(role, cleanUser, cleanPass);
+      if (!session || (session.role === 'teacher' && dataService.sistemSahibiHesabi(session.user as Teacher))) acikKalVazgec();
+      return session;
+    } catch (e) {
+      acikKalVazgec();
+      throw e;
+    }
+  };
+  const kimlikDogrula = async (role: UserRole, cleanUser: string, cleanPass: string): Promise<AuthSession | null> => {
     if (role === 'teacher') {
       const teacher = await dataService.authenticateTeacher(cleanUser, cleanPass);
       if (!teacher) return null;
@@ -752,6 +767,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       />
                       <span>Beni hatırla</span>
                     </label>
+                    {/* Aşama 295: oturum bu cihazda 30 gün açık kalır (sistem sahibi hesabında uygulanmaz) */}
+                    <label
+                      className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                      id="acik-kal-secimi"
+                      title="Yalnız kendi cihazınızda işaretleyin: 30 gün boyunca şifre sorulmaz"
+                    >
+                      <input type="checkbox" checked={acikKal} onChange={(e) => setAcikKal(e.target.checked)} className="auth-check" />
+                      <span>Bu cihazda açık kal</span>
+                    </label>
                     {!activeBioProfile && bioAvailable && (
                       <label
                         className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
@@ -777,6 +801,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       Şifremi unuttum
                     </button>
                   </div>
+                  {acikKal && (
+                    <p className="-mt-2 text-xs text-fg-3" id="acik-kal-uyari" role="status">
+                      Yalnız kendi cihazınızda işaretleyin. 30 gün boyunca şifre sorulmaz; bitirmek için “Çıkış”a basın.
+                    </p>
+                  )}
 
                   {/* Giriş düğmesi; parmak izi kayıtlıysa yanında kare parmak izi düğmesi */}
                   <div className="flex gap-2">

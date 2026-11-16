@@ -6,6 +6,7 @@ import { TeacherBottomNav } from './components/Layout/BottomNav';
 import { anaSayfaTuru } from './components/Home/anaSayfaSecimi'; // Aşama 244
 import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
+import { acikKalBitti, acikKalDinle, acikKalSekmesi } from './lib/acikKal';
 import { PortalSecimi } from './components/Auth/PortalSecimi'; // Aşama 243
 import { SolMenu, ogretmenMenuOgeleri } from './components/Layout/SolMenu'; // Aşama 260
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
@@ -295,6 +296,8 @@ export default function App() {
     //  - kurum yöneticisi: 30 dakika
     //  - öğretmen ve öğrenci: 15 dakika
     const getIdleLimitMs = () => {
+      // Aşama 295: "Bu cihazda açık kal" oturumunda boşta kalma süresi uygulanmaz (30 gün sonunda biter, aşağıda)
+      if (acikKalSekmesi()) return Number.POSITIVE_INFINITY;
       if (dataService.isHeadAdmin()) return 24 * 60 * 60 * 1000;
       if (dataService.isKurumAdmin() || dataService.isCurrentUserAdmin()) return 30 * 60 * 1000;
       return 15 * 60 * 1000;
@@ -305,7 +308,7 @@ export default function App() {
       if (activeSession) {
         const now = Date.now();
         const diff = now - lastActivityRef.current;
-        if (diff >= getIdleLimitMs()) {
+        if (diff >= getIdleLimitMs() || acikKalBitti()) {
           dataService.logout();
           resetRouteHash();
           setAuthSession(null);
@@ -342,6 +345,8 @@ export default function App() {
     window.addEventListener('online', handleOnline);
 
     const inactivityInterval = setInterval(performInactivityCheck, 3000);
+    // Aşama 295: kalıcı oturumdan başka bir sekmede çıkıldıysa bu sekme de giriş ekranına döner
+    const acikKalBirak = acikKalDinle(() => window.location.reload());
 
     return () => {
       trackedEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
@@ -349,6 +354,7 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
       clearInterval(inactivityInterval);
+      acikKalBirak();
     };
   }, []);
 
