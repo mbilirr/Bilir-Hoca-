@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarPlus, Download, FileSpreadsheet, Users } from 'lucide-react';
+import { CalendarPlus, ChevronDown, Download, FileSpreadsheet } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -166,6 +166,22 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
     return list.sort((a, b) => b.rows.length - a.rows.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, level, threshold, minQ, topicKey]);
+
+  // Aşama 296 (HIZ): "Tüm kazanımlar" seçiliyken her kazanımın öğrenci tablosu birden çizilmez; yalnız ilk grup açık gelir,
+  // ötekiler başlık satırı (kazanım + öğrenci sayısı + Etüde yönlendir) olarak durur ve tıklanınca açılır. 300 öğrencili
+  // kademede binlerce satır yerine birkaç yüz satır çizilir. PDF / Excel ve etüde yönlendirme bütün gruplarla çalışır.
+  const [acikGruplar, setAcikGruplar] = useState<Set<string>>(new Set());
+  const ilkGrup = groups[0]?.label || '';
+  useEffect(() => {
+    setAcikGruplar(new Set(ilkGrup ? [ilkGrup] : []));
+  }, [ilkGrup, subject, level, topicKey]);
+  const grupAcKapa = (label: string) =>
+    setAcikGruplar((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
 
   const topicName = topicKey ? topicOptions.find((o) => o.key === topicKey)?.label || '' : '';
 
@@ -556,19 +572,30 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
         <p className="text-sm text-success-fg bg-success-soft rounded-xl px-3 py-2">Bu ölçütte etüde yönlendirilecek öğrenci yok.</p>
       ) : (
         <div className="space-y-3">
-          {groups.map((g) => (
+          {groups.map((g) => {
+            const acik = groups.length === 1 || acikGruplar.has(g.label);
+            return (
             <div key={g.label} className="rounded-2xl border border-line bg-surface">
-              <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-line">
-                <Users className="w-4 h-4 text-muted" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-fg">{g.label}</p>
-                  {level === 'alt' && g.konu !== g.label && <p className="text-[11px] text-muted">Konu: {g.konu}</p>}
-                </div>
+              <div className={cx('flex flex-wrap items-center gap-2 px-3 py-2', acik && 'border-b border-line')}>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  onClick={() => grupAcKapa(g.label)}
+                  aria-expanded={acik}
+                  title={acik ? 'Listeyi kapat' : 'Öğrenci listesini aç'}
+                >
+                  <ChevronDown className={cx('w-4 h-4 shrink-0 text-muted transition-transform', !acik && '-rotate-90')} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-fg">{g.label}</span>
+                    {level === 'alt' && g.konu !== g.label && <span className="block text-[11px] text-muted">Konu: {g.konu}</span>}
+                  </span>
+                </button>
                 <span className="ui-chip ui-chip-warning">{g.rows.length} öğrenci</span>
                 <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => openEtut(g)}>
                   <CalendarPlus /> Etüde yönlendir
                 </button>
               </div>
+              {acik && (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-fg-2">
                   <thead className="bg-surface-2/60 uppercase tracking-wider text-muted border-b border-line">
@@ -618,8 +645,10 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                   ))}
                 </table>
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

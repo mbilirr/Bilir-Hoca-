@@ -531,12 +531,12 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
         {can.deneme && (can.yonet || can.karne) && (
           <div className="kl-acts">
             {can.yonet && (
-              <button type="button" className="ak-btn dark" id="olcme-yeni-deneme" onClick={() => denemeAc('yeni')}>
+              <button type="button" className="ak-btn w-32 dark" id="olcme-yeni-deneme" onClick={() => denemeAc('yeni')}>
                 <Plus /> Deneme
               </button>
             )}
             {can.karne && (
-              <button type="button" className="ak-btn" id="olcme-karne" onClick={() => denemeAc('karne')}>
+              <button type="button" className="ak-btn w-32" id="olcme-karne" onClick={() => denemeAc('karne')}>
                 <Send /> Karne gönder
               </button>
             )}

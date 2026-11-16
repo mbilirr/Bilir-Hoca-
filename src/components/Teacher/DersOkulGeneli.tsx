@@ -264,13 +264,18 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
         {/* Geciken + izinler */}
         <section className="rounded-2xl border border-line bg-surface shadow-card self-start">
           <div className="px-5 py-4 border-b border-line">
-            <h3 className="text-[15px] font-bold">Geciken yoklamalar</h3>
+            <h3 className="text-[15px] font-bold flex items-center gap-2">
+              Geciken yoklamalar
+              {gecikenler.length > 0 && <span className="rounded-md bg-danger-soft text-danger-fg px-1.5 py-0.5 text-[11px] font-bold tabular-nums">{gecikenler.length}</span>}
+            </h3>
             <p className="text-xs text-muted">Öğretmene ve idareye hatırlatma gider.</p>
           </div>
           {gecikenler.length === 0 ? (
             <p className="text-xs text-muted px-5 py-4">Geciken yoklama yok.</p>
           ) : (
-            gecikenler.map((h) => (
+            // Aşama 296: liste uzadıkça sayfa uzamaz; kart sabit boyda kalır, içi kaydırılır (ana sayfa kuralıyla aynı)
+            <div className="max-h-[21.5rem] overflow-y-auto overscroll-contain" id="ders-geciken-liste">
+            {gecikenler.map((h) => (
               <button
                 key={`${h.classId}-${h.sira}`}
                 type="button"
@@ -286,7 +291,8 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                 </span>
                 <span className="rounded-md bg-danger-soft text-danger-fg px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">{gecikmeYazi(h)}</span>
               </button>
-            ))
+            ))}
+            </div>
           )}
           <div className="px-5 py-4 border-y border-line">
             <h3 className="text-[15px] font-bold">Gün boyu izinler</h3>
@@ -295,7 +301,8 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
           {izinler.length === 0 ? (
             <p className="text-xs text-muted px-5 py-4">Bu gün izinli / raporlu öğrenci yok.</p>
           ) : (
-            izinler.map((z) => {
+            <div className="max-h-[15.5rem] overflow-y-auto overscroll-contain" id="ders-izin-liste">
+            {izinler.map((z) => {
               const o = ogrenci.get(z.studentId);
               const ad = o?.name || 'Öğrenci';
               return (
@@ -318,7 +325,8 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                   </span>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </section>
       </div>

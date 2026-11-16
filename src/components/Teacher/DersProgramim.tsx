@@ -267,7 +267,7 @@ export const DersProgramim: React.FC = () => {
 
   const simdiKarti = (kucuk: boolean) => (
     <section
-      className={cx('relative overflow-hidden rounded-2xl text-white shadow-card flex items-center', kucuk ? 'gap-4 p-4' : 'gap-5 px-6 py-5')}
+      className={cx('relative overflow-hidden rounded-2xl text-white shadow-card flex items-center h-full', kucuk ? 'gap-4 p-4' : 'gap-5 px-6 py-5')}
       style={GRAD}
       id="ders-simdi"
       aria-live="polite"
@@ -347,7 +347,7 @@ export const DersProgramim: React.FC = () => {
   // Sağ kart: geçmişte alınmamış yoklama varsa onlar, yoksa sıradaki dersler
   const sagListe = bekleyenler.length ? bekleyenler.slice(0, 3) : sonrakiler.filter((h) => h !== vurgu).slice(0, 3);
   const sagKart = (
-    <section className="rounded-2xl border border-line bg-surface shadow-card px-5 py-4 flex flex-col gap-3" id="ders-sirada">
+    <section className="rounded-2xl border border-line bg-surface shadow-card px-5 py-4 flex flex-col gap-3 h-full" id="ders-sirada">
       <p className={cx('text-[11px] font-semibold uppercase tracking-wider', bekleyenler.length ? 'text-warning-fg' : 'text-muted')}>
         {bekleyenler.length ? `Yoklaması bekleyen · ${bekleyenler.length}` : 'Sıradaki dersler'}
       </p>
@@ -359,7 +359,7 @@ export const DersProgramim: React.FC = () => {
           onClick={() => ac(h)}
           className="flex items-center gap-3 text-left rounded-lg -mx-2 px-2 py-1 hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
-          <span className="w-14 shrink-0 border-r border-line pr-3 text-center">
+          <span className="w-[4.5rem] shrink-0 border-r border-line pr-3 text-center whitespace-nowrap">
             <span className="block text-[15px] font-bold tabular-nums">{saatOf(h.sira).bas}</span>
             <span className="block text-[11px] text-muted">{h.tarih === bugun ? `${h.sira}. ders` : GUN_KISA[isoGun(h.tarih) - 1]}</span>
           </span>
@@ -368,7 +368,7 @@ export const DersProgramim: React.FC = () => {
               {h.classAd} · {h.ders}
             </span>
             <span className={cx('block text-xs', bekleyenler.length ? 'text-warning-fg' : 'text-muted')}>
-              {bekleyenler.length ? `${h.tarih === bugun ? 'Bugün' : tarihUzun(h.tarih)} · yoklama alınmadı` : yan(h)?.tam || `${h.sira}. ders`}
+              {bekleyenler.length ? `${h.tarih === bugun ? 'Bugün' : tarihUzun(h.tarih)} · yoklama alınmadı` : yan(h)?.tam || `${saatOf(h.sira).bas}–${saatOf(h.sira).bit}`}
             </span>
           </span>
         </button>
