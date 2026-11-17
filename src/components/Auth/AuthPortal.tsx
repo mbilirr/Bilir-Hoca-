@@ -47,23 +47,8 @@ const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 // Aşama 222: yeni giriş ekranı (Fikir 1) — koyu marka paneli + açık form. Logo dosyası aynı (/logo.svg), yanında "bilirEdu".
-// Başlık yazı tipi (Instrument Serif) yalnız bu ekranda ve yalnız başlıktaki harfler için yüklenir (birkaç KB);
-// gelene kadar başlık Georgia ile görünür, giriş kutuları hiç beklemez.
-const AUTH_HEADLINE = 'Her öğrencinin yolculuğu, tek bakışta.';
-const AUTH_SERIF_ID = 'auth-serif-font';
-const loadAuthSerif = () => {
-  try {
-    if (document.getElementById(AUTH_SERIF_ID)) return;
-    const link = document.createElement('link');
-    link.id = AUTH_SERIF_ID;
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap&text=' + encodeURIComponent(AUTH_HEADLINE);
-    document.head.appendChild(link);
-  } catch {
-    /* yazı tipi gelmezse başlık Georgia ile görünür */
-  }
-};
+// Aşama 299: başlık yazı tipi (Instrument Serif) artık sitenin kendisinden gelir (src/index.css @font-face); Google'a istek gitmez.
+// Tarayıcı dosyayı yalnız başlık çizilirken indirir; gelene kadar başlık Georgia ile görünür, giriş kutuları hiç beklemez.
 
 // Logonun çizgileri: marka panelinin arkasında büyük ve silik (resim dosyası değil, sayfanın içinde küçük bir çizim)
 const AuthStrokes: React.FC = () => (
@@ -211,10 +196,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
-  // Aşama 222: başlık yazı tipi yalnız giriş ekranında yüklenir; telefonda tarayıcı üst çubuğu koyu panelle aynı renk olur
-  // (ekrandan çıkınca eski rengine döner)
+  // Aşama 222: telefonda tarayıcı üst çubuğu koyu panelle aynı renk olur (ekrandan çıkınca eski rengine döner)
   useEffect(() => {
-    loadAuthSerif();
     const meta = document.querySelector('meta[name="theme-color"]');
     const prev = meta?.getAttribute('content') ?? null;
     meta?.setAttribute('content', '#0f241b');

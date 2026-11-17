@@ -13,19 +13,7 @@ import './odakKabuk.css'; // Aşama 246
 // Telefonda (900 px altı) sol menü gizlenir; alttaki menü çalışmaya devam eder.
 // ============================================================================
 
-const SERIF_ID = 'ak-serif-font';
-const loadSerif = () => {
-  try {
-    if (document.getElementById(SERIF_ID)) return;
-    const link = document.createElement('link');
-    link.id = SERIF_ID;
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap';
-    document.head.appendChild(link);
-  } catch {
-    /* yazı tipi gelmezse başlık ve rakamlar Georgia ile görünür */
-  }
-};
+// Aşama 299: başlık ve rakam yazı tipi (Instrument Serif) sitenin kendisinden gelir (src/index.css @font-face); Google'a istek gitmez.
 
 /** Panelin arkasındaki silik halkalar (taslaktaki gibi) */
 export const AkHalkalar: React.FC = () => (
@@ -85,8 +73,6 @@ interface Props {
 
 export const AnaSayfaKabuk: React.FC<Props> = ({ currentTeacher, menu, unreadMessages = 0, onNavigate, panelLabel, panel, tema = 'yonetici', sinif, children, overlay }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(loadSerif, []);
 
   // Sol menü ve panel üst menünün hemen altında sabit durur: üst menünün yüksekliği ölçülür (kurum şeridi vb. dahil)
   useEffect(() => {
