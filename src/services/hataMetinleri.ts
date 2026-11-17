@@ -99,6 +99,12 @@ export function isMissingGenderColumn(error: any): boolean {
   return /\bgender\b/i.test(msg) && /PGRST204|42703|column|schema cache|permission/i.test(msg);
 }
 
+/** Aşama 324: doğum tarihi sütunu yok (324 numaralı SQL henüz kurulmadı) */
+export function isMissingBirthColumn(error: any): boolean {
+  const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
+  return /\bbirth_date\b/i.test(msg) && /PGRST204|42703|column|schema cache/i.test(msg);
+}
+
 export function isMissingParentColumn(error: any): boolean {
   const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
   return /\bparents\b/i.test(msg) && /PGRST204|42703|column|schema cache/i.test(msg);

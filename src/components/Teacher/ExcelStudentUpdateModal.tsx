@@ -16,6 +16,7 @@ import { dataService } from '../../services/dataService';
 import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { Modal, cx } from '../ui/kit';
+import { dogumTarihiYaz } from '../../lib/dogumTarihi'; // Aşama 324
 import { HelpDisclosure, InfoTip } from '../ui/Compact';
 import {
   STUDENT_COLUMNS,
@@ -40,7 +41,7 @@ interface Props {
   onDone?: (message: string) => void;
 }
 
-type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'gender' | 'parents' | 'tc';
+type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'gender' | 'birthDate' | 'parents' | 'tc';
 const FIELD_LABEL: Record<Field, string> = {
   name: 'Ad soyad',
   classId: 'Sınıf',
@@ -48,6 +49,7 @@ const FIELD_LABEL: Record<Field, string> = {
   phone: 'Telefon',
   email: 'E-posta',
   gender: 'Cinsiyet', // Aşama 171
+  birthDate: 'Doğum tarihi', // Aşama 324
   parents: 'Veliler', // Aşama 69
   tc: 'TC kimlik (parmak izi)',
 };
@@ -173,13 +175,27 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
 
   const [parsed, setParsed] = useState<
-    Array<{ rowNumber: number; sheet?: string; name: string; number: string; className: string; phone: string; email: string; gender: '' | 'K' | 'E'; tc: string; parents: StudentParent[] }>
+    Array<{
+      rowNumber: number;
+      sheet?: string;
+      name: string;
+      number: string;
+      className: string;
+      phone: string;
+      email: string;
+      gender: '' | 'K' | 'E';
+      birthDate: string; // Aşama 324: 'YYYY-MM-DD' ya da ''
+      birthDateBad: string; // Aşama 324: okunamayan yazı
+      tc: string;
+      parents: StudentParent[];
+    }>
   >([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, gender: true, parents: true, tc: true });
+  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, gender: true, birthDate: true, parents: true, tc: true });
   const hasParentColumn = parsed.some((p) => p.parents.length > 0); // Aşama 69
   const hasGenderColumn = parsed.some((p) => !!p.gender); // Aşama 171
+  const hasBirthColumn = parsed.some((p) => !!p.birthDate || !!p.birthDateBad); // Aşama 324
   // Aşama 50: TC parmak izleri (TC'nin kendisi yalnızca bu pencere açıkken bellekte durur, ekranda gösterilmez)
   const canTc = dataService.canUseDeneme();
   const [tcHashes, setTcHashes] = useState<Array<string | null> | null>(null); // parsed ile aynı sıra
@@ -337,6 +353,10 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           const ad = (g?: string) => (g === 'K' ? 'Kız' : g === 'E' ? 'Erkek' : '—');
           r.changes.push({ field: 'gender', from: ad(s.gender), to: ad(p.gender), value: p.gender });
         }
+        // Aşama 324: doğum tarihi (boş hücre kayıtlı tarihi silmez; okunamayan yazı uyarı olur, yazılmaz)
+        if (fields.birthDate && p.birthDateBad) r.notes.push(`Doğum tarihi "${p.birthDateBad}" okunamadı`);
+        else if (fields.birthDate && p.birthDate && p.birthDate !== (s.birthDate || ''))
+          r.changes.push({ field: 'birthDate', from: dogumTarihiYaz(s.birthDate) || '—', to: dogumTarihiYaz(p.birthDate), value: p.birthDate });
         // Aşama 69: veliler (Excel'deki boş hücre kayıtlı veli bilgisini silmez; aynı sıradaki veli güncellenir)
         if (fields.parents && p.parents.length) {
           const merged = mergeParents(s.parents, p.parents, r.notes);
@@ -424,6 +444,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
             phone: f.phone,
             email: f.email,
             gender: f.gender,
+            birthDate: f.birthDate,
+            birthDateBad: f.birthDateInvalid,
             tc: tcHeader ? String(sheetRows[i]?.values[tcHeader] || '').replace(/\D/g, '') : '',
             parents: cleanParents(extractParents(headers, sheetRows[i]?.values || {})),
           }))
@@ -454,6 +476,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         Telefon: s.phone || '',
         'E-Posta': s.email || '',
         Cinsiyet: s.gender === 'K' ? 'Kız' : s.gender === 'E' ? 'Erkek' : '', // Aşama 171
+        'Doğum Tarihi': dogumTarihiYaz(s.birthDate), // Aşama 324 (gün.ay.yıl; düzenleyip geri yükleyebilirsiniz)
         // Aşama 69: veliler (K12 listesiyle aynı sütun adları; düzenleyip geri yükleyebilirsiniz)
         ...Object.fromEntries(
           [0, 1, 2].flatMap((k) => {
@@ -495,6 +518,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           tcList.push({ id: s.id, hash: c.value, name: s.name }); // yalnızca parmak izi
         } else if (c.field === 'gender') {
           genderList.push({ id: s.id, gender: c.value as 'K' | 'E' });
+        } else if (c.field === 'birthDate') {
+          upd.birthDate = c.value; // Aşama 324
         } else if (c.field === 'parents') {
           upd.parents = JSON.parse(c.value) as StudentParent[];
         } else if (c.field === 'classId') {
@@ -688,7 +713,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <span className="font-semibold text-fg">Güncellenecek bilgiler:</span>
-              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => (f !== 'tc' || (canTc && hasTcColumn)) && (f !== 'parents' || hasParentColumn) && (f !== 'gender' || hasGenderColumn)).map((f) => (
+              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => (f !== 'tc' || (canTc && hasTcColumn)) && (f !== 'parents' || hasParentColumn) && (f !== 'gender' || hasGenderColumn) && (f !== 'birthDate' || hasBirthColumn)).map((f) => (
                 <label key={f} className="flex items-center gap-1.5 cursor-pointer text-fg-2 hover:text-fg">
                   <input
                     type="checkbox"

@@ -4,6 +4,8 @@
 // e-posta ve telefon doğrulaması tek yerde tutulur.
 // ============================================================================
 
+import { excelDogumTarihi } from './dogumTarihi'; // Aşama 324
+
 const TR_FOLD: Record<string, string> = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' };
 
 // Türkçe duyarlı küçük harfe çevirir ve Türkçe harfleri ASCII karşılığına indirger ("ÖĞRENCİ No" -> "ogrenci no")
@@ -137,6 +139,23 @@ export function gercekAralik(ws: Record<string, unknown>, utils: XlsxUtilsLike):
 }
 
 /**
+ * Aşama 324: tarih hücreleri (Excel'de tarih biçimli) metne 'YYYY-MM-DD' olarak çevrilir. Kütüphane bunları
+ * "3/4/12" (ay/gün/yıl) yazıyordu; Türkiye sırasıyla okununca gün ve ay karışırdı. Gece yarısı saat dilimi
+ * kaymasına karşı yarım gün eklenip gün alınır.
+ */
+function tarihHucreleriniYaz(ws: Record<string, unknown>): void {
+  for (const k of Object.keys(ws)) {
+    if (k.charCodeAt(0) === 33) continue;
+    const c = ws[k] as { t?: string; v?: unknown; w?: string } | undefined;
+    if (!c || c.t !== 'd') continue;
+    const d = c.v instanceof Date ? c.v : new Date(String(c.v));
+    if (Number.isNaN(d.getTime())) continue;
+    const g = new Date(d.getTime() + 12 * 3600 * 1000);
+    c.w = `${g.getUTCFullYear()}-${String(g.getUTCMonth() + 1).padStart(2, '0')}-${String(g.getUTCDate()).padStart(2, '0')}`;
+  }
+}
+
+/**
  * Aşama 323: dosyadaki BÜTÜN görünür sayfalar okunur (K12 her şubeyi ayrı sayfaya koyar). İlk başlık satırı bulunan
  * sayfanın sütunları esas alınır; aynı sütunlara sahip sayfaların satırları birleştirilir, farklı sütunlu ya da
  * başlıksız sayfalar atlanır ve adları döner (ekranda söylenir; yanlış sütun eşleşmesiyle veri bozulmasın).
@@ -156,6 +175,7 @@ export function excelSayfalariniOku(
     const ws = wb.Sheets[name];
     if (!ws) return;
     gercekAralik(ws, utils);
+    tarihHucreleriniYaz(ws);
     const matrix = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false });
     const r = matrixToRows(matrix, spec);
     if (!r.rows.length) return; // boş sayfa
@@ -238,7 +258,7 @@ export const tcBasligiMi = (h: string) =>
   );
 
 // ----------------------------------------------------------------------------- Öğrenci sütunları
-export type StudentField = 'fullName' | 'firstName' | 'lastName' | 'studentNumber' | 'className' | 'email' | 'phone' | 'password' | 'gender';
+export type StudentField = 'fullName' | 'firstName' | 'lastName' | 'studentNumber' | 'className' | 'email' | 'phone' | 'password' | 'gender' | 'birthDate';
 
 export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
   fullName: {
@@ -290,6 +310,11 @@ export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
     exact: ['cinsiyet', 'cinsiyeti', 'cins', 'öğrenci cinsiyeti', 'öğrencinin cinsiyeti', 'gender', 'sex'],
     partial: ['cinsiyet'],
   },
+  // Aşama 324: K12 "Öğrenci Doğum Tarihi"
+  birthDate: {
+    exact: ['doğum tarihi', 'öğrenci doğum tarihi', 'öğrencinin doğum tarihi', 'd. tarihi', 'd.tarihi', 'doğum t.', 'birth date', 'date of birth', 'birthday'],
+    partial: ['doğumtarih'],
+  },
 };
 
 /** Aşama 171: Excel'deki cinsiyet yazısı → 'K' / 'E' / '' (Kız, Kadın, K, Bayan, F… / Erkek, E, Bay, M…) */
@@ -313,6 +338,10 @@ export interface ParsedStudentFields {
   password: string;
   /** Aşama 171: '' = sütun yok ya da boş */
   gender: '' | 'K' | 'E';
+  /** Aşama 324: 'YYYY-MM-DD' ya da '' (sütun yok, boş ya da okunamadı) */
+  birthDate: string;
+  /** Aşama 324: okunamayan doğum tarihi yazısı (ekranda uyarı; kayda geçmez) */
+  birthDateInvalid: string;
 }
 
 // Satırdan öğrenci alanlarını çıkarır. Ad soyad tek sütundaysa o kullanılır;
@@ -352,6 +381,8 @@ export function extractStudentRows(headers: string[], rows: SheetRow[]): ParsedS
         last = '';
       }
     }
+    const dogumHam = get(row, 'birthDate');
+    const dogum = excelDogumTarihi(dogumHam);
     return {
       rowNumber: row.rowNumber,
       fullName,
@@ -363,6 +394,8 @@ export function extractStudentRows(headers: string[], rows: SheetRow[]): ParsedS
       phone: get(row, 'phone'),
       password: get(row, 'password'),
       gender: parseGender(get(row, 'gender')),
+      birthDate: dogum.value,
+      birthDateInvalid: dogum.valid ? '' : dogumHam,
     };
   });
 }

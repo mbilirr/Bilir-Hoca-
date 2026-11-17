@@ -59,6 +59,7 @@ import {
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
 import { cleanParents } from '../lib/parents';
+import { gecerliDogumTarihi } from '../lib/dogumTarihi'; // Aşama 324
 import { setKurumBrand } from '../lib/kurumBrand';
 import { sunucuSaatiAyarla } from '../lib/trSaat'; // Aşama 234
 import { loadOgrBolumCache, resetOgrBolum, syncOgrBolum } from '../lib/ogrenciBolum';
@@ -147,7 +148,7 @@ import {
 } from './hataMetinleri'; // Aşama 318
 export { geriAlYalnizDokunulan }; // Aşama 318: eski içe aktarma yolu çalışmaya devam etsin
 import { parseKurumRpc, kurumStateFrom, kurumAccessKey } from './kurumTanimlari'; // Aşama 319
-import { isMissingGenderColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage } from './hataMetinleri'; // Aşama 319
+import { isMissingGenderColumn, isMissingBirthColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage } from './hataMetinleri'; // Aşama 319
 import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords } from './girisYardimci'; // Aşama 319
 import {
   deleteRowsVerified,
@@ -1865,6 +1866,8 @@ class DataService {
       avatar: s.avatar || null,
       // Aşama 171: cinsiyet (sütun yoksa hiç gönderilmez)
       ...(DataService.genderMissing.students ? {} : { gender: s.gender || null }),
+      // Aşama 324: doğum tarihi (veritabanı korumalı tabloya taşır; boş metin = sil). Sütun yoksa hiç gönderilmez.
+      ...(DataService.birthMissing || (isNew && !s.birthDate) ? {} : { birth_date: s.birthDate || (isNew ? null : '') }),
       // Aşama 69: veliler (en çok 3). Sütun yoksa patchStudentRow bunu çıkarıp tekrar dener.
       parents: cleanParents(s.parents),
     };
@@ -1876,6 +1879,7 @@ class DataService {
         delete row.email;
         delete row.phone;
         delete row.parents;
+        delete row.birth_date; // Aşama 324: görülemeyen doğum tarihi boşla ezilmez
       } else if (!isNew) {
         row.email = s.email || '';
         row.phone = s.phone || '';
@@ -1895,6 +1899,12 @@ class DataService {
   private static get STUDENT_SAFE_COLUMNS(): string {
     return DataService.STUDENT_BASE_COLUMNS + (DataService.genderMissing.students ? '' : ',gender');
   }
+  // Aşama 324: doğum tarihi korumalı tabloda (sql/324). SQL kurulmadan dosyalar yüklenirse sütun atlanır, site bozulmaz.
+  private static birthMissing = false;
+  private static readonly BIRTH_SQL_MSG = "Doğum tarihi için 324 numaralı SQL dosyasının (324_ogrenci_dogum_tarihi.sql) Supabase'te çalıştırılması gerekiyor.";
+  private static get CONTACT_COLUMNS(): string {
+    return 'id,email,phone,parents' + (DataService.birthMissing ? '' : ',birth_date');
+  }
   private static contactsMode: 'unknown' | 'table' | 'legacy' = 'unknown';
   /** İletişim bilgisi veritabanından okunabilen öğrenciler (yalnızca bunların bilgisi geri yazılır) */
   private contactKnown = new Set<string>();
@@ -1903,9 +1913,13 @@ class DataService {
     if (DataService.contactsMode !== 'legacy') {
       // hız: iki okuma aynı anda yapılır. Aşama 193: ikisi de artımlı (yalnız değişen satırlar iner)
       const [contacts, rows] = await Promise.all([
-        this.fetchRowsSmart('student_contacts', isBackground, 'id,email,phone,parents'),
+        this.fetchRowsSmart('student_contacts', isBackground, DataService.CONTACT_COLUMNS),
         this.fetchRowsSmart('students', isBackground, DataService.STUDENT_SAFE_COLUMNS),
       ]);
+      if (contacts.error && !DataService.birthMissing && isMissingBirthColumn(contacts.error)) {
+        DataService.birthMissing = true; // Aşama 324: SQL henüz kurulmadı
+        return this.fetchStudentRowsWithContacts(isBackground);
+      }
       if (!contacts.error) {
         DataService.contactsMode = 'table';
         if (rows.error && !DataService.genderMissing.students && isMissingGenderColumn(rows.error)) {
@@ -1918,7 +1932,7 @@ class DataService {
         const merged = (rows.data || []).map((r: any) => {
           const c = byId.get(String(r.id));
           if (c) known.add(String(r.id));
-          return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents || [] : [] };
+          return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents || [] : [], birth_date: c ? c.birth_date || null : null };
         });
         this.contactKnown = known;
         return { data: merged, error: null };
@@ -1940,7 +1954,8 @@ class DataService {
       const ids = Array.from(this.contactRefreshIds);
       this.contactRefreshIds.clear();
       try {
-        const { data, error } = await supabase.from('student_contacts').select('id,email,phone,parents').in('id', ids);
+        const { data, error } = await supabase.from('student_contacts').select(DataService.CONTACT_COLUMNS).in('id', ids);
+        if (error && !DataService.birthMissing && isMissingBirthColumn(error)) DataService.birthMissing = true; // Aşama 324
         if (error || !Array.isArray(data)) return;
         const byId = new Map<string, any>(data.map((c: any) => [String(c.id), c]));
         let changed = false;
@@ -1950,6 +1965,7 @@ class DataService {
           if (!c) return st;
           this.contactKnown.add(st.id);
           const upd = { ...st, email: cleanStudentEmail(c.email) || '', phone: c.phone || '', parents: cleanParents(c.parents) };
+          if (!DataService.birthMissing) upd.birthDate = c.birth_date || undefined; // Aşama 324
           if (sameData(upd, st)) return st;
           changed = true;
           return upd;
@@ -2031,6 +2047,14 @@ class DataService {
         const { gender: _g, ...rest } = patch as Record<string, unknown>;
         patch = rest;
         if (Object.keys(patch).length === 0) return { success: true };
+        ({ data, error } = await supabase.from('students').update(patch).eq('id', id).select('id'));
+      }
+      if (error && 'birth_date' in patch && isMissingBirthColumn(error)) {
+        DataService.birthMissing = true; // Aşama 324: SQL kurulmadı, doğum tarihi atlanır
+        const { birth_date: _b, ...rest } = patch as Record<string, unknown>;
+        if (Object.keys(rest).length === 0) return { success: false, error: { message: DataService.BIRTH_SQL_MSG } };
+        if (_b) this.showFloatingErrorToast(`Diğer bilgiler kaydedildi; doğum tarihi kaydedilmedi. ${DataService.BIRTH_SQL_MSG}`);
+        patch = rest;
         ({ data, error } = await supabase.from('students').update(patch).eq('id', id).select('id'));
       }
       if (error && isMissingParentColumn(error)) {
@@ -2119,6 +2143,8 @@ class DataService {
             parents: 'parents' in rs ? cleanParents(rs.parents) : existing.parents,
             avatar: rs.avatar || existing.avatar,
             gender: 'gender' in rs ? normGender(rs.gender) : existing.gender,
+            // Aşama 324: yalnız korumalı tablodan okunur (öğrenci satırındaki sütun hep boştur)
+            birthDate: DataService.contactsMode === 'table' && !DataService.birthMissing ? rs.birth_date || undefined : existing.birthDate,
             auth_user_id: rs.auth_user_id || undefined,
             status: remoteSuspended ? 'suspended' : 'active',
             isSuspended: remoteSuspended,
@@ -2142,6 +2168,7 @@ class DataService {
             parents: cleanParents(rs.parents),
             avatar: rs.avatar || undefined,
             gender: normGender(rs.gender),
+            birthDate: DataService.contactsMode === 'table' ? rs.birth_date || undefined : undefined, // Aşama 324
             createdAt: rs.registered_at || new Date().toISOString(),
             status: remoteSuspended ? 'suspended' : 'active',
             isSuspended: remoteSuspended,
@@ -7016,6 +7043,7 @@ class DataService {
         phone: (item.phone || '').trim(),
         avatar: item.avatar || undefined,
         gender: normGender(item.gender) ?? (tahmin ? tahmin(name) : undefined),
+        birthDate: gecerliDogumTarihi(item.birthDate) || undefined, // Aşama 324
         createdAt: new Date().toISOString(),
         status: 'active',
         createdTeacherId: currentTeacherId,
@@ -7039,8 +7067,11 @@ class DataService {
           }))
         );
       let { error } = await insertRows();
-      if (error && !DataService.genderMissing.students && isMissingGenderColumn(error)) {
-        DataService.genderMissing.students = true; // Aşama 171
+      // Aşama 171 / 324: kurulmamış SQL'in sütunu (cinsiyet, doğum tarihi) atlanıp yeniden denenir
+      for (let k = 0; k < 2 && error; k++) {
+        if (!DataService.genderMissing.students && isMissingGenderColumn(error)) DataService.genderMissing.students = true;
+        else if (!DataService.birthMissing && isMissingBirthColumn(error)) DataService.birthMissing = true;
+        else break;
         ({ error } = await insertRows());
       }
       if (error) {
@@ -7179,6 +7210,11 @@ class DataService {
 
     const next: Student = { ...current, ...updates };
     if (updates.email !== undefined) next.email = cleanStudentEmail(updates.email);
+    // Aşama 324: doğum tarihi 'YYYY-MM-DD' (boş = sil); geçersizse hiçbir şey yazılmaz
+    if ('birthDate' in updates) {
+      if (updates.birthDate && !gecerliDogumTarihi(updates.birthDate)) throw new Error('Doğum tarihi geçersiz (gelecek ya da yanlış bir tarih).');
+      next.birthDate = updates.birthDate || undefined;
+    }
     if (updates.classId) {
       const cls = this.classes.find((c) => c.id === updates.classId);
       if (cls) next.className = cls.name;
@@ -7210,6 +7246,10 @@ class DataService {
       // Aşama 69: veliler bir dizi olduğu için içerik olarak karşılaştırılır
       if (JSON.stringify(after[k]) !== JSON.stringify(before[k])) patch[k] = after[k];
     });
+    // Aşama 324: iletişim bilgisi görülemeyen öğrencide de açıkça girilen doğum tarihi yazılır (diğer alanlar ezilmeden)
+    if ('birthDate' in updates && !('birth_date' in after) && !DataService.birthMissing && next.birthDate !== current.birthDate) {
+      patch.birth_date = next.birthDate || '';
+    }
     const numberChanged = 'student_number' in patch;
 
     const prevStudents = this.students;

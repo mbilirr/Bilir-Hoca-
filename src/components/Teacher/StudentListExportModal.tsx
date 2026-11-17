@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import type { Student, ClassGroup } from '../../types';
 import { cleanParents, MAX_PARENTS } from '../../lib/parents';
 import { Modal } from '../ui/kit';
+import { dogumTarihiYaz } from '../../lib/dogumTarihi'; // Aşama 324
 import { SelectBox, inputCls } from './FormParts';
 
 // ============================================================================
@@ -19,6 +20,7 @@ type ColKey =
   | 'sinif'
   | 'kademe'
   | 'cinsiyet'
+  | 'dogum'
   | 'kullanici'
   | 'eposta'
   | 'telefon'
@@ -35,6 +37,7 @@ const COLUMNS: Array<{ key: ColKey; label: string; group: 'ogrenci' | 'veli' }> 
   { key: 'sinif', label: 'Sınıf', group: 'ogrenci' },
   { key: 'kademe', label: 'Kademe', group: 'ogrenci' },
   { key: 'cinsiyet', label: 'Cinsiyet', group: 'ogrenci' }, // Aşama 171
+  { key: 'dogum', label: 'Doğum Tarihi', group: 'ogrenci' }, // Aşama 324
   { key: 'kullanici', label: 'Kullanıcı Adı', group: 'ogrenci' },
   { key: 'eposta', label: 'E-posta', group: 'ogrenci' },
   { key: 'telefon', label: 'Telefon', group: 'ogrenci' },
@@ -135,6 +138,9 @@ export const StudentListExportModal: React.FC<{
             break;
           case 'cinsiyet':
             r.push(s.gender === 'K' ? 'Kız' : s.gender === 'E' ? 'Erkek' : '');
+            break;
+          case 'dogum':
+            r.push(dogumTarihiYaz(s.birthDate));
             break;
           case 'kullanici':
             r.push(s.username || '');

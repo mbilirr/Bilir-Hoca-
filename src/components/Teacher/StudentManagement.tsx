@@ -47,6 +47,7 @@ import { hashTcs, validTc } from '../../lib/tcApi';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { ogrenciGuncellendi } from '../../lib/geriAl'; // Aşama 306
+import { bugunTarih, gecerliDogumTarihi, yasHesapla } from '../../lib/dogumTarihi'; // Aşama 324
 import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { canMoveGrantedStudent, useMyGrantMove } from '../../lib/grantMove'; // Aşama 161
@@ -307,6 +308,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Aşama 171: cinsiyet ('' = belirtilmedi). Elle seçilmediyse ad yazıldıkça addan tahmin edilir.
   const [studentGender, setStudentGender] = useState<'' | 'K' | 'E'>('');
   const genderTouchedRef = React.useRef(false);
+  // Aşama 324: doğum tarihi 'YYYY-MM-DD' ('' = girilmedi)
+  const [studentBirthDate, setStudentBirthDate] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'K' | 'E' | 'none'>('all');
   const [isGenderFillOpen, setIsGenderFillOpen] = useState(false);
   const [isProcessingStudentPhoto, setIsProcessingStudentPhoto] = useState(false);
@@ -356,6 +359,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     parents: StudentParent[];
     avatar?: string;
     gender?: 'K' | 'E';
+    birthDate: string; // Aşama 324: '' = yok
     password: string;
   }
   // Aynı ad ve numarayla kayıtlı öğrenci uyarısı
@@ -778,6 +782,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
     if (!targetClass) return;
 
+    // Aşama 324: tarih kutusu yarım/yanlış tarihte boş verir; doluysa takvimde olan ve bugünden önceki bir gün olmalı
+    if (studentBirthDate && !gecerliDogumTarihi(studentBirthDate)) {
+      setStudentFormError('Doğum tarihi geçersiz (gelecek ya da yanlış bir tarih).');
+      return;
+    }
+
     const payload: StudentFormPayload = {
       name: cleanName,
       email: studentEmail.trim(),
@@ -787,6 +797,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       parents: cleanParents(parents),
       avatar: studentAvatar || editingStudent?.avatar || undefined,
       gender: studentGender || undefined,
+      birthDate: studentBirthDate,
       password: cleanPassword,
     };
 
@@ -840,6 +851,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             parents: payload.parents,
             avatar: payload.avatar,
             gender: payload.gender,
+            birthDate: payload.birthDate, // Aşama 324
           },
           { newPassword: payload.password || undefined }
         );
@@ -862,6 +874,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           phone: payload.phone,
           avatar: payload.avatar,
           gender: payload.gender,
+          birthDate: payload.birthDate || undefined, // Aşama 324
           password: payload.password,
         });
         const tcMsg = credential?.student?.id ? await saveTc(credential.student.id) : '';
@@ -901,6 +914,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           parents: newStudentPayload.parents,
           avatar: newStudentPayload.avatar,
           gender: newStudentPayload.gender,
+          ...(newStudentPayload.birthDate ? { birthDate: newStudentPayload.birthDate } : {}), // Aşama 324: boşsa kayıtlı tarih silinmez
         },
         { newPassword: newStudentPayload.password || undefined }
       );
@@ -931,6 +945,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentAvatar('');
     setStudentGender('');
     genderTouchedRef.current = false;
+    setStudentBirthDate('');
     setStudentClassId(studentClassOptions[0]?.id || '');
     setStudentFormError(null);
     setStudentEmailError(null);
@@ -975,6 +990,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentAvatar(student.avatar || '');
     setStudentGender(student.gender || '');
     genderTouchedRef.current = !!student.gender;
+    setStudentBirthDate(student.birthDate || '');
     setStudentFormError(null);
     setStudentEmailError(null);
     setStudentPhoneError(null);
@@ -2295,8 +2311,27 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
+          {/* Aşama 324: doğum tarihi · telefon · e-posta; üst satırla aynı 4 sütunlu ızgara (e-posta iki sütun) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="min-w-0">
+              <label htmlFor="student-form-birth" className="flex items-baseline justify-between gap-2 text-xs font-bold text-fg-2 mb-1">
+                <span className="truncate">Doğum Tarihi</span>
+                {yasHesapla(studentBirthDate) !== null && (
+                  <span className="font-medium text-muted tabular-nums shrink-0">{yasHesapla(studentBirthDate)} yaş</span>
+                )}
+              </label>
+              <input
+                autoComplete="off"
+                id="student-form-birth"
+                type="date"
+                min="1900-01-01"
+                max={bugunTarih()}
+                value={studentBirthDate}
+                onChange={(e) => setStudentBirthDate(e.target.value)}
+                className={cx(inputCls, SF, 'tabular-nums')}
+              />
+            </div>
+            <div className="min-w-0 sm:col-span-2 order-last">
               <label htmlFor="student-form-email" className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
               <input autoComplete="off"
                 id="student-form-email"
@@ -2317,7 +2352,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </p>
               )}
             </div>
-            <div>
+            <div className="min-w-0">
               <label htmlFor="student-form-phone" className="block text-xs font-bold text-fg-2 mb-1">Telefon</label>
               <input autoComplete="off"
                 id="student-form-phone"

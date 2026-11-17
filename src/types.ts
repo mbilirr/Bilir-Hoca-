@@ -59,6 +59,8 @@ export interface Student {
   avatar?: string;
   /** Aşama 171: 'K' kız, 'E' erkek; boş = belirtilmedi */
   gender?: 'K' | 'E';
+  /** Aşama 324: doğum tarihi 'YYYY-MM-DD' (korumalı tabloda; veli bilgisini görenler görür, sql/324) */
+  birthDate?: string;
   createdAt: string;
   status: 'active' | 'inactive' | 'suspended';
   isSuspended?: boolean; // Hesabın dondurulması / askıya alınması
@@ -463,6 +465,7 @@ export interface StudentAccountInput {
   phone?: string;
   avatar?: string;
   gender?: 'K' | 'E'; // Aşama 171
+  birthDate?: string; // Aşama 324: 'YYYY-MM-DD'
   schoolLevel?: 'Ortaokul' | 'Lise';
   gradeLevel?: string;
   branch?: string;

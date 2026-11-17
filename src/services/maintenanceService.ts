@@ -42,7 +42,10 @@ async function fetchAllRows(table: string, columns = '*', apply?: (q: any) => an
 async function fetchStudentsForBackup(): Promise<any[]> {
   let contacts: any[] | null = null;
   try {
-    contacts = await fetchAllRows('student_contacts', 'id,email,phone,parents');
+    // Aşama 324: doğum tarihi de yedeğe girer (324 SQL'i kurulmadıysa sütunsuz okunur)
+    contacts = await fetchAllRows('student_contacts', 'id,email,phone,parents,birth_date').catch(() =>
+      fetchAllRows('student_contacts', 'id,email,phone,parents')
+    );
   } catch {
     contacts = null;
   }
@@ -51,7 +54,7 @@ async function fetchStudentsForBackup(): Promise<any[]> {
   const byId = new Map(contacts.map((c) => [String(c.id), c]));
   return rows.map((r) => {
     const c = byId.get(String(r.id));
-    return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents : [] };
+    return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents : [], birth_date: c?.birth_date ?? null };
   });
 }
 interface BackupTableDef {

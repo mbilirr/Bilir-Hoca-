@@ -10,6 +10,7 @@ import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../consta
 import { Modal, Segmented, cx } from '../ui/kit';
 import { HelpDisclosure, InfoTip } from '../ui/Compact';
 import { sifreSorunu } from '../../lib/sifreKurali';
+import { bugunTarih, dogumTarihiYaz } from '../../lib/dogumTarihi'; // Aşama 324
 import {
   STUDENT_COLUMNS,
   SheetRow,
@@ -54,6 +55,8 @@ interface ParsedStudentRow {
   phone: string;
   password: string;
   gender?: '' | 'K' | 'E'; // Aşama 171: Excel'de Cinsiyet sütunu varsa
+  birthDate?: string; // Aşama 324: 'YYYY-MM-DD' (Excel'de Doğum Tarihi sütunu varsa)
+  birthDateBad?: string; // Aşama 324: okunamayan doğum tarihi yazısı (düzeltilmeli ya da silinmeli)
   isNewClass: boolean;
   isValid: boolean;
   validationError?: string;
@@ -186,6 +189,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         error = sifreSorunu(r.password.trim(), { identifier: num, name: r.fullName }) || undefined;
       else if (emailIssue(r.email)) error = emailIssue(r.email) || undefined;
       else if (!normalizeTurkishPhone(r.phone).valid) error = PHONE_ERROR;
+      else if (r.birthDateBad) error = `Doğum tarihi okunamadı ("${r.birthDateBad}"); düzeltin ya da silin`; // Aşama 324
       else if (r.classError) error = r.classError;
       else if (r.isNewClass && !(isAdmin && allowNewClasses)) error = isAdmin ? 'Sınıf sistemde yok' : 'Sınıf yok / yetkiniz yok';
       else if (!r.isNewClass && !r.matchedClassId) error = 'Sınıf seçilmedi';
@@ -230,6 +234,8 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         phone: phone.valid ? phone.value : f.phone,
         password: f.password,
         gender: f.gender,
+        birthDate: f.birthDate,
+        birthDateBad: f.birthDateInvalid,
         isNewClass: false,
         isValid: false,
         tc: tcHeader ? String(rows[index]?.values[tcHeader] || '').replace(/\D/g, '') : '',
@@ -320,6 +326,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           if (field === 'firstName' || field === 'lastName') {
             updated.fullName = `${updated.firstName} ${updated.lastName}`.trim();
           }
+          if (field === 'birthDate') updated.birthDateBad = ''; // Aşama 324: elle girilen tarih geçerlidir (tarih kutusu)
           if (field === 'className') {
             updated = applyClassMatch(updated, value);
             updated.className = value;
@@ -402,6 +409,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                 phone: normalizeTurkishPhone(row.phone).value,
                 password: row.password?.trim() || undefined,
                 gender: row.gender || undefined, // boşsa addan tahmin edilir (Aşama 171)
+                birthDate: row.birthDate || undefined, // Aşama 324
               }))
             )
           : { created: [], failed: [] };
@@ -458,22 +466,43 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
   };
 
   // Örnek şablon: e-postalar açıkça örnek adresler (gerçek adresle değiştirilmeli veya silinmeli)
-  // Aşama 323: şablon K12 "Öğrenci Listesi" düzeninde (okul programından alınan liste de aynen yüklenebilir).
-  // Veli sütunları: Veli (1), (2), (3) — tam adı, yakınlığı, cep telefonu, e-postası. Şifre sütunu yok: sistem üretir.
-  const VELI_SUTUNLARI = [1, 2, 3].flatMap((n) => [`Veli (${n}) Tam Adı`, `Veli (${n}) Yakınlığı`, `Veli (${n}) Cep Telefonu`, `Veli (${n}) E-Posta`]);
-  const SABLON_BASLIK = ['Öğrenci Numara', 'Öğrenci Tam Adı', 'Öğrenci Şube', 'Öğrenci Cinsiyet', 'Öğrenci Cep Telefonu', 'Öğrenci E-Posta', ...VELI_SUTUNLARI];
+  // Aşama 324: şablon K12 "Öğrenci Listesi Sihirbazı" dosyasıyla BİREBİR aynı düzende: 2. satırda başlık kutusu,
+  // 6. satırda sütun adları (aynı sıra ve yazım). K12'den alınan liste de, bu şablon da aynen yüklenir.
+  // TC sütunu yalnız parmak izine çevrilir (TC saklanmaz). "Öğrenci Okul" sütunu okunmaz. Şifre sütunu yok: sistem üretir.
+  const VELI_SUTUNLARI = [1, 2, 3].flatMap((n) => [
+    `Veli (${n}) Tam Adı`,
+    `Veli (${n}) Velinin Yakınlığı`,
+    `Veli (${n}) Mesaj Gönderi (Cep Tel)`,
+    `Veli (${n}) 1. E-Posta Adresi`,
+  ]);
+  const SABLON_BASLIK = [
+    '#',
+    'Öğrenci Numara',
+    'Öğrenci Tam Adı',
+    'Öğrenci Şube',
+    'Öğrenci T.C. Kimlik Numarası',
+    'Öğrenci Cinsiyet',
+    'Öğrenci Doğum Tarihi',
+    'Öğrenci Okul',
+    ...VELI_SUTUNLARI,
+  ];
+  const SABLON_BASLIK_SATIRI = 6; // K12'de sütun adları 6. satırda
   const veli = (ad: string, yakinlik: string, tel: string, ep: string) => [ad, yakinlik, tel, ep];
   const bos = ['', '', '', ''];
   const SAMPLE_ROWS: string[][] = [
-    ['1051', 'Ahmet Can Yılmaz', '8/A', 'Erkek', '', '', ...veli('Ayşe Yılmaz', 'Anne', '0555 111 2233', 'ornek1@example.com'), ...veli('Murat Yılmaz', 'Baba', '0555 111 2234', ''), ...bos],
-    ['1052', 'Merve Aydın', '8/A', 'Kız', '0555 222 3344', 'ornek2@example.com', ...veli('Fatma Aydın', 'Anne', '0555 222 3345', ''), ...bos, ...bos],
-    ['1085', 'Mehmet Korkmaz', '5/JÜPİTER', 'Erkek', '', '', ...veli('Hasan Korkmaz', 'Baba', '0555 333 4455', 'ornek3@example.com'), ...bos, ...bos],
-    ['1210', 'Büşra Öztürk', '11-A Fen', 'Kız', '', '', ...bos, ...bos, ...bos],
+    ['1', '1051', 'Ahmet Can Yılmaz', '8/A', '', 'Erkek', '14.05.2012', '', ...veli('Ayşe Yılmaz', 'Anne', '0555 111 2233', 'ornek1@example.com'), ...veli('Murat Yılmaz', 'Baba', '0555 111 2234', ''), ...bos],
+    ['2', '1052', 'Merve Aydın', '8/A', '', 'Kız', '02.11.2011', '', ...veli('Fatma Aydın', 'Anne', '0555 222 3345', 'ornek2@example.com'), ...bos, ...bos],
+    ['3', '1085', 'Mehmet Korkmaz', '5/JÜPİTER', '', 'Erkek', '21.01.2015', '', ...veli('Hasan Korkmaz', 'Baba', '0555 333 4455', 'ornek3@example.com'), ...bos, ...bos],
+    ['4', '1210', 'Büşra Öztürk', '11-A Fen', '', 'Kız', '', '', ...bos, ...bos, ...bos],
   ];
 
   const downloadSampleExcel = () => {
-    const worksheet = XLSX.utils.aoa_to_sheet([SABLON_BASLIK, ...SAMPLE_ROWS]);
-    worksheet['!cols'] = SABLON_BASLIK.map((h) => ({ wch: Math.max(12, Math.min(26, h.length + 2)) }));
+    const kurum = dataService.getKurumNameForId(dataService.getMyKurumId()) || 'Okul Adı';
+    const ust = Array.from({ length: SABLON_BASLIK_SATIRI - 1 }, () => [] as string[]);
+    ust[1] = ['', `${kurum}\nÖğrenci Listesi\n${dogumTarihiYaz(bugunTarih())}`];
+    const worksheet = XLSX.utils.aoa_to_sheet([...ust, SABLON_BASLIK, ...SAMPLE_ROWS]);
+    worksheet['!merges'] = [{ s: { r: 1, c: 1 }, e: { r: 3, c: 4 } }]; // K12'deki başlık kutusu (B2:E4)
+    worksheet['!cols'] = SABLON_BASLIK.map((h, i) => ({ wch: i === 0 ? 5 : Math.max(12, Math.min(28, h.length + 2)) }));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Öğrenci Listesi');
     XLSX.writeFile(workbook, 'Ogrenci_Yukleme_Sablonu.xlsx');
@@ -494,6 +523,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
   const detectedNewClasses = Array.from(new Set(parsedRows.filter((r) => r.isNewClass && r.className).map((r) => r.className)));
   const validCount = parsedRows.filter((r) => r.isValid).length;
+  const hasBirthColumn = parsedRows.some((r) => !!r.birthDate || !!r.birthDateBad); // Aşama 324
   const invalidCount = parsedRows.length - validCount;
   const cellCls = 'bg-surface border rounded-lg px-2 py-1 text-fg text-xs w-full focus:ring-2 focus:ring-brand/25 focus:outline-none';
 
@@ -720,6 +750,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     <th className="px-3 py-3">Soyisim</th>
                     <th className="px-3 py-3">Sınıf / Şube</th>
                     <th className="px-3 py-3">Öğrenci No</th>
+                    {hasBirthColumn && <th className="px-3 py-3">Doğum Tarihi</th>}
                     <th className="px-3 py-3">İletişim (Tel / E-Posta)</th>
                     <th className="px-3 py-3 text-center">Durum</th>
                     <th className="px-3 py-3 text-right">İşlem</th>
@@ -773,6 +804,23 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             className={cx(cellCls, 'font-mono w-20 border-line')}
                           />
                         </td>
+                        {/* Aşama 324: doğum tarihi (okunamadıysa kırmızı; düzeltilir ya da silinir) */}
+                        {hasBirthColumn && (
+                          <td className="px-3 py-2.5 min-w-[132px]">
+                            <input
+                              autoComplete="off"
+                              type="date"
+                              min="1900-01-01"
+                              max={bugunTarih()}
+                              value={row.birthDate || ''}
+                              onChange={(e) => handleUpdateRow(row.id, 'birthDate', e.target.value)}
+                              aria-label={`${row.rowNumber}. satır doğum tarihi`}
+                              aria-invalid={!!row.birthDateBad}
+                              title={row.birthDateBad ? `Excel'deki yazı: ${row.birthDateBad}` : undefined}
+                              className={cx(cellCls, 'tabular-nums', row.birthDateBad ? 'border-danger' : 'border-line')}
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2.5 min-w-[170px] space-y-1">
                           <input autoComplete="off"
                             type="text"
@@ -855,9 +903,10 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             </li>
             {/* Aşama 323 */}
             <li>
-              Veliler için <strong>Veli (1) Tam Adı</strong>, <strong>Yakınlığı</strong>, <strong>Cep Telefonu</strong>, <strong>E-Posta</strong> sütunları
-              (2. ve 3. veli için aynısı) kullanılır; en çok 3 veli alınır. K12 "Öğrenci Listesi" dosyası olduğu gibi yüklenebilir: her şube ayrı
-              sayfadaysa bütün sayfalar okunur.
+              Şablon K12 "Öğrenci Listesi" ile aynı düzendedir: K12'den aldığınız dosya olduğu gibi yüklenir (her şube ayrı sayfadaysa bütün
+              sayfalar okunur). Veliler <strong>Veli (1) Tam Adı</strong>, <strong>Velinin Yakınlığı</strong>, <strong>Mesaj Gönderi (Cep Tel)</strong>,{' '}
+              <strong>1. E-Posta Adresi</strong> sütunlarından alınır (en çok 3 veli). <strong>Doğum tarihi</strong> 14.05.2012 biçiminde ya da Excel
+              tarihi olabilir; TC yalnızca parmak izi olarak saklanır.
             </li>
             <li>
               Telefon <em>0532 123 45 67</em>, <em>5321234567</em> veya <em>+90 532 …</em> biçiminde olabilir. Geçersiz e-posta veya

@@ -77,7 +77,7 @@ export function soruHedefiSilindi(t: WeeklyQuestionTarget): void {
 
 /** Öğrenci bilgisi düzenlemesi (ad, numara, sınıf, iletişim, veliler, cinsiyet, simge): YALNIZ değişen alanlar eski
  *  değerine döner. Şifre ve TC bu kapsamda değildir (ikisi de geri okunamaz); onlar değiştiyse çağıran sunmaz. */
-const OGRENCI_ALANLARI = ['name', 'email', 'classId', 'studentNumber', 'phone', 'parents', 'avatar', 'gender'] as const;
+const OGRENCI_ALANLARI = ['name', 'email', 'classId', 'studentNumber', 'phone', 'parents', 'avatar', 'gender', 'birthDate'] as const; // Aşama 324: doğum tarihi
 export function ogrenciGuncellendi(eski: Student): void {
   const yeni = dataService.getAllStudents().find((s) => s.id === eski.id);
   if (!yeni) return;
