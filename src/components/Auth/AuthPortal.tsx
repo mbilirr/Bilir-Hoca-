@@ -5,6 +5,7 @@ import { dataService } from '../../services/dataService';
 import { Button } from '../ui/Button';
 import { profilResmi } from '../../lib/profilResmi';
 import { acikKalGiris, acikKalVazgec } from '../../lib/acikKal';
+import { robotHazirla } from '../../lib/robotKoruma';
 import {
   getBiometricSupport,
   getBiometricProfile,
@@ -147,6 +148,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [rememberedStudent, setRememberedStudent] = useState(() => dataService.getRememberedUser('student'));
   const [rememberMe, setRememberMe] = useState(() => Boolean(dataService.getRememberedUser(readLastRole())));
   const [acikKal, setAcikKal] = useState(false); // Aşama 295: her girişte boş gelir (ortak bilgisayarda yanlışlıkla açık kalmasın)
+
+  // Aşama 312: robot doğrulama jetonu giriş ekranı açılınca arka planda alınır; "Giriş yap"a basınca beklenmez
+  useEffect(() => {
+    robotHazirla();
+  }, []);
 
   // Listen to dataService updates so remembered users & teachers stay synchronized
   useEffect(() => {

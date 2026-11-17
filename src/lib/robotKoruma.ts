@@ -120,37 +120,66 @@ async function kutuHazirla(): Promise<{ t: Turnstile; id: string }> {
 
 let sira: Promise<unknown> = Promise.resolve();
 
+// Aşama 312: jeton Cloudflare'den gelirken 1-2 sn sürer; giriş ekranı açılır açılmaz arka planda bir jeton alınır ve
+// "Giriş yap"a basılınca hazır olan kullanılır (jeton 5 dk geçerli; 4 dk'dan eskisi atılır, yenisi alınır).
+const HAZIR_OMUR_MS = 240_000;
+let hazir: { jeton: string; zaman: number } | null = null;
+let hazirlaniyor = false;
+
+function jetonAl(): Promise<string> {
+  return kutuHazirla().then(
+    ({ t, id }) =>
+      new Promise<string>((ok, no) => {
+        const zaman = window.setTimeout(() => bitir(new Error(HATA_GENEL)), SURE_MS);
+        bekleyen = {
+          ok: (j) => {
+            window.clearTimeout(zaman);
+            ok(j);
+          },
+          no: (e) => {
+            window.clearTimeout(zaman);
+            no(e);
+          },
+        };
+        try {
+          if (kullanildi) t.reset(id);
+          kullanildi = true;
+          t.execute(id);
+        } catch {
+          bitir(new Error(HATA_GENEL));
+        }
+      })
+  );
+}
+
 /**
  * Şifre sınayan bir istek için TAZE jeton (her jeton bir kez kullanılır). Koruma kapalıysa undefined döner.
- * Aynı anda birden çok istek gelirse sırayla verilir.
+ * Aynı anda birden çok istek gelirse sırayla verilir. Önceden hazırlanmış (robotHazirla) jeton varsa beklemeden verilir.
  */
 export function robotJetonu(): Promise<string | undefined> {
   if (!SITE_KEY) return Promise.resolve(undefined);
   const is = sira.then(async () => {
-    const { t, id } = await kutuHazirla();
-    return new Promise<string>((ok, no) => {
-      const zaman = window.setTimeout(() => bitir(new Error(HATA_GENEL)), SURE_MS);
-      bekleyen = {
-        ok: (j) => {
-          window.clearTimeout(zaman);
-          ok(j);
-        },
-        no: (e) => {
-          window.clearTimeout(zaman);
-          no(e);
-        },
-      };
-      try {
-        if (kullanildi) t.reset(id);
-        kullanildi = true;
-        t.execute(id);
-      } catch {
-        bitir(new Error(HATA_GENEL));
-      }
-    });
+    const h = hazir;
+    hazir = null;
+    if (h && Date.now() - h.zaman < HAZIR_OMUR_MS) return h.jeton;
+    return jetonAl();
   });
   sira = is.catch(() => undefined);
   return is;
+}
+
+/** Giriş ekranı açılınca çağrılır: jetonu önceden alır (hata olursa sessizce geçer; giriş anında yeniden denenir) */
+export function robotHazirla(): void {
+  if (!SITE_KEY || hazir || hazirlaniyor) return;
+  hazirlaniyor = true;
+  sira = sira
+    .then(async () => {
+      if (!hazir) hazir = { jeton: await jetonAl(), zaman: Date.now() };
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      hazirlaniyor = false;
+    });
 }
 
 /** Supabase'in robot doğrulaması reddi (jeton yok, geçersiz ya da süresi geçmiş) */
