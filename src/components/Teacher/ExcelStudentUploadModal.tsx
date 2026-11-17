@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, School, Trash2, Sparkles, Clipboard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure, StudentParent } from '../../types';
-import { cleanParents, extractParents } from '../../lib/parents';
+import { cleanParents, extractParents, parentsSummary } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
@@ -24,6 +24,8 @@ import {
   normalizeTurkishPhone,
   PHONE_ERROR,
   sheetSource, // Aşama 154
+  excelSayfalariniOku, // Aşama 323
+  tcBasligiMi, // Aşama 323
 } from '../../lib/importNormalize';
 
 interface ExcelStudentUploadModalProps {
@@ -57,11 +59,11 @@ interface ParsedStudentRow {
   validationError?: string;
   tc?: string; // Aşama 50: yalnızca bellekte; kayıttan sonra parmak izine çevrilip atılır
   parents?: StudentParent[]; // Aşama 69: Excel'deki veli sütunları (K12: Veli (1), (2), (3))
+  sheet?: string; // Aşama 323: çok sayfalı dosyada satırın sayfası (ör. "5_JÜPİTER")
 }
 
 // Aşama 50: TC sütunu başlığı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …)
-const isTcHeader = (h: string) =>
-  /^(t ?c|tckn|tc kimlik|t c kimlik|kimlik)( ?(no|numarasi|numara))?$|^tc kimlik (no|numarasi)$/.test(trFold(h).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim());
+const isTcHeader = tcBasligiMi; // Aşama 323: ortak (K12 "Öğrenci T.C. Kimlik Numarası" da)
 
 interface ClassMatch {
   classId: string;
@@ -204,7 +206,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
   };
 
   // Başlık satırı bulunmuş hücre satırlarını önizleme satırlarına çevirir
-  const processRows = (headers: string[], rows: SheetRow[]) => {
+  const processRows = (headers: string[], rows: SheetRow[], atlanan: string[] = []) => {
     if (!rows || rows.length === 0) {
       setErrorMessage('Yüklenen dosyada okunabilir öğrenci satırı bulunamadı.');
       return;
@@ -232,12 +234,14 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         isValid: false,
         tc: tcHeader ? String(rows[index]?.values[tcHeader] || '').replace(/\D/g, '') : '',
         parents: cleanParents(extractParents(headers, rows[index]?.values || {})),
+        sheet: rows[index]?.sheet,
       };
       return applyClassMatch(base, f.className);
     });
 
     setParsedRows(validateRows(mapped, autoCreateClasses));
-    setErrorMessage(null);
+    // Aşama 323: farklı sütunlu sayfa okunmadıysa söylenir (sessizce eksik yükleme olmasın)
+    setErrorMessage(atlanan.length ? `Şu sayfalar farklı sütunlarla olduğu için okunmadı: ${atlanan.join(', ')}. Bu sayfaları ayrı yükleyin.` : null);
     setSuccessMessage(`${mapped.length} adet öğrenci satırı ayrıştırıldı. Lütfen aşağıdaki önizlemeyi kontrol ediniz.`);
   };
 
@@ -255,11 +259,10 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         const buffer = e.target?.result;
         const src = sheetSource(buffer as string, 'binary'); // Aşama 154: CSV Türkçe harf
         const workbook = XLSX.read(src.data, { type: src.type, cellDates: true });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         // Başlık satırını kendimiz buluyoruz (e-Okul çıktılarında üstte okul adı vb. satırlar olur)
-        const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
-        const { headers, rows } = matrixToRows(matrix, STUDENT_COLUMNS);
-        processRows(headers, rows);
+        // Aşama 323: bütün sayfalar okunur (K12 her şubeyi ayrı sayfaya koyar) ve dosyadaki yanlış tablo boyu düzeltilir
+        const { headers, rows, atlanan } = excelSayfalariniOku(workbook, XLSX.utils, STUDENT_COLUMNS);
+        processRows(headers, rows, atlanan);
       } catch (err) {
         console.error('Excel parse error:', err);
         setErrorMessage('Dosya okunurken bir hata oluştu. Lütfen dosyanın geçerli bir Excel (.xlsx, .xls) veya CSV formatında olduğunu kontrol edin.');
@@ -455,25 +458,29 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
   };
 
   // Örnek şablon: e-postalar açıkça örnek adresler (gerçek adresle değiştirilmeli veya silinmeli)
-  const SAMPLE_ROWS = [
-    { Ad: 'Ahmet Can', Soyad: 'Yılmaz', Sınıf: '8/A', 'Öğrenci No': '1051', Telefon: '0555 111 2233', 'E-Posta': 'ornek1@example.com' },
-    { Ad: 'Merve', Soyad: 'Aydın', Sınıf: '8/A', 'Öğrenci No': '1052', Telefon: '0555 222 3344', 'E-Posta': 'ornek2@example.com' },
-    { Ad: 'Mehmet', Soyad: 'Korkmaz', Sınıf: '8/B', 'Öğrenci No': '1085', Telefon: '0555 333 4455', 'E-Posta': '' },
-    { Ad: 'Büşra', Soyad: 'Öztürk', Sınıf: '11-A Fen', 'Öğrenci No': '1210', Telefon: '0555 444 5566', 'E-Posta': 'ornek3@example.com' },
-    { Ad: 'Kerem', Soyad: 'Demir', Sınıf: '10/A', 'Öğrenci No': '1380', Telefon: '', 'E-Posta': '' },
+  // Aşama 323: şablon K12 "Öğrenci Listesi" düzeninde (okul programından alınan liste de aynen yüklenebilir).
+  // Veli sütunları: Veli (1), (2), (3) — tam adı, yakınlığı, cep telefonu, e-postası. Şifre sütunu yok: sistem üretir.
+  const VELI_SUTUNLARI = [1, 2, 3].flatMap((n) => [`Veli (${n}) Tam Adı`, `Veli (${n}) Yakınlığı`, `Veli (${n}) Cep Telefonu`, `Veli (${n}) E-Posta`]);
+  const SABLON_BASLIK = ['Öğrenci Numara', 'Öğrenci Tam Adı', 'Öğrenci Şube', 'Öğrenci Cinsiyet', 'Öğrenci Cep Telefonu', 'Öğrenci E-Posta', ...VELI_SUTUNLARI];
+  const veli = (ad: string, yakinlik: string, tel: string, ep: string) => [ad, yakinlik, tel, ep];
+  const bos = ['', '', '', ''];
+  const SAMPLE_ROWS: string[][] = [
+    ['1051', 'Ahmet Can Yılmaz', '8/A', 'Erkek', '', '', ...veli('Ayşe Yılmaz', 'Anne', '0555 111 2233', 'ornek1@example.com'), ...veli('Murat Yılmaz', 'Baba', '0555 111 2234', ''), ...bos],
+    ['1052', 'Merve Aydın', '8/A', 'Kız', '0555 222 3344', 'ornek2@example.com', ...veli('Fatma Aydın', 'Anne', '0555 222 3345', ''), ...bos, ...bos],
+    ['1085', 'Mehmet Korkmaz', '5/JÜPİTER', 'Erkek', '', '', ...veli('Hasan Korkmaz', 'Baba', '0555 333 4455', 'ornek3@example.com'), ...bos, ...bos],
+    ['1210', 'Büşra Öztürk', '11-A Fen', 'Kız', '', '', ...bos, ...bos, ...bos],
   ];
 
   const downloadSampleExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(SAMPLE_ROWS);
-    worksheet['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 15 }, { wch: 18 }, { wch: 30 }];
+    const worksheet = XLSX.utils.aoa_to_sheet([SABLON_BASLIK, ...SAMPLE_ROWS]);
+    worksheet['!cols'] = SABLON_BASLIK.map((h) => ({ wch: Math.max(12, Math.min(26, h.length + 2)) }));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Öğrenci Listesi');
     XLSX.writeFile(workbook, 'Ogrenci_Yukleme_Sablonu.xlsx');
   };
 
   const downloadSampleCsv = () => {
-    const header = Object.keys(SAMPLE_ROWS[0]);
-    const csvContent = [header.join(','), ...SAMPLE_ROWS.map((r) => header.map((h) => (r as Record<string, string>)[h]).join(','))].join('\n') + '\n';
+    const csvContent = [SABLON_BASLIK, ...SAMPLE_ROWS].map((r) => r.join(',')).join('\n') + '\n';
     const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -724,7 +731,10 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     const phoneBad = !normalizeTurkishPhone(row.phone).valid;
                     return (
                       <tr key={row.id} className={cx('transition-colors', !row.isValid ? 'bg-danger-soft/40' : 'hover:bg-surface-2/40')}>
-                        <td className="px-3 py-2.5 font-mono text-muted">{row.rowNumber}</td>
+                        <td className="px-3 py-2.5 font-mono text-muted whitespace-nowrap" title={row.sheet ? `${row.sheet} sayfası, ${row.rowNumber}. satır` : undefined}>
+                          {row.sheet && <span className="block font-sans text-[10px] text-subtle max-w-24 truncate">{row.sheet}</span>}
+                          {row.rowNumber}
+                        </td>
                         <td className="px-3 py-2.5 min-w-[110px]">
                           <input autoComplete="off"
                             type="text"
@@ -787,6 +797,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             aria-invalid={mailBad}
                             className={cx(cellCls, 'text-[11px]', mailBad ? 'border-danger' : 'border-line')}
                           />
+                          {/* Aşama 323: Excel'den okunan veliler (kayıtta öğrenciyle birlikte yazılır) */}
+                          {!!row.parents?.length && (
+                            <p className="mt-1 text-[10px] text-muted truncate max-w-56" title={parentsSummary(row.parents)}>
+                              {row.parents.length} veli: {row.parents.map((p) => p.relation || p.name || 'Veli').join(', ')}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-center min-w-[140px]">
                           {row.isValid ? (
@@ -836,6 +852,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             </li>
             <li>
               <strong>Öğrenci No zorunludur</strong>: öğrenci sisteme bu numarayla giriş yapar ve her öğrencide farklı olmalıdır.
+            </li>
+            {/* Aşama 323 */}
+            <li>
+              Veliler için <strong>Veli (1) Tam Adı</strong>, <strong>Yakınlığı</strong>, <strong>Cep Telefonu</strong>, <strong>E-Posta</strong> sütunları
+              (2. ve 3. veli için aynısı) kullanılır; en çok 3 veli alınır. K12 "Öğrenci Listesi" dosyası olduğu gibi yüklenebilir: her şube ayrı
+              sayfadaysa bütün sayfalar okunur.
             </li>
             <li>
               Telefon <em>0532 123 45 67</em>, <em>5321234567</em> veya <em>+90 532 …</em> biçiminde olabilir. Geçersiz e-posta veya

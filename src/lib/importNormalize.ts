@@ -103,6 +103,76 @@ export interface SheetRow {
   // Excel'deki satır numarası (1'den başlar), hata mesajlarında gösterilir
   rowNumber: number;
   values: Record<string, string>;
+  /** Aşama 323: çok sayfalı dosyada satırın sayfası (tek sayfada boş) */
+  sheet?: string;
+}
+
+// Aşama 323: xlsx kütüphanesinin burada kullanılan kısmı (kütüphane bu dosyaya bağlanmasın diye parametreyle gelir)
+interface XlsxUtilsLike {
+  decode_cell(address: string): { r: number; c: number };
+  encode_range(range: { s: { r: number; c: number }; e: { r: number; c: number } }): string;
+  sheet_to_json<T>(sheet: unknown, opts: { header: 1; defval: string; raw: false }): T[];
+}
+interface XlsxBookLike {
+  SheetNames: string[];
+  Sheets: Record<string, Record<string, unknown>>;
+  Workbook?: { Sheets?: Array<{ Hidden?: number }> };
+}
+
+/**
+ * Aşama 323: sayfanın gerçek boyu hücrelerden hesaplanır. Bazı programlar (ör. K12 "Öğrenci Listesi Sihirbazı")
+ * dosyanın içine yanlış tablo boyu yazıyor (A1:G7); kütüphane yalnız o boyu okuduğu için ilk öğrenci ve ilk 7 sütun
+ * dışındaki her şey (veli sütunları dahil) kayboluyordu. Başlangıç A1: satır numaraları Excel'deki ile aynı kalır.
+ */
+export function gercekAralik(ws: Record<string, unknown>, utils: XlsxUtilsLike): void {
+  let r1 = -1;
+  let c1 = -1;
+  for (const k of Object.keys(ws)) {
+    if (k.charCodeAt(0) === 33) continue; // "!ref", "!merges" …
+    const a = utils.decode_cell(k);
+    if (a.r > r1) r1 = a.r;
+    if (a.c > c1) c1 = a.c;
+  }
+  if (r1 >= 0 && c1 >= 0) ws['!ref'] = utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: c1 } });
+}
+
+/**
+ * Aşama 323: dosyadaki BÜTÜN görünür sayfalar okunur (K12 her şubeyi ayrı sayfaya koyar). İlk başlık satırı bulunan
+ * sayfanın sütunları esas alınır; aynı sütunlara sahip sayfaların satırları birleştirilir, farklı sütunlu ya da
+ * başlıksız sayfalar atlanır ve adları döner (ekranda söylenir; yanlış sütun eşleşmesiyle veri bozulmasın).
+ */
+export function excelSayfalariniOku(
+  wb: XlsxBookLike,
+  utils: XlsxUtilsLike,
+  spec: Record<string, ColumnSpec>
+): { headers: string[]; rows: SheetRow[]; okunan: string[]; atlanan: string[] } {
+  let headers: string[] = [];
+  let key = '';
+  const rows: SheetRow[] = [];
+  const okunan: string[] = [];
+  const atlanan: string[] = [];
+  wb.SheetNames.forEach((name, i) => {
+    if (wb.Workbook?.Sheets?.[i]?.Hidden) return; // gizli sayfa okunmaz
+    const ws = wb.Sheets[name];
+    if (!ws) return;
+    gercekAralik(ws, utils);
+    const matrix = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false });
+    const r = matrixToRows(matrix, spec);
+    if (!r.rows.length) return; // boş sayfa
+    const k = r.headers.join('\u0001');
+    if (!okunan.length) {
+      headers = r.headers;
+      key = k;
+    } else if (!r.headerFound || k !== key) {
+      atlanan.push(name);
+      return;
+    }
+    okunan.push(name);
+    r.rows.forEach((row) => rows.push({ ...row, sheet: name }));
+  });
+  // Tek sayfalı dosyada satırlara sayfa adı yazılmaz (ekranda yalnız satır numarası)
+  if (okunan.length === 1) rows.forEach((row) => delete row.sheet);
+  return { headers, rows, okunan, atlanan };
 }
 
 // Hücre matrisini (sheet_to_json header:1) başlık satırını bularak nesnelere çevirir.
@@ -156,6 +226,16 @@ export function textToMatrix(text: string): string[][] {
   const delimiter = first.includes('\t') ? '\t' : first.includes(';') ? ';' : ',';
   return lines.map((line) => line.split(delimiter).map((t) => t.trim().replace(/^["']|["']$/g, '')));
 }
+
+/**
+ * TC sütunu başlığı mı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …).
+ * Aşama 323: K12'nin "Öğrenci T.C. Kimlik Numarası" başlığı da tanınır (önceden tanınmadığı için K12 listesinden
+ * TC parmak izi alınmıyordu). Önceden iki pencerede ayrı ayrı yazılıydı; tek yerde toplandı.
+ */
+export const tcBasligiMi = (h: string) =>
+  /^(ogrenci(nin)? )?((t ?c|tckn|tc kimlik|t c kimlik|kimlik)( ?(no|numarasi|numara))?|tc kimlik (no|numarasi))$/.test(
+    trFold(h).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
+  );
 
 // ----------------------------------------------------------------------------- Öğrenci sütunları
 export type StudentField = 'fullName' | 'firstName' | 'lastName' | 'studentNumber' | 'className' | 'email' | 'phone' | 'password' | 'gender';

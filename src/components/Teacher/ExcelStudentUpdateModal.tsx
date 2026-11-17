@@ -28,6 +28,8 @@ import {
   parseClassName,
   trFold,
   sheetSource, // Aşama 154
+  excelSayfalariniOku, // Aşama 323
+  tcBasligiMi, // Aşama 323
 } from '../../lib/importNormalize';
 
 interface Props {
@@ -51,7 +53,7 @@ const FIELD_LABEL: Record<Field, string> = {
 };
 
 // Aşama 50: TC sütunu başlığı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …)
-const isTcHeader = (h: string) => /^(t ?c|tckn|tc kimlik|t c kimlik|kimlik)( ?(no|numarasi|numara))?$|^tc kimlik (no|numarasi)$/.test(trFold(h).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim());
+const isTcHeader = tcBasligiMi; // Aşama 323: ortak (K12 "Öğrenci T.C. Kimlik Numarası" da)
 
 interface Change {
   field: Field;
@@ -65,6 +67,7 @@ type Status = 'ok' | 'same' | 'check' | 'none' | 'dup';
 interface Row {
   key: string;
   rowNumber: number;
+  sheet?: string; // Aşama 323: çok sayfalı dosyada satırın sayfası
   excelName: string;
   excelNumber: string;
   excelClass: string;
@@ -170,7 +173,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
 
   const [parsed, setParsed] = useState<
-    Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; gender: '' | 'K' | 'E'; tc: string; parents: StudentParent[] }>
+    Array<{ rowNumber: number; sheet?: string; name: string; number: string; className: string; phone: string; email: string; gender: '' | 'K' | 'E'; tc: string; parents: StudentParent[] }>
   >([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -239,8 +242,9 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     const base: Row[] = parsed.map((p, i) => {
       const myTc = tcHashes ? tcHashes[i] : null;
       const r: Row = {
-        key: `${p.rowNumber}-${i}`,
+        key: `${p.sheet || ''}-${p.rowNumber}-${i}`,
         rowNumber: p.rowNumber,
+        sheet: p.sheet,
         excelName: p.name,
         excelNumber: p.number,
         excelClass: p.className,
@@ -407,13 +411,13 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
       try {
         const src = sheetSource(e.target?.result as string, 'binary'); // Aşama 154: CSV Türkçe harf
         const wb = XLSX.read(src.data, { type: src.type, cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false });
-        const { headers, rows: sheetRows } = matrixToRows(matrix, STUDENT_COLUMNS);
+        // Aşama 323: bütün sayfalar okunur (K12 her şubeyi ayrı sayfaya koyar) ve dosyadaki yanlış tablo boyu düzeltilir
+        const { headers, rows: sheetRows, atlanan } = excelSayfalariniOku(wb, XLSX.utils, STUDENT_COLUMNS);
         const tcHeader = headers.find((h) => isTcHeader(h)); // Aşama 50
         const list = extractStudentRows(headers, sheetRows)
           .map((f, i) => ({
             rowNumber: f.rowNumber,
+            sheet: sheetRows[i]?.sheet,
             name: f.fullName,
             number: f.studentNumber,
             className: f.className,
@@ -429,6 +433,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           return;
         }
         setParsed(list);
+        // Aşama 323: farklı sütunlu sayfa okunmadıysa söylenir (sessizce eksik güncelleme olmasın)
+        if (atlanan.length) setError(`Şu sayfalar farklı sütunlarla olduğu için okunmadı: ${atlanan.join(', ')}. Bu sayfaları ayrı yükleyin.`);
       } catch {
         setError('Dosya okunamadı. Geçerli bir Excel (.xlsx, .xls) veya CSV dosyası seçin.');
       }
@@ -773,7 +779,10 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                           className="rounded border-line bg-surface"
                         />
                       </td>
-                      <td className="px-3 py-2 font-mono text-muted align-top">{r.rowNumber}</td>
+                      <td className="px-3 py-2 font-mono text-muted align-top whitespace-nowrap" title={r.sheet ? `${r.sheet} sayfası, ${r.rowNumber}. satır` : undefined}>
+                        {r.sheet && <span className="block font-sans text-[10px] text-subtle max-w-24 truncate">{r.sheet}</span>}
+                        {r.rowNumber}
+                      </td>
                       <td className="px-3 py-2 align-top">
                         <p className="text-fg font-medium">{r.excelName || '—'}</p>
                         <p className="text-[11px] text-muted">{[r.excelNumber && `No ${r.excelNumber}`, r.excelClass].filter(Boolean).join(' · ')}</p>

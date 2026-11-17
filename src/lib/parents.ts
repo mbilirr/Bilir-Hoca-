@@ -108,7 +108,8 @@ export function mergeParents(existing: StudentParent[] | undefined, incoming: St
 }
 
 // ----------------------------------------------------------------------------- Excel sütunları
-type ParentGroup = 'v1' | 'v2' | 'v3' | 'anne' | 'baba';
+// Aşama 323: K12'de Veli (1)…(5) var; 4 ve 5 ayrı tutulur (eskiden "veli" sözünden 1. veliye karışabiliyordu)
+type ParentGroup = 'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'anne' | 'baba';
 type ParentField = 'name' | 'phone' | 'email' | 'relation';
 
 /**
@@ -120,7 +121,7 @@ export function parentColumnOf(header: string): { group: ParentGroup; field: Par
   if (!h || /kimlik|\btc\b|meslek|dogum/.test(h)) return null;
   if (/adres/.test(h) && !/posta|mail/.test(h)) return null; // ev / iş adresi
   let group: ParentGroup | null = null;
-  const m = /\bveli\s*([123])\b/.exec(h) || /\b([123])\s*(?:nci|inci|uncu|nd|st)?\s*veli\b/.exec(h);
+  const m = /\bveli\s*([1-5])\b/.exec(h) || /\b([1-5])\s*(?:nci|inci|uncu|nd|st)?\s*veli\b/.exec(h);
   if (m) group = (`v${m[1]}`) as ParentGroup;
   else if (/\banne(si)?\b/.test(h)) group = 'anne';
   else if (/\bbaba(si)?\b/.test(h)) group = 'baba';
@@ -141,12 +142,14 @@ export function parentColumnOf(header: string): { group: ParentGroup; field: Par
 export const hasParentColumns = (headers: string[]) => headers.some((h) => !!parentColumnOf(h));
 
 
-/** Bir Excel satırından velileri çıkarır (sıra: Veli 1, Veli 2, Veli 3, Anne, Baba; en çok 3 dolu veli) */
+/** Bir Excel satırından velileri çıkarır (sıra: Veli 1…5, Anne, Baba; en çok 3 dolu veli) */
 export function extractParents(headers: string[], values: Record<string, string>): StudentParent[] {
   const groups: Record<ParentGroup, StudentParent & { _rank?: Partial<Record<ParentField, number>> }> = {
     v1: {},
     v2: {},
     v3: {},
+    v4: {},
+    v5: {},
     anne: { relation: 'Anne' },
     baba: { relation: 'Baba' },
   };
@@ -164,7 +167,7 @@ export function extractParents(headers: string[], values: Record<string, string>
     else g[c.field] = v;
   }
   // Boş veliler atlanır (kayıtta da boş veli tutulmaz; sıra dolu velilere göre)
-  const order: ParentGroup[] = ['v1', 'v2', 'v3', 'anne', 'baba'];
+  const order: ParentGroup[] = ['v1', 'v2', 'v3', 'v4', 'v5', 'anne', 'baba'];
   const out: StudentParent[] = [];
   for (const k of order) {
     const g = groups[k];

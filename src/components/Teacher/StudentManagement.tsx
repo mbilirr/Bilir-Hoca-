@@ -86,6 +86,7 @@ import {
   currentAcademicYear,
   normalizeAcademicYear,
   sheetSource, // Aşama 154
+  gercekAralik, // Aşama 323
 } from '../../lib/importNormalize';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
@@ -1120,6 +1121,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         const src = sheetSource(buffer as string, 'binary'); // Aşama 154: CSV Türkçe harf
         const workbook = XLSX.read(src.data, { type: src.type, cellDates: true });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        gercekAralik(worksheet, XLSX.utils); // Aşama 323: dosyaya yanlış yazılmış tablo boyu (K12) yüzünden satır kaybolmasın
         // Başlık satırı ilk 10 satır içinde aranır (e-Okul listelerinde üstte başlık satırları olur)
         const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
         const { headers, rows } = matrixToRows(matrix, STUDENT_COLUMNS);
