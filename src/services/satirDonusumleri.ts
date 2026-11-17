@@ -5,7 +5,19 @@
 // (yalnız "private" yerine "export function", "this." çağrıları doğrudan çağrı oldu); davranış aynı.
 // Durum isteyenler (ödev ve teslim satırından kayıt, not satırından kayıt: öğrenci adı yerel listeden) dataService'te kaldı.
 // ============================================================================
-import type { Homework, HomeworkResource, StudentQuestionLog, WeeklyQuestionTarget, GradeRecord, AttendanceRecord, StudentMessage } from '../types';
+import type {
+  Homework,
+  HomeworkResource,
+  StudentQuestionLog,
+  WeeklyQuestionTarget,
+  GradeRecord,
+  AttendanceRecord,
+  StudentMessage,
+  TeacherDocument,
+  DocumentCategory,
+  StudentNotification,
+  EtutStudentAttendance,
+} from '../types';
 
 // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri dosya deposuna gider.
 export const MAX_INLINE_FILE_CHARS = 1_400_000;
@@ -220,4 +232,80 @@ export function rowToMessage(rm: any): StudentMessage {
     ...(rm.to_teacher_id ? { toTeacherId: String(rm.to_teacher_id), toTeacherName: rm.to_teacher_name || undefined } : {}),
     ...(rm.replied_by_id ? { repliedById: String(rm.replied_by_id), repliedByName: rm.replied_by_name || undefined } : {}),
   };
+}
+
+// Aşama 318: belge, öğrenci bildirimi ve etüt yoklaması satırları
+export function documentFromRow(r: any): TeacherDocument {
+  return {
+    id: r.id,
+    title: r.title || 'Belge',
+    description: r.description || undefined,
+    category: (r.category || 'other') as DocumentCategory,
+    fileFormat: r.file_format === 'docx' || r.file_format === 'xlsx' ? r.file_format : 'pdf',
+    fileName: r.file_name || '',
+    fileSize: r.file_size || '',
+    storagePath: r.storage_path || undefined,
+    uploadedAt: r.created_at || new Date().toISOString(),
+    uploadedBy: r.uploaded_by || 'Öğretmen',
+    authorName: r.author_name || undefined,
+    academicYear: r.academic_year || undefined,
+    schoolType: r.school_type || undefined,
+    subject: r.subject || 'Genel',
+    gradeLevel: r.grade_level || undefined,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    ownerAuthId: r.owner_auth_id || undefined,
+  };
+}
+
+export function rowToNotif(r: any): StudentNotification {
+  const types = ['new_homework', 'new_etut', 'grade_added', 'general', 'praise'];
+  const tabs = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions'];
+  return {
+    id: String(r.id),
+    studentId: String(r.student_id),
+    type: (types.includes(r.type) ? r.type : 'general') as StudentNotification['type'],
+    title: String(r.title || ''),
+    message: String(r.message || ''),
+    sourceId: r.source_id || undefined,
+    sourceTitle: r.source_title || undefined,
+    teacherName: r.teacher_name || undefined,
+    createdAt: r.created_at || new Date().toISOString(),
+    read: !!r.read_at,
+    linkTab: tabs.includes(r.link_tab) ? r.link_tab : undefined,
+    cloud: true,
+  };
+}
+
+export function notifToRow(n: StudentNotification) {
+  const cut = (v: unknown, max: number) => (v === undefined || v === null || v === '' ? null : String(v).slice(0, max));
+  return {
+    id: String(n.id).slice(0, 120),
+    student_id: n.studentId,
+    type: n.type,
+    title: String(n.title || 'Bildirim').slice(0, 200),
+    message: String(n.message || '').slice(0, 2000),
+    source_id: cut(n.sourceId, 200),
+    source_title: cut(n.sourceTitle, 300),
+    teacher_name: cut(n.teacherName, 120),
+    link_tab: n.linkTab || null,
+  };
+}
+
+/** Sunucu zamanı (…+00:00) uygulamanın ISO biçimine çevrilir; yoklama karşılaştırması metinle yapılır */
+export function isoOf(v: any): string | undefined {
+  if (!v) return undefined;
+  const t = Date.parse(String(v));
+  return Number.isNaN(t) ? undefined : new Date(t).toISOString();
+}
+
+export function yoklamaRowToAttendance(r: any): EtutStudentAttendance {
+  const a: EtutStudentAttendance = { studentId: String(r.student_id), status: r.status, note: r.note || '' };
+  if (r.student_name) a.studentName = r.student_name;
+  if (r.topic) a.topic = r.topic;
+  if (r.marked_by) a.markedBy = r.marked_by;
+  const at = isoOf(r.marked_at);
+  if (at) a.markedAt = at;
+  const ch = isoOf(r.changed_at);
+  if (ch) a.updatedAt = ch;
+  return a;
 }

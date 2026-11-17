@@ -119,7 +119,34 @@ import {
   attendanceToRow,
   messageToRow,
   rowToMessage,
-} from './satirDonusumleri'; // Aşama 317
+  documentFromRow,
+  rowToNotif,
+  notifToRow,
+  yoklamaRowToAttendance,
+} from './satirDonusumleri'; // Aşama 317 / 318
+import {
+  sameData,
+  adoptList,
+  sortByTimeDesc,
+  geriAlYalnizDokunulan,
+  applyRealtimeBatch,
+  mergeDelta,
+  sortLogsDesc,
+  byDateDesc,
+  questionLogSig,
+  mergeAttendance,
+} from './listeBirlestirme'; // Aşama 318
+import {
+  MIN_PASSWORD_LENGTH,
+  loginErrorMessage,
+  translatePasswordError,
+  questionLogDbError,
+  teacherWriteErrorText,
+  isMissingTable,
+  isEtutYoklamaMissing,
+  isEtutCommentColumnMissing,
+} from './hataMetinleri'; // Aşama 318
+export { geriAlYalnizDokunulan }; // Aşama 318: eski içe aktarma yolu çalışmaya devam etsin
 import { agHatasiMi, baglantiNedeni } from '../lib/baglanti';
 // Aşama 302: kurum bölümleri ve portal tanımları ayrı dosyada (ekranlar için buradan da dışa verilir; davranış aynı)
 import {
@@ -236,122 +263,11 @@ const currentEpoch = (): number => {
   }
   return runEpoch;
 };
-function sameData(a: any, b: any, depth = 0): boolean {
-  if (a === b) return true;
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
-    return typeof a === 'number' && typeof b === 'number' && a !== a && b !== b; // NaN
-  }
-  if (depth > 8) return false; // çok derin: değişmiş say (güvenli taraf)
-  const aa = Array.isArray(a);
-  if (aa !== Array.isArray(b)) return false;
-  if (aa) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i], depth + 1)) return false;
-    return true;
-  }
-  // Yalnızca düz nesneler karşılaştırılır (Date, Map gibi özel nesneler: değişmiş say — güvenli taraf)
-  const pa = Object.getPrototypeOf(a);
-  if ((pa !== Object.prototype && pa !== null) || Object.getPrototypeOf(b) !== pa) return false;
-  const ka = Object.keys(a);
-  if (ka.length !== Object.keys(b).length) return false;
-  for (const k of ka) {
-    if (!Object.prototype.hasOwnProperty.call(b, k) || !sameData(a[k], b[k], depth + 1)) return false;
-  }
-  return true;
-}
-/** Yeni listede öncekiyle aynı olan kayıtları eski nesneleriyle değiştirir; hiçbir şey değişmediyse eski listeyi döndürür */
-function adoptList<T>(prev: T[] | null | undefined, next: T[]): T[] {
-  if (!prev || prev === next) return next;
-  const byId = new Map<unknown, T>();
-  for (const p of prev) {
-    const id = p && typeof p === 'object' ? (p as any).id : undefined;
-    if (id !== undefined && id !== null) byId.set(id, p);
-  }
-  let allSame = prev.length === next.length;
-  const out = new Array<T>(next.length);
-  for (let i = 0; i < next.length; i++) {
-    const n = next[i];
-    const id = n && typeof n === 'object' ? (n as any).id : undefined;
-    const p = id !== undefined && id !== null ? byId.get(id) : prev[i];
-    if (p !== undefined && sameData(p, n)) {
-      out[i] = p;
-      if (allSame && prev[i] !== p) allSame = false;
-    } else {
-      out[i] = n;
-      allSame = false;
-    }
-  }
-  return allSame ? prev : out;
-}
-
-// ============================================================================
-// HIZ (Aşama 88): büyük listelerde zamana göre sıralama. Eskiden karşılaştırmanın her adımında tarih metni
-// yeniden çözülüyordu (40.000 mesajda ~1,2 milyon tarih çözümü). Artık her kayıt için bir kez çözülür ve
-// kayıt nesnesi değişmedikçe hatırlanır. Sıralama sonucu eskisiyle birebir aynıdır (kararlı sıralama).
-// ============================================================================
-const timeKeyCache = new WeakMap<object, { s: string; t: number }>();
-function timeKeyOf(o: object, iso: string | undefined | null): number {
-  const s = iso || '';
-  const c = timeKeyCache.get(o);
-  if (c && c.s === s) return c.t;
-  const p = Date.parse(s);
-  const t = Number.isNaN(p) ? 0 : p;
-  timeKeyCache.set(o, { s, t });
-  return t;
-}
-/** En yeni üstte; eşit zamanlıların sırası korunur */
-function sortByTimeDesc<T extends object>(list: T[], get: (x: T) => string | undefined | null): T[] {
-  const keyed = list.map((x, i) => ({ x, i, t: timeKeyOf(x, get(x)) }));
-  keyed.sort((a, b) => b.t - a.t || a.i - b.i);
-  return keyed.map((k) => k.x);
-}
+// Aşama 318: sameData, adoptList, sortByTimeDesc ve geri alma birleştirmesi listeBirlestirme.ts'te
 
 type GeriAlmaListe =
   | 'classes' | 'students' | 'homeworks' | 'submissions' | 'etuts' | 'attendance'
   | 'grades' | 'messages' | 'documents' | 'questionLogs' | 'weeklyQuestionTargets';
-
-/**
- * Aşama 286: başarısız yazmada yalnız o işlemin dokunduğu kayıtları eski hâline döndürür.
- *  simdi   : hata anındaki liste (yazma sürerken canlı kanaldan gelenler dahil)
- *  once    : işlem öncesi liste
- *  yazarken: yerel değişiklik uygulanmış liste (yazma başlarken)
- * Dokunulan kayıt = once ile yazarken arasında eklenen, silinen ya da içeriği değişen. Diğer kayıtlar `simdi`deki
- * güncel hâliyle kalır. Kimliği olmayan kayıt varsa null döner (çağıran eski davranışı korur).
- */
-export function geriAlYalnizDokunulan<T extends { id?: string }>(simdi: T[], once: T[], yazarken: T[] | undefined): T[] | null {
-  if (!Array.isArray(yazarken)) return null;
-  const kimlikli = (l: T[]) => l.every((x) => x && typeof x.id === 'string' && x.id);
-  if (!kimlikli(simdi) || !kimlikli(once) || !kimlikli(yazarken)) return null;
-  const onceMap = new Map(once.map((x, i) => [x.id as string, { x, i }] as const));
-  const yazMap = new Map(yazarken.map((x) => [x.id as string, x] as const));
-  const ayni = (a: T, b: T) => {
-    if (a === b) return true;
-    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
-  };
-  const dokunulan = new Set<string>();
-  onceMap.forEach(({ x }, id) => {
-    const y = yazMap.get(id);
-    if (!y || !ayni(x, y)) dokunulan.add(id); // silinmiş ya da değiştirilmiş
-  });
-  yazMap.forEach((_y, id) => { if (!onceMap.has(id)) dokunulan.add(id); }); // eklenmiş
-  if (dokunulan.size === 0) return simdi;
-  const sonuc: T[] = [];
-  const var_ = new Set<string>();
-  for (const x of simdi) {
-    const id = x.id as string;
-    if (!dokunulan.has(id)) { sonuc.push(x); var_.add(id); continue; }
-    const eski = onceMap.get(id);
-    if (eski) { sonuc.push(eski.x); var_.add(id); } // değiştirilmişti: eski hâli, aynı yerde
-    // eklenmişti: atılır
-  }
-  // silinmişti (şimdi listede yok): işlem öncesindeki sırasına yakın yere geri konur
-  const geriGelen = Array.from(dokunulan)
-    .map((id) => onceMap.get(id))
-    .filter((e): e is { x: T; i: number } => !!e && !var_.has(e.x.id as string))
-    .sort((a, b) => a.i - b.i);
-  for (const e of geriGelen) sonuc.splice(Math.min(e.i, sonuc.length), 0, e.x);
-  return sonuc;
-}
 
 export type RealtimeTableCfg = { table: string; onEvent: (payload: any) => void; resync: () => unknown; filter?: string; optional?: boolean };
 // Aşama 179: etüt yazımında hangi yorum alanlarının ve hangi öğrencilerin yoklamasının yazılacağı
@@ -1234,7 +1150,7 @@ class DataService {
           privacyRedacted: incomingEtut.privacyRedacted,
           studentAttendance: current.privacyRedacted
             ? incomingEtut.studentAttendance
-            : DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance),
+            : mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance),
         };
       } else {
         this.etuts.unshift(incomingEtut);
@@ -1337,7 +1253,7 @@ class DataService {
     this.rtQueue = { messages: [], grades: [], attendance: [] };
     let changed = false;
     if (q.messages.length) {
-      const next = this.applyRealtimeBatch(this.messages, q.messages, (row) => rowToMessage(row), (m) => m.createdAt, 'MessageRealtime');
+      const next = applyRealtimeBatch(this.messages, q.messages, (row) => rowToMessage(row), (m) => m.createdAt, 'MessageRealtime');
       if (next) {
         this.messages = next;
         saveData(STORAGE_KEYS.MESSAGES, this.messages);
@@ -1345,7 +1261,7 @@ class DataService {
       }
     }
     if (q.grades.length) {
-      const next = this.applyRealtimeBatch(this.grades, q.grades, (row) => this.gradeFromRow(row), (g) => g.date, 'GradeRealtime');
+      const next = applyRealtimeBatch(this.grades, q.grades, (row) => this.gradeFromRow(row), (g) => g.date, 'GradeRealtime');
       if (next) {
         this.grades = next;
         saveData(STORAGE_KEYS.GRADES, this.grades);
@@ -1353,7 +1269,7 @@ class DataService {
       }
     }
     if (q.attendance.length) {
-      const next = this.applyRealtimeBatch(
+      const next = applyRealtimeBatch(
         this.attendance,
         q.attendance,
         (row): AttendanceRecord => ({
@@ -1374,64 +1290,6 @@ class DataService {
       }
     }
     if (changed) this.notify();
-  }
-
-  /**
-   * Biriken olayları sırayla uygular (ekleme / güncelleme / silme). Eski davranışla aynı sonuç: güncellenen kayıt
-   * yerinde kalır, yeni kayıt başa eklenir, sonra liste zamana göre (en yeni üstte) sıralanır.
-   * Hiçbir şey değişmediyse null döner.
-   */
-  private applyRealtimeBatch<T extends { id: string }>(
-    list: T[],
-    payloads: any[],
-    build: (row: any) => T,
-    timeOf: (x: T) => string | undefined,
-    tag: string
-  ): T[] | null {
-    const cur = new Map<string, T>();
-    for (const x of list) cur.set(x.id, x);
-    const fresh: string[] = [];
-    let changed = false;
-    let anyUpsert = false;
-    for (const p of payloads) {
-      try {
-        if (p?.eventType === 'DELETE') {
-          const id = p.old?.id;
-          if (id && cur.delete(id)) changed = true;
-          continue;
-        }
-        const row = p?.new;
-        if (!row || !row.id) continue;
-        const item = build(row);
-        const prev = cur.get(row.id);
-        if (prev !== undefined && sameData(prev, item)) continue; // aynısı zaten ekranda
-        if (prev === undefined) fresh.push(row.id);
-        cur.set(row.id, item);
-        changed = true;
-        anyUpsert = true;
-      } catch (e) {
-        console.warn(`[${tag}] Error:`, e);
-      }
-    }
-    if (!changed) return null;
-    const freshSet = new Set(fresh);
-    const out: T[] = [];
-    const seen = new Set<string>();
-    for (let i = fresh.length - 1; i >= 0; i--) {
-      const id = fresh[i];
-      const x = cur.get(id);
-      if (x !== undefined && !seen.has(id)) {
-        seen.add(id);
-        out.push(x);
-      }
-    }
-    for (const x of list) {
-      if (freshSet.has(x.id)) continue;
-      const y = cur.get(x.id);
-      if (y !== undefined) out.push(y);
-    }
-    // yalnız silme olduysa sıra zaten doğrudur
-    return anyUpsert ? sortByTimeDesc(out, timeOf) : out;
   }
 
   // --- ATTENDANCE REALTIME EVENT HANDLER ---
@@ -1578,7 +1436,7 @@ class DataService {
         // yetki ya da tetik hatası etüt öğretmenini oturum boyunca silmez
         const missingCol = /42703|PGRST204/.test(String(error.code || '')) || /column|schema cache/i.test(msg);
         if (!missingCol) break;
-        if (DataService.isEtutCommentColumnMissing(error)) {
+        if (isEtutCommentColumnMissing(error)) {
           // Aşama 196: sql/178 kurulmamış; eski yola düşülmez, kayıt başarısız sayılır
           console.warn('[EtutSync] Etüt yorum sütunları bulunamadı (sql/178 gerekli):', msg);
           return false;
@@ -1715,7 +1573,7 @@ class DataService {
           }
         } else if (existingIdx !== undefined) {
           const current = next[existingIdx];
-          const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
+          const mergedAttendance = mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
           const isDifferent =
             current.subject !== incomingEtut.subject ||
             current.topic !== incomingEtut.topic ||
@@ -1751,7 +1609,7 @@ class DataService {
         for (let i = 0; i < next.length; i++) {
           const e = next[i];
           if (!e || e.privacyRedacted || !yk.touched.has(e.id) || incomingIds.has(e.id)) continue;
-          let att = DataService.mergeAttendance(this.etutYoklama.get(e.id) || {}, e.studentAttendance || {});
+          let att = mergeAttendance(this.etutYoklama.get(e.id) || {}, e.studentAttendance || {});
           const gone = yk.removed.get(e.id);
           if (gone && gone.size) {
             att = { ...att };
@@ -2044,15 +1902,6 @@ class DataService {
   private static contactsMode: 'unknown' | 'table' | 'legacy' = 'unknown';
   /** İletişim bilgisi veritabanından okunabilen öğrenciler (yalnızca bunların bilgisi geri yazılır) */
   private contactKnown = new Set<string>();
-  // Aşama 175: yalnız "student_contacts tablosu yok" hatası eski yola düşürür. Eskiden "does not exist" / "schema cache"
-  // geçen her hata (ör. bir kuralın içindeki işlev) oturum boyunca eski yola geçirip students için select('*')
-  // yaptırıyordu; kapalı sütunlar yüzünden o okuma da reddedilince öğrenci listesi boş kalıyordu.
-  private isMissingTable(error: any): boolean {
-    const code = String(error?.code || '');
-    if (code === 'PGRST205' || code === '42P01') return true;
-    const msg = String(error?.message || '');
-    return /student_contacts/i.test(msg) && /Could not find the table|relation .* does not exist/i.test(msg);
-  }
   /** Öğrenci satırlarını iletişim bilgisiyle birlikte okur (korumalı tablo varsa ondan) */
   private async fetchStudentRowsWithContacts(isBackground = false): Promise<{ data: any[] | null; error: any }> {
     if (DataService.contactsMode !== 'legacy') {
@@ -2078,7 +1927,7 @@ class DataService {
         this.contactKnown = known;
         return { data: merged, error: null };
       }
-      if (!this.isMissingTable(contacts.error)) return { data: null, error: contacts.error };
+      if (!isMissingTable(contacts.error)) return { data: null, error: contacts.error };
       DataService.contactsMode = 'legacy'; // 85 numaralı SQL henüz çalıştırılmadı: eski yol
     }
     return this.fetchAllRows('students');
@@ -2738,44 +2587,6 @@ class DataService {
     return { data: Array.from(cache.values()), error: null };
   }
 
-  /** Değişen satırları listeye uygular (aynı kalan kayıt eski nesnesiyle kalır). Değişiklik yoksa null. */
-  private mergeDelta<T extends { id: string }>(list: T[], rows: T[], removed: Set<string> | null): T[] | null {
-    if (!rows.length && !(removed && removed.size)) return null;
-    const inc = new Map<string, T>();
-    for (const r of rows) inc.set(r.id, r);
-    let changed = false;
-    const out: T[] = [];
-    for (const x of list) {
-      if (removed && removed.has(x.id)) {
-        changed = true;
-        continue;
-      }
-      const n = inc.get(x.id);
-      if (n !== undefined) {
-        inc.delete(x.id);
-        if (sameData(x, n)) out.push(x);
-        else {
-          out.push(n);
-          changed = true;
-        }
-      } else out.push(x);
-    }
-    for (const n of inc.values()) {
-      if (removed && removed.has(n.id)) continue;
-      out.push(n);
-      changed = true;
-    }
-    return changed ? out : null;
-  }
-
-  // Tam okumadaki sıralamayla aynı: tarih (yeni üstte). Kararlı sıralama: aynı tarihli kayıtların ekrandaki
-  // mevcut sırası korunur (yeni gelen aynı tarihli kayıt onların altına eklenir).
-  private static byDateDesc<T extends { date?: string }>(a: T, b: T): number {
-    const x = a.date || '';
-    const y = b.date || '';
-    return x < y ? 1 : x > y ? -1 : 0;
-  }
-
   public async syncAttendanceFromSupabase(isBackground = false): Promise<AttendanceRecord[]> {
     // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
@@ -2803,9 +2614,9 @@ class DataService {
       }
 
       if (res.mode === 'delta') {
-        const merged = this.mergeDelta(this.attendance, res.data.map(toRecord), res.removed);
+        const merged = mergeDelta(this.attendance, res.data.map(toRecord), res.removed);
         if (merged) {
-          this.attendance = merged.sort(DataService.byDateDesc);
+          this.attendance = merged.sort(byDateDesc);
           saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
           this.notify();
         }
@@ -2850,9 +2661,9 @@ class DataService {
       }
 
       if (res.mode === 'delta') {
-        const merged = this.mergeDelta(this.grades, res.data.map((rg: any) => this.gradeFromRow(rg)), res.removed);
+        const merged = mergeDelta(this.grades, res.data.map((rg: any) => this.gradeFromRow(rg)), res.removed);
         if (merged) {
-          this.grades = merged.sort(DataService.byDateDesc);
+          this.grades = merged.sort(byDateDesc);
           saveData(STORAGE_KEYS.GRADES, this.grades);
           this.notify();
         }
@@ -2897,7 +2708,7 @@ class DataService {
       }
 
       if (res.mode === 'delta') {
-        const merged = this.mergeDelta(this.messages, res.data.map((rm: any) => rowToMessage(rm)), res.removed);
+        const merged = mergeDelta(this.messages, res.data.map((rm: any) => rowToMessage(rm)), res.removed);
         if (merged) {
           // tam okumadaki sıralamayla aynı (en yeni üstte); aynı zamanlıların mevcut sırası korunur
           this.messages = sortByTimeDesc(merged, (m) => m.createdAt);
@@ -2951,13 +2762,6 @@ class DataService {
     const n = new Date();
     return DataService.ymdLocal(new Date(n.getFullYear(), n.getMonth() - 1, 1));
   }
-  private static sortLogsDesc(list: StudentQuestionLog[]): StudentQuestionLog[] {
-    return list.sort((a, b) => {
-      const x = a.date || a.createdAt || '';
-      const y = b.date || b.createdAt || '';
-      return x < y ? 1 : x > y ? -1 : 0;
-    });
-  }
   private mergeQuestionLogs(incoming: StudentQuestionLog[], replaceFrom: string | null): boolean {
     const base = replaceFrom === null ? this.questionLogs : replaceFrom === '' ? [] : this.questionLogs.filter((l) => (l.date || '') < replaceFrom);
     const byId = new Map<string, StudentQuestionLog>();
@@ -2969,31 +2773,14 @@ class DataService {
       byId.set(l.id, local || l);
     }
     // Aşama 84: değişmeyen kayıtlar aynen kalır; hiçbir şey değişmediyse liste de aynı kalır
-    const next = adoptList(this.questionLogs, DataService.sortLogsDesc(Array.from(byId.values())));
+    const next = adoptList(this.questionLogs, sortLogsDesc(Array.from(byId.values())));
     const changed = next !== this.questionLogs;
     this.questionLogs = next;
     return changed;
   }
 
-  /** Aşama 67: kaydın içerik imzası (ders, sayılar, plan payları; JSON anahtar sırasından bağımsız) */
-  private questionLogSig(l: StudentQuestionLog): string {
-    const entries = (Array.isArray(l.entries) ? l.entries : [])
-      .map((e: any) => [
-        String(e?.subject || ''),
-        Number(e?.questionCount) || 0,
-        Number(e?.correctCount) || 0,
-        Number(e?.wrongCount) || 0,
-        (Array.isArray(e?.planItems) ? e.planItems : [])
-          .map((p: any) => `${p?.id}:${Number(p?.count) || 0}`)
-          .sort()
-          .join(','),
-      ])
-      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-    return JSON.stringify([l.date, entries, String(l.notes || '').trim()]);
-  }
-
   private noteQuestionLogWrite(l: StudentQuestionLog): void {
-    this.recentQuestionLogWrites.set(l.id, { sig: this.questionLogSig(l), at: Date.now() });
+    this.recentQuestionLogWrites.set(l.id, { sig: questionLogSig(l), at: Date.now() });
   }
 
   /** Az önce yazdığımız kaydın (kısa süre içinde gelen) farklı, yani eski bir kopyası mı? */
@@ -3004,7 +2791,7 @@ class DataService {
       this.recentQuestionLogWrites.delete(l.id);
       return false;
     }
-    return this.questionLogSig(l) !== w.sig;
+    return questionLogSig(l) !== w.sig;
   }
 
   /** Süre dolunca kaydın buluttaki son hâli okunur (başka cihazdan gerçek bir değişiklik olduysa alınır) */
@@ -3147,28 +2934,6 @@ class DataService {
   private static readonly DOCUMENT_LIST_COLUMNS =
     'id,title,description,category,file_format,file_name,file_size,storage_path,subject,school_type,grade_level,academic_year,tags,author_name,uploaded_by,owner_auth_id,created_at';
 
-  private documentFromRow(r: any): TeacherDocument {
-    return {
-      id: r.id,
-      title: r.title || 'Belge',
-      description: r.description || undefined,
-      category: (r.category || 'other') as DocumentCategory,
-      fileFormat: r.file_format === 'docx' || r.file_format === 'xlsx' ? r.file_format : 'pdf',
-      fileName: r.file_name || '',
-      fileSize: r.file_size || '',
-      storagePath: r.storage_path || undefined,
-      uploadedAt: r.created_at || new Date().toISOString(),
-      uploadedBy: r.uploaded_by || 'Öğretmen',
-      authorName: r.author_name || undefined,
-      academicYear: r.academic_year || undefined,
-      schoolType: r.school_type || undefined,
-      subject: r.subject || 'Genel',
-      gradeLevel: r.grade_level || undefined,
-      tags: Array.isArray(r.tags) ? r.tags : [],
-      ownerAuthId: r.owner_auth_id || undefined,
-    };
-  }
-
   // Tarayıcıya yalnızca belge bilgileri yazılır (dosya içerikleri değil)
   private persistDocumentsLocal(): void {
     const light = this.documents.map(({ fileData, htmlPreview, tableSheets, ...rest }) => rest);
@@ -3193,7 +2958,7 @@ class DataService {
         if (!isBackground) console.warn('[DocumentsSync] Error:', error);
         return this.documents;
       }
-      const nextDocs = adoptList(this.documents, (rows || []).map((r: any) => this.documentFromRow(r)));
+      const nextDocs = adoptList(this.documents, (rows || []).map((r: any) => documentFromRow(r)));
       if (nextDocs === this.documents) return this.documents; // Aşama 84: değişiklik yok
       this.documents = nextDocs;
       this.persistDocumentsLocal();
@@ -3313,26 +3078,6 @@ class DataService {
   public static readonly MAX_INLINE_FILE_CHARS = MAX_INLINE_FILE_CHARS; // Aşama 317: satirDonusumleri.ts'te
   public static etutTeacherColumnAvailable = true;
 
-  // Aşama 16: yoklama birleştirme — her öğrenci için en son işaretlenen durum geçerlidir
-  // (başka cihazdan / e-postadaki yoklama bağlantısından gelen yeni yoklama eskisinin altında kalmaz)
-  public static mergeAttendance(
-    incoming?: Record<string, EtutStudentAttendance>,
-    local?: Record<string, EtutStudentAttendance>
-  ): Record<string, EtutStudentAttendance> {
-    const out: Record<string, EtutStudentAttendance> = { ...(local || {}) };
-    for (const [id, inc] of Object.entries(incoming || {})) {
-      const cur = out[id];
-      if (!cur) {
-        out[id] = inc;
-        continue;
-      }
-      const ti = (inc && (inc.updatedAt || inc.markedAt)) || '';
-      const tl = (cur && (cur.updatedAt || cur.markedAt)) || '';
-      if (ti >= tl) out[id] = inc;
-    }
-    return out;
-  }
-
   // =========================================================================
   // Aşama 179: etüt yoklaması ayrı tabloda (sql/178 etut_yoklama), yorumlar ayrı sütunda.
   // Her işlem yalnız kendi alanını yazar: yoklama yalnız değişen öğrencinin satırını, yorum yalnız kendi
@@ -3343,41 +3088,6 @@ class DataService {
   private static readonly ETUT_YOKLAMA_COLUMNS =
     'id,etut_id,student_id,student_name,status,note,topic,marked_by,marked_at,changed_at,updated_at';
   private static readonly ETUT_STATUSES = new Set<string>(['present', 'absent', 'excused', 'late']);
-
-  /** Sunucu zamanı (…+00:00) uygulamanın ISO biçimine çevrilir; yoklama karşılaştırması metinle yapılır */
-  private static isoOf(v: any): string | undefined {
-    if (!v) return undefined;
-    const t = Date.parse(String(v));
-    return Number.isNaN(t) ? undefined : new Date(t).toISOString();
-  }
-
-  /** Yalnız gerçek "etut_yoklama tablosu yok" hatası (175'teki ders: yetki ya da ağ hatası eski yola düşürmez) */
-  private static isEtutYoklamaMissing(error: any): boolean {
-    if (!error) return false;
-    const code = String(error.code || '');
-    const msg = String(error.message || '');
-    return /etut_yoklama/.test(msg) && (code === 'PGRST205' || code === '42P01' || /Could not find the table|does not exist/i.test(msg));
-  }
-
-  /** Yorum sütunu yok hatası (sql/178 kurulmamış) */
-  private static isEtutCommentColumnMissing(error: any): boolean {
-    if (!error) return false;
-    const code = String(error.code || '');
-    const msg = String(error.message || '');
-    return (/42703|PGRST204/.test(code) || /column|schema cache/i.test(msg)) && /teacher_feedback|user_notes|attendance_taken_by/.test(msg);
-  }
-
-  private static yoklamaRowToAttendance(r: any): EtutStudentAttendance {
-    const a: EtutStudentAttendance = { studentId: String(r.student_id), status: r.status, note: r.note || '' };
-    if (r.student_name) a.studentName = r.student_name;
-    if (r.topic) a.topic = r.topic;
-    if (r.marked_by) a.markedBy = r.marked_by;
-    const at = DataService.isoOf(r.marked_at);
-    if (at) a.markedAt = at;
-    const ch = DataService.isoOf(r.changed_at);
-    if (ch) a.updatedAt = ch;
-    return a;
-  }
 
   /**
    * Etüdün yoklaması. Aşama 196: etuts tablosu satırında yalnız etut_yoklama tablosu okunur; notes içindeki eski
@@ -3413,7 +3123,7 @@ class DataService {
     const { error } = await supabase.from('etut_yoklama').upsert(rows, { onConflict: 'etut_id,student_id' });
     if (error) {
       // Aşama 196: tablo yoksa eski yola (notes) düşülmez
-      if (DataService.isEtutYoklamaMissing(error)) DataService.etutYoklamaTable = 'no';
+      if (isEtutYoklamaMissing(error)) DataService.etutYoklamaTable = 'no';
       console.warn('[EtutYoklama] Yoklama buluta yazılamadı:', error.message);
       return 'fail';
     }
@@ -3456,7 +3166,7 @@ class DataService {
       () => this.fetchAllRows('etut_yoklama', undefined, { columns })
     );
     if (res.mode === 'error') {
-      if (DataService.isEtutYoklamaMissing(res.error)) {
+      if (isEtutYoklamaMissing(res.error)) {
         DataService.etutYoklamaTable = 'no';
         this.etutYoklama.clear();
       }
@@ -3470,7 +3180,7 @@ class DataService {
       for (const r of res.data) {
         if (!r || !r.etut_id || !r.student_id) continue;
         const m = next.get(r.etut_id) || {};
-        m[r.student_id] = DataService.yoklamaRowToAttendance(r);
+        m[r.student_id] = yoklamaRowToAttendance(r);
         next.set(r.etut_id, m);
       }
       for (const [eid, m] of this.etutYoklama) {
@@ -3506,7 +3216,7 @@ class DataService {
     for (const r of res.data) {
       if (!r || !r.etut_id || !r.student_id) continue;
       const m = { ...(this.etutYoklama.get(r.etut_id) || {}) };
-      m[r.student_id] = DataService.yoklamaRowToAttendance(r);
+      m[r.student_id] = yoklamaRowToAttendance(r);
       this.etutYoklama.set(r.etut_id, m);
       touched.add(r.etut_id);
     }
@@ -3523,7 +3233,7 @@ class DataService {
       const sid = String(r.student_id);
       const cache = { ...(this.etutYoklama.get(eid) || {}) };
       if (del) delete cache[sid];
-      else cache[sid] = DataService.yoklamaRowToAttendance(r);
+      else cache[sid] = yoklamaRowToAttendance(r);
       this.etutYoklama.set(eid, cache);
       const idx = this.etuts.findIndex((e) => e.id === eid);
       if (idx === -1 || this.etuts[idx].privacyRedacted) return;
@@ -3533,7 +3243,7 @@ class DataService {
         att = { ...(e.studentAttendance || {}) };
         delete att[sid];
       } else {
-        att = DataService.mergeAttendance({ [sid]: cache[sid] }, e.studentAttendance || {});
+        att = mergeAttendance({ [sid]: cache[sid] }, e.studentAttendance || {});
       }
       if (JSON.stringify(att) === JSON.stringify(e.studentAttendance || {})) return;
       this.etuts[idx] = { ...e, studentAttendance: att };
@@ -5163,14 +4873,7 @@ class DataService {
     if (res.success) return { success: true };
     setOne(before);
     console.warn('[TeacherSync] Öğretmen buluta yazılamadı, değişiklik geri alındı:', res.error?.message || res.error);
-    return { success: false, error: DataService.teacherWriteErrorText(res.error) };
-  }
-
-  private static teacherWriteErrorText(error: any): string {
-    const m = `${error?.code || ''} ${error?.message || ''}`;
-    if (/42501|row-level security|yetki/i.test(m)) return 'Bu işlem için yetkiniz yok; değişiklik kaydedilmedi.';
-    if (/fetch|network|Failed/i.test(m)) return 'Sunucuya ulaşılamadı; değişiklik kaydedilmedi. İnternet bağlantınızı kontrol edin.';
-    return `Değişiklik kaydedilmedi: ${error?.message || 'bilinmeyen hata'}`;
+    return { success: false, error: teacherWriteErrorText(res.error) };
   }
 
   public approveTeacher(teacherId: string): Promise<{ success: boolean; error?: string }> {
@@ -5184,7 +4887,7 @@ class DataService {
   // Aşama 173: önce bulutta silinir; silinemezse yerel liste değişmez ve neden söylenir
   public async deleteTeacher(teacherId: string): Promise<{ success: boolean; error?: string }> {
     const res = await this.deleteTeacherFromCloud(teacherId);
-    if (!res.success) return { success: false, error: DataService.teacherWriteErrorText(res.error) };
+    if (!res.success) return { success: false, error: teacherWriteErrorText(res.error) };
     this.deletedTeacherIds.add(teacherId);
     saveData(STORAGE_KEYS.DELETED_TEACHERS, Array.from(this.deletedTeacherIds));
     this.teachers = this.teachers.filter((t) => t.id !== teacherId);
@@ -5944,7 +5647,7 @@ class DataService {
     return e && e.includes('@') && !e.endsWith('@okul.internal.net') ? e : '';
   }
 
-  public static readonly MIN_PASSWORD_LENGTH = 6;
+  public static readonly MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH; // Aşama 318: hataMetinleri.ts'te
 
   // Sistemin öğretmen/öğrenci hesapları için ürettiği giriş adresi (create-user fonksiyonu ile aynı kural)
   private canonicalAuthEmail(type: 'teacher' | 'student', identifier: string): string {
@@ -5962,22 +5665,6 @@ class DataService {
       .replace(/[çğıöşüâîû]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' } as Record<string, string>)[c] || c)
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
-  }
-
-  private translatePasswordError(message?: string): string {
-    const m = (message || '').toLowerCase();
-    if (m.includes('at least')) return `Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`;
-    if (m.includes('different from the old')) return 'Yeni şifreniz mevcut şifrenizden farklı olmalıdır.';
-    if (m.includes('weak') || m.includes('pwned') || m.includes('leaked')) {
-      return 'Bu şifre çok zayıf. Lütfen harf ve rakam içeren daha güçlü bir şifre seçiniz.';
-    }
-    if (m.includes('reauthentication') || m.includes('nonce')) {
-      return 'Güvenlik nedeniyle yeniden giriş gerekiyor. Çıkış yapıp tekrar giriş yaptıktan sonra deneyiniz.';
-    }
-    if (m.includes('rate limit') || m.includes('security purposes')) {
-      return 'Çok sık deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
-    }
-    return message || 'Şifre işlemi sırasında bir hata oluştu.';
   }
 
   // Oturumdaki kullanıcının KENDİ şifresini değiştirir. Önce eski şifre Supabase'de doğrulanır.
@@ -6006,7 +5693,7 @@ class DataService {
       if (robotHatasiMi(verifyError)) throw new Error(ROBOT_RED);
       const vm = (verifyError.message || '').toLowerCase();
       if (vm.includes('rate limit') || vm.includes('too many')) {
-        throw new Error(this.translatePasswordError(verifyError.message));
+        throw new Error(translatePasswordError(verifyError.message));
       }
       throw new Error('Mevcut şifreniz hatalı. Lütfen kontrol edip tekrar deneyiniz.');
     }
@@ -6017,7 +5704,7 @@ class DataService {
       data: { must_change_password: false },
     });
     if (updateError) {
-      throw new Error(this.translatePasswordError(updateError.message));
+      throw new Error(translatePasswordError(updateError.message));
     }
     await this.markMyInitialPasswordChanged();
     this.basitSifreTemizle(); // Aşama 145: zorunlu şifre penceresi kapanır
@@ -6184,7 +5871,7 @@ class DataService {
     if (baglantiHata) throw new Error(baglantiHata);
     const { error } = await supabase.auth.updateUser({ password: newPassword, data: { must_change_password: false } });
     if (error) {
-      throw new Error(this.translatePasswordError(error.message));
+      throw new Error(translatePasswordError(error.message));
     }
     await this.markMyInitialPasswordChanged();
     clearPasswordRecovery();
@@ -6475,25 +6162,6 @@ class DataService {
     return this.syncTeachersFromSupabase(false);
   }
 
-  // Supabase giriş hatalarını kullanıcıya anlaşılır mesaja çevirir.
-  // null: kullanıcı adı/şifre hatalı (çağıran genel mesaj gösterir)
-  private loginErrorMessage(err: any, role: 'teacher' | 'student'): string | null {
-    const m = `${err?.code || ''} ${err?.message || ''}`.toLowerCase();
-    if (m.includes('banned')) {
-      return role === 'student'
-        ? 'Hesabınız şu anda kapalı: kayıt başvurunuz henüz onaylanmamış olabilir veya hesabınız askıya alınmıştır. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.'
-        : 'Hesabınız askıya alınmıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.';
-    }
-    if (m.includes('rate limit') || m.includes('too many')) {
-      return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
-    }
-    if (robotHatasiMi(err)) return ROBOT_RED; // Aşama 309
-    if (m.includes('fetch') || m.includes('network')) {
-      return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol ediniz.';
-    }
-    return null;
-  }
-
   // Sırayla aday giriş adreslerini dener. Kilitli/askıdaki hesapta hemen durur.
   private async signInWithCandidates(
     emails: string[],
@@ -6509,7 +6177,7 @@ class DataService {
       const captchaToken = await robotJetonu();
       const { data, error } = await supabase.auth.signInWithPassword({ email: clean, password, options: captchaToken ? { captchaToken } : undefined });
       if (!error && data?.user) return { user: data.user };
-      const friendly = this.loginErrorMessage(error, role);
+      const friendly = loginErrorMessage(error, role);
       if (friendly) throw new Error(friendly);
     }
     return null;
@@ -6715,7 +6383,7 @@ class DataService {
         DataService.contactsMode = 'table';
         this.contactKnown.add((row as any).id);
         row = { ...(row as any), email: own.data?.email || null, phone: own.data?.phone || null };
-      } else if (this.isMissingTable(own.error)) {
+      } else if (isMissingTable(own.error)) {
         DataService.contactsMode = 'legacy';
         const legacy = await supabase.from('students').select('email,phone').eq('id', (row as any).id).maybeSingle();
         if (!legacy.error && legacy.data) row = { ...(row as any), ...(legacy.data as any) };
@@ -10147,49 +9815,15 @@ class DataService {
     return /student_notifications|does not exist|schema cache|42P01|PGRST205/i.test(`${err?.code || ''} ${err?.message || ''}`);
   }
 
-  private notifToRow(n: StudentNotification) {
-    const cut = (v: unknown, max: number) => (v === undefined || v === null || v === '' ? null : String(v).slice(0, max));
-    return {
-      id: String(n.id).slice(0, 120),
-      student_id: n.studentId,
-      type: n.type,
-      title: String(n.title || 'Bildirim').slice(0, 200),
-      message: String(n.message || '').slice(0, 2000),
-      source_id: cut(n.sourceId, 200),
-      source_title: cut(n.sourceTitle, 300),
-      teacher_name: cut(n.teacherName, 120),
-      link_tab: n.linkTab || null,
-    };
-  }
-
   private static readonly NOTIF_COLUMNS =
     'id,student_id,type,title,message,source_id,source_title,teacher_name,created_at,read_at,link_tab';
-
-  private rowToNotif(r: any): StudentNotification {
-    const types = ['new_homework', 'new_etut', 'grade_added', 'general', 'praise'];
-    const tabs = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions'];
-    return {
-      id: String(r.id),
-      studentId: String(r.student_id),
-      type: (types.includes(r.type) ? r.type : 'general') as StudentNotification['type'],
-      title: String(r.title || ''),
-      message: String(r.message || ''),
-      sourceId: r.source_id || undefined,
-      sourceTitle: r.source_title || undefined,
-      teacherName: r.teacher_name || undefined,
-      createdAt: r.created_at || new Date().toISOString(),
-      read: !!r.read_at,
-      linkTab: tabs.includes(r.link_tab) ? r.link_tab : undefined,
-      cloud: true,
-    };
-  }
 
   /** Öğretmen: hazırlanan bildirimleri buluta yazar. Başarılıysa true (hata kullanıcıya gösterilmez). */
   private async pushNotificationsToCloud(list: StudentNotification[]): Promise<boolean> {
     if (this.notifCloudDisabled || !list.length) return false;
     try {
       if (!(await this.hasCloudSession())) return false;
-      const rows = list.map((n) => this.notifToRow(n));
+      const rows = list.map((n) => notifToRow(n));
       let okAll = true;
       for (let i = 0; i < rows.length; i += 200) {
         const part = rows.slice(i, i + 200);
@@ -10233,7 +9867,7 @@ class DataService {
         if (this.isMissingNotifTable(error)) this.notifCloudDisabled = true;
         return;
       }
-      const remote = (Array.isArray(data) ? data : []).map((r) => this.rowToNotif(r));
+      const remote = (Array.isArray(data) ? data : []).map((r) => rowToNotif(r));
       const remoteIds = new Set(remote.map((n) => n.id));
       const inScope = (n: StudentNotification) =>
         session.role === 'student' ? n.studentId === session.user.id : n.type === 'praise';
@@ -10443,22 +10077,6 @@ class DataService {
     return this.questionLogs.filter((q) => q.classId === classId);
   }
 
-  // Veritabanı hatasını öğrenciye gösterilecek Türkçe bir mesaja çevirir (ham İngilizce hata gösterilmez)
-  private questionLogDbError(error: any): any {
-    if (!error) return null;
-    const code = String(error?.code || '');
-    if (code === '42501') return error; // yetki mesajı runCloudWrite içinde Türkçe veriliyor
-    const raw = String(error?.message || '');
-    let message = 'Sunucu kaydı kabul etmedi, lütfen tekrar dene';
-    if (code === '22003') message = 'Girilen sayı çok büyük';
-    else if (code === '23505') message = 'Bu tarih için zaten bir kayıt var, sayfayı yenileyip tekrar dene';
-    else if (code === '23514' || code === '23502') message = 'Girilen değerler geçersiz';
-    else if (code.startsWith('22')) message = 'Geçersiz tarih veya sayı';
-    else if (/fetch|network|timeout|Failed to/i.test(raw)) message = 'Bağlantı sorunu';
-    else if (/[çğıöşüÇĞİÖŞÜ]/.test(raw)) message = raw; // zaten Türkçe bir mesaj
-    return { code, message };
-  }
-
   public async saveQuestionLog(
     logData: Omit<StudentQuestionLog, 'id' | 'createdAt' | 'totalQuestions'> & {
       id?: string;
@@ -10651,7 +10269,7 @@ class DataService {
           }
         }
         if (res.error) this.recentQuestionLogWrites.delete(saved.id);
-        return { error: this.questionLogDbError(res.error) };
+        return { error: questionLogDbError(res.error) };
       },
       () => {
         this.questionLogs = prevLogs;
@@ -10694,7 +10312,7 @@ class DataService {
     await this.runCloudWrite(
       async () => {
         const res = await this.deleteRowsVerified('question_logs', [id]);
-        return { error: this.questionLogDbError(res.error) };
+        return { error: questionLogDbError(res.error) };
       },
       () => {
         this.questionLogs = prevLogs;
