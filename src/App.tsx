@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition 
 import { GraduationCap, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
+import { Kisayollar } from './components/Layout/Kisayollar'; // Aşama 316
 import { TeacherBottomNav } from './components/Layout/BottomNav';
 import { anaSayfaTuru } from './components/Home/anaSayfaSecimi'; // Aşama 244
 import { findTeacherNav } from './components/Layout/navItems';
@@ -979,6 +980,7 @@ export default function App() {
           onNavigate={selectTeacherTab}
         />
       )}
+      {activeTeacher && <Kisayollar isAdmin={isAdminTeacher} onNavigate={selectTeacherTab} />}
       {showTeacherChrome && (
         <TeacherBottomNav
           activeTab={teacherTab}

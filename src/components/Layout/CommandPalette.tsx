@@ -6,6 +6,7 @@ import { dataService } from '../../services/dataService';
 import { teacherNavFor } from './navItems';
 import { IconBox, OverlayLayer, cx, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { setQuickFocus, type QuickFocusType } from '../../lib/quickFocus';
+import { kisayollariAc } from './Kisayollar';
 
 // Türkçe harfleri sadeleştirerek arama: "ogrenci" yazınca "Öğrenci" bulunur
 export const normalizeTr = (s: string) =>
@@ -294,6 +295,17 @@ export const CommandPalette: React.FC<{
           <span>
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-surface font-sans">Esc</kbd> kapat
           </span>
+          {/* Aşama 316: bütün kısayolların listesi */}
+          <button
+            type="button"
+            onClick={() => {
+              close();
+              kisayollariAc();
+            }}
+            className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted hover:text-fg hover:bg-surface cursor-pointer transition-colors"
+          >
+            <kbd className="px-1.5 py-0.5 rounded border border-line bg-surface font-sans">?</kbd> kısayollar
+          </button>
         </div>
       </div>
     </div>,

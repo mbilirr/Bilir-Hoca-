@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { LogOut, HeartHandshake, ClipboardCheck, CalendarClock, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Repeat, Mail, Camera, Search, Settings2,
-  MailCheck, GraduationCap, Building2, Check, ListChecks, Link2,
+  MailCheck, GraduationCap, Building2, Check, ListChecks, Link2, Keyboard,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { lazyNamed } from '../lib/lazyLoad';
@@ -11,6 +11,7 @@ import { HesapSecPencere, BagliHesaplarPencere } from './Auth/HesapSecimi'; // A
 import { bagliHesaplar, bagliKullanilir, gozuBagYonetimi, readBagli, readGecis, sahipKarti } from '../lib/kurumGecis'; // Aşama 256 / 263 / 267
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
+import { kisayollariAc } from './Layout/Kisayollar'; // Aşama 316
 import { ThemeToggle, cx } from './ui/kit';
 import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
 import { profilResmi, ogretmenProfilRol, type ProfilKisi, type ProfilRol } from '../lib/profilResmi';
@@ -372,6 +373,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <MenuItem icon={Mail} onClick={closeAnd(() => setIsSentCommunicationsOpen(true))}>
                           Giden E-postalar
                         </MenuItem>
+                        {/* Aşama 316: klavyesi olan ekranda kısayol listesi */}
+                        <div className="hidden md:block">
+                          <MenuItem icon={Keyboard} onClick={closeAnd(kisayollariAc)} trailing={<kbd className="px-1.5 py-0.5 rounded border border-line bg-surface-2 text-[11px] font-sans text-muted">?</kbd>}>
+                            Klavye kısayolları
+                          </MenuItem>
+                        </div>
                         {/* Aşama 256 / 263: başka kurumdaki kendi öğretmen hesabını bağlama (giriş yapılan ana hesapta) */}
                         {bagYonetimi && (
                           <MenuItem icon={Link2} onClick={closeAnd(() => setBagliYonet(true))}>
