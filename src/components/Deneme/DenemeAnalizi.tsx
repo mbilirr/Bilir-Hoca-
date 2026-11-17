@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronDown, ChevronRight, GraduationCap, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -489,7 +490,9 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       {sinif && tab === 'denemeler' && shownView.kind === 'list' && (
         <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-card">
           {loading ? (
-            <p className="px-4 py-8 text-sm text-muted text-center">Yükleniyor…</p>
+            <div className="px-4 py-8 text-center">
+              <Yukleniyor />
+            </div>
           ) : listed.length === 0 ? (
             <EmptyState
               icon={BarChart3}

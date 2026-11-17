@@ -3,6 +3,7 @@ import { Users, UserPlus, Pencil, Trash2, Save, X, Mail, Phone, AlertCircle, Eye
 import { dataService, type EtutTeacherRow } from '../../services/dataService';
 import type { Teacher } from '../../types';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { ALL_SUBJECTS, ORTAOKUL_SUBJECTS, LISE_SUBJECTS, subjectsForBranch } from '../../lib/subjects';
 import { inputCls, chipCls, FieldLabel } from './FormParts';
@@ -303,7 +304,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
           </div>
           {draft && !draft.teacherId && editor}
           {rows === null ? (
-            <p className="text-xs text-muted">Yükleniyor…</p>
+            <Yukleniyor />
           ) : external.length === 0 ? (
             <p className="text-xs text-muted">Henüz dış öğretmen eklenmedi.</p>
           ) : externalGroups.length === 0 ? (

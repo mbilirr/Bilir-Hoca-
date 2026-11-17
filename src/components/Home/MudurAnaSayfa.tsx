@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, Teacher, TeacherTabType } from '../../types';
@@ -756,8 +757,9 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
             ))}
           </div>
           {dersHata && (
-            <p className="od-err" style={{ marginTop: '0.5rem' }}>
+            <p className="od-err" role="alert" style={{ marginTop: '0.5rem' }}>
               {dersHata}
+              <TekrarDugmesi onTekrar={() => dersOku(true)} />
             </p>
           )}
         </section>

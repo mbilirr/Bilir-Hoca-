@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, Teacher, TeacherTabType } from '../../types';
 import {
@@ -457,7 +458,12 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
                 </button>
               </div>
             ))}
-            {dersHata && <p className="ak-err">{dersHata}</p>}
+            {dersHata && (
+              <p className="ak-err" role="alert">
+                {dersHata}
+                <TekrarDugmesi onTekrar={dersOku} />
+              </p>
+            )}
             {!eksik.length && !yukleniyor && <div className="ak-allok">Kurulum tamam. Eksik kalmadı.</div>}
           </div>
         </section>

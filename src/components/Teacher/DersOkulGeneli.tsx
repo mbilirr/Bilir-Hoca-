@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { Segmented, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { dataService } from '../../services/dataService';
 import { basHarf, dakika } from '../../lib/dersKisa';
 import {
@@ -119,14 +120,8 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
     return dk >= 60 ? `${Math.floor(dk / 60)} sa ${dk % 60 ? `${dk % 60} dk ` : ''}önce bitti` : `${dk} dk önce bitti`;
   };
 
-  if (hata && !gt) {
-    return (
-      <p role="alert" className="text-xs font-semibold text-danger-fg">
-        {hata}
-      </p>
-    );
-  }
-  if (!gt) return <p className="text-xs text-muted">Okul geneli yükleniyor…</p>;
+  if (hata && !gt) return <YuklemeHatasi mesaj={hata} onTekrar={yukle} />;
+  if (!gt) return <Yukleniyor metin="Okul geneli yükleniyor…" />;
   if (!ayar?.kayitli) return <p className="text-xs text-muted">Ders saatleri kaydedilmemiş (Yönetim › Ders programı).</p>;
 
   const baslik = `${GUN_ADLARI[isoGun(gun) - 1]} ${tarihUzun(gun)}${gun === bugun ? ' · Bugün' : ''}`;

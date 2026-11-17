@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, Coffee, Minus, Plus, RotateCcw, Save, Wand2 } from 'lucide-react';
 import { Panel, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact';
 import { appConfirm } from '../../lib/appDialog';
 import {
@@ -140,16 +141,14 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
   if (yukHata) {
     return (
       <Panel title="Ders saatleri" icon={Clock} id="ders-saatleri">
-        <p role="alert" className="text-xs font-semibold text-danger-fg">
-          {yukHata}
-        </p>
+        <YuklemeHatasi mesaj={yukHata} onTekrar={() => yukle(true)} />
       </Panel>
     );
   }
   if (!form || !ayar) {
     return (
       <Panel title="Ders saatleri" icon={Clock} id="ders-saatleri">
-        <p className="text-xs text-muted">Yükleniyor…</p>
+        <Yukleniyor />
       </Panel>
     );
   }

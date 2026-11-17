@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState }
 import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload } from 'lucide-react';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LGS_SCORING, OZET_SURUM, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, tamOturum, type ExamQuestions } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
@@ -90,14 +91,14 @@ export const DenemeSonuclar: React.FC<{
   const bCheck = useMemo(() => (exam && results.length ? bookletConsistency(exam, results) : null), [exam, results]);
   const [bOpen, setBOpen] = useState(false);
 
-  if (loading) return <p className="text-sm text-muted">Yükleniyor…</p>;
+  if (loading) return <Yukleniyor />;
   if (error || !exam)
     return (
       <div className="space-y-3">
         <button type="button" className={BACK_BTN} onClick={onBack} id="deneme-geri">
           <ArrowLeft /> Denemelere dön
         </button>
-        <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error || 'Deneme bulunamadı.'}</p>
+        <YuklemeHatasi mesaj={error || 'Deneme bulunamadı.'} onTekrar={error ? load : undefined} />
       </div>
     );
 

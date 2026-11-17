@@ -3,6 +3,7 @@ import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
+import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from '../Teacher/FormParts';
 import { callMail } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
@@ -316,11 +317,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
             </SelectBox>
           </div>
         )}
-        {loadError && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {loadError}
-          </p>
-        )}
+        {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={loadRows} />}
         {notice && (
           <p role="status" className={cx('text-xs font-semibold', notice.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>
             {notice.text}

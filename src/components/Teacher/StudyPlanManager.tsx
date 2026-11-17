@@ -52,6 +52,7 @@ import {
 } from '../../services/studyPlanService';
 import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal, Panel, Segmented } from '../ui/kit';
+import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
@@ -725,11 +726,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
           </button>
         </div>
       )}
-      {loadError && (
-        <div role="alert" id="plan-load-error" className="px-4 py-3 rounded-xl border border-danger/30 bg-danger-soft text-danger-fg text-xs font-semibold">
-          {loadError}
-        </div>
-      )}
+      {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={() => reload()} className="px-4 py-3" />}
 
       {/* Haftanın 7 günü — Aşama 52: gün kutuları her ekran genişliğinde kare (en-boy orantılı); sığdığı kadar yan yana (3-4) */}
       {!student ? (

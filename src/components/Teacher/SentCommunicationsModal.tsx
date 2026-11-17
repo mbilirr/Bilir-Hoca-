@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Mail, Search, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Modal, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { chipCls } from './FormParts';
 
 // ============================================================================
@@ -132,7 +133,9 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
         </div>
         {error && <div className="p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold">{error}</div>}
         {rows === null ? (
-          <p className="text-xs text-muted py-6 text-center">Yükleniyor…</p>
+          <div className="py-6 text-center">
+            <Yukleniyor />
+          </div>
         ) : list.length === 0 ? (
           <p className="text-xs text-muted py-8 text-center">Henüz gönderilmiş e-posta yok.</p>
         ) : (

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { EmptyState, Segmented, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { dataService } from '../../services/dataService';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { basHarf, dakika, dersKisaListede } from '../../lib/dersKisa';
@@ -229,14 +230,8 @@ export const DersProgramim: React.FC = () => {
   };
 
   // ---------------------------------------------------------------- durumlar
-  if (hata && !veri) {
-    return (
-      <p role="alert" className="text-xs font-semibold text-danger-fg">
-        {hata}
-      </p>
-    );
-  }
-  if (!veri) return <p className="text-xs text-muted">Program yükleniyor…</p>;
+  if (hata && !veri) return <YuklemeHatasi mesaj={hata} onTekrar={yukle} />;
+  if (!veri) return <Yukleniyor metin="Program yükleniyor…" />;
   if (!ayar?.kayitli) {
     return (
       <EmptyState

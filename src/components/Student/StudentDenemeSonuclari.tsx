@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Download } from 'lucide-react';
 import { EmptyState, PageHeader, Segmented } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import type { Student } from '../../types';
 import { getTarget, isSetupError, listKazanimlar, loadMyDenemeler, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { SCOPES, kazanimKarneBlocks, oncelikKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, studyPlanKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
@@ -42,6 +43,8 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
     };
   }, [tur, bank]);
 
+  // Aşama 305: "Tekrar dene" okumayı yeniden başlatır
+  const [deneme, setDeneme] = useState(0);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -66,7 +69,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
     return () => {
       alive = false;
     };
-  }, [currentStudent.id]);
+  }, [currentStudent.id, deneme]);
 
   const scoped = useMemo(() => pickScope(exams, scope, (e) => picked.has(e.id)), [exams, scope, picked]);
 
@@ -105,9 +108,16 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
         }
       />
       {loading ? (
-        <p className="text-sm text-muted">Yükleniyor…</p>
+        <Yukleniyor />
       ) : error ? (
-        <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>
+        <YuklemeHatasi
+          mesaj={error}
+          onTekrar={() => {
+            setError(null);
+            setLoading(true);
+            setDeneme((n) => n + 1);
+          }}
+        />
       ) : !results.length ? (
         <div className="ui-card ui-card-pad">
           <EmptyState icon={BarChart3} title="Henüz deneme sonucun yok" description="Öğretmenin deneme sonuçlarını açtığında burada göreceksin." />

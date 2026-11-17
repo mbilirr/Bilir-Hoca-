@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Pause, Search, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { EmptyState, Modal, Panel, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { dataService } from '../../services/dataService';
 import {
@@ -994,7 +995,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
       >
         {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2 mb-3">{error}</p>}
         {loading ? (
-          <p className="text-sm text-muted">Yükleniyor…</p>
+          <Yukleniyor />
         ) : rows.length === 0 ? (
           <EmptyState icon={BookOpen} title="Banka boş" description="Yukarıdan öğretim programı PDF'lerini seçip kazanımları yapay zekâyla çıkarın." />
         ) : (

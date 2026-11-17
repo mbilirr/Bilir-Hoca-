@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarPlus, ChevronDown, Download, FileSpreadsheet } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { byUploadOrder, getExamsFull, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
@@ -565,7 +566,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
       )}
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
       {loading ? (
-        <p className="text-sm text-muted">Yükleniyor…</p>
+        <Yukleniyor />
       ) : !scoped.length ? (
         <p className="text-sm text-muted">Kapsamda deneme yok.</p>
       ) : groups.length === 0 ? (

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BellRing, CalendarOff, Plus, Save, Trash2 } from 'lucide-react';
 import { Panel, Segmented, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact';
 import { appConfirm } from '../../lib/appDialog';
 import {
@@ -175,9 +176,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
   if (hata) {
     return (
       <Panel title="Tatil günleri ve veli bildirimi" icon={CalendarOff} id="ders-takvim">
-        <p role="alert" className="text-xs font-semibold text-danger-fg">
-          {hata}
-        </p>
+        <YuklemeHatasi mesaj={hata} onTekrar={yukle} />
       </Panel>
     );
   }
@@ -227,7 +226,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
           </div>
 
           {liste === null ? (
-            <p className="text-xs text-muted">Yükleniyor…</p>
+            <Yukleniyor />
           ) : gorunen.length === 0 ? (
             <p className="text-xs text-muted">Yaklaşan tatil yok.</p>
           ) : (

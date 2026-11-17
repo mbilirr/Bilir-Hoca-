@@ -4,6 +4,7 @@ import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Loader2, Sh
 import { dataService } from '../../services/dataService';
 import type { Teacher } from '../../types';
 import { Panel, Modal, cx } from '../ui/kit';
+import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { YetkilerModal, RolesOffWarning } from './YetkilerModal';
 import { SelectBox } from '../Teacher/FormParts';
 import {
@@ -184,11 +185,7 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
         </div>
         {rolesOff && <RolesOffWarning id="roles-panel-off-warning" />}
 
-        {loadError && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {loadError}
-          </p>
-        )}
+        {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={load} />}
         {notice && (
           <p role="status" className={cx('text-xs font-semibold', notice.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>
             {notice.text}

@@ -11,6 +11,7 @@ import { KurumOzetView, OncelikKarneView, VeliKarneView } from './VeliKurumKarne
 import { kurumOzet, priorityKarne, veliKarneData } from '../../lib/deneme/veliKurumKarne';
 import { dataService } from '../../services/dataService';
 import { Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, listResultsLite, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
@@ -517,7 +518,7 @@ const TopluKarneGonder: React.FC<{
       {open && (
         <div className="rounded-xl border border-line bg-surface">
           {loading ? (
-            <p className="px-3 py-3 text-xs text-muted">Sonuçlar yükleniyor…</p>
+            <Yukleniyor metin="Sonuçlar yükleniyor…" className="px-3 py-3" />
           ) : !withResults.length ? (
             <p className="px-3 py-3 text-xs text-muted">Seçilen denemelerde sonucu olan öğrenci yok.</p>
           ) : (
@@ -1103,7 +1104,7 @@ export const DenemeKarne: React.FC<{
       ) : scoped.length === 0 ? (
         <p className="text-sm text-muted">Kapsamda deneme yok. {scope === 'custom' ? 'Yukarıdan deneme seçin.' : ''}</p>
       ) : loading ? (
-        <p className="text-sm text-muted">Yükleniyor…</p>
+        <Yukleniyor />
       ) : !hasData ? (
         <p className="text-sm text-muted">Seçilen denemelerde sonuç bulunamadı.</p>
       ) : isTek ? (

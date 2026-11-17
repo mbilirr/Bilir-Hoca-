@@ -5,6 +5,7 @@ import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/da
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
 import { Panel, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { loadKurumGrantCred, setKurumGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { loadKurumGrantMove, setKurumGrantMove } from '../../lib/grantMove'; // Aşama 161
 
@@ -236,12 +237,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
         <InfoTip text='Yeni kurumu "Yeni kurum" düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve logo tek pencerede kaydedilir. Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu ve sizin izin verdiğiniz sınıfları görür. Kurumların öğrenci, etüt, ödev ve notları sizin panelinize inmez.' />
       </div>
 
-      {error && (
-        <p className="text-sm text-danger-fg font-semibold" role="alert">
-          {error}
-        </p>
-      )}
-      {!error && kurumlar === null && <p className="text-sm text-muted">Kurumlar yükleniyor…</p>}
+      {error && <YuklemeHatasi mesaj={error} onTekrar={load} />}
+      {!error && kurumlar === null && <Yukleniyor metin="Kurumlar yükleniyor…" />}
       {!error && kurumlar && kurumlar.length === 0 && (
         <p className="text-sm text-muted" id="kurum-empty">
           Henüz kurum yok. "Yeni kurum" düğmesiyle ilk kurumu açın.

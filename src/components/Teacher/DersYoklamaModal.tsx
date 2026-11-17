@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BellRing, ClipboardCheck, History, RotateCcw, UserCheck, Users } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import {
   YOKLAMA_ETIKET,
   YoklamaAcik,
@@ -208,7 +209,8 @@ export const DersYoklamaModal: React.FC<{
         </div>
       }
     >
-      {!veri && !hata && <p className="text-xs text-muted">Yükleniyor…</p>}
+      {!veri && !hata && <Yukleniyor />}
+      {!veri && hata && <YuklemeHatasi mesaj={hata} onTekrar={yukle} />}
       {veri && (
         <div className="space-y-3">
           {veri.teacherAdlari.length > 1 && (
@@ -371,7 +373,7 @@ export const DersYoklamaModal: React.FC<{
           )}
         </div>
       )}
-      {hata && (
+      {hata && veri && (
         <p role="alert" className="mt-3 text-xs font-semibold text-danger-fg">
           {hata}
         </p>

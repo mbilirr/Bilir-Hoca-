@@ -2,6 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { CalendarDays, FileSpreadsheet, Plus, Printer, Search } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { dataService } from '../../services/dataService';
 import {
   DersAyar,
@@ -417,16 +418,14 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   if (!yuklendi) {
     return (
       <Panel title="Ders programı" icon={CalendarDays} id="ders-programi">
-        <p className="text-xs text-muted">Yükleniyor…</p>
+        <Yukleniyor />
       </Panel>
     );
   }
   if (hata && !ayar) {
     return (
       <Panel title="Ders programı" icon={CalendarDays} id="ders-programi">
-        <p role="alert" className="text-xs font-semibold text-danger-fg">
-          {hata}
-        </p>
+        <YuklemeHatasi mesaj={hata} onTekrar={yukle} />
       </Panel>
     );
   }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Bug, ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { hataOzeti, hataSil, type HataOzetSatiri } from '../../lib/hataKaydi';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 
 // ============================================================================
 // Aşama 293: Hata kayıtları (yalnız sistem sahibi; Yönetim › Yedek ve bakım)
@@ -83,9 +84,7 @@ export const HataKayitlariPanel: React.FC = () => {
       {hata && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{hata}</p>}
 
       {rows === null ? (
-        <p className="flex items-center gap-2 text-xs text-muted py-4">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Okunuyor…
-        </p>
+        <Yukleniyor metin="Okunuyor…" className="py-4" />
       ) : rows.length === 0 ? (
         !hata && <p className="text-sm text-muted py-4 text-center">Bu sürede kayıtlı hata yok.</p>
       ) : (

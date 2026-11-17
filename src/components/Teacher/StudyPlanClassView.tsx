@@ -32,6 +32,7 @@ import {
 } from '../../services/studyPlanService';
 import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal } from '../ui/kit';
+import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, chipCls, classLevel, inputCls, PICKER_BOX_CLS } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
@@ -875,11 +876,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           </button>
         </div>
       )}
-      {loadError && (
-        <div role="alert" id="plan-load-error" className="px-4 py-3 rounded-xl border border-danger/30 bg-danger-soft text-danger-fg text-xs font-semibold">
-          {loadError}
-        </div>
-      )}
+      {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={() => reload()} className="px-4 py-3" />}
 
       {classIds.length === 0 ? (
         <div className="ui-card">

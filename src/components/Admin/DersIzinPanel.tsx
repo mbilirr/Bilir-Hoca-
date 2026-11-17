@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, UserX } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { Panel, Segmented, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact';
 import { appConfirm } from '../../lib/appDialog';
 import { dataService } from '../../services/dataService';
@@ -178,9 +179,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
         description="Seçilen öğrenciler o günlerin bütün derslerinde İzinli sayılır; devamsızlığa ve veli bildirimine girmez."
       >
         {hata ? (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {hata}
-          </p>
+          <YuklemeHatasi mesaj={hata} onTekrar={yukle} />
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sınıf" id="ders-izin-sinif">
@@ -287,7 +286,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
 
       <Panel title="Yazılı izinler" icon={UserX} id="ders-izin-liste" description="Son 14 gün ve sonrası.">
         {liste === null ? (
-          <p className="text-xs text-muted">Yükleniyor…</p>
+          <Yukleniyor />
         ) : gruplar.length === 0 ? (
           <p className="text-xs text-muted">Yazılı izin yok.</p>
         ) : (

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Check, Plus, Trash2, X } from 'lucide-react';
 import type { ClassGroup, Teacher } from '../../types';
 import { Panel, cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { appConfirm } from '../../lib/appDialog';
 import { dataService } from '../../services/dataService';
 import { subjectsForLevel } from '../../lib/subjects';
@@ -431,11 +432,13 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
           </div>
         )}
 
-        {hata && (
+        {hata && (liste === null ? (
+          <YuklemeHatasi mesaj={hata} onTekrar={yukle} />
+        ) : (
           <p role="alert" className="text-xs font-semibold text-danger-fg">
             {hata}
           </p>
-        )}
+        ))}
         {bilgi && (
           <p role="status" className="text-xs font-semibold text-success-fg" id="sdo-bilgi">
             {bilgi}
@@ -443,7 +446,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
         )}
 
         {liste === null && !hata ? (
-          <p className="text-xs text-muted">Yükleniyor…</p>
+          <Yukleniyor />
         ) : siniflar.length === 0 ? (
           <p className="text-xs text-muted">Kurumda sınıf yok. Önce Öğrenciler sayfasından sınıf açın.</p>
         ) : dersler.length === 0 ? (

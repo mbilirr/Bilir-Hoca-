@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, FileSpreadsheet, Printer, FileBarChart } fro
 import type { ClassGroup, Etut, GradeRecord, Homework, HomeworkSubmission, Student, Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { hasEtutAttendance } from '../../lib/etutTiming';
 import { odevTeslimGruplari } from '../../lib/odevTeslim';
 import { tabloYazdir, YazdirTablo } from '../../lib/tabloYazdir';
@@ -368,7 +369,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
             {hata}
           </p>
         )}
-        {yukleniyor && !hata && <p className="text-xs text-muted">Hazırlanıyor…</p>}
+        {yukleniyor && !hata && <Yukleniyor metin="Hazırlanıyor…" />}
 
         {/* ---------------- Yoklama */}
         {bolum === 'yoklama' && gt && (

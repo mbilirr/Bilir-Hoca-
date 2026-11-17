@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { createPortal } from 'react-dom';
 import { ArrowRight, Phone, Plus } from 'lucide-react';
 import { dataService } from '../../services/dataService';
@@ -760,7 +761,11 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
       )
     : null;
 
-  const hataYazi = [dersHata, planHata].filter(Boolean);
+  // Aşama 305: her hata kendi bölümünü yeniden okur
+  const hataYazi = [
+    { h: dersHata, tekrar: okuDers },
+    { h: planHata, tekrar: okuPlan },
+  ].filter((x) => !!x.h);
 
   return (
     <AnaSayfaKabuk currentTeacher={currentTeacher} unreadMessages={unreadMessages} onNavigate={onNavigateTab} tema="odak" sinif="ak-rhb" overlay={katman}>
@@ -794,9 +799,10 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
         </div>
       </div>
 
-      {hataYazi.map((h) => (
+      {hataYazi.map(({ h, tekrar }) => (
         <p key={h} className="od-err" role="alert">
           {h}
+          <TekrarDugmesi onTekrar={tekrar} />
         </p>
       ))}
 

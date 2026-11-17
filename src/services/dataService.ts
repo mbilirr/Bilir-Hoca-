@@ -7722,7 +7722,8 @@ class DataService {
       const toast = document.createElement('div');
       toast.id = 'dataservice-error-toast';
       toast.className =
-        'fixed top-5 right-5 z-50 max-w-md bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2.5 border border-rose-500 animate-in slide-in-from-top-2 text-xs font-semibold';
+        // Aşama 305: sitenin hata rengi (tema jetonu); eski sabit gül kırmızısı yerine
+        'fixed top-5 right-5 z-50 max-w-md bg-danger text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs font-semibold';
       // GÜVENLİK: mesaj (sunucudan gelen hata metnini içerebilir) HTML olarak değil düz metin olarak eklenir
       const svgNs = 'http://www.w3.org/2000/svg';
       const icon = document.createElementNS(svgNs, 'svg');

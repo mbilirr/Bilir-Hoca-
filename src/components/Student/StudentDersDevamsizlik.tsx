@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { UserX } from 'lucide-react';
 import { cx } from '../ui/kit';
+import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { Devamsizligim, GUN_KISA, YOKLAMA_ETIKET, YoklamaDurum, devamsizligim, isoGun, tarihUzun } from '../../services/dersService';
 
 // ============================================================================
@@ -22,6 +23,8 @@ export const StudentDersDevamsizlik: React.FC = () => {
   const [hata, setHata] = useState<string | null>(null);
   const [tumu, setTumu] = useState(false);
 
+  // Aşama 305: "Tekrar dene" okumayı yeniden başlatır
+  const [deneme, setDeneme] = useState(0);
   useEffect(() => {
     let canli = true;
     devamsizligim()
@@ -33,10 +36,22 @@ export const StudentDersDevamsizlik: React.FC = () => {
     return () => {
       canli = false;
     };
-  }, []);
+  }, [deneme]);
 
-  if (v === undefined) return <p className="text-xs text-muted">Ders devamsızlığı okunuyor…</p>;
-  if (hata) return <p data-ders-hata role="alert" className="text-xs font-semibold text-danger-fg">{hata}</p>;
+  if (v === undefined) return <Yukleniyor metin="Ders devamsızlığı okunuyor…" />;
+  if (hata)
+    return (
+      <div data-ders-hata>
+        <YuklemeHatasi
+          mesaj={hata}
+          onTekrar={() => {
+            setHata(null);
+            setV(undefined);
+            setDeneme((n) => n + 1);
+          }}
+        />
+      </div>
+    );
   const s = v?.sayilar || {};
   const toplam = (s.present || 0) + (s.absent || 0) + (s.late || 0) + (s.excused || 0);
   if (!v || toplam === 0) return null;

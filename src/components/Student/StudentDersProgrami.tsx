@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from '../ui/kit';
+import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import {
   GUN_ADLARI,
   OgrenciProgram,
@@ -94,7 +95,7 @@ export const StudentDersProgrami: React.FC = () => {
           )}
         </div>
       </div>
-      {hata && <p className="text-xs font-semibold text-danger-fg">{hata}</p>}
+      {hata && <YuklemeHatasi mesaj={hata} onTekrar={yukle} />}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {gunler.map((t) => {

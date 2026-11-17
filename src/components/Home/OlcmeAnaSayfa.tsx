@@ -8,6 +8,7 @@ import { gradeOf } from '../../lib/teacherGrades';
 import { setQuickFocus } from '../../lib/quickFocus';
 import { AkSheet, AnaSayfaKabuk, akSelam } from './AnaSayfaKabuk';
 import './kalanAnaSayfa.css';
+import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 
 // ============================================================================
 // Aşama 253: ÖLÇME VE DEĞERLENDİRME ANA SAYFASI (taslak: kalan-roller.html › Ölçme, Odak renkleri)
@@ -544,7 +545,12 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
         )}
       </div>
 
-      {hata && <p className="od-err">{hata}</p>}
+      {hata && (
+        <p className="od-err" role="alert">
+          {hata}
+          <TekrarDugmesi onTekrar={oku} />
+        </p>
+      )}
 
       {/* ===== Son deneme ===== */}
       {can.deneme && son && hero && (

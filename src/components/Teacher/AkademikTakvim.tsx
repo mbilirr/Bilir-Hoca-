@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarRange, Check, Download, FileSpreadsheet, MapPin, Mic2, Plus, Trash2, Upload } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Panel, Segmented, StatCard, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from './FormParts';
 import { appConfirm } from '../../lib/appDialog';
 import { dataService } from '../../services/dataService';
@@ -246,7 +247,7 @@ export const AkademikTakvim: React.FC = () => {
         </div>
 
         {yukleniyor ? (
-          <p className="p-5 text-xs text-muted">Takvim yükleniyor…</p>
+          <Yukleniyor metin="Takvim yükleniyor…" className="p-5" />
         ) : !gorunen.length ? (
           <EmptyState
             icon={CalendarRange}

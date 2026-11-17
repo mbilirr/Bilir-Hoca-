@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarPlus, Info } from 'lucide-react';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import type { Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { addDaysYmd, addPlanItem, dateOfDay, loadPlan, planDayName, sendPlan, shortDayLabel, weekRangeLabel, weekStartOf, type StudyPlan } from '../../services/studyPlanService';
@@ -239,7 +240,7 @@ export const PlanaAktarModal: React.FC<{
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted">Plan okunuyor…</p>
+          <Yukleniyor metin="Plan okunuyor…" />
         ) : (
           <div className="space-y-2">
             {rows.map((r, i) => {

@@ -1152,3 +1152,32 @@ html[data-scrolling] .animate-beacon::after {
     animation: none;
   }
 }
+
+/* Aşama 305: "Yükleniyor" yazısı kısa yüklemelerde yanıp sönmesin; 250 ms sonra yumuşakça belirir (yeri baştan ayrılır) */
+@keyframes durum-belir {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.durum-gecikmeli {
+  animation: durum-belir 200ms ease-out 250ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .durum-gecikmeli { animation-duration: 1ms; }
+}
+/* Aşama 305: dar yerlerde (ana sayfa kartları) hata yazısının yanındaki "Tekrar dene" */
+.durum-tekrar {
+  margin-left: 0.5em;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.durum-tekrar:hover { opacity: 0.8; }
+.durum-tekrar:disabled { cursor: progress; opacity: 0.6; text-decoration: none; }
+.durum-tekrar:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 0.25em; }
