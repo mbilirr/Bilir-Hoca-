@@ -38,13 +38,14 @@ import {
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery, passwordRecoveryLinkReady } from '../lib/supabase';
 import { sifreSorunu, type SifreKisi } from '../lib/sifreKurali';
 import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
+// Aşama 286: e-posta şablonları yalnız bildirimService üzerinden kullanılır (generateStudentWelcomeEmail hiç kullanılmıyordu)
 import {
-  generateHomeworkEmail,
-  generateEtutEmail,
-  generateStudentWelcomeEmail,
-  formatDueDateTurkish,
-  formatEtutDateTurkish,
-} from '../lib/emailTemplates';
+  odevAlicilari,
+  etutAlicilari,
+  odevBildirimleriHazirla,
+  etutBildirimleriHazirla,
+  type HazirBildirimler,
+} from './bildirimService';
 import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
 import { detectSchoolLevelFromGrade, getStudentQuestionSubjects } from '../constants/schoolConstants';
 import { subjectsForBranch, normalizeSubject, targetSubjectList, targetSubjectMatcher, sameTargetSubjects, sameSubjectName } from '../lib/subjects';
@@ -11596,179 +11597,31 @@ class DataService {
     this.notify();
   }
 
+  // Aşama 286: bildirimlerin (ve içindeki e-posta önizlemesinin) HAZIRLANMASI bildirimService.ts'e taşındı;
+  // burada yalnız sonuç uygulanır (listeye ekleme, buluta yazma, saklama, tarayıcı bildirimi). Davranış aynı.
   public dispatchHomeworkNotificationsAndEmails(hw: Homework): number {
-    let targetStudents: Student[] = [];
-    if (hw.assignedTo === 'all') {
-      if (hw.targetClassIds && hw.targetClassIds.length > 0) {
-        targetStudents = this.students.filter((s) => hw.targetClassIds!.includes(s.classId));
-      } else {
-        targetStudents = [...this.students];
-      }
-    } else if (Array.isArray(hw.assignedTo)) {
-      targetStudents = this.students.filter((s) => (hw.assignedTo as string[]).includes(s.id));
-    }
-
-    const nowIso = new Date().toISOString();
-    let sentCount = 0;
-
-    const cloudNotifs: StudentNotification[] = [];
-    targetStudents.forEach((student) => {
-      const emailContent = generateHomeworkEmail({
-        studentName: student.name,
-        studentEmail: student.email || '',
-        teacherName: hw.createdByName || 'Öğretmen',
-        subject: hw.subject,
-        title: hw.title,
-        description: hw.description,
-        dueDate: hw.dueDate,
-        outcomes: hw.outcomes || hw.learningOutcomes || [],
-        resourcesCount: hw.resources?.length || 0,
-        attachmentUrl: hw.attachmentUrl,
-      });
-
-      const emailLog: SentEmailLog = {
-        id: `email-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        recipientEmail: student.email || '',
-        recipientName: student.name,
-        recipientRole: 'student',
-        studentId: student.id,
-        type: 'homework_assigned',
-        subject: emailContent.subject,
-        htmlContent: emailContent.html,
-        textContent: emailContent.text,
-        sentAt: nowIso,
-        status: 'delivered',
-        sourceId: hw.id,
-        sourceTitle: hw.title,
-        teacherName: hw.createdByName || 'Öğretmen',
-      };
-      void emailLog; // Aşama 9: gerçek e-postalar sunucudan gider (mail_log); burada sahte "gönderildi" kaydı tutulmaz
-
-      const notif: StudentNotification = {
-        id: `notif-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        studentId: student.id,
-        type: 'new_homework',
-        title: `Yeni Ödev: ${hw.subject} - ${hw.title}`,
-        message: `${hw.createdByName || 'Öğretmeniniz'} yeni bir ödev tanımladı. Son teslim tarihi: ${formatDueDateTurkish(hw.dueDate)}`,
-        sourceId: hw.id,
-        sourceTitle: hw.title,
-        teacherName: hw.createdByName || 'Öğretmen',
-        createdAt: nowIso,
-        read: false,
-        linkTab: 'homework',
-        emailSent: false,
-        emailRecipient: student.email,
-        emailDetails: {
-          subject: emailContent.subject,
-          bodyHtml: emailContent.html,
-          sentAt: nowIso,
-        },
-      };
-      this.studentNotifications.unshift(notif);
-      cloudNotifs.push(notif);
-      sentCount++;
-    });
-    // Aşama 45: bildirim öğrencinin Bildirim Merkezi'ne de gider (yalnızca öğretmenin erişebildiği öğrenciler)
-    this.pushVisibleStudentNotifs(cloudNotifs);
-
-    saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
-    saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
-
-    // Browser Notification chime
-    const session = this.getAuthSession();
-    if (session?.role === 'student' && targetStudents.some((s) => s.id === session.user.id)) {
-      sendBrowserNotification(
-        `📚 Yeni Ödev: ${hw.subject}`,
-        `"${hw.title}" başlıklı yeni ödeviniz tanımlandı. Son teslim: ${formatDueDateTurkish(hw.dueDate)}`
-      );
-    }
-
-    return sentCount;
+    return this.hazirBildirimleriUygula(odevBildirimleriHazirla(hw, odevAlicilari(hw, this.students)));
   }
 
   public dispatchEtutNotificationsAndEmails(etut: Etut): number {
-    let targetStudents: Student[] = [];
-    if (etut.assignedStudentIds === 'all') {
-      targetStudents = [...this.students];
-    } else if (Array.isArray(etut.assignedStudentIds)) {
-      targetStudents = this.students.filter((s) => etut.assignedStudentIds.includes(s.id));
-    }
+    return this.hazirBildirimleriUygula(etutBildirimleriHazirla(etut, etutAlicilari(etut, this.students)));
+  }
 
-    const nowIso = new Date().toISOString();
-    let sentCount = 0;
-
-    const cloudNotifs: StudentNotification[] = [];
-    targetStudents.forEach((student) => {
-      const emailContent = generateEtutEmail({
-        studentName: student.name,
-        studentEmail: student.email || '',
-        teacherName: etut.teacherName || 'Öğretmen',
-        subject: etut.subject,
-        topic: etut.topic,
-        date: etut.date,
-        time: etut.time,
-        duration: etut.duration,
-        location: etut.location,
-        notes: etut.notes,
-        teacherFeedback: etut.teacherFeedback,
-      });
-
-      const emailLog: SentEmailLog = {
-        id: `email-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        recipientEmail: student.email || '',
-        recipientName: student.name,
-        recipientRole: 'student',
-        studentId: student.id,
-        type: 'etut_assigned',
-        subject: emailContent.subject,
-        htmlContent: emailContent.html,
-        textContent: emailContent.text,
-        sentAt: nowIso,
-        status: 'delivered',
-        sourceId: etut.id,
-        sourceTitle: etut.topic,
-        teacherName: etut.teacherName || 'Öğretmen',
-      };
-      void emailLog; // Aşama 9: gerçek e-postalar sunucudan gider (mail_log); burada sahte "gönderildi" kaydı tutulmaz
-
-      const notif: StudentNotification = {
-        id: `notif-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        studentId: student.id,
-        type: 'new_etut',
-        title: `Yeni Etüt: ${etut.subject} - ${etut.topic}`,
-        message: `${formatEtutDateTurkish(etut.date)} saat ${etut.time}'de (${etut.duration} dk), ${etut.location} dersliğinde etüdünüz planlandı.`,
-        sourceId: etut.id,
-        sourceTitle: etut.topic,
-        teacherName: etut.teacherName || 'Öğretmen',
-        createdAt: nowIso,
-        read: false,
-        linkTab: 'etuts',
-        emailSent: false,
-        emailRecipient: student.email,
-        emailDetails: {
-          subject: emailContent.subject,
-          bodyHtml: emailContent.html,
-          sentAt: nowIso,
-        },
-      };
-      this.studentNotifications.unshift(notif);
-      cloudNotifs.push(notif);
-      sentCount++;
-    });
-    this.pushVisibleStudentNotifs(cloudNotifs);
+  private hazirBildirimleriUygula(h: HazirBildirimler): number {
+    // en yeni üstte: her bildirim sırayla en başa eklenir (eskiden döngüde unshift; sıra aynı)
+    for (const n of h.bildirimler) this.studentNotifications.unshift(n);
+    // Aşama 45: bildirim öğrencinin Bildirim Merkezi'ne de gider (yalnızca öğretmenin erişebildiği öğrenciler)
+    this.pushVisibleStudentNotifs(h.bildirimler);
 
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
 
+    // Tarayıcı bildirimi: yalnız oturumdaki öğrenci alıcılardan biriyse
     const session = this.getAuthSession();
-    if (session?.role === 'student' && targetStudents.some((s) => s.id === session.user.id)) {
-      sendBrowserNotification(
-        `📅 Yeni Etüt: ${etut.subject}`,
-        `"${etut.topic}" konulu etüdünüz ${etut.date} saat ${etut.time}'de planlandı.`
-      );
+    if (session?.role === 'student' && h.aliciIdleri.has(session.user.id)) {
+      sendBrowserNotification(h.tarayici.baslik, h.tarayici.metin);
     }
-
-    return sentCount;
+    return h.bildirimler.length;
   }
 
   /** Öğretmen tarafı: erişebildiği öğrencilerin bildirimlerini buluta yazar ve yereldeki kayıtları "bulutta" işaretler */
