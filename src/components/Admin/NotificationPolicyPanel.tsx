@@ -459,7 +459,7 @@ const SmsStatusBox: React.FC = () => {
           {info && (
             <div className="rounded-lg border border-line bg-surface p-2 text-[11px] space-y-1">
               <p className="text-fg">
-                <b>Kalan kontör:</b> {info.credit !== null ? String(info.credit) : 'okunamadı (aşağıdaki ham cevaba bakın)'}
+                <b>Kalan kontör:</b> {info.credit !== null ? (typeof info.credit === 'number' ? info.credit.toLocaleString('tr-TR') : String(info.credit)) : 'okunamadı (aşağıdaki ham cevaba bakın)'}
               </p>
               <p className="text-fg">
                 <b>Gönderen başlığı{st.sender ? ` (${st.sender})` : ''}:</b>{' '}

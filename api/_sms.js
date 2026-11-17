@@ -170,18 +170,34 @@ export async function providerInfo(e = smsEnv()) {
   try {
     const k = await goldPost('kredi/get', {}, e);
     out.creditRaw = k.raw;
+    // Aşama 297: Gold Mesaj kontörü "result" alanında yazı olarak verir: {"status":"ok","error":"","result":"9896"}.
+    // Eskiden yalnız adı kredi/credit/bakiye/balance olan alan aranıyordu; "result" tanınmadığı için "okunamadı" görünüyordu.
+    // Önce bu bilinen biçim, sonra eski ad araması (sağlayıcı biçimi değiştirirse). Sayı "9.896" / "9896,50" gibi de gelebilir.
+    const sayi = (v) => {
+      if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+      if (typeof v !== 'string') return undefined;
+      let t = v.trim().replace(/\s/g, '');
+      if (!/^-?[\d.,]+$/.test(t) || !/\d/.test(t)) return undefined;
+      // Türkçe yazım: nokta binlik, virgül ondalık ("9.896" / "9.896,50"); virgül yoksa tek noktalı 3 haneli kuyruk binliktir
+      if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+      else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+      const n = Number(t);
+      return Number.isFinite(n) ? n : undefined;
+    };
     const find = (o, depth = 0) => {
       if (!o || typeof o !== 'object' || depth > 3) return undefined;
       for (const [key, val] of Object.entries(o)) {
-        if (/kredi|credit|bakiye|balance/i.test(key) && (typeof val === 'number' || (typeof val === 'string' && /^-?\d+([.,]\d+)?$/.test(val.trim())))) return val;
+        if (/kredi|credit|bakiye|balance|result|sonuc/i.test(key) && sayi(val) !== undefined) return sayi(val);
         const inner = typeof val === 'object' ? find(val, depth + 1) : undefined;
         if (inner !== undefined) return inner;
       }
       return undefined;
     };
-    const c = find(k.data);
+    const d = k.data && typeof k.data === 'object' ? k.data : null;
+    const v = goldVerdict(k);
+    const c = v.verdict === 'fail' ? undefined : find(d);
     out.credit = c === undefined ? null : c;
-    if (!k.httpOk) out.error = `Kontör sorgusu HTTP ${k.status}`;
+    if (v.verdict === 'fail') out.error = `Kontör sorgusu: ${v.message}`;
   } catch (err) {
     out.error = `Kontör sorgulanamadı: ${(err && err.name === 'AbortError' ? 'zaman aşımı' : (err && err.message) || err)}`.slice(0, 200);
   }
