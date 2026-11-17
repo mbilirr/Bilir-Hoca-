@@ -124,3 +124,41 @@ export function loadMyKurumCache(): Partial<MyKurumState> {
     return {};
   }
 }
+
+// Aşama 319: kurum bilgisi RPC yanıtının çözülmesi (dataService.ts'ten kelimesi kelimesine)
+export function parseKurumRpc(data: any, key: string): any {
+  let d: any = data;
+  if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && key in d[0] ? d[0][key] : d[0];
+  else if (d && typeof d === 'object' && key in d && typeof d[key] === 'object') d = d[key];
+  return d || {};
+}
+
+export function kurumStateFrom(d: any, logo: string): MyKurumState {
+  return {
+    loaded: true,
+    supported: true,
+    head: !!d.head,
+    kurumId: d.kurum_id || null,
+    kurumName: d.kurum_name || '',
+    kurumAdmin: !!d.kurum_admin,
+    modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
+    grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
+    rolesEnabled: d.roles_enabled === true,
+    roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
+    roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
+    logo,
+    hasMail: d.has_mail === true,
+    sections: {
+      allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
+      deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
+    },
+    grantCred: typeof d.grant_cred === 'boolean' ? d.grant_cred : null, // Aşama 158 (my_kurum_state)
+    grantMove: typeof d.grant_move === 'boolean' ? d.grant_move : null, // Aşama 161 (my_kurum_state)
+    tur: d.kurum_tur === 'bireysel' ? 'bireysel' : 'kurum', // Aşama 258
+  };
+}
+
+/** Görünürlüğü belirleyen kurum bilgileri (rol, bölüm izni, modül, rol anahtarı, yönetici) */
+export function kurumAccessKey(k: MyKurumState): string {
+  return JSON.stringify([k.head, k.kurumId, k.kurumAdmin, k.rolesEnabled, [...(k.roles || [])].sort(), k.sections, k.modules, k.grantedClassIds, k.roleSettings, k.tur]);
+}

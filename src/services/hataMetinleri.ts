@@ -4,6 +4,7 @@
 // Kod dataService.ts'ten KELİMESİ KELİMESİNE taşındı (yalnız başlarına "export" eklendi); davranış aynı.
 // ============================================================================
 import { robotHatasiMi, ROBOT_RED } from '../lib/robotKoruma'; // Aşama 309
+import type { ClassGroup } from '../types';
 
 // Supabase Auth'taki en kısa şifre (DataService.MIN_PASSWORD_LENGTH bunu gösterir)
 export const MIN_PASSWORD_LENGTH = 6;
@@ -90,4 +91,32 @@ export function isEtutCommentColumnMissing(error: any): boolean {
   const code = String(error.code || '');
   const msg = String(error.message || '');
   return (/42703|PGRST204/.test(code) || /column|schema cache/i.test(msg)) && /teacher_feedback|user_notes|attendance_taken_by/.test(msg);
+}
+
+// Aşama 319: sütun / tablo kurulu değil hatalarının tanınması (dataService.ts'ten kelimesi kelimesine)
+export function isMissingGenderColumn(error: any): boolean {
+  const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
+  return /\bgender\b/i.test(msg) && /PGRST204|42703|column|schema cache|permission/i.test(msg);
+}
+
+export function isMissingParentColumn(error: any): boolean {
+  const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
+  return /\bparents\b/i.test(msg) && /PGRST204|42703|column|schema cache/i.test(msg);
+}
+
+export function isMissingDescriptionColumn(error: any): boolean {
+  const code = String(error?.code || '');
+  const msg = String(error?.message || '');
+  return (code === 'PGRST204' || code === '42703' || /column/i.test(msg)) && /description/i.test(msg);
+}
+
+// ---------------------------------------------------------------------------
+// Aşama 45: Öğrenci bildirimlerinin bulut eşitlemesi (37 numaralı SQL; yoksa eskisi gibi yalnızca tarayıcı)
+// ---------------------------------------------------------------------------
+export function isMissingNotifTable(err: any): boolean {
+  return /student_notifications|does not exist|schema cache|42P01|PGRST205/i.test(`${err?.code || ''} ${err?.message || ''}`);
+}
+
+export function duplicateClassMessage(existing: ClassGroup, year: string): string {
+  return `"${existing.name}" sınıfı ${year || existing.academicYear} eğitim yılı için zaten kayıtlı. Aynı sınıf ikinci kez oluşturulamaz; mevcut sınıfı düzenleyebilir veya farklı bir şube seçebilirsiniz.`;
 }
