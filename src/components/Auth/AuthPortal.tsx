@@ -315,13 +315,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // Kullanıcı adı + şifreyle doğrular. Başarılıysa oturum nesnesi, hatalı bilgide null döner.
-  // Aşama 295: "Bu cihazda açık kal" işaretliyse oturum cihaza yazılır (30 gün); giriş tutmazsa ya da hesap sistem sahibiyse
-  // (iki adımlı giriş, 294) cihazda hiçbir şey bırakılmaz.
+  // Aşama 295: "Bu cihazda açık kal" işaretliyse oturum cihaza yazılır (30 gün); giriş tutmazsa cihazda hiçbir şey bırakılmaz.
+  // Aşama 326: sistem sahibi hesabı da dahil (iki adımlı doğrulama kodu ilk girişte yine sorulur, sonra 30 gün sorulmaz).
   const authenticate = async (role: UserRole, cleanUser: string, cleanPass: string): Promise<AuthSession | null> => {
     acikKalGiris(acikKal);
     try {
       const session = await kimlikDogrula(role, cleanUser, cleanPass);
-      if (!session || (session.role === 'teacher' && dataService.sistemSahibiHesabi(session.user as Teacher))) acikKalVazgec();
+      if (!session) acikKalVazgec();
       return session;
     } catch (e) {
       acikKalVazgec();
@@ -650,6 +650,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </span>
                     <span className="text-[15px] font-bold text-fg">{isLoading ? 'Parmak izi bekleniyor...' : 'Parmak izi ile giriş'}</span>
                   </button>
+                  {/* Aşama 326: parmak izi ekranında da "açık kal" seçeneği (önceden yalnız şifre formunda vardı) */}
+                  <label
+                    className="mx-auto flex w-fit items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                    id="acik-kal-secimi-bio"
+                    title="Yalnız kendi cihazınızda işaretleyin: 30 gün boyunca şifre sorulmaz"
+                  >
+                    <input type="checkbox" checked={acikKal} onChange={(e) => setAcikKal(e.target.checked)} className="auth-check" />
+                    <span>Bu cihazda açık kal</span>
+                  </label>
                   <div className="flex items-center justify-between text-xs text-muted">
                     <button type="button" id="biometric-use-password" onClick={goPasswordLogin} className="auth-link-btn">
                       Şifreyle gir
@@ -756,7 +765,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       />
                       <span>Beni hatırla</span>
                     </label>
-                    {/* Aşama 295: oturum bu cihazda 30 gün açık kalır (sistem sahibi hesabında uygulanmaz) */}
+                    {/* Aşama 295: oturum bu cihazda 30 gün açık kalır (326: sistem sahibi dahil) */}
                     <label
                       className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
                       id="acik-kal-secimi"

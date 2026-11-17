@@ -1,7 +1,7 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { dataService } from '../services/dataService';
 import type { Teacher } from '../types';
-import { acikKalSekmesi, acikKalVazgec } from './acikKal';
+import { acikKalSekmesi, acikKalVazgec, acikKalGeriAl } from './acikKal';
 import { robotJetonu } from './robotKoruma'; // Aşama 309
 
 // ============================================================================
@@ -208,7 +208,9 @@ function perdeKapat(): void {
 
 async function switchTab(tokens: { access_token: string; refresh_token: string }, next: GecisState | null): Promise<never> {
   perdeAc(); // Aşama 269: setSession'dan önce (önceki hesabın sayfası bir an bile görünmesin)
-  acikKalVazgec(); // Aşama 295: hesap geçişinde "bu cihazda açık kal" biter; geçilen hesap eskisi gibi yalnız bu sekmede yaşar
+  acikKalVazgec(true); // Aşama 295: hesap geçişinde "bu cihazda açık kal" biter; geçilen hesap eskisi gibi yalnız bu sekmede yaşar
+  // Aşama 326: kendi hesabına dönüşte (next = null) kalıcı oturum cihaza yeniden kurulur; yazılacak oturum cihaza gider
+  if (next === null) acikKalGeriAl();
   const { data, error } = await supabase.auth.setSession(tokens);
   if (error) {
     perdeKapat();
