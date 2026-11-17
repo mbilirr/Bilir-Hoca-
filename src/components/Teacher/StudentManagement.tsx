@@ -48,6 +48,7 @@ import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { ogrenciGuncellendi } from '../../lib/geriAl'; // Aşama 306
 import { bugunTarih, gecerliDogumTarihi, yasHesapla } from '../../lib/dogumTarihi'; // Aşama 324
+import { kayitliSube, siniftanSube, subeAdi, SUBE_EN_UZUN } from '../../lib/subeAdi'; // Aşama 325
 import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { canMoveGrantedStudent, useMyGrantMove } from '../../lib/grantMove'; // Aşama 161
@@ -83,6 +84,7 @@ import {
   extractStudentRows,
   emailIssue,
   normalizeTurkishPhone,
+  trFold, // Aşama 325
   PHONE_ERROR,
   currentAcademicYear,
   normalizeAcademicYear,
@@ -238,8 +240,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Aşama 69: ŞUBESİZ SINIF — öğrenci şubeye bağlı olmadan yalnızca sınıf düzeyinde (ör. "8. Sınıf") durabilir.
   // Şube seçim kutusunda "Şubesiz" seçeneğinin değeri; sınıf kaydında şube boş ('') saklanır.
   const NO_BRANCH = '__none__';
-  const branchValue = (b: string) => (b === NO_BRANCH ? '' : b);
-  const isNoBranchClass = (c: ClassGroup) => !String(c.branch || '').replace(/şube/gi, '').trim();
+  // Aşama 325: şube harf (A) ya da kelime (ZÜMRÜT) olabilir; formda yazılan "Şubesiz" de şubesiz sayılır
+  const subesizMi = (b: string) => b === NO_BRANCH || trFold(b).replace(/[^a-z]/g, '') === 'subesiz';
+  const branchValue = (b: string) => (subesizMi(b) ? '' : subeAdi(b));
+  // Sınıfın şubesi: kayıtlı şube (yer tutucu "Genel" sayılmaz), yoksa sınıf adındaki ("5/JÜPİTER")
+  const sinifSubesi = (c: ClassGroup) => kayitliSube(c.branch) || siniftanSube(c.name).branch || '';
+  const isNoBranchClass = (c: ClassGroup) => !sinifSubesi(c);
+  // Şube önerileri: A–H ve okulda kullanılan kelime şubeler (ZÜMRÜT, VENÜS…), alfabetik
+  const subeOnerileri = Array.from(new Set([...BRANCH_OPTIONS.map((b) => b.label), ...classes.map(sinifSubesi).filter(Boolean)])).sort((a, b) =>
+    a.length - b.length || a.localeCompare(b, 'tr')
+  );
   const gradeNumOf = (c: ClassGroup) => (String(c.gradeLevel || '').match(/\b(1[0-2]|[1-9])\b/) || String(c.name || '').match(/\b(1[0-2]|[1-9])\b/) || [])[1] || '';
   // Öğrenci formunda: henüz şubesiz sınıfı olmayan sınıf düzeyleri için "8. Sınıf (şubesiz)" seçeneği;
   // seçilip kaydedilince şubesiz sınıf kendiliğinden açılır (yalnızca sınıf açma yetkisi olanlarda)
@@ -1204,8 +1214,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setClassFormError('Lütfen Sınıf seçimini yapınız.');
       return;
     }
-    if (!classBranch) {
-      setClassFormError('Lütfen Şube seçimini yapınız (şubesiz sınıf için "Şubesiz" seçin).');
+    if (!classBranch.trim()) {
+      setClassFormError('Lütfen şubeyi yazınız ya da seçiniz (şubesiz sınıf için "Şubesiz" seçin).');
+      return;
+    }
+    // Aşama 325: şube tek harf ya da tek kelime (Türkçe harfler; rakam ve işaret yok)
+    if (!subesizMi(classBranch) && !subeAdi(classBranch)) {
+      setClassFormError(`Şube yalnızca harflerden oluşmalı (en çok ${SUBE_EN_UZUN} harf, boşluksuz): örn. A ya da ZÜMRÜT.`);
       return;
     }
     const academicYear = normalizeAcademicYear(classAcademicYear);
@@ -1276,7 +1291,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               phone: normalizeTurkishPhone(std.phone).value,
               schoolLevel: classSchoolLevel || undefined,
               gradeLevel: classGradeLevel,
-              branch: classBranch,
+              branch: branchValue(classBranch), // Aşama 325
             }))
           );
         } catch (err: any) {
@@ -1346,7 +1361,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     setClassSchoolLevel(detectedSchool);
     setClassGradeLevel(matchedGrade);
-    setClassBranch(isNoBranchClass(cls) ? NO_BRANCH : cls.branch.replace(/şube\s*/i, '').trim());
+    setClassBranch(isNoBranchClass(cls) ? NO_BRANCH : sinifSubesi(cls)); // Aşama 325
     setClassAcademicYear(cls.academicYear || currentAcademicYear());
     setClassDescription(cls.description || '');
     setClassFormError(null);
@@ -2025,7 +2040,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             {classes.map((cls) => {
               const classStudents = students.filter((s) => s.classId === cls.id);
               const isOpen = expandedClassId === cls.id;
-              const branchText = isNoBranchClass(cls) ? 'Şubesiz' : `Şube ${cls.branch.replace(/şube\s*/i, '').trim()}`;
+              const branchText = isNoBranchClass(cls) ? 'Şubesiz' : `Şube ${sinifSubesi(cls)}`; // Aşama 325
               return (
                 <ExpandableStrip
                   key={cls.id}
@@ -2769,25 +2784,38 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <label htmlFor="class-form-branch" className={classLabelCls}>
                 Şube
               </label>
-              <select
+              {/* Aşama 325: şube harf seçilir ya da kelime yazılır (ZÜMRÜT, VENÜS); "Şubesiz" de listede */}
+              <input
+                autoComplete="off"
                 id="class-form-branch"
+                type="text"
                 required
-                value={classBranch}
+                list="class-form-branch-list"
+                maxLength={SUBE_EN_UZUN + 6}
+                placeholder="A ya da ZÜMRÜT"
+                value={classBranch === NO_BRANCH ? 'Şubesiz' : classBranch}
                 onChange={(e) => {
-                  const newBranch = e.target.value;
+                  const v = e.target.value;
+                  const newBranch = subesizMi(v) ? NO_BRANCH : v;
                   setClassBranch(newBranch);
                   setClassName(formatClassDisplayName('', branchValue(newBranch), classGradeLevel));
                 }}
-                className={cx(classCtrlCls, 'cursor-pointer')}
-              >
-                <option value="">Şube seçin</option>
-                {BRANCH_OPTIONS.map((b) => (
-                  <option key={b.id} value={b.label}>
-                    {b.label}
-                  </option>
+                onBlur={() => {
+                  // yazılan şube büyük harfe (Türkçe) çevrilir: "zümrüt" → "ZÜMRÜT"
+                  if (!subesizMi(classBranch) && subeAdi(classBranch)) setClassBranch(subeAdi(classBranch));
+                }}
+                aria-describedby="class-form-branch-hint"
+                className={cx(classCtrlCls, 'ui-combo uppercase placeholder:normal-case')}
+              />
+              <datalist id="class-form-branch-list">
+                {subeOnerileri.map((b) => (
+                  <option key={b} value={b} />
                 ))}
-                <option value={NO_BRANCH}>Şubesiz (yalnızca sınıf)</option>
-              </select>
+                <option value="Şubesiz">Yalnızca sınıf düzeyi</option>
+              </datalist>
+              <span id="class-form-branch-hint" className="sr-only">
+                Harf seçin ya da şube adını yazın; şubesiz sınıf için Şubesiz seçin.
+              </span>
             </div>
           </div>
 

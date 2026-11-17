@@ -311,7 +311,8 @@
   /* Aşama 280: BÜTÜN açılır listeler aynı modern görünümde: tarayıcının kendi oku yerine ince ok simgesi, sağda boşluk.
      Ortak SelectBox kendi okunu çizdiği için (appearance-none sınıfı) burada ayrı tutulur; çoklu seçim listesi hariç. */
   select.ui-input:not(.appearance-none):not([multiple]),
-  select.ui-field:not(.appearance-none):not([multiple]) {
+  select.ui-field:not(.appearance-none):not([multiple]),
+  input.ui-combo[list] {
     appearance: none;
     -webkit-appearance: none;
     padding-right: 2rem;
@@ -321,6 +322,13 @@
     background-size: 0.875rem;
     cursor: pointer;
     text-overflow: ellipsis;
+  }
+  /* Aşama 325: öneri listeli yazı kutusu (.ui-combo; ör. şube: harf seç ya da kelime yaz) seçim kutularıyla aynı okla görünür */
+  input.ui-combo[list]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+  }
+  input.ui-combo[list] {
+    cursor: text;
   }
   /* Aşama 211: açılır liste gibi çalışan düğmeler (öğrenci / öğretmen / ders seçiciler) de aynı 32 px */
   button.ui-input,

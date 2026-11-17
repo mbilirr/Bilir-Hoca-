@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure, StudentParent } from '../../types';
 import { cleanParents, extractParents, parentsSummary } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
+import { kayitliSube } from '../../lib/subeAdi'; // Aşama 325
 import { setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../constants/schoolConstants';
@@ -83,9 +84,7 @@ function classGradeBranch(c: ClassGroup): { grade?: number; branch?: string } {
   let grade = p.grade;
   let branch = p.branch;
   if (!grade && c.gradeLevel) grade = parseClassName(c.gradeLevel).grade;
-  if (!branch && c.branch && /^[A-Za-zÇĞİÖŞÜçğıöşü]$/.test(c.branch.replace(/şube/gi, '').trim())) {
-    branch = c.branch.replace(/şube/gi, '').trim();
-  }
+  if (!branch) branch = kayitliSube(c.branch) || undefined; // Aşama 325: şube harf ya da kelime
   return { grade, branch: branch ? trFold(branch) : undefined };
 }
 
@@ -130,7 +129,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
     const parsed = parseClassName(raw);
     if (parsed.grade && !parsed.branch && !parsed.rest) {
-      return { classId: '', className: raw, isNew: false, error: 'Şube eksik: sınıfı "8/A" gibi şubesiyle yazın' };
+      return { classId: '', className: raw, isNew: false, error: 'Şube eksik: sınıfı "8/A" ya da "5/ZÜMRÜT" gibi şubesiyle yazın' };
     }
 
     const key = normalizeClassKey(raw);
@@ -372,7 +371,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           try {
             const created = await dataService.addClass({
               name,
-              branch: parsed.branch || 'Genel',
+              branch: parsed.branch || '', // Aşama 325: şube okunamadıysa şubesiz ("Genel" yer tutucusu "5/G" gösteriliyordu)
               gradeLevel,
               schoolLevel: detectSchoolLevelFromGrade(gradeLevel || name),
               academicYear,

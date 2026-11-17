@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, RefreshCw, Shield
 import type { ClassGroup, Student, StudentParent } from '../../types';
 import { cleanParents, extractParents, mergeParents, parentsKey, parentsSummary } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
+import { kayitliSube } from '../../lib/subeAdi'; // Aşama 325
 import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { Modal, cx } from '../ui/kit';
@@ -125,9 +126,7 @@ function classGradeBranch(c: ClassGroup): { grade?: number; branch?: string } {
   let grade = p.grade;
   let branch = p.branch;
   if (!grade && c.gradeLevel) grade = parseClassName(c.gradeLevel).grade;
-  if (!branch && c.branch && /^[A-Za-zÇĞİÖŞÜçğıöşü]$/.test(c.branch.replace(/şube/gi, '').trim())) {
-    branch = c.branch.replace(/şube/gi, '').trim();
-  }
+  if (!branch) branch = kayitliSube(c.branch) || undefined; // Aşama 325: şube harf ya da kelime
   return { grade, branch: branch ? trFold(branch) : undefined };
 }
 

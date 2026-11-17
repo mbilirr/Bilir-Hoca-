@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { excelDogumTarihi } from './dogumTarihi'; // Aşama 324
+import { siniftanSube, subeAdi, SUBE_EN_UZUN } from './subeAdi'; // Aşama 325
 
 const TR_FOLD: Record<string, string> = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' };
 
@@ -418,7 +419,7 @@ export const CLASS_COLUMNS: Record<ClassField, ColumnSpec> = {
 // ----------------------------------------------------------------------------- Sınıf adı
 export interface ParsedClassName {
   grade?: number; // 1..12
-  branch?: string; // Büyük harf şube harfi (A, B, Ç ...)
+  branch?: string; // Büyük harf şube: harf (A, Ç) ya da kelime (ZÜMRÜT) — Aşama 325
   rest: string; // Şubeden sonra gelen ek (ör. "sayisal")
 }
 
@@ -431,19 +432,18 @@ export function parseClassName(raw?: string | null): ParsedClassName {
     .replace(/\s+/g, ' ')
     .trim();
   if (!folded) return { rest: '' };
-  const m = folded.match(/^(\d{1,2})(?: ([a-z]))?(?: (.*))?$/);
+  // Aşama 325: şube tek harf ya da kelime ("5/JÜPİTER", "6 Zümrüt"); eskiden yalnız tek harf şube sayılıyordu
+  const m = folded.match(/^(\d{1,2})(?: ([a-z]+))?(?: (.*))?$/);
   if (!m) return { rest: folded };
   const grade = parseInt(m[1], 10);
   if (!(grade >= 1 && grade <= 12)) return { rest: folded };
-  // Şube harfini orijinal yazımdan al (Ç, Ş gibi harfler kaybolmasın)
-  let branch: string | undefined;
-  if (m[2]) {
-    const orig = String(raw || '')
-      .replace(/şube(si)?|sınıf(ı)?/gi, ' ')
-      .match(/\d{1,2}[\s.\-/\\_–—]*([A-Za-zÇĞİÖŞÜçğıöşü])(?![A-Za-zÇĞİÖŞÜçğıöşü])/);
-    branch = (orig ? orig[1] : m[2]).toLocaleUpperCase('tr-TR');
+  if (m[2] === 'subesiz') return { grade, rest: (m[3] || '').trim() }; // "8. Sınıf (şubesiz)"
+  if (m[2] && m[2].length <= SUBE_EN_UZUN) {
+    // Şubeyi orijinal yazımdan al (Ç, Ş, Ü gibi harfler kaybolmasın)
+    const o = siniftanSube(raw);
+    return { grade, branch: o.branch || m[2].toLocaleUpperCase('tr-TR'), rest: (m[3] || '').trim() };
   }
-  return { grade, branch, rest: (m[3] || '').trim() };
+  return { grade, rest: [m[2], m[3]].filter(Boolean).join(' ').trim() };
 }
 
 // Sınıf karşılaştırma anahtarı: "8/A", "8-A", "8A", "8. Sınıf - A" -> "8a"; "12-A Sayısal" -> "12a sayisal";
@@ -457,13 +457,9 @@ export function normalizeClassKey(raw?: string | null): string {
   return trNormalizeHeader(raw);
 }
 
-// Şube hücresi: "A", "a", "Şube A", "A Şubesi" -> "A"; tek harf değilse '' döner
+// Şube hücresi: "A", "a", "Şube A", "A Şubesi" -> "A"; Aşama 325: kelime şube de ("zümrüt" -> "ZÜMRÜT"); geçersizse ''
 export function parseBranch(raw?: string | null): string {
-  const s = String(raw ?? '')
-    .replace(/şube(si)?|sube(si)?/gi, ' ')
-    .replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g, ' ')
-    .trim();
-  return /^[A-Za-zÇĞİÖŞÜçğıöşü]$/.test(s) ? s.toLocaleUpperCase('tr-TR') : '';
+  return subeAdi(raw);
 }
 
 // Eğitim yılı yazımını "2026-2027" biçimine getirir; geçersizse '' döner

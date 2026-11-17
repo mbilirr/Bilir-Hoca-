@@ -1,3 +1,4 @@
+import { kayitliSube, siniftanSube, subeAdi, SUBE_ONERILERI } from '../lib/subeAdi'; // Aşama 325
 export type SchoolLevelType = 'Ortaokul' | 'Lise';
 
 export const SCHOOL_LEVELS: { id: SchoolLevelType; label: string }[] = [
@@ -76,14 +77,8 @@ export function getSubjectsForSchoolLevel(schoolLevel: string): string[] {
   return ALL_SUBJECTS;
 }
 
-export const BRANCH_OPTIONS = [
-  { id: 'A', label: 'A' },
-  { id: 'B', label: 'B' },
-  { id: 'C', label: 'C' },
-  { id: 'D', label: 'D' },
-  { id: 'E', label: 'E' },
-  { id: 'F', label: 'F' },
-];
+// Aşama 325: şube önerileri (formda yazarak kelime şube de girilebilir: ZÜMRÜT, VENÜS…)
+export const BRANCH_OPTIONS = SUBE_ONERILERI.map((h) => ({ id: h, label: h }));
 
 export function getGradesForSchoolLevel(schoolLevel: string): string[] {
   if (schoolLevel === 'Ortaokul') {
@@ -177,14 +172,12 @@ export function formatClassDisplayName(
     if (m) gradeNum = m[1];
   }
 
-  let branchLetter = '';
-  if (branch) {
-    const cleanBranch = branch.replace(/şube/gi, '').trim();
-    const bm = cleanBranch.match(/([A-Za-zÇĞİÖŞÜçğiöşü])/);
-    if (bm) branchLetter = bm[1].toUpperCase();
-  }
+  // Aşama 325: şube tek harf (A) ya da kelime (ZÜMRÜT, VENÜS) olabilir. Eskiden yalnız ilk harf alınıyordu:
+  // "5/JÜPİTER" → "5/J", şubesi "Genel" yazılmış Excel sınıfı → "5/G". Artık şubenin tamamı yazılır.
+  // (\b Türkçe harfleri tanımadığı için kelime sonu "harf değil" bakışıyla bulunur.)
+  const branchLetter = kayitliSube(branch);
 
-  // If both grade number and branch letter are already identified
+  // If both grade number and branch are already identified
   if (gradeNum && branchLetter) {
     return `${gradeNum}/${branchLetter}`;
   }
@@ -200,22 +193,10 @@ export function formatClassDisplayName(
       return `${noBranch[1]}. Sınıf`;
     }
 
-    // Already in standard format like "8/A" or "11/B"
-    const slashMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*\/\s*([A-Za-zÇĞİÖŞÜçğiöşü])\b/);
-    if (slashMatch) {
-      return `${slashMatch[1]}/${slashMatch[2].toUpperCase()}`;
-    }
-
-    // Patterns like "8.sınıf-Şube A", "8. Sınıf - Şube A", "8. Sınıf - A", "8 - A", "8-A", "8 - Şube A"
-    const hyphenMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*(?:\.|\.sınıf|\. sınıf|\s*sınıf)?\s*[-–—]\s*(?:şube\s*)?([A-Za-zÇĞİÖŞÜçğiöşü])\b/i);
-    if (hyphenMatch) {
-      return `${hyphenMatch[1]}/${hyphenMatch[2].toUpperCase()}`;
-    }
-
-    // Pattern like "8A", "11B"
-    const compactMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*([A-Za-zÇĞİÖŞÜçğiöşü])\b/);
-    if (compactMatch) {
-      return `${compactMatch[1]}/${compactMatch[2].toUpperCase()}`;
+    // "8/A", "5/JÜPİTER", "8-A", "8 - Şube A", "8. Sınıf - A", "8A", "5 Zümrüt", "12-A Sayısal" (ek atılır)
+    const p = siniftanSube(trimmed);
+    if (p.grade && p.branch) {
+      return `${p.grade}/${p.branch}`;
     }
 
     // If className has the grade number and branch was given separately
@@ -224,12 +205,10 @@ export function formatClassDisplayName(
       return `${numOnly[1]}/${branchLetter}`;
     }
 
-    // If gradeNum was found from gradeLevel and className has branch letter
+    // If gradeNum was found from gradeLevel and className is only the branch ("A", "Zümrüt")
     if (gradeNum) {
-      const bFromClass = trimmed.match(/(?:şube\s*)?([A-Za-zÇĞİÖŞÜçğiöşü])\b/i);
-      if (bFromClass) {
-        return `${gradeNum}/${bFromClass[1].toUpperCase()}`;
-      }
+      const yalniz = subeAdi(trimmed);
+      if (yalniz && yalniz !== 'GENEL') return `${gradeNum}/${yalniz}`;
       return `${gradeNum}. Sınıf`;
     }
 
