@@ -194,7 +194,8 @@ const HatirlaKutusu: React.FC<{ checked: boolean; onChange: (v: boolean) => void
 
 /** Girişte tam ekran seçim (yalnız sistem sahibi, bağlı hesabı varsa) */
 export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: () => void; onCikis: () => void }> = ({ ad, liste, onSahip, onCikis }) => {
-  const [hatirla, setHatirla] = useState(false);
+  // Aşama 315: kutu baştan işaretli (portal seçimindeki gibi); ilk seçimden sonra bu cihazda doğrudan o hesap açılır
+  const [hatirla, setHatirla] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [sifreHedef, setSifreHedef] = useState<string | null>(null); // Aşama 269: sistem sahibi kartı seçildi
@@ -239,7 +240,7 @@ export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: 
           </p>
         )}
         <HatirlaKutusu checked={hatirla} onChange={setHatirla} />
-        <p className="mt-2 text-center text-xs text-subtle">Hesabı içeride sol üstteki logoya basarak istediğiniz an değiştirebilirsiniz.</p>
+        <p className="mt-2 text-center text-xs text-subtle">Seçiminiz hatırlanır; sol üstteki logoya basarak istediğiniz an başka hesaba geçebilirsiniz.</p>
         <div className="mt-5 flex justify-center">
           <button type="button" onClick={onCikis} className="ui-btn ui-btn-ghost ui-btn-sm w-28 text-muted">
             <LogOut className="w-3.5 h-3.5" />
