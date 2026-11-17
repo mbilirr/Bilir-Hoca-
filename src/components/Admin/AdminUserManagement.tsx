@@ -882,8 +882,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="bg-surface/95 border border-line rounded-2xl p-4 shadow-md flex flex-col gap-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="relative flex-1">
+        {/* Aşama 320: arama + süzgeçler bir satır, işlem düğmeleri ayrı ve sarılan satır (önceden hepsi tek satırdaydı, sm+ sarılmadığı için düğmeler ekran dışına kayıyordu) */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-0 lg:min-w-64">
             <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input autoComplete="off"
               type="text"
@@ -903,7 +904,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Role Filter */}
             <div className={`w-[calc(50%-0.25rem)] sm:w-auto ${roleLock ? 'hidden' : ''}`}>
               <select
@@ -968,82 +969,83 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 Temizle
               </button>
             )}
-            {embedded && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-8 px-0 justify-center"
-                  title="Verileri yeniden yükle"
-                  aria-label="Verileri yeniden yükle"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
-                {canManageTeachers && roleLock !== 'student' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateTeacherOpen(true)}
-                    className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center"
-                    title="Yeni öğretmen için giriş hesabı aç"
-                    id="yonetim-yeni-ogretmen"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Öğretmen</span>
-                  </button>
-                )}
-                {canManageTeachers && roleLock !== 'student' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsExcelTeacherOpen(true)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
-                    title="Öğretmenleri Excel dosyasından toplu ekle"
-                    id="yonetim-ogretmen-excel"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Excel ile</span>
-                  </button>
-                )}
-                {canManageTeachers && roleLock !== 'student' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsGenderFillOpen(true)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
-                    title="Cinsiyeti boş öğretmenleri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)"
-                    id="yonetim-ogretmen-cinsiyet"
-                  >
-                    <VenusAndMars className="w-3.5 h-3.5" />
-                    <span>Cinsiyet</span>
-                  </button>
-                )}
-                {canManageTeachers && roleLock !== 'student' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCredSendOpen(true)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
-                    title="Öğretmenlere giriş bilgisini SMS / e-postayla gönder"
-                    id="yonetim-ogretmen-giris-gonder"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Giriş Bilgisi</span>
-                  </button>
-                )}
-                {canSendStudentCreds && roleLock !== 'teacher' && (
-                  <button
-                    type="button"
-                    onClick={() => setStuPickOpen(true)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
-                    title="Öğrencilere ve velilerine giriş bilgisini SMS / e-postayla gönder"
-                    id="yonetim-ogrenci-giris-gonder"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{roleLock === 'student' ? 'Giriş Bilgisi' : 'Öğrenci Girişi'}</span>
-                  </button>
-                )}
-              </>
-            )}
           </div>
         </div>
+
+        {embedded && (
+          <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-line" role="toolbar" aria-label="Hesap işlemleri">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-8 px-0 justify-center"
+              title="Verileri yeniden yükle"
+              aria-label="Verileri yeniden yükle"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            {canManageTeachers && roleLock !== 'student' && (
+              <button
+                type="button"
+                onClick={() => setIsCreateTeacherOpen(true)}
+                className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center"
+                title="Yeni öğretmen için giriş hesabı aç"
+                id="yonetim-yeni-ogretmen"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Öğretmen</span>
+              </button>
+            )}
+            {canManageTeachers && roleLock !== 'student' && (
+              <button
+                type="button"
+                onClick={() => setIsExcelTeacherOpen(true)}
+                className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                title="Öğretmenleri Excel dosyasından toplu ekle"
+                id="yonetim-ogretmen-excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Excel ile</span>
+              </button>
+            )}
+            {canManageTeachers && roleLock !== 'student' && (
+              <button
+                type="button"
+                onClick={() => setIsGenderFillOpen(true)}
+                className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                title="Cinsiyeti boş öğretmenleri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)"
+                id="yonetim-ogretmen-cinsiyet"
+              >
+                <VenusAndMars className="w-3.5 h-3.5" />
+                <span>Cinsiyet</span>
+              </button>
+            )}
+            {canManageTeachers && roleLock !== 'student' && (
+              <button
+                type="button"
+                onClick={() => setIsCredSendOpen(true)}
+                className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                title="Öğretmenlere giriş bilgisini SMS / e-postayla gönder"
+                id="yonetim-ogretmen-giris-gonder"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Giriş Bilgisi</span>
+              </button>
+            )}
+            {canSendStudentCreds && roleLock !== 'teacher' && (
+              <button
+                type="button"
+                onClick={() => setStuPickOpen(true)}
+                className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                title="Öğrencilere ve velilerine giriş bilgisini SMS / e-postayla gönder"
+                id="yonetim-ogrenci-giris-gonder"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{roleLock === 'student' ? 'Giriş Bilgisi' : 'Öğrenci Girişi'}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {!embedded && (
           <>
