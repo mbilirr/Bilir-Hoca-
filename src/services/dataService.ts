@@ -89,6 +89,7 @@ import {
   freezeAppStorage,
   depoDegisinceBildir,
 } from './depo';
+import { hatirlananKisiOku, hatirlananKisiYaz, type HatirlananKisi } from './hatirla'; // Aşama 301
 // Bu modülde "localStorage" adı depodaki yönlendiriciyi ifade eder (eskisi gibi: veri anahtarları sekmede, ayarlar kalıcı)
 const localStorage = appStorage;
 export { PERMANENT_KEYS, freezeAppStorage };
@@ -7748,140 +7749,9 @@ class DataService {
   }
 
   // --- BENİ HATIRLA / KOLAY GİRİŞ ---
-  public getRememberedUser(role?: UserRole): {
-    role: UserRole;
-    identifier: string;
-    name: string;
-    avatar?: string;
-    branch?: string;
-    className?: string;
-    savedPassword?: string;
-    deviceId?: string;
-    loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
-  } | null {
-    const currentDeviceId = getLocalDeviceId();
-    let saved: {
-      role: UserRole;
-      identifier: string;
-      name: string;
-      avatar?: string;
-      branch?: string;
-      className?: string;
-      savedPassword?: string;
-      deviceId?: string;
-      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
-    } | null = null;
-
-    if (role === 'teacher') {
-      saved = loadData(STORAGE_KEYS.REMEMBER_ME_TEACHER, null);
-      if (!saved) {
-        const general = loadData<{
-          role: UserRole;
-          identifier: string;
-          name: string;
-          avatar?: string;
-          branch?: string;
-          className?: string;
-          savedPassword?: string;
-          deviceId?: string;
-          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
-        } | null>(STORAGE_KEYS.REMEMBER_ME, null);
-        if (general?.role === 'teacher') saved = general;
-      }
-    } else if (role === 'student') {
-      saved = loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
-      if (!saved) {
-        const general = loadData<{
-          role: UserRole;
-          identifier: string;
-          name: string;
-          avatar?: string;
-          branch?: string;
-          className?: string;
-          savedPassword?: string;
-          deviceId?: string;
-          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
-        } | null>(STORAGE_KEYS.REMEMBER_ME, null);
-        if (general?.role === 'student') saved = general;
-      }
-    } else {
-      saved = loadData(STORAGE_KEYS.REMEMBER_ME, null);
-      if (!saved) {
-        saved = loadData(STORAGE_KEYS.REMEMBER_ME_TEACHER, null) || loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
-      }
-    }
-
-    if (!saved) return null;
-
-    // Cihaz Bağımlılığı Kontrolü:
-    // Eğer kaydedilen bilginin deviceId'si bu cihazın benzersiz ID'si ile eşleşmiyorsa
-    // veya daha önce eski sistemden kalma sahte/otomatik atanmış veri ise, KESİNLİKLE null dönülür.
-    // Böylece başka bilgisayar veya telefondan açıldığında Mustafa Bilir veya başka kullanıcı asla otomatik çıkmaz!
-    if (!saved.deviceId || saved.deviceId !== currentDeviceId) {
-      if (role === 'teacher') {
-        try { localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER); } catch {}
-      } else if (role === 'student') {
-        try { localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT); } catch {}
-      } else {
-        try {
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
-        } catch {}
-      }
-      return null;
-    }
-
-    // Aşama 145: "Beni hatırla" düzeltmesi. Giriş ekranında öğretmen/öğrenci listeleri boştur (çıkışta silinir,
-    // giriş yapılmadan bulut verisi gelmez). Eskiden kişi listede bulunamayınca kayıt yok sayılıyordu; artık
-    // kaydedilen bilgiler kullanılır. Kişi listedeyse (ör. oturum açıkken) güncel ad/avatar gösterilir.
-    // Eşleştirme yalnız kimlikle yapılır (aynı adlı başka kişinin bilgisi gelmesin).
-    const key = (saved.identifier || '').toLowerCase();
-    if (saved.role === 'teacher') {
-      const liveTeacher = key
-        ? this.teachers.find(
-            (t) =>
-              (t.username && t.username.toLowerCase() === key) ||
-              (t.email && t.email.toLowerCase() === key) ||
-              t.id === saved!.identifier
-          )
-        : undefined;
-      if (liveTeacher) {
-        return {
-          role: 'teacher',
-          // Aşama 155: kayıtlı e-posta (gerçek giriş adresi) kullanıcı adıyla ezilmez
-          identifier: saved.identifier.includes('@') ? saved.identifier : liveTeacher.username || saved.identifier,
-          name: liveTeacher.name,
-          avatar: liveTeacher.avatar,
-          branch: liveTeacher.branch,
-          deviceId: saved.deviceId,
-          loginEmail: saved.loginEmail, // Aşama 173
-        };
-      }
-    } else if (saved.role === 'student') {
-      const liveStudent = key
-        ? this.students.find(
-            (s) =>
-              (s.studentNumber && s.studentNumber.toLowerCase() === key) ||
-              (s.username && s.username.toLowerCase() === key) ||
-              (s.email && s.email.toLowerCase() === key) ||
-              s.id === saved!.identifier
-          )
-        : undefined;
-      if (liveStudent) {
-        return {
-          role: 'student',
-          identifier: liveStudent.studentNumber || liveStudent.username || saved.identifier,
-          name: liveStudent.name,
-          avatar: liveStudent.avatar,
-          className: liveStudent.className,
-          deviceId: saved.deviceId,
-        };
-      }
-    }
-    if (!saved.identifier) return null;
-    const { savedPassword: _eskiKalinti, ...guvenli } = saved; // eski sürüm kalıntısı şifre alanı asla dönmez
-    return guvenli;
+  // Aşama 301: kod hatirla.ts'e taşındı (davranış aynı); burada yalnız canlı öğretmen / öğrenci listeleri verilir
+  public getRememberedUser(role?: UserRole): HatirlananKisi | null {
+    return hatirlananKisiOku(role, this.teachers, this.students);
   }
 
   public getRememberedTeacher() {
@@ -7892,74 +7762,8 @@ class DataService {
     return this.getRememberedUser('student');
   }
 
-  public setRememberedUser(
-    data: {
-      role: UserRole;
-      identifier: string;
-      name: string;
-      avatar?: string;
-      branch?: string;
-      className?: string;
-      savedPassword?: string;
-      deviceId?: string;
-      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
-    } | null,
-    targetRole?: UserRole
-  ): void {
-    if (data) {
-      // GÜVENLİK: şifre asla tarayıcıya kaydedilmez; yalnızca kullanıcı adı ve görünen bilgiler hatırlanır
-      const { savedPassword: _neverStored, ...safeData } = data;
-      const payload = {
-        ...safeData,
-        deviceId: getLocalDeviceId(),
-      };
-      saveData(STORAGE_KEYS.REMEMBER_ME, payload);
-      if (data.role === 'teacher') {
-        saveData(STORAGE_KEYS.REMEMBER_ME_TEACHER, payload);
-      } else if (data.role === 'student') {
-        saveData(STORAGE_KEYS.REMEMBER_ME_STUDENT, payload);
-      }
-    } else {
-      if (targetRole === 'teacher') {
-        try {
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
-          const general = loadData<any>(STORAGE_KEYS.REMEMBER_ME, null);
-          if (general?.role === 'teacher') {
-            const studentSaved = loadData<any>(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
-            if (studentSaved) {
-              saveData(STORAGE_KEYS.REMEMBER_ME, studentSaved);
-            } else {
-              localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      } else if (targetRole === 'student') {
-        try {
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
-          const general = loadData<any>(STORAGE_KEYS.REMEMBER_ME, null);
-          if (general?.role === 'student') {
-            const teacherSaved = loadData<any>(STORAGE_KEYS.REMEMBER_ME_TEACHER, null);
-            if (teacherSaved) {
-              saveData(STORAGE_KEYS.REMEMBER_ME, teacherSaved);
-            } else {
-              localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        try {
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
+  public setRememberedUser(data: HatirlananKisi | null, targetRole?: UserRole): void {
+    hatirlananKisiYaz(data, targetRole);
   }
 
   // Aşama 17: tarayıcının alert() penceresi yerine uygulama içi kısa bildirim
