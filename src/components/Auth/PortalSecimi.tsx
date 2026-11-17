@@ -99,7 +99,8 @@ export const PortalDegistirPencere: React.FC<{ open: boolean; onClose: () => voi
 };
 
 export const PortalSecimi: React.FC<{ ad?: string; onSec: (p: PortalKod) => void; onCikis: () => void }> = ({ ad, onSec, onCikis }) => {
-  const [hatirla, setHatirla] = useState(false); // Aşama 254c: varsayılan her girişte sor
+  // Aşama 314: kutu baştan işaretli; ilk seçimden sonra bu hesap bu cihazda doğrudan o portalla açılır (her hesap kendi seçimini hatırlar)
+  const [hatirla, setHatirla] = useState(true);
   const sec = (p: PortalKod) => {
     dataService.setPortal(p, hatirla);
     onSec(p);
@@ -124,7 +125,7 @@ export const PortalSecimi: React.FC<{ ad?: string; onSec: (p: PortalKod) => void
           <input type="checkbox" className="w-4 h-4 accent-[var(--color-brand)]" checked={hatirla} onChange={(e) => setHatirla(e.target.checked)} />
           Bu cihazda seçimimi hatırla, bir dahaki girişte sorma
         </label>
-        <p className="mt-2 text-center text-xs text-subtle">Portalı içeride sol üstteki kurum logosuna basarak istediğiniz an değiştirebilirsiniz.</p>
+        <p className="mt-2 text-center text-xs text-subtle">Seçiminiz hatırlanır; sol üstteki kurum logosuna basarak istediğiniz an başka portala geçebilirsiniz.</p>
 
         <div className="mt-5 flex justify-center">
           <button type="button" onClick={onCikis} className="ui-btn ui-btn-ghost ui-btn-sm w-28 text-muted">
