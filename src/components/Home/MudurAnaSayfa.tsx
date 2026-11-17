@@ -249,9 +249,9 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
       return;
     }
     void dersOku();
-    const yenile = () => document.visibilityState === 'visible' && void dersOku();
-    const t = setInterval(yenile, 5 * 60_000);
-    document.addEventListener('visibilitychange', yenile);
+    // Aşama 303: sekmeye dönüşte okumayı dersCanliDinle yapar (kanal kapalıysa ya da uzun ayrılıktan sonra); burada ayrıca
+    // dinlenince aynı veri her dönüşte iki kez okunuyordu.
+    const t = setInterval(() => document.visibilityState === 'visible' && void dersOku(), 5 * 60_000);
     // yoklama düzeltmesi geçmiş günü de değiştirebilir: canlı değişiklikte bu ve geçen haftanın günleri yeniden okunur
     const kapat = dersCanliDinle(
       kurumId,
@@ -260,7 +260,6 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
     );
     return () => {
       clearInterval(t);
-      document.removeEventListener('visibilitychange', yenile);
       kapat();
     };
   }, [can.ders, kurumId, dersOku]);

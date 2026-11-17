@@ -5,6 +5,7 @@
 // Canlı güncelleme: dersCanliDinle() yalnız açık ekran için, yalnız kendi kurumunun satırlarını dinler.
 // ============================================================================
 import { supabase } from '../lib/supabase';
+import { UZUN_AYRILIK_MS, donusteCalistir } from '../lib/donus';
 export { trBugun, trSaat } from '../lib/trSaat'; // Aşama 234: Türkiye günü / saati (sunucuya göre)
 
 export const DERS_MAX = 10;
@@ -453,7 +454,8 @@ export type DersTablo = 'kurum_ders_ayar' | 'sinif_ders_ogretmen' | 'ders_progra
 
 /**
  * Açık ekran için kendi kurumunun ders tablolarını dinler. Değişiklik gelince (kısa beklemeyle tek sefer) onChange çağrılır.
- * Ekran sekmesi yeniden görünür olunca da çağrılır (arada kaçan olaylar için). Dönen işlev dinlemeyi kapatır.
+ * Ekran sekmesine dönülünce de çağrılır (kanal kapalıysa ya da uzun ayrılıktan sonra; arada kaçan olaylar için).
+ * Dönen işlev dinlemeyi kapatır.
  */
 export function dersCanliDinle(kurumId: string | null | undefined, tablolar: DersTablo[], onChange: () => void): () => void {
   if (!kurumId) return () => {};
@@ -465,23 +467,36 @@ export function dersCanliDinle(kurumId: string | null | undefined, tablolar: Der
       onChange();
     }, 300);
   };
+  // Aşama 303: kanal açıkken kısa ayrılıklarda değişiklik zaten kanaldan gelir; sekmeye dönüşte yalnız kanal kapalıysa
+  // ya da uzun ayrılıktan (kanal kopmuş olabilir) sonra okunur. Kanal kopup yeniden bağlanınca arada kaçan için bir kez okunur.
+  let canli = false;
+  let koptu = false;
+  const durum = (s: string) => {
+    if (s === 'SUBSCRIBED') {
+      if (koptu) tetik();
+      canli = true;
+      koptu = false;
+    } else if (canli) {
+      canli = false;
+      koptu = true;
+    }
+  };
   let kanal: ReturnType<typeof supabase.channel> | null = null;
   try {
     const ch = supabase.channel(`ders-${tablolar.join('-')}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
     for (const t of tablolar) {
       ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `kurum_id=eq.${kurumId}` }, () => tetik());
     }
-    ch.subscribe();
+    ch.subscribe(durum);
     kanal = ch;
   } catch {
     kanal = null;
   }
-  const gorunur = () => {
-    if (document.visibilityState === 'visible') tetik();
-  };
-  document.addEventListener('visibilitychange', gorunur);
+  const donusBirak = donusteCalistir((uzakta) => {
+    if (!canli || uzakta >= UZUN_AYRILIK_MS) tetik();
+  });
   return () => {
-    document.removeEventListener('visibilitychange', gorunur);
+    donusBirak();
     if (zaman) clearTimeout(zaman);
     if (kanal) {
       try {

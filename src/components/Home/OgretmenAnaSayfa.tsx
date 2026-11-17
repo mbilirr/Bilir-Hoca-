@@ -273,13 +273,12 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       return;
     }
     void okuDers();
-    const yenile = () => document.visibilityState === 'visible' && void okuDers();
-    const t = setInterval(yenile, 5 * 60_000);
-    document.addEventListener('visibilitychange', yenile);
+    // Aşama 303: sekmeye dönüşte okumayı dersCanliDinle yapar (kanal kapalıysa ya da uzun ayrılıktan sonra); burada ayrıca
+    // dinlenince aynı veri her dönüşte iki kez okunuyordu.
+    const t = setInterval(() => document.visibilityState === 'visible' && void okuDers(), 5 * 60_000);
     const kapat = dersCanliDinle(kurumId, ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil', 'ders_vekil'], () => void okuDers());
     return () => {
       clearInterval(t);
-      document.removeEventListener('visibilitychange', yenile);
       kapat();
     };
   }, [can.ders, kurumId, okuDers]);

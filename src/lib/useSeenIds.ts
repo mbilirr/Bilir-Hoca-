@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { donusteCalistir } from './donus';
 
 // ============================================================================
 // "Görüldü" kayıtları (Aşama 29, Aşama 32'de eşitleme, Aşama 42'de CİHAZLAR ARASI eşitleme)
@@ -121,15 +122,11 @@ export function useSeenIds(storageKey: string, limit = 400) {
     window.addEventListener(EVENT, onChange);
     // Aşama 42: açılışta ve sayfaya her dönüşte diğer cihazlarda görülenler alınır
     void pullFromCloud(storageKey, limit);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void pullFromCloud(storageKey, limit, true);
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', onVisible);
+    // Aşama 303: görünürlük ve odak olayları tek dönüşe indirildi (eskiden her dönüşte iki kez okunuyordu)
+    const donusBirak = donusteCalistir(() => void pullFromCloud(storageKey, limit, true), { odak: true });
     return () => {
       window.removeEventListener(EVENT, onChange);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
+      donusBirak();
     };
   }, [storageKey, limit]);
 

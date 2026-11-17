@@ -5,6 +5,7 @@
 // Ekranlar her zaman sunucudaki kayıtları gösterir (yerel kopya yok); değişiklik anlık güncelleme ile yayılır.
 // ============================================================================
 import { supabase } from '../lib/supabase';
+import { UZUN_AYRILIK_MS, donusteCalistir } from '../lib/donus';
 import { trBugun } from '../lib/trSaat';
 
 export type AktKapsam = 'ogrenci' | 'veli';
@@ -201,21 +202,34 @@ export function takvimCanliDinle(kurumId: string | null | undefined, onChange: (
       onChange();
     }, 300);
   };
+  // Aşama 303: kanal açıkken kısa ayrılıklarda değişiklik zaten kanaldan gelir; sekmeye dönüşte yalnız kanal kapalıysa
+  // ya da uzun ayrılıktan (kanal kopmuş olabilir) sonra okunur. Kanal kopup yeniden bağlanınca arada kaçan için bir kez okunur.
+  let canli = false;
+  let koptu = false;
+  const durum = (s: string) => {
+    if (s === 'SUBSCRIBED') {
+      if (koptu) tetik();
+      canli = true;
+      koptu = false;
+    } else if (canli) {
+      canli = false;
+      koptu = true;
+    }
+  };
   let kanal: ReturnType<typeof supabase.channel> | null = null;
   try {
     kanal = supabase
       .channel(`akademik-takvim-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'akademik_takvim', filter: `kurum_id=eq.${kurumId}` }, () => tetik())
-      .subscribe();
+      .subscribe(durum);
   } catch {
     kanal = null;
   }
-  const gorunur = () => {
-    if (document.visibilityState === 'visible') tetik();
-  };
-  document.addEventListener('visibilitychange', gorunur);
+  const donusBirak = donusteCalistir((uzakta) => {
+    if (!canli || uzakta >= UZUN_AYRILIK_MS) tetik();
+  });
   return () => {
-    document.removeEventListener('visibilitychange', gorunur);
+    donusBirak();
     if (zaman) clearTimeout(zaman);
     if (kanal) {
       try {

@@ -325,24 +325,16 @@ export default function App() {
     const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
     trackedEvents.forEach((evt) => window.addEventListener(evt, markActivity, { passive: true }));
 
-    // Kullanıcı sekmeden ayrılıp geri geldiğinde veya telefon ekranı açıldığında anında kontrol et ve senkronize et
+    // Kullanıcı sekmeden ayrılıp geri geldiğinde veya telefon ekranı açıldığında boşta kalma süresi anında denetlenir.
+    // Aşama 303: eşitleme buradan ayrıca başlatılmaz; veri servisi sekmeye dönüşü, odağı ve internetin gelişini kendisi
+    // dinleyip eşitler (iki yerden çağrılınca her dönüşte aynı iş iki kez başlatılıyordu).
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        performInactivityCheck();
-        dataService.reconnectAllRealtime();
-      }
+      if (document.visibilityState === 'visible') performInactivityCheck();
     };
-    const handleFocus = () => {
-      performInactivityCheck();
-      dataService.reconnectAllRealtime();
-    };
-    const handleOnline = () => {
-      dataService.reconnectAllRealtime();
-    };
+    const handleFocus = () => performInactivityCheck();
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
-    window.addEventListener('online', handleOnline);
 
     const inactivityInterval = setInterval(performInactivityCheck, 3000);
     // Aşama 295: kalıcı oturumdan başka bir sekmede çıkıldıysa bu sekme de giriş ekranına döner
@@ -352,7 +344,6 @@ export default function App() {
       trackedEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('online', handleOnline);
       clearInterval(inactivityInterval);
       acikKalBirak();
     };

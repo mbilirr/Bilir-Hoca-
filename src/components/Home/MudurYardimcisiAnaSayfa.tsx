@@ -174,9 +174,9 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
       return;
     }
     void oku();
-    const yenile = () => document.visibilityState === 'visible' && void oku();
-    const t = setInterval(yenile, 5 * 60_000);
-    document.addEventListener('visibilitychange', yenile);
+    // Aşama 303: sekmeye dönüşte okumayı dersCanliDinle yapar (kanal kapalıysa ya da uzun ayrılıktan sonra); burada ayrıca
+    // dinlenince aynı veri her dönüşte iki kez okunuyordu.
+    const t = setInterval(() => document.visibilityState === 'visible' && void oku(), 5 * 60_000);
     const kapat = dersCanliDinle(
       kurumId,
       ['ders_yoklama_oturum', 'ders_programi', 'kurum_ders_ayar', 'kurum_ders_tatil', 'ders_gun_izin', 'ders_vekil'],
@@ -184,7 +184,6 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
     );
     return () => {
       clearInterval(t);
-      document.removeEventListener('visibilitychange', yenile);
       kapat();
     };
   }, [can.ders, kurumId, oku]);
