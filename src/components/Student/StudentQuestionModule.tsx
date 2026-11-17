@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, startTransition } from 'react';
+import { soruKaydiSilindi } from '../../lib/geriAl';
 import {
   HelpCircle,
   Plus,
@@ -2976,6 +2977,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             if (await appConfirm({ title: 'Soru kaydı silinsin mi?', message: `${formatTurkishDate(log.date)} tarihli soru kaydını silmek istediğine emin misin?` })) {
                               try {
                                 await dataService.deleteQuestionLog(log.id);
+                                soruKaydiSilindi(log); // Aşama 306: 10 sn "Geri al"
                               } catch {
                                 // hata uyarısı gösterildi, kayıt geri getirildi
                               }

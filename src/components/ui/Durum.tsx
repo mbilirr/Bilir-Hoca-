@@ -25,12 +25,12 @@ export const Yukleniyor: React.FC<{ metin?: string; className?: string }> = ({ m
 function useDeneme(onTekrar?: () => unknown) {
   const [deniyor, setDeniyor] = useState(false);
   const acik = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    acik.current = true; // Aşama 306: bileşen yeniden bağlanınca (geliştirme kipindeki çift bağlanma) düğme kilitli kalmasın
+    return () => {
       acik.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   const dene = async () => {
     if (!onTekrar || deniyor) return;
     setDeniyor(true);

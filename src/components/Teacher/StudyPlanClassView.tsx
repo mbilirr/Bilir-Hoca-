@@ -40,6 +40,7 @@ import { StudyPlanSendModal } from './StudyPlanSendModal';
 import { StudyPlanUnsendModal } from './StudyPlanUnsendModal';
 import { transferPlansForStudents } from '../../lib/planToTarget';
 import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
+import { geriAlGoster } from '../../lib/geriAl'; // Aşama 306
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
@@ -607,6 +608,14 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     );
 
   const [deleteGroup, setDeleteGroup] = useState<Group | null>(null);
+  // Aşama 306: "Geri al" sonradan bittiğinde görünüm hâlâ açık mı
+  const acikGorunum = useRef(true);
+  useEffect(() => {
+    acikGorunum.current = true; // (geliştirme kipindeki çift bağlanmada da doğru kalsın)
+    return () => {
+      acikGorunum.current = false;
+    };
+  }, []);
   const confirmDeleteGroup = async () => {
     const g = deleteGroup;
     setDeleteGroup(null);
@@ -614,7 +623,19 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     try {
       const n = await deletePlanItems(g.items.map((i) => i.id));
       setItems((cur) => cur.filter((i) => !g.items.some((x) => x.id === i.id)));
-      say({ tone: 'success', text: `Görev ${n} öğrenciden silindi.` }, 3500);
+      // Aşama 306: görev HİÇBİR öğrenciye gönderilmemiş/yapılmamışsa ve hepsinden silindiyse 10 sn "Geri al";
+      //   aynı gün ve sırayla, aynı öğrencilere yeniden eklenir (bir kısmı silinemediyse yinelenmesin diye sunulmaz)
+      if (n === g.items.length && g.items.every((i) => !i.doneAt && !i.sentAt && !i.mailedAt)) {
+        const ws = g.items[0].weekStart;
+        const kimler = g.items.map((i) => i.studentId);
+        const siralar = Object.fromEntries(g.items.map((i) => [i.studentId, i.position]));
+        const taslak = { day: g.day, subject: g.subject, book: g.book, note: g.note, questionCount: g.questionCount };
+        const ekleyen = g.items[0].createdByName || teacherName;
+        geriAlGoster(n > 1 ? `Görev ${n} öğrenciden silindi` : 'Görev silindi', async () => {
+          await addPlanItemsBulk(kimler, ws, taslak, siralar, ekleyen, nameOfStudent);
+          if (acikGorunum.current) void reload(true); // ekran arkadan yenilenir; geri alma eklemeyle tamamdır
+        });
+      } else say({ tone: 'success', text: `Görev ${n} öğrenciden silindi.` }, 3500);
       autoSync(g.items.map((i) => i.studentId));
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Görev silinemedi.' });

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { soruHedefiSilindi } from '../../lib/geriAl';
 import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide, ClipboardList } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -692,6 +693,7 @@ const TargetFormContent: React.FC<Props> = ({
     setIsSaving(true);
     try {
       await dataService.deleteQuestionTargetById(editTarget.id);
+      soruHedefiSilindi(editTarget); // Aşama 306: 10 sn "Geri al"
       onClose();
     } catch (e: any) {
       setErrorText(e?.message || 'Hedef silinemedi.');

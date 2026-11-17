@@ -14,6 +14,7 @@ import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
 import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
+import { GeriAlCubugu } from './components/Common/GeriAlCubugu'; // Aşama 306
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
@@ -525,6 +526,7 @@ export default function App() {
       <div className="relative min-h-screen">
         <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
+        <GeriAlCubugu /> {/* Aşama 306 */}
         <PasswordRecoveryModal />
         <AuthPortal
           onAuthSuccess={handleAuthSuccess}
@@ -541,6 +543,7 @@ export default function App() {
     return (
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
+        <GeriAlCubugu /> {/* Aşama 306 */}
         <IkiAdimGirisi ad={authSession.role === 'teacher' ? (authSession.user as Teacher).name : undefined} onCikis={handleLogout} />
       </div>
     );
@@ -551,6 +554,7 @@ export default function App() {
     return (
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
+        <GeriAlCubugu /> {/* Aşama 306 */}
         {hesapListe ? (
           <HesapSecimi
             ad={(authSession.user as Teacher).name}
@@ -576,6 +580,7 @@ export default function App() {
         {/* Aşama 252: kullanıcı gözüyle bakarken üstte şerit */}
         <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
+        <GeriAlCubugu /> {/* Aşama 306 */}
         <PortalSecimi
           ad={(authSession.user as Teacher).name}
           onSec={() => {
@@ -616,6 +621,7 @@ export default function App() {
       {/* Aşama 252: kullanıcı gözüyle bakarken üstte şerit (bütün sayfalarda) */}
       <KullaniciGozuSeridi />
       <NetworkSyncStatusBanner />
+      <GeriAlCubugu /> {/* Aşama 306 */}
       {/* Top Main Navbar */}
       <Navbar
         role={role}

@@ -66,6 +66,7 @@ import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } 
 import { User as UserIcon, School, Lock } from 'lucide-react';
 import { ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
 import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
+import { geriAlGoster } from '../../lib/geriAl'; // Aşama 306
 import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -394,6 +395,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
   };
 
   const [deleteItem, setDeleteItem] = useState<PlanItem | null>(null);
+  // Aşama 306: "Geri al" sonradan bittiğinde ekranın hâlâ aynı plan olup olmadığını bilmek için
+  const acikPlan = useRef({ sid: studentId, ws: weekStart });
+  acikPlan.current = { sid: studentId, ws: weekStart };
   const confirmDeleteItem = async () => {
     const it = deleteItem;
     setDeleteItem(null);
@@ -401,7 +405,21 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
     try {
       await deletePlanItem(it.id);
       setPlan((p) => ({ ...p, items: p.items.filter((i) => i.id !== it.id) }));
-      say({ tone: 'success', text: 'Görev silindi.' }, 3000);
+      // Aşama 306: öğrencinin görmediği görevde "Geri al" çubuğu çıkar (bildirim yerine)
+      //   Gönderilmiş görev öğrencinin Soru Kaydet'ine de işlendiği için geri alınamaz; geri alınan görev aynı gün ve
+      //   sıraya, gönderilmemiş olarak yeniden eklenir.
+      if (!it.doneAt && !it.sentAt && !it.mailedAt) {
+        const taslak = { day: it.day, subject: it.subject, book: it.book, note: it.note, questionCount: it.questionCount };
+        geriAlGoster('Görev silindi', async () => {
+          const yeni = await addPlanItem(it.studentId, it.weekStart, taslak, it.position, it.createdByName);
+          // Bu arada başka öğrenci ya da haftaya geçildiyse ekrana yazılmaz (o plan açılınca zaten okunur)
+          if (acikPlan.current.sid !== yeni.studentId || acikPlan.current.ws !== yeni.weekStart) return;
+          // Aynı gün ve sıradaki yerine konur (sıralama kararlı: aynı sıradakilerin düzeni bozulmaz)
+          setPlan((p) =>
+            p.items.some((i) => i.id === yeni.id) ? p : { ...p, items: [...p.items, yeni].sort((a, b) => a.day - b.day || a.position - b.position) }
+          );
+        });
+      } else say({ tone: 'success', text: 'Görev silindi.' }, 3000);
       autoSync();
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Görev silinemedi.' });

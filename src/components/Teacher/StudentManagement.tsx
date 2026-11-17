@@ -46,6 +46,7 @@ import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeServi
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
+import { ogrenciGuncellendi } from '../../lib/geriAl'; // Aşama 306
 import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { canMoveGrantedStudent, useMyGrantMove } from '../../lib/grantMove'; // Aşama 161
@@ -825,6 +826,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     };
     try {
       if (editingStudent) {
+        // Aşama 306: düzenlemeden önceki hâl ("Geri al" için; ekrandaki kopya eski olabilir, servisteki taze alınır)
+        const oncesi = dataService.getAllStudents().find((s) => s.id === editingStudent.id) || editingStudent;
         await dataService.updateStudent(
           editingStudent.id,
           {
@@ -844,6 +847,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           setCredentialsResult({ credentials: [{ student: fresh, password: payload.password }], failures: [], title: 'Yeni Giriş Bilgileri' });
         }
         const tcMsg = await saveTc(editingStudent.id);
+        // Aşama 306: şifre ya da TC değişmediyse 10 sn "Geri al" (ikisi geri okunamadığı için yarım geri alma yapılmaz)
+        if (!payload.password && !tcDigits && !studentTcRemove) ogrenciGuncellendi(oncesi);
         setStudentSuccessFeedback(`Öğrenci "${payload.name}" başarıyla güncellendi.${tcMsg}`);
         setEditingStudent(null);
         setIsAddStudentOpen(false);

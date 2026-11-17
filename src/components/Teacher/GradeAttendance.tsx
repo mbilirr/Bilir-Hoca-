@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { notSilindi } from '../../lib/geriAl';
 import {
   FileSpreadsheet,
   Plus,
@@ -906,7 +907,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         onClose={() => setGradeToDelete(null)}
         onConfirm={async () => {
           if (gradeToDelete) {
-            await dataService.deleteGrade(gradeToDelete.id);
+            const silinen = gradeToDelete;
+            await dataService.deleteGrade(silinen.id);
+            notSilindi(silinen); // Aşama 306: 10 sn "Geri al"
           }
         }}
         title="Not Kaydını Sil"

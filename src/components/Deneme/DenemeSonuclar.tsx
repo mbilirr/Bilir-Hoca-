@@ -1,8 +1,9 @@
-import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload } from 'lucide-react';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
+import { geriAlGoster } from '../../lib/geriAl'; // Aşama 306
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LGS_SCORING, OZET_SURUM, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, tamOturum, type ExamQuestions } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
@@ -50,6 +51,15 @@ export const DenemeSonuclar: React.FC<{
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<DenemeResult | null>(null);
   const [busy, setBusy] = useState(false);
+  // Aşama 306: "Geri al" sonradan bittiğinde ekran hâlâ bu denemede mi (kapandıysa null)
+  const acikDeneme = useRef<string | null>(examId);
+  acikDeneme.current = examId;
+  useEffect(() => {
+    acikDeneme.current = examId;
+    return () => {
+      acikDeneme.current = null;
+    };
+  }, [examId]);
 
   const load = async () => {
     setLoading(true);
@@ -295,6 +305,21 @@ export const DenemeSonuclar: React.FC<{
       setExam(saved);
       setResults(rest);
       setNotice(`${removeTarget.studentName} bu denemeden çıkarıldı; sıralamalar yeniden hesaplandı.`);
+      // Aşama 306: çıkarılan sonuç 10 sn içinde geri eklenebilir. Arada başka değişiklik olmuş olabileceği için
+      // deneme ve sonuçlar sunucudan TAZE okunur, öğrenci eklenir, sıralama ve özet bütün listeyle yeniden hesaplanır.
+      const silinen: DenemeResult = { ...removeTarget };
+      const id = exam.id;
+      geriAlGoster(`${silinen.studentName} denemeden çıkarıldı`, async () => {
+        const [ex, rs] = await Promise.all([getExam(id), listResults(id)]);
+        const hepsi = rs.some((r) => r.studentId === silinen.studentId) ? rs : [...rs, silinen];
+        const ozet = rankAndSummarize(hepsi, ex.subjects, ex.questions);
+        const kayitli = await saveExam({ ...ex, summary: ozet });
+        await saveResults(id, hepsi, false);
+        if (acikDeneme.current !== id) return;
+        setExam(kayitli);
+        setResults(hepsi);
+        setNotice(`${silinen.studentName} denemeye geri eklendi; sıralamalar yeniden hesaplandı.`);
+      });
     } catch (e: any) {
       setNotice(e?.message || 'Çıkarılamadı.');
     } finally {

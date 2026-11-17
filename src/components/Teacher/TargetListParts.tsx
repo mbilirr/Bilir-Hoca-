@@ -1,4 +1,5 @@
 import React from 'react';
+import { soruHedefiSilindi } from '../../lib/geriAl';
 import { Edit3, Trash2, BarChart3 } from 'lucide-react';
 import type { WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -67,6 +68,7 @@ export const TargetRowActions: React.FC<{
           onClick={async () => {
             try {
               await dataService.deleteQuestionTargetById(target.id || '');
+              soruHedefiSilindi(target); // Aşama 306: 10 sn "Geri al"
             } catch {
               /* hata uyarısı gösterildi */
             }

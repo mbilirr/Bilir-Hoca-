@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { soruKaydiSilindi } from '../../lib/geriAl';
 import {
   HelpCircle,
   Calendar,
@@ -2766,6 +2767,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                   if (await appConfirm({ title: 'Soru kaydı silinsin mi?', message: 'Bu soru kaydını silmek istediğinize emin misiniz? Ana sayfa özetleri ve grafikler anında güncellenecektir.' })) {
                                     try {
                                       await dataService.deleteQuestionLog(log.id);
+                                      soruKaydiSilindi(log); // Aşama 306: 10 sn "Geri al"
                                     } catch {
                                       // hata uyarısı gösterildi, kayıt geri getirildi
                                     }
