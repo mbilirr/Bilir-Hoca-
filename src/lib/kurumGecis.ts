@@ -2,6 +2,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { dataService } from '../services/dataService';
 import type { Teacher } from '../types';
 import { acikKalSekmesi, acikKalVazgec } from './acikKal';
+import { robotJetonu } from './robotKoruma'; // Aşama 309
 
 // ============================================================================
 // Aşama 97: KURUMLAR ARASI GEÇİŞ (yalnızca genel yönetici)
@@ -551,7 +552,8 @@ export async function hesapBagla(kullanici: string, sifre: string): Promise<Bagl
   if (!gozu && (!bagliKullanilir() || readGecis())) throw new Error('Hesap bağlama giriş yaptığınız ana hesapta yapılır.');
   const { data } = await supabase.auth.getSession();
   if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
-  const out = await kurumApi(data.session.access_token, { action: gozu ? 'gozuBagla' : 'bagla', kullanici, sifre });
+  const robot = await robotJetonu(); // Aşama 309: sunucu şifreyi bu jetonla sınar
+  const out = await kurumApi(data.session.access_token, { action: gozu ? 'gozuBagla' : 'bagla', kullanici, sifre, robot });
   return out.hesap as BagliHesap;
 }
 
@@ -579,7 +581,8 @@ export async function bagliHesabaGec(authUserId: string, sifre?: string): Promis
     if (!sifre) throw new Error('Sistem sahibi hesabına geçmek için şifrenizi yazın.');
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw new Error('Oturum bulunamadı; lütfen yeniden giriş yapın.');
-    const out = await kurumApi(data.session.access_token, { action: 'bagliGir', authUserId, sifre });
+    const robot = await robotJetonu(); // Aşama 309
+    const out = await kurumApi(data.session.access_token, { action: 'bagliGir', authUserId, sifre, robot });
     const eski = data.session.access_token;
     const sahipYenile = g?.headRefresh || '';
     // önceki oturumlar sunucuda kapatılır (sekmede tek oturum kalır)

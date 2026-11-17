@@ -37,6 +37,7 @@ import {
 } from '../types';
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery, passwordRecoveryLinkReady } from '../lib/supabase';
 import { sifreSorunu, type SifreKisi } from '../lib/sifreKurali';
+import { robotJetonu, robotHatasiMi, ROBOT_RED } from '../lib/robotKoruma'; // Aşama 309
 import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
 // Aşama 286: e-posta şablonları yalnız bildirimService üzerinden kullanılır (generateStudentWelcomeEmail hiç kullanılmıyordu)
 import {
@@ -6631,8 +6632,10 @@ class DataService {
     }
 
     // 1) Eski şifreyi doğrula (yanlışsa mevcut oturum bozulmaz, işlem burada durur)
-    const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
+    const captchaToken = await robotJetonu(); // Aşama 309: robot koruması açıksa taze doğrulama jetonu
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword, options: captchaToken ? { captchaToken } : undefined });
     if (verifyError) {
+      if (robotHatasiMi(verifyError)) throw new Error(ROBOT_RED);
       const vm = (verifyError.message || '').toLowerCase();
       if (vm.includes('rate limit') || vm.includes('too many')) {
         throw new Error(this.translatePasswordError(verifyError.message));
@@ -7116,6 +7119,7 @@ class DataService {
     if (m.includes('rate limit') || m.includes('too many')) {
       return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
     }
+    if (robotHatasiMi(err)) return ROBOT_RED; // Aşama 309
     if (m.includes('fetch') || m.includes('network')) {
       return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol ediniz.';
     }
@@ -7133,7 +7137,9 @@ class DataService {
       const clean = (email || '').trim().toLowerCase();
       if (!clean || tried.has(clean)) continue;
       tried.add(clean);
-      const { data, error } = await supabase.auth.signInWithPassword({ email: clean, password });
+      // Aşama 309: her deneme kendi taze jetonuyla (jeton tek kullanımlık); koruma kapalıysa jetonsuz, eskisi gibi
+      const captchaToken = await robotJetonu();
+      const { data, error } = await supabase.auth.signInWithPassword({ email: clean, password, options: captchaToken ? { captchaToken } : undefined });
       if (!error && data?.user) return { user: data.user };
       const friendly = this.loginErrorMessage(error, role);
       if (friendly) throw new Error(friendly);

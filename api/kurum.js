@@ -327,6 +327,23 @@ async function bagliSahibi(e, user) {
   return { id: user.id, head: false, ad: t.name || '', kurumAd: kurum ? kurum.name : 'Kendi alanım' };
 }
 
+// Aşama 309: şifre sınama (password grant). Supabase'de robot koruması (CAPTCHA) açıksa istemcinin taze jetonu
+// iletilir; jeton yoksa ya da geçmediyse kişiye "şifre yanlış" yerine doğru neden söylenir.
+async function sifreSina(e, email, sifre, robot) {
+  const govde = { email, password: sifre };
+  if (typeof robot === 'string' && robot.length > 0 && robot.length <= 4096) govde.gotrue_meta_security = { captcha_token: robot };
+  const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
+    body: JSON.stringify(govde),
+  });
+  const ses = await readJson(vr);
+  if (!vr.ok && /captcha/i.test(`${(ses && (ses.error_code || ses.code)) || ''} ${(ses && (ses.msg || ses.message || ses.error_description)) || ''}`)) {
+    throw new HttpError(400, 'Robot doğrulaması geçilemedi. Sayfayı yenileyip tekrar deneyin.');
+  }
+  return { vr, ses };
+}
+
 async function actionBagla(e, body, owner, gozuSid = null) {
   const kim = String(body.kullanici || '').trim().toLowerCase();
   const sifre = String(body.sifre || '');
@@ -346,12 +363,7 @@ async function actionBagla(e, body, owner, gozuSid = null) {
   if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Hesabın giriş bilgisi okunamadı.');
   if (String(authUser.email).toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hesap.');
   // Şifre doğrulaması: hesabın gerçekten size ait olduğunun kanıtı. Açılan sınama oturumu hemen kapatılır.
-  const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: authUser.email, password: sifre }),
-  });
-  const ses = await readJson(vr);
+  const { vr, ses } = await sifreSina(e, authUser.email, sifre, body.robot); // Aşama 309
   if (!vr.ok || !ses || !ses.access_token) throw new HttpError(401, 'Şifre doğrulanamadı. O hesabın güncel şifresini yazın.');
   await fetch(`${e.url}/auth/v1/logout?scope=local`, {
     method: 'POST',
@@ -456,12 +468,7 @@ async function bagliSahibeGir(e, body, owner, authUser, t) {
   const sifre = String(body.sifre || '');
   if (sifre.length < 6 || sifre.length > 200) throw new HttpError(400, 'Sistem sahibi şifrenizi yazın.');
   await baglaSiniri(e, owner.id);
-  const vr = await fetch(`${e.url}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: e.anon || e.service, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: authUser.email, password: sifre }),
-  });
-  const ses = await readJson(vr);
+  const { vr, ses } = await sifreSina(e, authUser.email, sifre, body.robot); // Aşama 309
   if (!vr.ok || !ses || !ses.access_token || !ses.refresh_token) throw new HttpError(401, 'Şifre doğrulanamadı.');
   return {
     ok: true,
