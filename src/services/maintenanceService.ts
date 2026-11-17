@@ -11,17 +11,17 @@ import { newId } from '../lib/ids';
 // ---------------------------------------------------------------------------
 const PAGE_SIZE = 1000;
 
-async function fetchAllRows(table: string, columns = '*', apply?: (q: any) => any): Promise<any[]> {
+async function fetchAllRows(table: string, columns = '*', apply?: (q: any) => any, orderBy = 'id'): Promise<any[]> {
   const rows: any[] = [];
   let ordered = true;
   for (let from = 0; ; from += PAGE_SIZE) {
     let q: any = supabase.from(table).select(columns);
     if (apply) q = apply(q);
-    if (ordered) q = q.order('id', { ascending: true });
+    if (ordered) q = q.order(orderBy, { ascending: true });
     const { data, error } = await q.range(from, from + PAGE_SIZE - 1);
     if (error) {
       // "id" sütunu yoksa sırasız dene (tek sefer)
-      if (ordered && from === 0 && (error.code === '42703' || /column .*id/i.test(error.message || ''))) {
+      if (ordered && from === 0 && (error.code === '42703' || new RegExp(`column .*${orderBy}`, 'i').test(error.message || ''))) {
         ordered = false;
         from = -PAGE_SIZE;
         continue;
@@ -59,7 +59,12 @@ interface BackupTableDef {
   sheet: string;
   columns?: string;
   apply?: (q: any) => any;
+  orderBy?: string; // Aşama 312: "id" sütunu olmayan tablolarda sayfalama sırası
 }
+
+// Aşama 312: tablo kurulu değilse (eski kurulum, o SQL hiç çalıştırılmamış) hata sayılmaz; yedek atlar ve Bilgi sayfasına yazar
+const tabloYokMu = (e: any) =>
+  !!e && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|schema cache|could not find the table/i.test(e.message || ''));
 
 const BACKUP_TABLES: BackupTableDef[] = [
   { table: 'teachers', sheet: 'Öğretmenler' },
@@ -82,7 +87,43 @@ const BACKUP_TABLES: BackupTableDef[] = [
       'id,title,description,category,file_format,file_name,file_size,storage_path,subject,school_type,grade_level,academic_year,tags,author_name,uploaded_by,owner_auth_id,created_at,updated_at',
   },
   { table: 'student_applications', sheet: 'Kayıt Başvuruları' },
+  // Aşama 312: yedeğe girmeyen bütün kurum verisi (denemeler, haftalık planlar, ders programı, kurum ve yetki ayarları).
+  // Hariç: giriş şifreleri ve ilk şifreler, bağlı hesaplar, işlem geçmişi (Yönetim › İşlem geçmişi'nden görülür), sinyal ve posta kayıtları.
+  { table: 'kurumlar', sheet: 'Kurum' },
+  { table: 'kurum_class_grants', sheet: 'Kurum Sınıf Yetkileri', orderBy: 'class_id' },
+  { table: 'teacher_roles', sheet: 'Öğretmen Rolleri', orderBy: 'teacher_id' },
+  { table: 'teacher_role_log', sheet: 'Rol Değişiklik Geçmişi' },
+  { table: 'teacher_section_access', sheet: 'Öğretmen Bölüm Yetkileri', orderBy: 'teacher_id' },
+  { table: 'teacher_grade_access', sheet: 'Öğretmen Kademe Yetkileri', orderBy: 'teacher_auth_id' },
+  { table: 'teacher_contacts', sheet: 'Öğretmen İletişim', orderBy: 'teacher_id' },
+  { table: 'notification_policy', sheet: 'Bildirim Ayarları' },
+  { table: 'study_plans', sheet: 'Haftalık Planlar' },
+  { table: 'study_plan_items', sheet: 'Plan Görevleri' },
+  { table: 'student_books', sheet: 'Öğrenci Kitapları' },
+  { table: 'etut_teachers', sheet: 'Etüt Öğretmenleri' },
+  { table: 'etut_yoklama', sheet: 'Etüt Yoklaması' },
+  { table: 'student_notifications', sheet: 'Öğrenci Bildirimleri' },
+  { table: 'deneme_exams', sheet: 'Denemeler' },
+  { table: 'deneme_results', sheet: 'Deneme Sonuçları' },
+  { table: 'deneme_kazanimlar', sheet: 'Deneme Kazanımları' },
+  { table: 'deneme_formats', sheet: 'Deneme Biçimleri' },
+  { table: 'deneme_yillik_plan', sheet: 'Yıllık Plan' },
+  { table: 'deneme_targets', sheet: 'Deneme Hedefleri' },
+  { table: 'deneme_kazanim_eslesme', sheet: 'Kazanım Eşleşmeleri' },
+  { table: 'deneme_aliases', sheet: 'Deneme Takma Adları' },
+  { table: 'kurum_ders_ayar', sheet: 'Ders Saatleri', orderBy: 'kurum_id' },
+  { table: 'kurum_ders_tatil', sheet: 'Ders Tatilleri' },
+  { table: 'ders_programi', sheet: 'Ders Programı' },
+  { table: 'sinif_ders_ogretmen', sheet: 'Sınıf Ders Öğretmenleri' },
+  { table: 'ders_gun_izin', sheet: 'Gün Boyu İzinler' },
+  { table: 'ders_vekil', sheet: 'Vekil Dersler' },
+  { table: 'ders_yoklama_oturum', sheet: 'Ders Yoklama Oturumları' },
+  { table: 'ders_yoklama', sheet: 'Ders Yoklaması' },
+  { table: 'akademik_takvim', sheet: 'Akademik Takvim' },
 ];
+
+// Excel'de bir sayfa en çok bu kadar satır alır (dosya şişip açılmaz olmasın); tamamı .json dosyasındadır
+const EXCEL_ROW_LIMIT = 50000;
 
 const EXCEL_CELL_LIMIT = 32000;
 
@@ -100,6 +141,7 @@ export interface BackupResult {
   fileBaseName: string;
   counts: Record<string, number>;
   failedTables: Array<{ table: string; error: string }>;
+  missingTables: string[]; // Aşama 312: bu kurulumda olmayan tablolar (atlandı, hata değil)
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -129,25 +171,30 @@ export async function createFullBackup(
   const fileBaseName = `okul-yedek_${stamp}`;
   const counts: Record<string, number> = {};
   const failedTables: Array<{ table: string; error: string }> = [];
+  const missingTables: string[] = [];
   const json: Record<string, any[]> = {};
 
   for (let i = 0; i < BACKUP_TABLES.length; i++) {
     const def = BACKUP_TABLES[i];
     onProgress?.(i, BACKUP_TABLES.length, def.sheet);
     try {
-      let rows = def.table === 'students' ? await fetchStudentsForBackup() : await fetchAllRows(def.table, def.columns || '*', def.apply);
+      let rows = def.table === 'students' ? await fetchStudentsForBackup() : await fetchAllRows(def.table, def.columns || '*', def.apply, def.orderBy);
       if (def.table === 'homeworks') rows = rows.filter((r) => !String(r.id || '').startsWith('__'));
       json[def.table] = rows;
       counts[def.table] = rows.length;
     } catch (e: any) {
       // Tablo yoksa (ör. eski kurulumda) yedeğin geri kalanı yine alınır
+      if (tabloYokMu(e)) {
+        missingTables.push(def.table);
+        continue;
+      }
       failedTables.push({ table: def.table, error: e?.message || String(e) });
     }
   }
   onProgress?.(BACKUP_TABLES.length, BACKUP_TABLES.length, 'Dosyalar hazırlanıyor');
 
   const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
-  if (totalRows === 0 && failedTables.length > 0) {
+  if (totalRows === 0 && (failedTables.length > 0 || missingTables.length > 0)) {
     throw new Error('Veriler okunamadı. Yönetici olarak giriş yaptığınızdan ve internet bağlantınızdan emin olun.');
   }
 
@@ -159,13 +206,19 @@ export async function createFullBackup(
     ['Yedeği alan', adminName],
     [],
     ['Tablo', 'Satır sayısı'],
-    ...BACKUP_TABLES.map((d) => [d.sheet, counts[d.table] ?? 'okunamadı']),
+    ...BACKUP_TABLES.filter((d) => !missingTables.includes(d.table)).map((d) => [d.sheet, counts[d.table] ?? 'okunamadı']),
     [],
+    ['Not', 'Giriş şifreleri yedeğe girmez (güvenlik). Geri dönmek için Supabase\'in kendi yedeği esastır; bu dosya okunabilir bir kopyadır.'],
+    ['Not', 'İşlem geçmişi bu dosyada yoktur; Yönetim › İşlem geçmişi\'nden görülür.'],
+    ['Not', `Excel'de bir sayfa en çok ${EXCEL_ROW_LIMIT} satır gösterir; tamamı .json dosyasındadır.`],
     ['Not', 'PDF, fotoğraf ve video dosyaları bu yedeğe dahil değildir; dosya deposunda güvenle durur.'],
     ['Not', 'Gömülü dosyalar Excel\'de "[gömülü dosya]" olarak gösterilir. Tam yedek için .json dosyasını da saklayın.'],
   ];
   if (failedTables.length > 0) {
     info.push([], ['Okunamayan tablolar'], ...failedTables.map((f) => [f.table, f.error]));
+  }
+  if (missingTables.length > 0) {
+    info.push([], ['Bu kurulumda olmayan tablolar (atlandı)'], ...missingTables.map((t) => [t]));
   }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), 'Bilgi');
 
@@ -175,14 +228,14 @@ export async function createFullBackup(
     const colSet = new Set<string>();
     rows.forEach((r) => Object.keys(r || {}).forEach((k) => colSet.add(k)));
     const columns: string[] = Array.from(colSet);
-    const aoa = [columns, ...rows.map((r) => columns.map((c) => toCell(r[c])))];
+    const aoa = [columns, ...rows.slice(0, EXCEL_ROW_LIMIT).map((r) => columns.map((c) => toCell(r[c])))];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa.length > 1 ? aoa : [columns.length ? columns : ['(boş)']]), def.sheet.slice(0, 31));
   });
 
   const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([xlsxData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${fileBaseName}.xlsx`);
   const jsonBlob = new Blob(
-    [JSON.stringify({ format: 'okul-yedek', version: 1, createdAt: now.toISOString(), createdBy: adminName, counts, tables: json }, null, 1)],
+    [JSON.stringify({ format: 'okul-yedek', version: 2, createdAt: now.toISOString(), createdBy: adminName, counts, tables: json }, null, 1)],
     { type: 'application/json' }
   );
   downloadBlob(jsonBlob, `${fileBaseName}.json`);
@@ -192,7 +245,7 @@ export async function createFullBackup(
     await supabase.from('backup_log').insert({ created_by_name: adminName, table_counts: counts });
   } catch {}
 
-  return { fileBaseName, counts, failedTables };
+  return { fileBaseName, counts, failedTables, missingTables };
 }
 
 // Son yedeğin tarihi (yoksa null). Tablo yoksa 'unavailable'.

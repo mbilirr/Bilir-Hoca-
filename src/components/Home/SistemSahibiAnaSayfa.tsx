@@ -549,7 +549,7 @@ const YedekSheet: React.FC<{ open: boolean; onClose: () => void; sonYedek: Date 
       locked={busy}
       kicker="Yedek ve bakım"
       title="Tüm verileri yedekle"
-      desc="Öğrenciler, sınıflar, ödevler, teslimler, notlar, yoklama, etütler, mesajlar."
+      desc="Öğrenciler, notlar, yoklama, ödevler, denemeler, haftalık planlar, ders programı, yetkiler ve kurum ayarları. Şifreler girmez."
       footer={
         <>
           <span className="cnt">{busy ? 'Yedek alınırken pencereyi kapatmayın.' : ''}</span>

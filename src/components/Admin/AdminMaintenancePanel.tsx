@@ -135,7 +135,7 @@ export const AdminMaintenancePanel: React.FC = () => {
         <p className="text-[11px] text-muted flex items-center gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0" />
           <span>Excel ve JSON iner. Haftada bir yedek alın.</span>
-          <InfoTip text="Excel okumak içindir. JSON tam yedektir; geri yükleme gerekirse bu kullanılır. İkisini de bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
+          <InfoTip text="Excel okumak içindir. JSON bütün tabloların tam kopyasıdır (şifreler girmez). Sistem bozulursa asıl geri dönüş Supabase'in kendi yedeğidir. Dosyaları bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
         </p>
         <button
           type="button"
