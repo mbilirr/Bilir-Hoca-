@@ -44,9 +44,10 @@ const UserCredentialsExport = lazyNamed(() => import('./UserCredentialsExport'),
 const YeniKurumModal = lazyNamed(() => import('./YeniKurumModal'), 'YeniKurumModal');
 const OgrenciBolumPanel = lazyNamed(() => import('./OgrenciBolumPanel'), 'OgrenciBolumPanel'); // Aşama 165
 const DersYonetimi = lazyNamed(() => import('./DersYonetimi'), 'DersYonetimi'); // Aşama 217
+const IslemGecmisiPanel = lazyNamed(() => import('./IslemGecmisiPanel'), 'IslemGecmisiPanel'); // Aşama 307
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
-type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler'; // Aşama 217: dersler
+type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler' | 'gecmis'; // Aşama 217: dersler · 307: gecmis
 
 const STORE_KEY = 'edu_yonetim_v1';
 interface Saved {
@@ -114,7 +115,7 @@ export const YonetimSayfasi: React.FC<{
   // Aşama 245: kurum yöneticisinin ana sayfasından kurumun alt sekmesi (Öğretmenler, Öğrenciler, Roller, Ders programı…)
   useQuickFocus(['yonetim'], (f) => {
     if (isHead && (['kurumlar', 'bildirim', 'yedek', 'kendi'] as string[]).includes(f.id)) setUst(f.id as UstSekme);
-    else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler'] as string[]).includes(f.id)) {
+    else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler', 'gecmis'] as string[]).includes(f.id)) {
       if (isHead) setUst('kurumlar');
       setAlt(f.id as KurumSekme);
     }
@@ -189,6 +190,7 @@ export const YonetimSayfasi: React.FC<{
     { value: 'roller', label: 'Roller ve yetkiler', id: 'yonetim-alt-roller' },
     { value: 'bolumler', label: 'Bölümler ve sınıflar', id: 'yonetim-alt-bolumler' },
     { value: 'dersler', label: 'Ders programı', id: 'yonetim-alt-dersler' }, // Aşama 217
+    { value: 'gecmis', label: 'İşlem geçmişi', id: 'yonetim-alt-gecmis' }, // Aşama 307
   ];
   const BIREYSEL_SEKMELER: KurumSekme[] = ['genel', 'ogrenci', 'bolumler'];
   const altSekmeler = bireysel ? tumAltSekmeler.filter((x) => BIREYSEL_SEKMELER.includes(x.value)) : tumAltSekmeler;
@@ -310,6 +312,21 @@ export const YonetimSayfasi: React.FC<{
           ) : (
             <DersYonetimi key={`d-${kid}`} kurumId={kid} classes={classes} />
           ))}
+        {altAktif === 'gecmis' &&
+          // Aşama 307: kurumun kaydı kurumun içinden okunur (kurum ayrımı); sistem sahibi kuruma geçince görür
+          (isHead ? (
+            <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-gecmis-gecis">
+              <Info className="w-5 h-5 text-info-fg shrink-0" />
+              <p className="text-xs text-fg-2 flex-1">
+                <b>{kurumName}</b> işlem geçmişi için kuruma geçin.
+              </p>
+              <button type="button" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={enter} disabled={entering || !kid}>
+                <LogIn className="w-3.5 h-3.5" /> {entering ? 'Geçiliyor…' : 'Kuruma geç'}
+              </button>
+            </div>
+          ) : (
+            <IslemGecmisiPanel key={`g-${kid}`} students={dataService.getAllStudents().filter((s) => (s.kurumId || '') === kid)} />
+          ))}
         {altAktif === 'bolumler' && (
           // Aşama 165: öğrenci bölümleri (genel yönetici: kurum varsayılanı; kuruma geçince ve kurum yöneticisinde sınıflar da)
           <OgrenciBolumPanel
@@ -428,6 +445,8 @@ export const YonetimSayfasi: React.FC<{
             <UserCredentialsExport classes={classes} />
             {/* Aşama 165: kendi (kurumsuz) sınıflarım ve kurumlara açtığım sınıflar için öğrenci bölümleri */}
             <OgrenciBolumPanel key="ob-kendi" kurumId={null} classes={classes.filter((c) => !c.kurumId)} kurumModules={null} canEdit />
+            {/* Aşama 307: kendi alanımdaki (kurumsuz) öğrencilerin not, yoklama ve bilgi değişiklikleri */}
+            <IslemGecmisiPanel key="g-kendi" students={dataService.getAllStudents().filter((s) => !s.kurumId)} />
           </div>
         )}
       </Suspense>
