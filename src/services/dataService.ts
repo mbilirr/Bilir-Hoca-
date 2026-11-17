@@ -90,6 +90,7 @@ import {
   depoDegisinceBildir,
 } from './depo';
 import { hatirlananKisiOku, hatirlananKisiYaz, type HatirlananKisi } from './hatirla'; // Aşama 301
+import { agHatasiMi, baglantiNedeni } from '../lib/baglanti';
 // Aşama 302: kurum bölümleri ve portal tanımları ayrı dosyada (ekranlar için buradan da dışa verilir; davranış aynı)
 import {
   KURUM_MODULES,
@@ -3651,10 +3652,13 @@ class DataService {
     rollback();
     this.geriAlmayiDaralt(yazarken, hataAninda);
     this.notify();
+    // Aşama 304: bağlantı hatasında tarayıcının İngilizce teknik yazısı ("Failed to fetch") yerine ne olduğu yazılır
     const reason =
       error?.code === '42501'
         ? 'Bu işlem için yetkiniz yok'
-        : error?.message || 'Bağlantı sorunu';
+        : agHatasiMi(error)
+          ? baglantiNedeni()
+          : error?.message || 'Bağlantı sorunu';
     console.warn(`[CloudWrite] ${userMessage}:`, error);
     if (options?.silent) return false;
     this.showFloatingErrorToast(`Hata: ${userMessage} (${reason}). Değişiklikler geri alındı.`);

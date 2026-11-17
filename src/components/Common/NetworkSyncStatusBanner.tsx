@@ -1,75 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import { WifiOff, Wifi, CheckCircle2, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, RefreshCw, WifiOff } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 
+// ============================================================================
+// Aşama 304: BAĞLANTI DURUMU ŞERİDİ
+// - İnternet kesilince ekranın üstünde sade bir şerit: değişikliklerin kaydedilmeyeceği açıkça yazar.
+// - Bağlantı gelince "güncelleniyor" görünür; "Veriler güncel" yazısı ancak eşitleme GERÇEKTEN bitince çıkar
+//   (eskiden eşitleme başlamadan "Senkronize edildi" yazıyordu).
+// - Eşitlemeyi veri servisi kendisi başlatır (internet gelince); şerit yalnız o işin bitmesini bekler, ikinci bir
+//   eşitleme başlatmaz.
+// ============================================================================
+
+type Durum = 'cevrimdisi' | 'esitleniyor' | 'guncel' | null;
+
 export const NetworkSyncStatusBanner: React.FC = () => {
-  const [isOnline, setIsOnline] = useState<boolean>(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
+  const [durum, setDurum] = useState<Durum>(() =>
+    typeof navigator !== 'undefined' && navigator.onLine === false ? 'cevrimdisi' : null,
   );
-  const [showOnlineToast, setShowOnlineToast] = useState<boolean>(false);
+  const sira = useRef(0); // art arda kesilip gelirse yalnız son bağlantının sonucu gösterilir
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      setShowOnlineToast(true);
-      dataService.reconnectAllRealtime();
-      dataService.revalidateAndSyncAll(false);
-
-      const timer = setTimeout(() => {
-        setShowOnlineToast(false);
-      }, 4500);
-      return () => clearTimeout(timer);
+    let kapat: ReturnType<typeof setTimeout> | null = null;
+    const temizle = () => {
+      if (kapat) clearTimeout(kapat);
+      kapat = null;
     };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      setShowOnlineToast(false);
+    const cevrimdisi = () => {
+      sira.current++;
+      temizle();
+      setDurum('cevrimdisi');
     };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
+    const cevrimici = () => {
+      const benim = ++sira.current;
+      temizle();
+      setDurum('esitleniyor');
+      // Veri servisi internet gelince eşitlemeyi zaten başlattı; bu çağrı süren işi döndürür (yeni iş başlatmaz)
+      const bitti = dataService.revalidateAndSyncAll(false).catch(() => undefined);
+      // Sunucu çok yavaşsa şerit ekranda asılı kalmaz
+      const sure = new Promise<void>((z) => setTimeout(z, 20_000));
+      void Promise.race([bitti, sure]).then(() => {
+        if (benim !== sira.current) return;
+        setDurum('guncel');
+        kapat = setTimeout(() => {
+          if (benim === sira.current) setDurum(null);
+        }, 3000);
+      });
+    };
+    window.addEventListener('online', cevrimici);
+    window.addEventListener('offline', cevrimdisi);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      temizle();
+      window.removeEventListener('online', cevrimici);
+      window.removeEventListener('offline', cevrimdisi);
     };
   }, []);
 
-  // Offline banner
-  if (!isOnline) {
-    return (
-      <div
-        id="offline-sync-alert-banner"
-        className="fixed top-0 inset-x-0 z-50 bg-warning text-slate-950 font-bold text-xs sm:text-sm py-2 px-4 shadow-lg flex items-center justify-center space-x-2 animate-in slide-in-from-top duration-300 border-b border-warning"
-      >
-        <WifiOff className="w-4 h-4 text-slate-950 animate-pulse shrink-0" />
-        <span>İnternet bağlantısı yok</span>
-        <span className="text-[11px] font-normal bg-warning/30 px-2 py-0.5 rounded-full ml-2 hidden sm:inline-block">
-          Bağlantı gelene kadar yapılan değişiklikler kaydedilemez
-        </span>
-      </div>
-    );
-  }
+  if (!durum) return null;
 
-  // Reconnection success toast
-  if (showOnlineToast) {
-    return (
-      <div
-        id="online-sync-success-toast"
-        className="fixed top-3 right-3 sm:right-6 z-50 bg-success text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xl flex items-center space-x-2.5 animate-in slide-in-from-top-3 duration-300 border border-success"
-      >
-        <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-          <CheckCircle2 className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <div className="text-xs font-bold">Senkronize edildi</div>
-          <div className="text-[11px] font-normal text-success-fg">
-            İnternet bağlantısı sağlandı, bulut verileri güncellendi.
-          </div>
-        </div>
-      </div>
+  const icerik =
+    durum === 'cevrimdisi' ? (
+      <>
+        <WifiOff className="w-4 h-4 shrink-0" aria-hidden />
+        <span className="font-semibold">İnternet bağlantısı yok</span>
+        <span className="hidden sm:inline opacity-75">· Değişiklikler kaydedilmez, bağlantı gelince sayfa kendiliğinden güncellenir</span>
+      </>
+    ) : durum === 'esitleniyor' ? (
+      <>
+        <RefreshCw className="w-4 h-4 shrink-0 animate-spin" aria-hidden />
+        <span className="font-semibold">Bağlantı geldi</span>
+        <span className="opacity-75">· güncelleniyor</span>
+      </>
+    ) : (
+      <>
+        <CheckCircle2 className="w-4 h-4 shrink-0 text-success" aria-hidden />
+        <span className="font-semibold">Veriler güncel</span>
+      </>
     );
-  }
 
-  return null;
+  return (
+    <div
+      id={durum === 'cevrimdisi' ? 'offline-sync-alert-banner' : 'online-sync-success-toast'}
+      role="status"
+      aria-live="polite"
+      className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[95] max-w-[calc(100vw-2rem)] flex items-center gap-2 whitespace-nowrap rounded-full bg-fg text-canvas text-xs px-4 py-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
+    >
+      {icerik}
+    </div>
+  );
 };
