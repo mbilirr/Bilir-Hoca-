@@ -3443,22 +3443,60 @@ class DataService {
   }
 
   /** sql/88 ile "değişim zamanı" tutulan tablolar (yarım saatte bir yeniden sorulur) */
+  // Aşama 298 (HIZ): artımlı okunabilen tabloların listesi (sync_delta_tables) kişiye değil veritabanının kurulumuna aittir
+  // (hangi tabloda "son değişiklik" tetiği var). Eskiden her sayfa açılışında sınıf / öğrenci / öğretmen okumaları önce
+  // bu listenin yanıtını bekliyordu (art arda iki istek). Artık liste bu cihazda saklanır: açılışta saklanan liste
+  // BEKLEMEDEN kullanılır, güncel liste aynı anda arkada okunup bir sonraki yenileme için yerine yazılır.
+  // Kişisel veri içermez (yalnız tablo adları). Saklanan liste yoksa / bozuksa eskisi gibi yanıt beklenir.
+  private static readonly DELTA_LISTE_KEY = 'bilir_delta_tablolar_v1';
+  private static readonly DELTA_LISTE_OMUR_MS = 7 * 86400000;
+  private static deltaListeOku(): Set<string> | null {
+    try {
+      const raw = browserLocalStorage?.getItem(DataService.DELTA_LISTE_KEY);
+      if (!raw) return null;
+      const v = JSON.parse(raw);
+      if (!v || !Array.isArray(v.l) || typeof v.t !== 'number' || Date.now() - v.t > DataService.DELTA_LISTE_OMUR_MS) return null;
+      return new Set<string>(v.l.map((x: unknown) => String(x)));
+    } catch {
+      return null;
+    }
+  }
+  private static deltaListeYaz(set: Set<string>): void {
+    try {
+      browserLocalStorage?.setItem(DataService.DELTA_LISTE_KEY, JSON.stringify({ t: Date.now(), l: Array.from(set).sort() }));
+    } catch {
+      /* depolama kapalı / dolu: liste her açılışta sorulur (eski davranış) */
+    }
+  }
+
   private async deltaTables(): Promise<Set<string>> {
     if (this.deltaReady && Date.now() - this.deltaReadyAt < 30 * 60000) return this.deltaReady;
     if (!this.deltaReadyPromise) {
       this.deltaReadyPromise = (async () => {
         let set = new Set<string>();
+        let okundu = false;
         try {
           const { data, error } = await supabase.rpc('sync_delta_tables');
-          if (!error && Array.isArray(data)) set = new Set(data.map((x: any) => String(x)));
+          if (!error && Array.isArray(data)) {
+            set = new Set(data.map((x: any) => String(x)));
+            okundu = true;
+          }
         } catch {
           /* işlev yoksa: tam okuma */
         }
         this.deltaReady = set;
         this.deltaReadyAt = Date.now();
         this.deltaReadyPromise = null;
+        // Aşama 298: yalnız gerçekten okunan liste saklanır (bağlantı hatasında eldeki saklı liste bozulmaz)
+        if (okundu) DataService.deltaListeYaz(set);
         return set;
       })();
+    }
+    // Aşama 298: bu sayfa açılışında liste henüz okunmadıysa cihazda saklanan liste beklemeden kullanılır
+    // (güncel liste yukarıda arkada okunuyor; gelince bellekteki ve saklanan liste yenilenir)
+    if (!this.deltaReady) {
+      const sakli = DataService.deltaListeOku();
+      if (sakli) return sakli;
     }
     return this.deltaReadyPromise;
   }
@@ -5211,6 +5249,30 @@ class DataService {
     this.setMyKurum(next);
     if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
     return true;
+  }
+
+  /** Aşama 298 (HIZ): hesap / kurum geçişinde yeni hesabın kurum bilgisi sayfa yenilenmeden ÖNCE okunur (kurumGecis.switchTab,
+   *  öğretmen kaydıyla aynı anda). Dönen metin, yenilemeden hemen önce kurumOnYaz ile sekmeye yazılır; yenilenen sayfa
+   *  hangi ana sayfayı açacağını ilk anda bilir ("Yükleniyor…" beklemesi olmaz). Geçerli durumu DEĞİŞTİRMEZ; okunamazsa
+   *  null döner ve eski yol (açılışta okuma) çalışır. Bilgi yeni hesabın kendi oturumuyla okunur. */
+  public async kurumOnOku(): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.rpc('my_kurum');
+      if (error) return null;
+      const d = DataService.parseKurumRpc(data, 'my_kurum');
+      return JSON.stringify(DataService.kurumStateFrom(d, typeof d.logo === 'string' ? d.logo : ''));
+    } catch {
+      return null;
+    }
+  }
+  /** Aşama 298: prepareAccountSwitch'ten SONRA çağrılır (o, önceki hesabın kurum bilgisini siler). */
+  public kurumOnYaz(json: string | null): void {
+    if (!json) return;
+    try {
+      sessionStorage.setItem(MY_KURUM_KEY, json);
+    } catch {
+      /* depolama kapalı: açılışta okunur */
+    }
   }
 
   public async syncMyKurum(): Promise<void> {

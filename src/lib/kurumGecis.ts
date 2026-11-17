@@ -215,11 +215,18 @@ async function switchTab(tokens: { access_token: string; refresh_token: string }
   }
   const authUser = data.session?.user || data.user;
   // Aşama 252: öğrenci hesabına bakılıyorsa öğrenci oturumu kurulur (şifre değiştirme ekranı açılmaz)
-  const session =
-    authUser && authUser.app_metadata?.role === 'student'
-      ? { role: 'student', user: { ...(await dataService.ogrenciOturumu(authUser)), mustChangePassword: false } }
-      : { role: 'teacher', user: await teacherOfAuth(authUser) };
+  // Aşama 298 (HIZ): öğretmen hesabında kurum bilgisi öğretmen kaydıyla AYNI ANDA okunur ve yenilemeden önce sekmeye yazılır;
+  // yenilenen sayfa ana sayfayı beklemeden açar. En çok 4 sn beklenir; gelmezse eski yol (açılışta okuma) çalışır.
+  const ogrenci = !!authUser && authUser.app_metadata?.role === 'student';
+  const kurumOnSoz: Promise<string | null> = ogrenci
+    ? Promise.resolve(null)
+    : Promise.race([dataService.kurumOnOku(), new Promise<null>((r) => setTimeout(() => r(null), 4000))]);
+  const session = ogrenci
+    ? { role: 'student', user: { ...(await dataService.ogrenciOturumu(authUser!)), mustChangePassword: false } }
+    : { role: 'teacher', user: await teacherOfAuth(authUser) };
+  const kurumOn = await kurumOnSoz;
   dataService.prepareAccountSwitch();
+  dataService.kurumOnYaz(kurumOn);
   try {
     window.sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
   } catch {
