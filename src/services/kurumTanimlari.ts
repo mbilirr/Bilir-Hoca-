@@ -28,8 +28,10 @@ export const kurumModulListesi = (bireysel: boolean) => (bireysel ? KURUM_MODULE
 /** Aşama 258: kurum türü. 'bireysel' = tek öğretmenli koçluk hesabı (sql/258) */
 export type KurumTur = 'kurum' | 'bireysel';
 
-/** Aşama 259: sistem sahibinin kendi panelinde (yönetim merkezi) açık sekmeler */
-export const SISTEM_SAHIBI_SEKMELERI: TeacherTabType[] = ['home', 'user_management', 'deneme'];
+/** Aşama 259: sistem sahibinin kendi panelinde (yönetim merkezi) açık sekmeler
+ *  Aşama 321: Öğrenciler geri açıldı: kendi sınıflarını (ör. 7/A) açar; Yönetim > kurum > Bölümler'de tikle kuruma ve
+ *  bireysel hesaplara aynı anda açar (kurum_class_grants). Ders işleri (ödev, etüt…) kendi panelde yine kapalı. */
+export const SISTEM_SAHIBI_SEKMELERI: TeacherTabType[] = ['home', 'students', 'user_management', 'deneme'];
 
 export const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
   homework: 'homework',
