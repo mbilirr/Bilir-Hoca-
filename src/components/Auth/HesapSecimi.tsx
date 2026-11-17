@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Crown, GraduationCap, LogOut, Check, Repeat, Link2, Trash2, Building2, Eye } from 'lucide-react';
+import { Crown, GraduationCap, LogOut, Check, ChevronRight, Repeat, Link2, Trash2, Building2, Eye } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import {
   bagliHesabaGec,
@@ -28,17 +28,49 @@ import {
 
 const SAHIP = 'sahip';
 
-const KART =
-  'group flex flex-col gap-3 text-left bg-surface border shadow-card cursor-pointer transition-[transform,box-shadow,border-color] duration-300 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-0.5 hover:shadow-pop hover:border-line-strong active:scale-[.985] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand motion-reduce:transition-none disabled:opacity-60 disabled:cursor-wait';
+// Aşama 308: kartlar yerine sık, renkli satırlar (her kuruma kendi renginde simge + rol etiketi). Satırlar eşit boyda.
+const SATIR =
+  'group w-full flex items-center gap-3 p-3 text-left rounded-2xl border bg-surface transition-[transform,box-shadow,border-color,background-color] duration-300 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none disabled:cursor-wait';
+
+type RolTon = 'sahip' | 'ogretmen' | 'yonetici' | 'gozu';
+const ROL_ETIKET: Record<RolTon, string> = {
+  sahip: 'bg-warning-soft text-warning-fg',
+  ogretmen: 'bg-info-soft text-info-fg',
+  yonetici: 'bg-success-soft text-success-fg',
+  gozu: 'bg-brand-soft text-brand-fg',
+};
+// Simge renkleri: göz yormayan, birbirinden ayrışan tonlar (kurum adına göre hep aynı renk)
+const TONLAR = [222, 172, 199, 152, 262, 190, 240, 280];
+const ton = (ad: string) => {
+  let h = 0;
+  for (const c of ad.toLocaleLowerCase('tr-TR')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return TONLAR[h % TONLAR.length];
+};
+const gradyan = (h: number) => ({ backgroundImage: `linear-gradient(135deg, hsl(${h} 68% 56%), hsl(${(h + 18) % 360} 72% 40%))` });
+interface Secenek {
+  id: string;
+  ad: string;
+  rol: string;
+  rolTon: RolTon;
+  alt: string;
+  icon: React.ComponentType<{ className?: string }>;
+  renk: number;
+}
+
+const HesapSimge: React.FC<{ s: Secenek }> = ({ s }) => (
+  <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center text-white shadow-sm ring-1 ring-black/5" style={gradyan(s.renk)} aria-hidden="true">
+    <s.icon className="w-[18px] h-[18px]" />
+  </span>
+);
 
 const GECIS = 'gecis';
 
-/** Aşama 266: sistem sahibi bir kuruma geçtiyse ya da gözüyle bakıyorsa o anki hesabın kartı (logodan geri dönüş için) */
-function gecisKarti(): { id: string; icon: React.ComponentType<{ className?: string }>; baslik: string; aciklama: string } | null {
+/** Aşama 266: sistem sahibi bir kuruma geçtiyse ya da gözüyle bakıyorsa o anki hesabın satırı (logodan geri dönüş için) */
+function gecisKarti(): Secenek | null {
   const g = readGecis();
   if (!g || g.bagli) return null;
-  if (g.gozu) return { id: GECIS, icon: Eye, baslik: `${g.gozu.kurumAd} · ${g.gozu.ad}`, aciklama: 'Bu kişinin gözüyle bakıyorsunuz. Yaptığınız işlemler kayda geçer.' };
-  if (g.active) return { id: GECIS, icon: Building2, baslik: `${g.active.name} · Kurum yöneticisi`, aciklama: 'Kuruma geçtiniz; kurum yöneticisinin ekranındasınız.' };
+  if (g.gozu) return { id: GECIS, ad: g.gozu.kurumAd, rol: 'Gözüyle bakış', rolTon: 'gozu', alt: `${g.gozu.ad} · yaptığınız işlemler kayda geçer`, icon: Eye, renk: 222 };
+  if (g.active) return { id: GECIS, ad: g.active.name, rol: 'Kurum yöneticisi', rolTon: 'yonetici', alt: 'Kuruma geçtiniz, yöneticinin ekranındasınız', icon: Building2, renk: 152 };
   return null;
 }
 
@@ -46,51 +78,77 @@ const HesapKartlari: React.FC<{
   liste: BagliHesap[];
   aktif: string | null; // SAHIP | GECIS | bağlı hesap kimliği
   busy: string | null;
-  sik?: boolean;
   onSec: (id: string) => void;
-}> = ({ liste, aktif, busy, sik = false, onSec }) => {
+}> = ({ liste, aktif, busy, onSec }) => {
   const sahip = sahipKarti(); // Aşama 263: sistem sahibi ya da giriş yapılan öğretmen hesabı
   const gecis = gecisKarti();
-  const secenekler = [
-    { id: SAHIP, icon: sahip.head ? Crown : Building2, baslik: sahip.head ? 'Sistem sahibi · Kendi panelim' : sahip.baslik, aciklama: sahip.aciklama },
+  const [sahipKurum, sahipRol] = sahip.baslik.split(' · ');
+  const secenekler: Secenek[] = [
+    sahip.head
+      ? { id: SAHIP, ad: 'Sistem sahibi', rol: 'Kendi panelim', rolTon: 'sahip', alt: 'Kurumlar, hesaplar, yedek ve sistem ayarları', icon: Crown, renk: 32 }
+      : { id: SAHIP, ad: sahipKurum, rol: sahipRol || 'Öğretmen', rolTon: 'ogretmen', icon: GraduationCap, alt: sahip.aciklama.replace(/ olarak giriş yaptığınız hesap\.?$/, ' · giriş yaptığınız hesap').replace(/\.$/, ''), renk: ton(sahipKurum) },
     ...(gecis ? [gecis] : []),
-    ...liste.map((h) =>
+    ...liste.map((h): Secenek =>
       h.head
-        ? { id: h.authUserId, icon: Crown, baslik: 'Sistem sahibi', aciklama: 'Kurumlar, hesaplar ve sistem ayarları. Geçerken şifreniz sorulur.' } // Aşama 269
-        : { id: h.authUserId, icon: GraduationCap, baslik: `${h.kurumAd} · Öğretmen`, aciklama: `${h.ad} olarak öğretmen hesabınız: dersler, ödev ve etüt.` }
+        ? { id: h.authUserId, ad: 'Sistem sahibi', rol: 'Şifre sorulur', rolTon: 'sahip', alt: 'Kurumlar, hesaplar ve sistem ayarları', icon: Crown, renk: 32 } // Aşama 269
+        : { id: h.authUserId, ad: h.kurumAd, rol: 'Öğretmen', rolTon: 'ogretmen', icon: GraduationCap, alt: `${h.ad} · dersler, ödev ve etüt`, renk: ton(h.kurumAd) }
     ),
   ];
   return (
-    <div className={cx('grid sm:grid-cols-2', sik ? 'gap-3' : 'gap-4')}>
-      {secenekler.map(({ id, icon: Icon, baslik, aciklama }) => {
-        const on = id === aktif;
+    <ul className="space-y-2" aria-label="Hesaplar">
+      {secenekler.map((s) => {
+        const on = s.id === aktif;
         return (
-          <button
-            key={id}
-            type="button"
-            id={`hesap-sec-${id === SAHIP ? 'sahip' : id.slice(0, 8)}`}
-            aria-current={on ? 'true' : undefined}
-            disabled={!!busy}
-            onClick={() => !on && onSec(id)}
-            className={cx(KART, sik ? 'p-5 min-h-[11rem] rounded-2xl' : 'p-6 min-h-[13rem] rounded-3xl', on ? 'border-brand ring-1 ring-brand/30' : 'border-line')}
-          >
-            <span className="w-11 h-11 rounded-xl bg-surface-2 grid place-items-center">
-              <Icon className="w-[22px] h-[22px]" />
-            </span>
-            <span className="text-lg font-bold truncate">{baslik}</span>
-            <span className="flex-1 text-sm leading-relaxed text-muted">{aciklama}</span>
-            {on ? (
-              <span className="w-28 h-8 rounded-full bg-brand-soft text-brand-fg text-sm font-semibold inline-flex items-center justify-center gap-1.5">
-                <Check className="w-3.5 h-3.5" />
-                Buradasınız
+          <li key={s.id}>
+            <button
+              type="button"
+              id={`hesap-sec-${s.id === SAHIP ? 'sahip' : s.id.slice(0, 8)}`}
+              aria-current={on ? 'true' : undefined}
+              disabled={!!busy}
+              onClick={() => !on && onSec(s.id)}
+              className={cx(
+                SATIR,
+                on
+                  ? 'border-brand/40 bg-brand-soft/50 ring-1 ring-brand/20 cursor-default'
+                  : 'border-line shadow-card cursor-pointer hover:-translate-y-px hover:shadow-pop hover:border-line-strong active:scale-[.99]',
+                busy && busy !== s.id && 'opacity-60'
+              )}
+            >
+              <HesapSimge s={s} />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate text-sm font-bold text-fg" title={s.ad}>
+                    {s.ad}
+                  </span>
+                  <span className={cx('shrink-0 h-5 px-2 rounded-full text-[11px] font-semibold inline-flex items-center', ROL_ETIKET[s.rolTon])}>{s.rol}</span>
+                </span>
+                <span className="block truncate text-xs text-muted mt-0.5" title={s.alt}>
+                  {s.alt}
+                </span>
               </span>
-            ) : (
-              <span className="w-28 h-8 rounded-full bg-fg text-surface text-sm font-semibold grid place-items-center">{busy === id ? 'Açılıyor…' : 'Gir'}</span>
-            )}
-          </button>
+              {on ? (
+                <span className="shrink-0 w-14 sm:w-[6.5rem] h-7 rounded-full bg-surface border border-brand/30 text-brand-fg text-xs font-semibold inline-flex items-center justify-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  {/* telefonda yalnız işaret (satır zaten vurgulu); ekran okuyucu yine "Buradasınız" der */}
+                  <span className="sr-only sm:not-sr-only">Buradasınız</span>
+                </span>
+              ) : (
+                <span className="shrink-0 w-14 sm:w-[6.5rem] h-7 rounded-full bg-fg text-canvas text-xs font-semibold inline-flex items-center justify-center gap-1 transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none">
+                  {busy === s.id ? (
+                    'Açılıyor…'
+                  ) : (
+                    <>
+                      Gir
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </span>
+              )}
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
 
@@ -99,7 +157,7 @@ const SahipSifre: React.FC<{ busy: boolean; onGir: (sifre: string) => void; onVa
   const [sifre, setSifre] = useState('');
   return (
     <form
-      className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-2 p-2 pl-3"
+      className="mt-3 flex items-center gap-2 rounded-2xl border border-line bg-surface-2 p-2 pl-3"
       autoComplete="off"
       onSubmit={(e) => {
         e.preventDefault();
@@ -128,7 +186,7 @@ const SahipSifre: React.FC<{ busy: boolean; onGir: (sifre: string) => void; onVa
 };
 
 const HatirlaKutusu: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = ({ checked, onChange }) => (
-  <label className="mt-5 flex items-center justify-center gap-2 text-sm text-muted cursor-pointer select-none">
+  <label className="mt-4 flex items-center justify-center gap-2 text-xs text-muted cursor-pointer select-none">
     <input type="checkbox" className="w-4 h-4 accent-[var(--color-brand)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
     Bu cihazda seçimimi hatırla, bir dahaki girişte sorma
   </label>
@@ -163,23 +221,26 @@ export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: 
   };
   return (
     <div className="min-h-screen bg-canvas text-fg flex items-center justify-center px-4 py-10">
-      <main className="w-full max-w-3xl" aria-labelledby="hesap-baslik">
-        <header className="text-center mb-8">
-          {ad && <p className="text-sm text-muted">Hoş geldiniz, {ad}</p>}
-          <h1 id="hesap-baslik" className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">
+      <main className="w-full max-w-xl" aria-labelledby="hesap-baslik">
+        <header className="text-center mb-6">
+          <span className="mx-auto mb-3 w-11 h-11 rounded-2xl bg-brand-soft text-brand-fg grid place-items-center">
+            <Repeat className="w-5 h-5" />
+          </span>
+          {ad && <p className="text-xs text-muted">Hoş geldiniz, {ad}</p>}
+          <h1 id="hesap-baslik" className="mt-1 text-xl sm:text-2xl font-bold tracking-tight">
             Hangi <span className="text-brand-fg">hesapla</span> çalışmak istersiniz?
           </h1>
         </header>
         <HesapKartlari liste={liste} aktif={null} busy={busy} onSec={(id) => void sec(id)} />
         {sifreHedef && <SahipSifre busy={!!busy} onGir={(p) => void sec(sifreHedef, p)} onVazgec={() => setSifreHedef(null)} />}
         {err && (
-          <p role="alert" className="mt-4 text-center text-sm font-semibold text-danger-fg">
+          <p role="alert" className="mt-3 text-center text-xs font-semibold text-danger-fg">
             {err}
           </p>
         )}
         <HatirlaKutusu checked={hatirla} onChange={setHatirla} />
         <p className="mt-2 text-center text-xs text-subtle">Hesabı içeride sol üstteki logoya basarak istediğiniz an değiştirebilirsiniz.</p>
-        <div className="mt-6 flex justify-center">
+        <div className="mt-5 flex justify-center">
           <button type="button" onClick={onCikis} className="ui-btn ui-btn-ghost ui-btn-sm w-28 text-muted">
             <LogOut className="w-3.5 h-3.5" />
             Çıkış
@@ -231,8 +292,8 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
     }
   };
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} id="hesap-degistir" icon={Repeat} title="Hesap değiştir" description="Çalışmak istediğiniz hesabı seçin." size="lg">
-      {liste ? <HesapKartlari liste={liste} aktif={aktif} busy={busy} sik onSec={(id) => void sec(id)} /> : <div className="h-44 rounded-2xl bg-surface-2 animate-pulse" />}
+    <Modal open={open} onClose={() => !busy && onClose()} id="hesap-degistir" icon={Repeat} title="Hesap değiştir" description="Çalışmak istediğiniz hesabı seçin.">
+      {liste ? <HesapKartlari liste={liste} aktif={aktif} busy={busy} onSec={(id) => void sec(id)} /> : <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-16 rounded-2xl bg-surface-2 animate-pulse" />)}</div>}
       {sifreHedef && <SahipSifre busy={!!busy} onGir={(p) => void sec(sifreHedef, p)} onVazgec={() => setSifreHedef(null)} />}
       {err && (
         <p role="alert" className="mt-3 text-center text-sm font-semibold text-danger-fg">
