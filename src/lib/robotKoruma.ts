@@ -55,7 +55,8 @@ let kutu: { id: string; dis: HTMLDivElement; kart: HTMLDivElement } | null = nul
 let bekleyen: { ok: (t: string) => void; no: (e: Error) => void } | null = null;
 let kullanildi = false;
 
-const KART_GIZLI = 'pointer-events-none';
+// Aşama 311: gizliyken `invisible` (yer kalır, Cloudflare çalışır ama "Başarılı!" kutusu ekranda kalmaz)
+const KART_GIZLI = 'invisible pointer-events-none';
 const KART_ACIK = 'pointer-events-auto rounded-2xl border border-line bg-surface shadow-pop p-3 space-y-2 text-center';
 
 function bitir(hata: Error | null, jeton?: string) {
