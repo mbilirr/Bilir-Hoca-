@@ -83,7 +83,8 @@ export const yilAraligi = (y: number) => ({ bas: `${y}-09-01`, bit: `${y + 1}-06
 export const yilAdi = (y: number) => `${y}–${y + 1}`;
 
 /** Türkçe büyük harf (karşılaştırma ve saklama) */
-export const buyuk = (v: unknown): string => String(v ?? '').toLocaleUpperCase('tr').replace(/\s+/g, ' ').trim();
+// Aşama 329: NFC — Mac'te dosya adı ve yapıştırılan yazı 'İ'yi iki parça (I + nokta) getirebilir; karşılaştırma bozulmasın
+export const buyuk = (v: unknown): string => String(v ?? '').normalize('NFC').toLocaleUpperCase('tr').replace(/\s+/g, ' ').trim();
 
 // Aşama 329: zümre adı bilinen zümreye çevrilir ("MATEMATİK" → "MATEMATİK ZÜMRESİ"; "İNGİLİZCE" + ORTAOKUL → "ORTAOKUL İNGİLİZCE ZÜMRESİ").
 // Veritabanı da aynı kuralı uygular (akademik_zumre_ad, sql/329); bu kopya ekranda önizleme ve karşılaştırma içindir.

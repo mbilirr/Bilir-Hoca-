@@ -90,8 +90,8 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
   const wb = XLSX.read(await dosya.arrayBuffer(), { type: 'array' });
   const satirlar: OkunanSatir[] = [];
   let sayfaSayisi = 0;
-  // Aşama 327: ZÜMRE sütunu boşsa dosya adındaki zümre kullanılır ("MATEMATİK ZÜMRESİ 2026 AKADEMİK TAKVİM.xlsx")
-  const dosyaAdi = buyuk(dosya.name || '');
+  // Aşama 327/329: dosya adındaki zümre (varsa bütün satırlara yazılır) ("MATEMATİK ZÜMRESİ 2026 AKADEMİK TAKVİM.xlsx")
+  const dosyaAdi = buyuk(String(dosya.name || '').replace(/\.xlsx?$/i, '').replace(/[_\-.]+/g, ' ')); // "MATEMATİK_ZÜMRESİ_2026" de olur
   const dosyaZumresi = [...ZUMRELER].sort((a, b) => b.length - a.length).find((z) => dosyaAdi.includes(z)) || '';
   for (const ad of wb.SheetNames) {
     const ay = AY_SAYFALARI[buyuk(ad)];
@@ -121,7 +121,9 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
         ad: etkinlik,
         sinif: buyuk(v('sinif')),
         birim: buyuk(v('birim')),
-        zumre: zumreAdi(v('zumre'), v('birim')) || dosyaZumresi, // Aşama 329: "MATEMATİK" → "MATEMATİK ZÜMRESİ"
+        // Aşama 329: dosya adında zümre yazıyorsa dosyadaki BÜTÜN etkinlikler o zümreye yazılır (Mustafa'nın kuralı);
+        // yazmıyorsa hücredeki zümre tam adına çevrilir ("MATEMATİK" → "MATEMATİK ZÜMRESİ")
+        zumre: dosyaZumresi || zumreAdi(v('zumre'), v('birim')),
         kapsam: /VELİ/.test(buyuk(v('kapsam'))) ? 'veli' : 'ogrenci',
         yer: /DIŞ/.test(buyuk(v('yer'))) ? 'dis' : 'ic',
         salon: buyuk(v('salon')) === 'EVET',
