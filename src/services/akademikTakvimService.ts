@@ -85,6 +85,26 @@ export const yilAdi = (y: number) => `${y}–${y + 1}`;
 /** Türkçe büyük harf (karşılaştırma ve saklama) */
 export const buyuk = (v: unknown): string => String(v ?? '').toLocaleUpperCase('tr').replace(/\s+/g, ' ').trim();
 
+// Aşama 329: zümre adı bilinen zümreye çevrilir ("MATEMATİK" → "MATEMATİK ZÜMRESİ"; "İNGİLİZCE" + ORTAOKUL → "ORTAOKUL İNGİLİZCE ZÜMRESİ").
+// Veritabanı da aynı kuralı uygular (akademik_zumre_ad, sql/329); bu kopya ekranda önizleme ve karşılaştırma içindir.
+const ZUMRE_EK = new Set(['ZÜMRESİ', 'ZÜMRE', 'İLKOKUL', 'ORTAOKUL', 'ANASINIFI']);
+const zumreKok = (z: string) =>
+  buyuk(z)
+    .split(' ')
+    .filter((w) => w && !ZUMRE_EK.has(w))
+    .join(' ');
+export function zumreAdi(ham: unknown, birim: unknown = ''): string {
+  const z = buyuk(ham);
+  if (!z || (ZUMRELER as readonly string[]).includes(z)) return z;
+  const kok = zumreKok(z);
+  if (!kok) return z;
+  const aday = ZUMRELER.filter((x) => zumreKok(x) === kok);
+  if (aday.length === 1) return aday[0];
+  const b = buyuk(birim);
+  const birimli = b ? aday.filter((x) => x.includes(b)) : [];
+  return birimli.length === 1 ? birimli[0] : z;
+}
+
 const KUCUK = new Set(['ve', 'ile', 'ya', 'da', 'de', 'için', 'veya', 'ki']);
 /** "BİLİM MERKEZİ(GÜNEŞİN YAPISI)" → "Bilim Merkezi (Güneşin Yapısı)" */
 export function baslik(s: string): string {
@@ -216,17 +236,35 @@ function bitisDenetle(satirlar: AktSatir[]) {
   if (bitisYok && satirlar.some((s) => s.bitis || s.ayIcinde)) throw new Error(BITIS_EKSIK);
 }
 
+export type YuklemeSonucu = 'yeni' | 'guncel' | 'ayni' | 'yil_disi' | 'bos';
+
 export async function takvimYukle(mod: 'ekle' | 'degistir', yil: number, satirlar: AktSatir[]) {
   const { bas, bit } = yilAraligi(yil);
   bitisDenetle(satirlar);
   const r = await rpc<any>('akademik_takvim_yukle', { p_mod: mod, p_bas: bas, p_bit: bit, p_satirlar: satirlar });
-  return { eklenen: Number(r?.eklenen) || 0, atlanan: Number(r?.atlanan) || 0, silinen: Number(r?.silinen) || 0 };
+  // Aşama 329: satır satır sonuç (yeni | guncel | ayni | yil_disi | bos); 329 kurulu değilse yalnız sayılar gelir
+  const sonuclar: YuklemeSonucu[] = Array.isArray(r?.sonuclar) ? r.sonuclar.map((x: unknown) => String(x) as YuklemeSonucu) : [];
+  return {
+    eklenen: Number(r?.eklenen) || 0,
+    guncellenen: Number(r?.guncellenen) || 0,
+    ayni: Number(r?.ayni) || 0,
+    atlanan: Number(r?.atlanan) || 0,
+    silinen: Number(r?.silinen) || 0,
+    sonuclar,
+  };
 }
 
 /** Etkinliği ekle / değiştir (eski satırlar silinip yenileri yazılır, tek işlemde) ya da sil (satirlar boş) */
 export async function etkinlikKaydet(silinecek: string[], satirlar: AktSatir[]): Promise<void> {
   bitisDenetle(satirlar);
   await rpc('akademik_takvim_kaydet', { p_sil: silinecek, p_satirlar: satirlar });
+}
+
+/** Aşama 329: seçilen etkinliklerin bütün sınıf satırlarını tek işlemde siler */
+export async function etkinlikleriSil(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const r = await rpc<any>('akademik_takvim_kaydet', { p_sil: ids, p_satirlar: [] });
+  return Number(r?.silinen) || 0;
 }
 
 export async function kontrolIsaretle(ids: string[], kontrol: boolean): Promise<void> {

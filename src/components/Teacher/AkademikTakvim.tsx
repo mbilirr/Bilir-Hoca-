@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BellRing, CalendarRange, Check, Download, FileSpreadsheet, MapPin, Mic2, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
+import { AlertTriangle, BellRing, CalendarRange, Check, Download, FileSpreadsheet, MapPin, Mic2, Minus, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Panel, Segmented, StatCard, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from './FormParts';
@@ -19,6 +19,7 @@ import {
   buyuk,
   egitimYili,
   etkinlikKaydet,
+  etkinlikleriSil,
   etkinlikler,
   gunAraligiYazi,
   gunEkle,
@@ -35,6 +36,7 @@ import {
   tarihYaz,
   yilAdi,
   yilAraligi,
+  zumreAdi,
   zumreBransUyar,
   zumreKaydet,
   zumreListesi,
@@ -43,6 +45,7 @@ import {
   type AktKayit,
   type AktSatir,
   type AktYer,
+  type YuklemeSonucu,
   type ZumreUye,
 } from '../../services/akademikTakvimService';
 import type { Teacher } from '../../types';
@@ -96,6 +99,29 @@ const gunleri = (g: Pick<AktKayit, 'tarih' | 'bitis' | 'ayIcinde'>): string[] =>
   return l;
 };
 
+/** Aşama 329: seçme kutusu (yarım seçimde çizgi) */
+const SecKutusu: React.FC<{ durum: boolean | 'mixed'; onClick: () => void; etiket: string; id?: string }> = ({ durum, onClick, etiket, id }) => (
+  <button
+    type="button"
+    id={id}
+    role="checkbox"
+    aria-checked={durum}
+    aria-label={etiket}
+    title={etiket}
+    onClick={onClick}
+    className="w-9 h-9 -m-2 shrink-0 grid place-items-center rounded-lg cursor-pointer hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 transition-colors"
+  >
+    <span
+      className={cx(
+        'w-[18px] h-[18px] rounded-[5px] border grid place-items-center transition-colors',
+        durum ? 'bg-brand border-brand text-white' : 'bg-surface border-line-strong'
+      )}
+    >
+      {durum === 'mixed' ? <Minus className="w-3 h-3" strokeWidth={3} /> : durum ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
+    </span>
+  </button>
+);
+
 export const AkademikTakvim: React.FC = () => {
   const kurumId = dataService.getMyKurumId();
   const yonetir = dataService.canManageAkademikTakvim();
@@ -112,6 +138,8 @@ export const AkademikTakvim: React.FC = () => {
   const [duzenle, setDuzenle] = useState<AktEtkinlik | 'yeni' | null>(null);
   const [excelAcik, setExcelAcik] = useState(false);
   const [zumreAcik, setZumreAcik] = useState(false); // Aşama 328
+  const [secim, setSecim] = useState<Set<string>>(() => new Set()); // Aşama 329: toplu silme
+  const [siliniyor, setSiliniyor] = useState(false);
 
   const yukle = useCallback(async () => {
     if (!kurumId) return;
@@ -157,6 +185,38 @@ export const AkademikTakvim: React.FC = () => {
   }, [hepsi]);
   const ayOf = (g: AktEtkinlik) => tarihCoz(g.tarih).getMonth() + 1;
   const gorunen = hepsi.filter((g) => uyar(g) && (!ay || ayOf(g) === ay));
+  // Aşama 329: seçim yalnız ekranda görünen etkinliklerde geçerli (süzgeç değişince gizlenen seçili kalmaz)
+  const secili = gorunen.filter((g) => secim.has(g.key));
+  const hepsiSecili = gorunen.length > 0 && secili.length === gorunen.length;
+  const sec = (k: string) =>
+    setSecim((p) => {
+      const n = new Set(p);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  const tumunuSec = () => setSecim(hepsiSecili ? new Set() : new Set(gorunen.map((g) => g.key)));
+  const seciliSil = async () => {
+    if (!secili.length || siliniyor) return;
+    const ok = await appConfirm({
+      title: `${secili.length} etkinlik silinsin mi?`,
+      message: `${secili.length === 1 ? `"${baslik(secili[0].ad)}"` : 'Seçilen etkinlikler'} bütün sınıflarıyla takvimden silinir. Bu işlem geri alınamaz.`,
+      confirmText: 'Sil',
+      danger: true,
+    });
+    if (!ok) return;
+    setSiliniyor(true);
+    try {
+      const n = await etkinlikleriSil(secili.flatMap((g) => g.ids));
+      setSecim(new Set());
+      setBildirim({ tone: 'ok', text: `${secili.length} etkinlik silindi (${n} sınıf kaydı).` });
+      await yukle();
+    } catch (e: any) {
+      setBildirim({ tone: 'err', text: e?.message || 'Silinemedi.' });
+    } finally {
+      setSiliniyor(false);
+    }
+  };
 
   const kontrolDegis = async (g: AktEtkinlik) => {
     try {
@@ -306,6 +366,32 @@ export const AkademikTakvim: React.FC = () => {
           </div>
         </div>
 
+        {/* Aşama 329: toplu seçim ve silme */}
+        {yonetir && !yukleniyor && gorunen.length > 0 && (
+          <div className={cx('flex items-center gap-3 px-4 sm:px-5 h-12 border-b border-line transition-colors', secili.length ? 'bg-brand-soft/50' : 'bg-surface-2/60')}>
+            <SecKutusu id="akt-tumunu-sec" durum={hepsiSecili ? true : secili.length ? 'mixed' : false} onClick={tumunuSec} etiket={hepsiSecili ? 'Seçimi kaldır' : 'Görünen etkinliklerin hepsini seç'} />
+            <span className="text-xs font-semibold text-fg-2 tabular-nums whitespace-nowrap">
+              {secili.length ? (
+                <>
+                  {secili.length}
+                  <span className="hidden sm:inline"> / {gorunen.length} etkinlik</span> seçildi
+                </>
+              ) : (
+                `Tümünü seç · ${gorunen.length} etkinlik`
+              )}
+            </span>
+            {secili.length > 0 && (
+              <span className="ml-auto flex items-center gap-2">
+                <button type="button" className={cx(BTN, 'w-28 ui-btn-secondary')} onClick={() => setSecim(new Set())} disabled={siliniyor}>
+                  Vazgeç
+                </button>
+                <button type="button" id="akt-secili-sil" className={cx(BTN, 'w-28 ui-btn-danger')} onClick={() => void seciliSil()} disabled={siliniyor}>
+                  <Trash2 className="w-3.5 h-3.5" /> {siliniyor ? 'Siliniyor…' : 'Sil'}
+                </button>
+              </span>
+            )}
+          </div>
+        )}
         {yukleniyor ? (
           <Yukleniyor metin="Takvim yükleniyor…" className="p-5" />
         ) : !gorunen.length ? (
@@ -365,7 +451,8 @@ export const AkademikTakvim: React.FC = () => {
                       </>
                     );
                     return (
-                      <li key={g.key} className={cx('flex items-center gap-3 py-2.5', gecti && 'opacity-60')}>
+                      <li key={g.key} className={cx('flex items-center gap-3 py-2.5', gecti && !secim.has(g.key) && 'opacity-60')}>
+                        {yonetir && <SecKutusu durum={secim.has(g.key)} onClick={() => sec(g.key)} etiket={`${baslik(g.ad)} seç`} />}
                         {yonetir ? (
                           <button
                             type="button"
@@ -416,17 +503,7 @@ export const AkademikTakvim: React.FC = () => {
         />
       )}
       {yonetir && (
-        <ExcelPenceresi
-          acik={excelAcik}
-          yil={yil}
-          kayitlar={kayitlar}
-          onClose={() => setExcelAcik(false)}
-          onBitti={async (text) => {
-            setExcelAcik(false);
-            setBildirim({ tone: 'ok', text });
-            await yukle();
-          }}
-        />
+        <ExcelPenceresi acik={excelAcik} yil={yil} kayitlar={kayitlar} onClose={() => setExcelAcik(false)} onYazildi={yukle} />
       )}
       {yonetir && (
         <ZumrelerPenceresi
@@ -657,6 +734,7 @@ const EtkinlikPenceresi: React.FC<{
             </label>
             <SelectBox id="akt-zumre" className="ui-field w-full cursor-pointer" value={zumre} onChange={(e) => setZumre(e.target.value)}>
               <option value="">Seçilmedi</option>
+              {zumre && !(ZUMRELER as readonly string[]).includes(zumre) && <option value={zumre}>{baslik(zumre)}</option>}
               {ZUMRELER.map((z) => (
                 <option key={z} value={z}>
                   {baslik(z)}
@@ -891,9 +969,10 @@ const ExcelPenceresi: React.FC<{
   yil: number;
   kayitlar: AktKayit[];
   onClose: () => void;
-  onBitti: (text: string) => void | Promise<void>;
-}> = ({ acik, yil, kayitlar, onClose, onBitti }) => {
+  onYazildi: () => Promise<void>; // Aşama 329: yazınca takvim yeniden okunur, pencere sonucu gösterir
+}> = ({ acik, yil, kayitlar, onClose, onYazildi }) => {
   const [dosyaAd, setDosyaAd] = useState('');
+  const [sonuc, setSonuc] = useState<{ satirlar: OkunanSatir[]; durum: YuklemeSonucu[]; silinen: number; mod: 'ekle' | 'degistir' } | null>(null);
   const [sayfa, setSayfa] = useState(0);
   const [satirlar, setSatirlar] = useState<OkunanSatir[] | null>(null);
   const [mod, setMod] = useState<'ekle' | 'degistir'>('ekle');
@@ -906,6 +985,7 @@ const ExcelPenceresi: React.FC<{
     if (!acik) return;
     setDosyaAd('');
     setSatirlar(null);
+    setSonuc(null);
     setMod('ekle');
     setHata(null);
     setMesgul('');
@@ -922,6 +1002,7 @@ const ExcelPenceresi: React.FC<{
       setDosyaAd(f.name);
       setSayfa(r.sayfaSayisi);
       setSatirlar(r.satirlar);
+      setSonuc(null);
     } catch (e: any) {
       setHata(e?.message || 'Dosya okunamadı.');
     } finally {
@@ -930,23 +1011,36 @@ const ExcelPenceresi: React.FC<{
     }
   };
 
-  const mevcut = useMemo(() => new Set(kayitlar.map(satirAnahtari)), [kayitlar]);
+  // Aşama 329: dosyadaki her satır takvimle karşılaştırılır: yeni | güncellenecek (bilgisi farklı) | aynı | hatalı
+  const mevcut = useMemo(() => new Map(kayitlar.map((k) => [satirAnahtari(k), k])), [kayitlar]);
+  const durumOf = useCallback(
+    (s: OkunanSatir): 'hatali' | 'yeni' | 'guncel' | 'ayni' => {
+      if (s.durum === 'hatali') return 'hatali';
+      const k = mevcut.get(satirAnahtari({ tarih: s.tarih!, ad: s.ad!, sinif: s.sinif || '' }));
+      if (!k) return 'yeni';
+      const z = zumreAdi(s.zumre, s.birim);
+      const esit =
+        (k.bitis || '') === (s.bitis || '') && k.ayIcinde === !!s.ayIcinde && buyuk(k.birim) === buyuk(s.birim) && buyuk(k.zumre) === z &&
+        k.kapsam === (s.kapsam || 'ogrenci') && k.yer === (s.yer || 'ic') && k.salon === !!s.salon;
+      return esit ? 'ayni' : 'guncel';
+    },
+    [mevcut]
+  );
   const hesap = useMemo(() => {
     const l = satirlar || [];
-    const gecerli = l.filter((s) => s.durum !== 'hatali');
-    const var_ = (s: OkunanSatir) => mevcut.has(satirAnahtari({ tarih: s.tarih!, ad: s.ad!, sinif: s.sinif || '' }));
-    const yeni = gecerli.filter((s) => !var_(s));
-    return { l, gecerli, yeni, var_, duzeltilen: l.filter((s) => s.durum === 'duzeltildi').length, hatali: l.length - gecerli.length };
-  }, [satirlar, mevcut]);
-  const yazilacak = mod === 'ekle' ? hesap.yeni : hesap.gecerli;
+    const say = { hatali: 0, yeni: 0, guncel: 0, ayni: 0 };
+    l.forEach((s) => say[durumOf(s)]++);
+    return { l, gecerli: l.filter((s) => s.durum !== 'hatali'), say, duzeltilen: l.filter((s) => s.durum === 'duzeltildi').length };
+  }, [satirlar, durumOf]);
+  const yazilacakSay = mod === 'ekle' ? hesap.say.yeni + hesap.say.guncel : hesap.gecerli.length;
 
   const kaydet = async () => {
-    if (!yazilacak.length || mesgul) return;
+    if (!yazilacakSay || mesgul) return;
     if (mod === 'degistir') {
       const ok = await appConfirm({
-        title: 'Takvim değiştirilsin mi?',
-        message: `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinip dosyadaki ${hesap.gecerli.length} etkinlik yazılacak.`,
-        confirmText: 'Değiştir',
+        title: 'Takvim baştan yazılsın mı?',
+        message: `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinip dosyadaki ${hesap.gecerli.length} satır yazılacak. Elle eklenen etkinlikler de silinir.`,
+        confirmText: 'Baştan yaz',
         danger: true,
       });
       if (!ok) return;
@@ -954,12 +1048,16 @@ const ExcelPenceresi: React.FC<{
     setMesgul('yaz');
     setHata(null);
     try {
-      const veri: AktSatir[] = yazilacak.map((s) => ({
+      const gonder = hesap.gecerli;
+      const veri: AktSatir[] = gonder.map((s) => ({
         tarih: s.tarih!, bitis: s.bitis || '', ayIcinde: !!s.ayIcinde, ad: s.ad!, sinif: s.sinif || '', birim: s.birim || '', zumre: s.zumre || '',
         kapsam: s.kapsam || 'ogrenci', yer: s.yer || 'ic', salon: !!s.salon, kontrol: !!s.kontrol,
       }));
       const r = await takvimYukle(mod, yil, veri);
-      await onBitti(`${r.eklenen} etkinlik satırı takvime yazıldı${r.atlanan ? ` · ${r.atlanan} satır zaten vardı` : ''}.`);
+      // 329 kurulu değilse satır sonucu gelmez: önizlemedeki tahmin kullanılır
+      const durum: YuklemeSonucu[] = r.sonuclar.length === gonder.length ? r.sonuclar : gonder.map((s) => (mod === 'degistir' ? 'yeni' : (durumOf(s) as YuklemeSonucu)));
+      await onYazildi();
+      setSonuc({ satirlar: gonder, durum, silinen: r.silinen, mod });
     } catch (e: any) {
       setHata(e?.message || 'Yüklenemedi.');
     } finally {
@@ -967,10 +1065,37 @@ const ExcelPenceresi: React.FC<{
     }
   };
 
-  const sirali = [...hesap.l].sort((a, b) => {
-    const o = (s: OkunanSatir) => (s.durum === 'hatali' ? 0 : s.durum === 'duzeltildi' ? 1 : 2);
-    return o(a) - o(b) || String(a.tarih || '').localeCompare(String(b.tarih || ''));
-  });
+  // Yazıldıktan sonra: dosyadaki satırların takvimde gerçekten olduğu (yeniden okunan kayıtlarla) doğrulanır
+  const dogrulama = useMemo(() => {
+    if (!sonuc) return null;
+    const yazilan = sonuc.satirlar.filter((_, i) => sonuc.durum[i] === 'yeni' || sonuc.durum[i] === 'guncel' || sonuc.durum[i] === 'ayni');
+    const bulunan = yazilan.filter((s) => mevcut.has(satirAnahtari({ tarih: s.tarih!, ad: s.ad!, sinif: s.sinif || '' }))).length;
+    const say = (d: YuklemeSonucu) => sonuc.durum.filter((x) => x === d).length;
+    return { yazilan: yazilan.length, bulunan, yeni: say('yeni'), guncel: say('guncel'), ayni: say('ayni'), yazilamadi: say('yil_disi') + say('bos') };
+  }, [sonuc, mevcut]);
+
+  // Önizleme sırası: hatalı → güncellenecek → yeni → aynı; sonuçta: yazılamayan → yeni → güncellenen → aynı
+  const ONCE: Record<string, number> = { hatali: 0, yil_disi: 0, bos: 0, guncel: 1, yeni: 2, ayni: 3 };
+  const liste = sonuc
+    ? sonuc.satirlar.map((s, i) => ({ s, d: sonuc.durum[i] as string }))
+    : hesap.l.map((s) => ({ s, d: mod === 'degistir' && s.durum !== 'hatali' ? 'yeni' : (durumOf(s) as string) }));
+  const sirali = [...liste].sort((a, b) => ONCE[a.d] - ONCE[b.d] || String(a.s.tarih || '').localeCompare(String(b.s.tarih || '')));
+  const ETIKET: Record<string, [string, string]> = sonuc
+    ? { yeni: ['ui-chip-success', 'Eklendi'], guncel: ['ui-chip-brand', 'Güncellendi'], ayni: ['ui-chip-neutral', 'Zaten vardı'], yil_disi: ['ui-chip-danger', 'Yıl dışında'], bos: ['ui-chip-danger', 'Yazılamadı'] }
+    : { yeni: ['ui-chip-success', mod === 'ekle' ? 'Yeni' : 'Yazılacak'], guncel: ['ui-chip-brand', 'Güncellenecek'], ayni: ['ui-chip-neutral', 'Aynısı var'], hatali: ['ui-chip-danger', 'Hatalı'] };
+  const kutular: [string, number, string][] = sonuc && dogrulama
+    ? [
+        ['Eklendi', dogrulama.yeni, 'text-success-fg'],
+        ['Güncellendi', dogrulama.guncel, 'text-brand-fg'],
+        ['Zaten vardı', dogrulama.ayni, 'text-fg'],
+        ['Yazılamadı', dogrulama.yazilamadi, 'text-danger-fg'],
+      ]
+    : [
+        ['Yeni', mod === 'ekle' ? hesap.say.yeni : hesap.gecerli.length, 'text-success-fg'],
+        ['Güncellenecek', mod === 'ekle' ? hesap.say.guncel : 0, 'text-brand-fg'],
+        ['Aynısı var', mod === 'ekle' ? hesap.say.ayni : 0, 'text-fg'],
+        ['Hatalı', hesap.say.hatali, 'text-danger-fg'],
+      ];
 
   return (
     <Modal
@@ -983,12 +1108,20 @@ const ExcelPenceresi: React.FC<{
       id="akt-excel-pencere"
       footer={
         <>
-          <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={onClose} disabled={mesgul === 'yaz'}>
-            Vazgeç
-          </button>
-          <button type="button" id="akt-excel-kaydet" className={cx(BTN, 'ui-btn-primary')} onClick={() => void kaydet()} disabled={!satirlar || !yazilacak.length || !!mesgul}>
-            {mesgul === 'yaz' ? 'Yazılıyor…' : satirlar && yazilacak.length ? `${yazilacak.length} satırı yaz` : 'Kaydet'}
-          </button>
+          {sonuc ? (
+            <button type="button" id="akt-excel-kapat" className={cx(BTN, 'w-28 ui-btn-primary')} onClick={onClose}>
+              Tamam
+            </button>
+          ) : (
+            <>
+              <button type="button" className={cx(BTN, 'w-28 ui-btn-secondary')} onClick={onClose} disabled={mesgul === 'yaz'}>
+                Vazgeç
+              </button>
+              <button type="button" id="akt-excel-kaydet" className={cx(BTN, 'min-w-28 px-4 ui-btn-primary')} onClick={() => void kaydet()} disabled={!satirlar || !yazilacakSay || !!mesgul}>
+                {mesgul === 'yaz' ? 'Yazılıyor…' : satirlar && yazilacakSay ? `${yazilacakSay} satırı yaz` : 'Kaydet'}
+              </button>
+            </>
+          )}
         </>
       }
     >
@@ -1052,58 +1185,65 @@ const ExcelPenceresi: React.FC<{
               Başka dosya
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              ['Okunan satır', hesap.l.length, 'text-fg'],
-              [mod === 'ekle' ? 'Yeni' : 'Yazılacak', yazilacak.length, 'text-success-fg'],
-              ['Yılı düzeltilen', hesap.duzeltilen, 'text-warning-fg'],
-              ['Hatalı', hesap.hatali, 'text-danger-fg'],
-            ].map(([k, v, c]) => (
-              <div key={k as string} className="rounded-xl bg-surface-2 px-3 py-2.5">
-                <b className={cx('block text-xl font-bold tabular-nums', c as string)}>{v as number}</b>
-                <span className="text-[11px] font-medium text-muted">{k as string}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" id="akt-excel-ozet">
+            {kutular.map(([k, v, c]) => (
+              <div key={k} className="rounded-xl bg-surface-2 border border-line px-3 py-2.5">
+                <b className={cx('block text-xl font-bold tabular-nums', v ? c : 'text-subtle')}>{v}</b>
+                <span className="text-[11px] font-medium text-muted">{k}</span>
               </div>
             ))}
           </div>
-          <Segmented
-            className="w-full [&>button]:flex-1 [&>button]:justify-center"
-            value={mod}
-            onChange={setMod}
-            items={[
-              { value: 'ekle', label: 'Yenileri ekle', id: 'akt-mod-ekle' },
-              { value: 'degistir', label: 'Takvimi değiştir', id: 'akt-mod-degistir' },
-            ]}
-          />
-          <p className="text-xs text-muted">
-            {mod === 'ekle'
-              ? hesap.yeni.length
-                ? `${hesap.yeni.length} yeni satır eklenir; takvimde zaten olan ${hesap.gecerli.length - hesap.yeni.length} satır atlanır.`
-                : 'Dosyadaki etkinliklerin hepsi takvimde zaten var. Baştan yazmak için "Takvimi değiştir"i seçin.'
-              : `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinir, dosyadaki ${hesap.gecerli.length} etkinlik yazılır.`}
-            {hesap.hatali > 0 && ' Hatalı satırlar yazılmaz.'}
-          </p>
-          <ul className="rounded-xl border border-line divide-y divide-line max-h-[42vh] overflow-y-auto">
-            {sirali.map((s, i) => {
-              const atla = mod === 'ekle' && s.durum !== 'hatali' && hesap.var_(s);
-              const [cls, et] =
-                s.durum === 'hatali'
-                  ? ['ui-chip-danger', 'Hatalı']
-                  : atla
-                    ? ['ui-chip-neutral', 'Zaten var']
-                    : s.durum === 'duzeltildi'
-                      ? ['ui-chip-warning', 'Yıl düzeltildi']
-                      : ['ui-chip-success', mod === 'ekle' ? 'Yeni' : 'Yazılacak'];
+          {sonuc && dogrulama ? (
+            <p
+              role="status"
+              className={cx(
+                'flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold',
+                dogrulama.bulunan === dogrulama.yazilan ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg'
+              )}
+            >
+              {dogrulama.bulunan === dogrulama.yazilan ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+              {dogrulama.bulunan === dogrulama.yazilan
+                ? `Takvim yeniden okundu: dosyadaki ${dogrulama.yazilan} satırın hepsi takvimde.${sonuc.silinen ? ` (${sonuc.silinen} eski kayıt silindi)` : ''}`
+                : `Takvim yeniden okundu: ${dogrulama.yazilan} satırdan ${dogrulama.bulunan} tanesi görünüyor. Sayfayı yenileyip tekrar bakın.`}
+            </p>
+          ) : (
+            <>
+              <Segmented
+                className="w-full [&>button]:flex-1 [&>button]:justify-center"
+                value={mod}
+                onChange={setMod}
+                items={[
+                  { value: 'ekle', label: 'Ekle ve güncelle', id: 'akt-mod-ekle' },
+                  { value: 'degistir', label: 'Takvimi baştan yaz', id: 'akt-mod-degistir' },
+                ]}
+              />
+              <p className="text-xs text-muted">
+                {mod === 'ekle'
+                  ? yazilacakSay
+                    ? `Takvimde olmayan ${hesap.say.yeni} satır eklenir, bilgisi değişen ${hesap.say.guncel} satır güncellenir; diğer etkinliklere dokunulmaz.`
+                    : 'Dosyadaki satırların hepsi takvimde aynen var.'
+                  : `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinir, dosyadaki ${hesap.gecerli.length} satır yazılır.`}
+                {hesap.say.hatali > 0 && ' Hatalı satırlar yazılmaz.'}
+                {hesap.duzeltilen > 0 && ` ${hesap.duzeltilen} satırın yılı ay sayfasına göre düzeltildi.`}
+              </p>
+            </>
+          )}
+          <ul className="rounded-xl border border-line divide-y divide-line max-h-[42vh] overflow-y-auto" id="akt-excel-liste">
+            {sirali.map(({ s, d }, i) => {
+              const [cls, et] = ETIKET[d] || ['ui-chip-neutral', d];
+              const soluk = d === 'ayni';
               return (
-                <li key={`${s.sayfa}-${s.satirNo}-${i}`} className={cx('flex items-center gap-3 px-3 py-2', atla && 'opacity-55')}>
+                <li key={`${s.sayfa}-${s.satirNo}-${i}`} className={cx('flex items-center gap-3 px-3 py-2', soluk && 'opacity-60')}>
                   {s.tarih ? <DtKutu tarih={s.tarih} bitis={s.bitis} ayIcinde={s.ayIcinde} /> : <span className="w-12 h-12 rounded-xl bg-surface-2 grid place-items-center text-muted shrink-0">?</span>}
                   <span className="min-w-0 flex-1">
                     <b className="block text-xs font-semibold text-fg truncate">{s.ad ? baslik(s.ad) : '(adsız)'}</b>
                     <span className="block text-[11px] text-muted truncate">
                       {s.sayfa} · satır {s.satirNo} · {sinifAdi(s.sinif || '')}
+                      {s.zumre && ` · ${baslik(s.zumre)}`}
                       {s.not && <span className="text-warning-fg"> · {s.not}</span>}
                     </span>
                   </span>
-                  <span className={cx('ui-chip shrink-0 w-24 justify-center', cls)}>{et}</span>
+                  <span className={cx('ui-chip shrink-0 w-28 justify-center', cls)}>{et}</span>
                 </li>
               );
             })}

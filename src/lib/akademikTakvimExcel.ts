@@ -4,7 +4,7 @@
 // OKUL İÇİ/OKUL DIŞI, KONFERANS SALONU KULLANIMI, KONTROL. Sütunlar başlık adından bulunur (sıra değişse de okunur).
 // Boş satırlar atlanır. Yıl yanlış yazılmışsa (ör. Ocak sayfasında 2026) ay sayfasına göre düzeltilir ve gösterilir.
 // ============================================================================
-import { AY_ADLARI, ZUMRELER, buyuk, tarihYaz, type AktSatir } from '../services/akademikTakvimService';
+import { AY_ADLARI, ZUMRELER, buyuk, tarihYaz, zumreAdi, type AktSatir } from '../services/akademikTakvimService';
 
 export const AY_SAYFALARI: Record<string, number> = {
   EYLÜL: 9, EKİM: 10, KASIM: 11, ARALIK: 12, OCAK: 1, ŞUBAT: 2, MART: 3, NİSAN: 4, MAYIS: 5, HAZİRAN: 6,
@@ -121,7 +121,7 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
         ad: etkinlik,
         sinif: buyuk(v('sinif')),
         birim: buyuk(v('birim')),
-        zumre: buyuk(v('zumre')) || dosyaZumresi,
+        zumre: zumreAdi(v('zumre'), v('birim')) || dosyaZumresi, // Aşama 329: "MATEMATİK" → "MATEMATİK ZÜMRESİ"
         kapsam: /VELİ/.test(buyuk(v('kapsam'))) ? 'veli' : 'ogrenci',
         yer: /DIŞ/.test(buyuk(v('yer'))) ? 'dis' : 'ic',
         salon: buyuk(v('salon')) === 'EVET',
