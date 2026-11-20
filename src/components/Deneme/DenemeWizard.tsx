@@ -9,6 +9,7 @@ import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type OptikRow, type TxtParseResult } from '../../lib/deneme/optik';
 import { otomatikAlanlar, type OtoOkuma } from '../../lib/deneme/optikOtomatik';
+import { HAZIR_FORMATLAR, hazirMi } from '../../lib/deneme/hazirFormatlar';
 import { checkBlocksWithKey, fixSessionSubjects, remapFields, remapRows, suggestionMap, type KeySuggestion } from '../../lib/deneme/oturum';
 import { aliasKeyOf, applyMerge, findSessionPairs, groupRows, matchGroups, nameSimilarity, resultNumber, type MatchItem, type SessionPair } from '../../lib/deneme/eslestir';
 import {
@@ -196,10 +197,12 @@ export const DenemeWizard: React.FC<{
   const keyComplete = (k: string) => (questions[k] || []).length > 0 && (questions[k] || []).every((q) => !!q.answer);
   const completeSubjects = subjects.filter((s) => keyComplete(s.key));
 
+  // Aşama 335: kurumun kayıtlı formatları + hazır formatlar (önce kurumunki denenir)
+  const tumFormatlar = useMemo(() => [...formats, ...HAZIR_FORMATLAR], [formats]);
   // Aşama 90: her TXT kendi formatıyla okunur. '' ya da düzenlenen kayıtlı format = yukarıdaki (canlı) alanlar
   const usesEditor = (f: TxtSrc) => !f.rows && (f.fmt === '' || f.fmt === formatId);
   const fieldsFor = (f: TxtSrc): OptikField[] | null =>
-    f.fmt === OTO && f.oto ? f.oto.fields : usesEditor(f) ? fields : formats.find((x) => x.id === f.fmt)?.fields || null;
+    f.fmt === OTO && f.oto ? f.oto.fields : usesEditor(f) ? fields : tumFormatlar.find((x) => x.id === f.fmt)?.fields || null;
   // TXT'ler format değişince yeniden okunur
   const parsed: Array<TxtParseResult | null> = useMemo(
     () =>
@@ -210,7 +213,7 @@ export const DenemeWizard: React.FC<{
         return parseTxt(f.text, fl, f.name);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [txtFiles, fields, formats, formatId]
+    [txtFiles, fields, tumFormatlar, formatId]
   );
   const allRows = useMemo(() => parsed.flatMap((p) => (p ? p.rows : [])), [parsed]);
   const parseErrors = parsed.flatMap((p, i) => (p ? p.errors : [`${txtFiles[i]?.name}: formatı seçin ya da tamamlayın.`]));
@@ -220,12 +223,12 @@ export const DenemeWizard: React.FC<{
       txtFiles.map((f, i) => {
         const p = parsed[i];
         if (!f.text || (p && !p.errors.length)) return null;
-        const fits = formats.filter((x) => x.id !== f.fmt && !(usesEditor(f) && x.id === formatId) && formatFitsTxt(f.text!, x.fields)).slice(0, 3);
+        const fits = tumFormatlar.filter((x) => x.id !== f.fmt && !(usesEditor(f) && x.id === formatId) && formatFitsTxt(f.text!, x.fields)).slice(0, 3);
         const shift = fits.length || !p || !usesEditor(f) ? null : suggestShift(f.text, fields);
         return fits.length || shift !== null ? { fits, shift } : null;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [txtFiles, parsed, formats, formatId, fields]
+    [txtFiles, parsed, tumFormatlar, formatId, fields]
   );
   // Aşama 90: okunan derslerin doğruluğu cevap anahtarıyla denetlenir (yanlış etiketli optik blokları)
   const keySugs: KeySuggestion[][] = useMemo(
@@ -319,9 +322,9 @@ export const DenemeWizard: React.FC<{
     const add: TxtSrc[] = [];
     for (const f of Array.from(list)) {
       const text = decodeOptikFile(await f.arrayBuffer());
-      // Aşama 90: dosyaya uyan format kendiliğinden seçilir (önce yukarıdaki format, sonra kayıtlı formatlar)
+      // Aşama 90: dosyaya uyan format kendiliğinden seçilir (önce yukarıdaki format, sonra kayıtlı, sonra hazır formatlar)
       const editorFits = fields.length > 0 && !checkFields(fields).length && formatFitsTxt(text, fields);
-      const fit = editorFits ? null : formats.find((x) => formatFitsTxt(text, x.fields));
+      const fit = editorFits ? null : tumFormatlar.find((x) => formatFitsTxt(text, x.fields));
       // Aşama 271: uyan FMT yoksa dosyanın kendisinden okunur (FMT'siz okuma); sonuç ekranda kontrol edilir
       const oto = editorFits || fit ? null : otomatikAlanlar(text, subjectsRef.current, grade);
       add.push({ name: f.name, text, fmt: fit ? fit.id : oto ? OTO : '', oto: oto || undefined, fmtName: oto ? OTO_AD : undefined });
@@ -367,7 +370,7 @@ export const DenemeWizard: React.FC<{
     if (usesEditor(f)) {
       const nf = remapFields(fields, map);
       setFields(nf);
-      const cur = formatId ? formats.find((x) => x.id === formatId) : null;
+      const cur = formatId && !hazirMi(formatId) ? formats.find((x) => x.id === formatId) : null;
       if (!cur) {
         setFormatMsg(`Format düzeltildi (${names}). Sonraki denemeler için "Formatı kaydet" deyin.`);
         return;
@@ -382,9 +385,21 @@ export const DenemeWizard: React.FC<{
       }
       return;
     }
-    const fm = formats.find((x) => x.id === f.fmt);
+    const fm = tumFormatlar.find((x) => x.id === f.fmt);
     if (!fm) return;
     const nf = remapFields(fm.fields, map);
+    if (hazirMi(fm.id)) {
+      // Aşama 335: hazır format değişmez; düzeltilmiş hâli düzenleyiciye alınır, kuruma yeni format olarak kaydedilir
+      if (formatId) setTxtFiles((cur) => cur.map((x) => (x.fmt === '' ? { ...x, fmt: formatId } : x)));
+      setFields(nf);
+      setSequential(false);
+      setFmtText('');
+      setFormatId('');
+      setFormatName(`${fm.name.replace(/^Hazır · /, '')} (düzeltilmiş)`.slice(0, 120));
+      setTxtFiles((cur) => cur.map((x) => (x.name === f.name ? { ...x, fmt: '', fmtName: undefined } : x)));
+      setFormatMsg(`Dersler düzeltildi (${names}). Sonraki denemeler için "Formatı kaydet" deyin.`);
+      return;
+    }
     setFormats((cur) => cur.map((x) => (x.id === fm.id ? { ...x, fields: nf } : x)));
     try {
       await saveFormat({ id: fm.id, name: fm.name, fmtText: fm.fmtText, fields: nf });
@@ -397,7 +412,7 @@ export const DenemeWizard: React.FC<{
   const pickFormat = (id: string) => {
     setFormatId(id);
     setFormatMsg(null);
-    const f = formats.find((x) => x.id === id);
+    const f = tumFormatlar.find((x) => x.id === id);
     if (f) {
       setFields(f.fields);
       setFmtText(f.fmtText);
@@ -412,7 +427,8 @@ export const DenemeWizard: React.FC<{
   const doSaveFormat = async (asNew: boolean) => {
     setFormatMsg(null);
     try {
-      const saved = await saveFormat({ id: asNew ? undefined : formatId || undefined, name: formatName || 'Optik formatı', fmtText, fields });
+      // Aşama 335: hazır format üzerine yazılmaz, kuruma yeni format olarak kaydedilir
+      const saved = await saveFormat({ id: asNew || hazirMi(formatId) ? undefined : formatId || undefined, name: (formatName || 'Optik formatı').replace(/^Hazır · /, ''), fmtText, fields });
       setFormats((cur) => [...cur.filter((x) => x.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
       // Aşama 90: bu formatla okunan dosyalar kayıtlı formata bağlanır (başka format düzenlenince değişmesinler)
       const prevId = formatId;
@@ -425,7 +441,7 @@ export const DenemeWizard: React.FC<{
   };
 
   const doDeleteFormat = async () => {
-    if (!formatId) return;
+    if (!formatId || hazirMi(formatId)) return;
     setFormatMsg(null);
     try {
       await deleteFormat(formatId);
@@ -588,7 +604,7 @@ export const DenemeWizard: React.FC<{
         }
         const tcs = p.rows.map((r) => r.tc || '').filter(Boolean);
         const links = tcs.length ? (await linkTcs(tcs)).map : new Map<string, string>();
-        const fm = f.rows ? null : usesEditor(f) ? { name: formatName } : formats.find((x) => x.id === f.fmt);
+        const fm = f.rows ? null : usesEditor(f) ? { name: formatName } : tumFormatlar.find((x) => x.id === f.fmt);
         files.push({
           name: f.name,
           fmtName: f.fmtName || fm?.name || '',
@@ -1145,6 +1161,13 @@ export const DenemeWizard: React.FC<{
                       {f.name}
                     </option>
                   ))}
+                  <optgroup label="Hazır formatlar">
+                    {HAZIR_FORMATLAR.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
               <div className="min-w-48 flex-1">
@@ -1152,9 +1175,9 @@ export const DenemeWizard: React.FC<{
                 <input id="dn-fmt-name" className="ui-input" value={formatName} maxLength={120} onChange={(e) => setFormatName(e.target.value)} placeholder="Örn. Sekonic LGS sözel-sayısal" />
               </div>
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={!fields.length || checkFields(fields).length > 0} onClick={() => void doSaveFormat(!formatId)}>
-                <Save /> {formatId ? 'Formatı güncelle' : 'Formatı kaydet'}
+                <Save /> {formatId && !hazirMi(formatId) ? 'Formatı güncelle' : 'Formatı kaydet'}
               </button>
-              {formatId && (
+              {formatId && !hazirMi(formatId) && (
                 <>
                   <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => void doSaveFormat(true)}>
                     Yeni olarak kaydet
@@ -1200,7 +1223,7 @@ export const DenemeWizard: React.FC<{
             description={
               <span className="inline-flex items-center gap-1">
                 Sözel ve sayısal TXT'leri birlikte yükleyin.
-                <InfoTip text="Her dosya kendi formatıyla okunur (uyan kayıtlı format kendiliğinden seçilir), aynı öğrencinin satırları birleştirilir." />
+                <InfoTip text="Her dosya kendi formatıyla okunur (uyan kayıtlı ya da hazır format kendiliğinden seçilir), aynı öğrencinin satırları birleştirilir." />
               </span>
             }
             icon={Upload}
@@ -1257,6 +1280,13 @@ export const DenemeWizard: React.FC<{
                                     {x.name}
                                   </option>
                                 ))}
+                              <optgroup label="Hazır formatlar">
+                                {HAZIR_FORMATLAR.filter((x) => x.id !== formatId).map((x) => (
+                                  <option key={x.id} value={x.id}>
+                                    {x.name}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                           )}
                         </div>
