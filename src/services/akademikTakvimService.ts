@@ -14,7 +14,9 @@ export type AktYer = 'ic' | 'dis';
 /** Veritabanındaki tek satır (her sınıf ayrı satırdır) */
 export interface AktKayit {
   id: string;
-  tarih: string; // YYYY-AA-GG
+  tarih: string; // YYYY-AA-GG (ilk gün)
+  bitis: string; // Aşama 327: birkaç gün süren etkinliğin son günü (YYYY-AA-GG); tek günlükte ''
+  ayIcinde: boolean; // Aşama 327: günü belli değil, "o ay içinde" (tarih = ayın 1'i, bitis = ayın son günü)
   ad: string; // büyük harfle saklanır (Excel ile aynı)
   sinif: string; // "5.SINIF", "3 YAŞ" ya da boş (bütün sınıflar)
   birim: string;
@@ -29,6 +31,8 @@ export interface AktKayit {
 export interface AktEtkinlik {
   key: string;
   tarih: string;
+  bitis: string; // Aşama 327: '' = tek gün
+  ayIcinde: boolean;
   ad: string;
   kapsam: AktKapsam;
   yer: AktYer;
@@ -110,8 +114,27 @@ export function siniflarYazi(list: string[]): string {
   return l.map(sinifAdi).join(', ');
 }
 
+// ---------------------------------------------------------------- Aşama 327: birkaç gün süren etkinlik
+/** Etkinliğin son günü (tek günlükte ilk gün) */
+export const sonGun = (g: Pick<AktKayit, 'tarih' | 'bitis'>): string => g.bitis || g.tarih;
+/** Etkinlik o gün sürüyor mu */
+export const gundeMi = (g: Pick<AktKayit, 'tarih' | 'bitis'> & { ayIcinde?: boolean }, gun: string): boolean =>
+  !g.ayIcinde && g.tarih <= gun && sonGun(g) >= gun; // "ay içinde" etkinlik hiçbir güne yazılmaz
+/** Etkinlik [bas, bit] aralığına değiyor mu (hafta, ay) */
+export const araliktaMi = (g: Pick<AktKayit, 'tarih' | 'bitis'>, bas: string, bit: string): boolean => g.tarih <= bit && sonGun(g) >= bas;
+/** "15–19 Mart", "30 Mart – 2 Nisan" ya da tek gün "15 Mart" */
+export function gunAraligiYazi(g: Pick<AktKayit, 'tarih' | 'bitis'> & { ayIcinde?: boolean }): string {
+  const a = tarihCoz(g.tarih);
+  if (g.ayIcinde) return `${AY_ADLARI[a.getMonth()]} içinde`;
+  if (!g.bitis) return `${a.getDate()} ${AY_ADLARI[a.getMonth()]}`;
+  const b = tarihCoz(g.bitis);
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()}–${b.getDate()} ${AY_ADLARI[b.getMonth()]}`
+    : `${a.getDate()} ${AY_ADLARI[a.getMonth()]} – ${b.getDate()} ${AY_ADLARI[b.getMonth()]}`;
+}
+
 export const satirAnahtari = (s: Pick<AktKayit, 'tarih' | 'ad' | 'sinif'>) => `${s.tarih}|${buyuk(s.ad)}|${buyuk(s.sinif)}`;
-const etkinlikAnahtari = (s: AktKayit) => `${s.tarih}|${buyuk(s.ad)}|${s.kapsam}|${s.yer}`;
+const etkinlikAnahtari = (s: AktKayit) => `${s.tarih}|${s.bitis}|${s.ayIcinde ? 'ay' : ''}|${buyuk(s.ad)}|${s.kapsam}|${s.yer}`;
 
 /** Satırları ekrandaki etkinliklere toplar (tarihe göre sıralı) */
 export function etkinlikler(list: AktKayit[]): AktEtkinlik[] {
@@ -120,7 +143,7 @@ export function etkinlikler(list: AktKayit[]): AktEtkinlik[] {
     const k = etkinlikAnahtari(s);
     let g = m.get(k);
     if (!g) {
-      g = { key: k, tarih: s.tarih, ad: s.ad, kapsam: s.kapsam, yer: s.yer, birim: s.birim, zumre: s.zumre, salon: false, kontrol: true, siniflar: [], ids: [] };
+      g = { key: k, tarih: s.tarih, bitis: s.bitis, ayIcinde: s.ayIcinde, ad: s.ad, kapsam: s.kapsam, yer: s.yer, birim: s.birim, zumre: s.zumre, salon: false, kontrol: true, siniflar: [], ids: [] };
       m.set(k, g);
     }
     g.siniflar.push(s.sinif);
@@ -133,6 +156,11 @@ export function etkinlikler(list: AktKayit[]): AktEtkinlik[] {
 
 // ---------------------------------------------------------------- veritabanı
 const SQL_EKSIK = "Akademik takvim veritabanında henüz kurulu değil. Supabase SQL Editor'de 242 numaralı SQL dosyasını çalıştırın.";
+// Aşama 327: bitiş tarihi sütunu (sql/327) kurulmadıysa takvim eskisi gibi tek günlük okunur; birkaç günlük kayıt reddedilir
+const BITIS_EKSIK = "Birkaç gün süren ya da \"ay içinde\" etkinlik için Supabase SQL Editor'de 327 numaralı SQL dosyasını çalıştırın.";
+let bitisYok = false;
+const bitisHatasi = (e: { message?: string; code?: string } | null | undefined) =>
+  !!e && (e.code === '42703' || e.code === 'PGRST204' || /bitis|ay_icinde/i.test(e.message || ''));
 
 function hata(e: { message?: string; code?: string } | null | undefined): Error {
   const m = e?.message || 'İşlem yapılamadı.';
@@ -152,6 +180,8 @@ async function rpc<T = any>(fn: string, args: Record<string, unknown>): Promise<
 const kayitCevir = (r: any): AktKayit => ({
   id: String(r.id),
   tarih: String(r.tarih || '').slice(0, 10),
+  bitis: String(r.bitis || '').slice(0, 10),
+  ayIcinde: r.ay_icinde === true,
   ad: String(r.ad || ''),
   sinif: String(r.sinif || ''),
   birim: String(r.birim || ''),
@@ -163,27 +193,39 @@ const kayitCevir = (r: any): AktKayit => ({
 });
 
 /** Kurumun takvimi (verilen tarih aralığında; RLS kendi kurumunu ve bölümün açık olmasını denetler) */
+// Aşama 327: aralığa DEĞEN etkinlikler (önceki ayda başlayıp bu aralıkta süren de gelir)
 export async function takvimListesi(kurumId: string, bas: string, bit: string): Promise<AktKayit[]> {
-  const { data, error } = await supabase
-    .from('akademik_takvim')
-    .select('id,tarih,ad,sinif,birim,zumre,kapsam,yer,salon,kontrol')
-    .eq('kurum_id', kurumId)
-    .gte('tarih', bas)
-    .lte('tarih', bit)
-    .order('tarih')
-    .limit(3000);
+  const oku = (bitisli: boolean) => {
+    const q = supabase
+      .from('akademik_takvim')
+      .select(bitisli ? 'id,tarih,bitis,ay_icinde,ad,sinif,birim,zumre,kapsam,yer,salon,kontrol' : 'id,tarih,ad,sinif,birim,zumre,kapsam,yer,salon,kontrol')
+      .eq('kurum_id', kurumId)
+      .lte('tarih', bit);
+    return (bitisli ? q.or(`tarih.gte.${bas},bitis.gte.${bas}`) : q.gte('tarih', bas)).order('tarih').limit(3000);
+  };
+  let { data, error } = await oku(!bitisYok);
+  if (error && !bitisYok && bitisHatasi(error)) {
+    bitisYok = true;
+    ({ data, error } = await oku(false));
+  }
   if (error) throw hata(error);
   return (data || []).map(kayitCevir);
+}
+/** Gönderilecek satırlarda bitiş tarihi varken sütun kurulu değilse açık uyarı (sessizce tek güne inmez) */
+function bitisDenetle(satirlar: AktSatir[]) {
+  if (bitisYok && satirlar.some((s) => s.bitis || s.ayIcinde)) throw new Error(BITIS_EKSIK);
 }
 
 export async function takvimYukle(mod: 'ekle' | 'degistir', yil: number, satirlar: AktSatir[]) {
   const { bas, bit } = yilAraligi(yil);
+  bitisDenetle(satirlar);
   const r = await rpc<any>('akademik_takvim_yukle', { p_mod: mod, p_bas: bas, p_bit: bit, p_satirlar: satirlar });
   return { eklenen: Number(r?.eklenen) || 0, atlanan: Number(r?.atlanan) || 0, silinen: Number(r?.silinen) || 0 };
 }
 
 /** Etkinliği ekle / değiştir (eski satırlar silinip yenileri yazılır, tek işlemde) ya da sil (satirlar boş) */
 export async function etkinlikKaydet(silinecek: string[], satirlar: AktSatir[]): Promise<void> {
+  bitisDenetle(satirlar);
   await rpc('akademik_takvim_kaydet', { p_sil: silinecek, p_satirlar: satirlar });
 }
 

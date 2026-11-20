@@ -20,7 +20,7 @@ import {
   trSaat,
 } from '../../services/dersService';
 import { denemeTarihleri, lastExamBrief } from '../../services/denemeService';
-import { baslik, etkinlikler, siniflarYazi } from '../../services/akademikTakvimService';
+import { araliktaMi, baslik, etkinlikler, gundeMi, siniflarYazi } from '../../services/akademikTakvimService';
 import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
 import { dakika, basHarf } from '../../lib/dersKisa';
 import { etutEndTime, isEtutAttendanceMissing } from '../../lib/etutTiming';
@@ -428,7 +428,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
 
   // Akademik takvim (yalnız bölüm açık kurumda)
   const takvimKayit = useAkademikKayitlar(can.takvim);
-  const takvim = useMemo(() => etkinlikler(takvimKayit || []).filter((g) => g.tarih >= pzt && g.tarih <= paz), [takvimKayit, pzt, paz]);
+  const takvim = useMemo(() => etkinlikler(takvimKayit || []).filter((g) => araliktaMi(g, pzt, paz)), [takvimKayit, pzt, paz]); // Aşama 327
 
   // ================================================================ MODALLAR
   const [dersHedef, setDersHedef] = useState<{ classId: string; tarih: string; sira: number } | null>(null);
@@ -657,7 +657,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
   const disOlay: Olay[] = useMemo(() => {
     const l: Olay[] = [];
     if (can.takvim) {
-      for (const g of takvim.filter((x) => x.tarih === bugun)) {
+      for (const g of takvim.filter((x) => gundeMi(x, bugun))) {
         l.push({
           k: `a|${g.key}`,
           saat: '',
@@ -742,7 +742,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
     return gunler.map((g) => {
       const l: HaftaOlay[] = [];
       if (dersHazir && tatilMap.has(g)) l.push({ k: 't', tur: 'tatil', yazi: tatilMap.get(g) || 'Tatil' });
-      if (can.takvim) for (const a of takvim.filter((x) => x.tarih === g)) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad) });
+      if (can.takvim) for (const a of takvim.filter((x) => gundeMi(x, g))) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad) });
       if (can.deneme) for (const d of denemeler.filter((x) => x.examDate === g)) l.push({ k: `n|${d.id}`, tur: 'den', yazi: d.name });
       for (const e of benimEtut.filter((x) => x.date === g).sort((a, b) => (a.time || '').localeCompare(b.time || '')))
         l.push({ k: `e|${e.id}`, tur: 'etut', yazi: `${e.time ? `${e.time} ` : ''}${e.subject || 'Etüt'}` });

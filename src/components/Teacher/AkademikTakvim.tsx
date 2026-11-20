@@ -13,18 +13,21 @@ import {
   OKUL_AYLARI,
   SINIFLAR,
   ZUMRELER,
+  araliktaMi,
   baslik,
   bugun,
   buyuk,
   egitimYili,
   etkinlikKaydet,
   etkinlikler,
+  gunAraligiYazi,
   gunEkle,
   kontrolIsaretle,
   pazartesi,
   satirAnahtari,
   sinifAdi,
   siniflarYazi,
+  sonGun,
   takvimCanliDinle,
   takvimListesi,
   takvimYukle,
@@ -50,14 +53,42 @@ import { takvimExcelOku, takvimSablonIndir, type OkunanSatir } from '../../lib/a
 const BTN = 'ui-btn ui-btn-sm h-8 justify-center';
 type Bildirim = { tone: 'ok' | 'err'; text: string } | null;
 
-const DtKutu: React.FC<{ tarih: string; vurgu?: boolean }> = ({ tarih, vurgu }) => {
+// Aşama 327: birkaç gün süren etkinlikte kutuda gün aralığı ("15–19") ve gün sayısı; ay değişiyorsa ilk günün ayı
+const DtKutu: React.FC<{ tarih: string; bitis?: string; ayIcinde?: boolean; vurgu?: boolean }> = ({ tarih, bitis, ayIcinde, vurgu }) => {
   const d = tarihCoz(tarih);
+  if (ayIcinde) {
+    // Aşama 327: günü belli olmayan etkinlik: ay adı + "ay içi"
+    return (
+      <span
+        className={cx('w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none border border-dashed', vurgu ? 'bg-brand-soft text-brand-fg border-brand' : 'bg-surface-2 text-fg border-line-strong')}
+        title={`${AY_ADLARI[d.getMonth()]} içinde (günü belli değil)`}
+      >
+        <b className="text-[13px] font-bold uppercase tracking-wide">{AY_KISA[d.getMonth()]}</b>
+        <span className="text-[10px] font-semibold uppercase tracking-wide mt-0.5 text-muted">ay içi</span>
+      </span>
+    );
+  }
+  const e = bitis ? tarihCoz(bitis) : null;
+  const gun = e ? Math.round((e.getTime() - d.getTime()) / 864e5) + 1 : 0;
   return (
-    <span className={cx('w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none', vurgu ? 'bg-brand text-white' : 'bg-surface-2 text-fg')}>
-      <b className="text-lg font-bold tabular-nums">{d.getDate()}</b>
-      <span className={cx('text-[10px] font-semibold uppercase tracking-wide mt-0.5', vurgu ? 'text-white/80' : 'text-muted')}>{GUN_KISA_PAZAR[d.getDay()]}</span>
+    <span
+      className={cx('w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none', vurgu ? 'bg-brand text-white' : 'bg-surface-2 text-fg')}
+      title={e ? gunAraligiYazi({ tarih, bitis: bitis || '' }) : undefined}
+    >
+      <b className={cx('font-bold tabular-nums', e ? 'text-[13px] tracking-tight' : 'text-lg')}>{e ? `${d.getDate()}–${e.getDate()}` : d.getDate()}</b>
+      <span className={cx('text-[10px] font-semibold uppercase tracking-wide mt-0.5', vurgu ? 'text-white/80' : 'text-muted')}>
+        {e ? (e.getMonth() !== d.getMonth() ? AY_KISA[d.getMonth()] : `${gun} gün`) : GUN_KISA_PAZAR[d.getDay()]}
+      </span>
     </span>
   );
+};
+
+/** Aşama 327: etkinliğin sürdüğü günler (YYYY-AA-GG) */
+const gunleri = (g: Pick<AktKayit, 'tarih' | 'bitis' | 'ayIcinde'>): string[] => {
+  const l: string[] = [];
+  if (g.ayIcinde) return l; // günü belli değil: salon çakışması aranmaz
+  for (let d = tarihCoz(g.tarih), son = sonGun(g); tarihYaz(d) <= son && l.length < 62; d = gunEkle(d, 1)) l.push(tarihYaz(d));
+  return l;
 };
 
 export const AkademikTakvim: React.FC = () => {
@@ -70,6 +101,7 @@ export const AkademikTakvim: React.FC = () => {
   const [bildirim, setBildirim] = useState<Bildirim>(null);
   const [ay, setAy] = useState(0);
   const [fSinif, setFSinif] = useState('');
+  const [fZumre, setFZumre] = useState(''); // Aşama 327: zümre süzgeci
   const [fKapsam, setFKapsam] = useState<'' | AktKapsam>('');
   const [fYer, setFYer] = useState<'' | AktYer>('');
   const [duzenle, setDuzenle] = useState<AktEtkinlik | 'yeni' | null>(null);
@@ -106,10 +138,17 @@ export const AkademikTakvim: React.FC = () => {
   }, []);
   const salonGun = useMemo(() => {
     const c: Record<string, number> = {};
-    hepsi.forEach((g) => g.salon && (c[g.tarih] = (c[g.tarih] || 0) + 1));
+    hepsi.forEach((g) => g.salon && gunleri(g).forEach((t) => (c[t] = (c[t] || 0) + 1)));
     return c;
   }, [hepsi]);
-  const uyar = (g: AktEtkinlik) => (!fSinif || g.siniflar.includes(fSinif)) && (!fKapsam || g.kapsam === fKapsam) && (!fYer || g.yer === fYer);
+  const uyar = (g: AktEtkinlik) => (!fSinif || g.siniflar.includes(fSinif)) && (!fZumre || buyuk(g.zumre) === fZumre) && (!fKapsam || g.kapsam === fKapsam) && (!fYer || g.yer === fYer);
+  // Aşama 327: zümre listesi = bilinen zümreler + takvimde geçen başka zümre adları (sayısıyla)
+  const zumreler = useMemo(() => {
+    const say = new Map<string, number>();
+    hepsi.forEach((g) => g.zumre && say.set(buyuk(g.zumre), (say.get(buyuk(g.zumre)) || 0) + 1));
+    const ek = [...say.keys()].filter((z) => !(ZUMRELER as readonly string[]).includes(z)).sort((a, b) => a.localeCompare(b, 'tr'));
+    return [...ZUMRELER, ...ek].map((z) => ({ z, n: say.get(z) || 0 }));
+  }, [hepsi]);
   const ayOf = (g: AktEtkinlik) => tarihCoz(g.tarih).getMonth() + 1;
   const gorunen = hepsi.filter((g) => uyar(g) && (!ay || ayOf(g) === ay));
 
@@ -223,6 +262,18 @@ export const AkademikTakvim: React.FC = () => {
                 ))}
               </SelectBox>
             </div>
+            {/* Aşama 327: zümre süzgeci */}
+            <div className="w-52">
+              <SelectBox id="akt-zumre-suzgec" aria-label="Zümre" value={fZumre} onChange={(e) => setFZumre(e.target.value)}>
+                <option value="">Zümre seçiniz</option>
+                {zumreler.map(({ z, n }) => (
+                  <option key={z} value={z}>
+                    {baslik(z)}
+                    {n ? ` (${n})` : ''}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
             <Segmented
               size="sm"
               value={fKapsam}
@@ -275,20 +326,22 @@ export const AkademikTakvim: React.FC = () => {
                 </h3>
                 <ul className="divide-y divide-line">
                   {liste.map((g) => {
-                    const buHafta = g.tarih >= hafta.bas && g.tarih <= hafta.bit;
-                    const gecti = g.tarih < bugunS && !buHafta;
+                    const buHafta = !g.ayIcinde && araliktaMi(g, hafta.bas, hafta.bit);
+                    const buAy = g.ayIcinde && araliktaMi(g, bugunS, bugunS); // Aşama 327
+                    const gecti = sonGun(g) < bugunS && !buHafta;
                     const meta = [siniflarYazi(g.siniflar), g.birim && baslik(g.birim), g.zumre && baslik(g.zumre)].filter(Boolean).join(' · ');
                     const icerik = (
                       <>
-                        <DtKutu tarih={g.tarih} vurgu={buHafta} />
+                        <DtKutu tarih={g.tarih} bitis={g.bitis} ayIcinde={g.ayIcinde} vurgu={buHafta || buAy} />
                         <span className="min-w-0 flex-1">
                           <b className="block text-sm font-semibold text-fg truncate">{baslik(g.ad)}</b>
                           <span className="block text-xs text-muted truncate mt-0.5">{meta}</span>
                         </span>
                         <span className="hidden md:flex flex-wrap justify-end gap-1.5">
                           {buHafta && <span className="ui-chip ui-chip-brand">Bu hafta</span>}
+                          {g.ayIcinde && <span className={cx('ui-chip', buAy ? 'ui-chip-brand' : 'ui-chip-neutral')}>{buAy ? 'Bu ay' : 'Ay içinde'}</span>}
                           {gecti && <span className="ui-chip ui-chip-neutral">Geçti</span>}
-                          {g.salon && salonGun[g.tarih] > 1 && <span className="ui-chip ui-chip-warning">Salon çakışıyor</span>}
+                          {g.salon && gunleri(g).some((t) => salonGun[t] > 1) && <span className="ui-chip ui-chip-warning">Salon çakışıyor</span>}
                           <span className={cx('ui-chip', g.kapsam === 'veli' ? 'ui-chip-warning' : 'ui-chip-brand')}>{g.kapsam === 'veli' ? 'Veli' : 'Öğrenci'}</span>
                           <span className="ui-chip ui-chip-neutral">
                             {g.yer === 'dis' && <MapPin className="w-3 h-3" />}
@@ -381,6 +434,8 @@ const EtkinlikPenceresi: React.FC<{
 }> = ({ acik, etkinlik, yil, hepsi, onClose, onBitti }) => {
   const [ad, setAd] = useState('');
   const [tarih, setTarih] = useState('');
+  const [bitis, setBitis] = useState(''); // Aşama 327: isteğe bağlı son gün
+  const [ayIcinde, setAyIcinde] = useState(false); // Aşama 327: günü belli değil, ay içinde
   const [birim, setBirim] = useState('ORTAOKUL');
   const [zumre, setZumre] = useState('');
   const [siniflar, setSiniflar] = useState<string[]>([]);
@@ -396,6 +451,8 @@ const EtkinlikPenceresi: React.FC<{
     if (!acik) return;
     setAd(etkinlik ? baslik(etkinlik.ad) : '');
     setTarih(etkinlik?.tarih || '');
+    setBitis(etkinlik?.ayIcinde ? '' : etkinlik?.bitis || '');
+    setAyIcinde(!!etkinlik?.ayIcinde);
     setBirim(etkinlik?.birim || 'ORTAOKUL');
     setZumre(etkinlik?.zumre || '');
     setSiniflar(etkinlik ? etkinlik.siniflar.filter(Boolean) : []);
@@ -408,15 +465,20 @@ const EtkinlikPenceresi: React.FC<{
 
   const okAd = ad.trim().length > 0;
   const okTarih = !!tarih && tarih >= bas && tarih <= bit;
+  const bitisGun = tarih && bitis ? Math.round((tarihCoz(bitis).getTime() - tarihCoz(tarih).getTime()) / 864e5) : 0;
+  const okBitis = ayIcinde || !bitis || (bitisGun >= 0 && bitisGun <= 60 && bitis <= bit);
   const okSinif = siniflar.length > 0;
-  const salonCakisma = salon === '1' && tarih ? hepsi.find((g) => g.salon && g.tarih === tarih && g.key !== etkinlik?.key) : undefined;
+  const kayitBitis = ayIcinde ? '' : bitis && bitis > tarih ? bitis : ''; // aynı gün seçildiyse tek günlük; ay içinde: sunucu kurar
+  const aySecenek = OKUL_AYLARI.map((m) => `${m >= 9 ? yil : yil + 1}-${String(m).padStart(2, '0')}-01`);
+  const salonCakisma =
+    salon === '1' && tarih && !ayIcinde ? hepsi.find((g) => g.salon && g.key !== etkinlik?.key && araliktaMi(g, tarih, kayitBitis || tarih)) : undefined;
 
   const kaydet = async () => {
     setDenendi(true);
-    if (!okAd || !okTarih || !okSinif || mesgul) return;
+    if (!okAd || !okTarih || !okBitis || !okSinif || mesgul) return;
     setMesgul(true);
     setHata(null);
-    const ortak = { tarih, ad: buyuk(ad), birim, zumre, kapsam, yer, salon: salon === '1', kontrol: etkinlik?.kontrol || false };
+    const ortak = { tarih: ayIcinde ? `${tarih.slice(0, 7)}-01` : tarih, bitis: kayitBitis, ayIcinde, ad: buyuk(ad), birim, zumre, kapsam, yer, salon: salon === '1', kontrol: etkinlik?.kontrol || false };
     try {
       await etkinlikKaydet(etkinlik?.ids || [], siniflar.map((s) => ({ ...ortak, sinif: s })));
       await onBitti(etkinlik ? 'Etkinlik güncellendi.' : 'Etkinlik takvime eklendi.');
@@ -472,13 +534,41 @@ const EtkinlikPenceresi: React.FC<{
           <input id="akt-ad" className={hataCls(!okAd)} maxLength={200} value={ad} onChange={(e) => setAd(e.target.value)} placeholder="Örn. Bilim Merkezi gezisi" />
           {denendi && !okAd && <p className="text-[11px] font-semibold text-danger-fg mt-1">Etkinlik adını yazın.</p>}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {ayIcinde ? (
+            // Aşama 327: günü belli olmayan etkinlik yalnız ay seçer
+            <div className="col-span-2 sm:col-span-2">
+              <label htmlFor="akt-ay" className="ui-label">Ay</label>
+              <SelectBox id="akt-ay" className={cx(hataCls(!okTarih), 'cursor-pointer')} value={tarih ? `${tarih.slice(0, 7)}-01` : ''} onChange={(e) => setTarih(e.target.value)}>
+                <option value="">Ay seçiniz</option>
+                {aySecenek.map((t) => (
+                  <option key={t} value={t}>
+                    {AY_ADLARI[tarihCoz(t).getMonth()]} {t.slice(0, 4)}
+                  </option>
+                ))}
+              </SelectBox>
+              {denendi && !okTarih && <p className="text-[11px] font-semibold text-danger-fg mt-1">Ayı seçin.</p>}
+            </div>
+          ) : (
+          <>
           <div>
-            <label htmlFor="akt-tarih" className="ui-label">Tarih</label>
+            <label htmlFor="akt-tarih" className="ui-label">{bitis ? 'Başlangıç' : 'Tarih'}</label>
             <input id="akt-tarih" type="date" className={hataCls(!okTarih)} min={bas} max={bit} value={tarih} onChange={(e) => setTarih(e.target.value)} />
             {denendi && !okTarih && <p className="text-[11px] font-semibold text-danger-fg mt-1">{yilAdi(yil)} yılı içinde bir tarih seçin.</p>}
           </div>
+          {/* Aşama 327: birkaç gün süren etkinlik (boş = tek gün) */}
           <div>
+            <label htmlFor="akt-bitis" className="ui-label flex items-center justify-between gap-1">
+              Bitiş <span className="text-[10px] font-normal text-subtle">isteğe bağlı</span>
+            </label>
+            <input id="akt-bitis" type="date" className={hataCls(!okBitis)} min={tarih || bas} max={bit} value={bitis} onChange={(e) => setBitis(e.target.value)} />
+            {denendi && !okBitis && (
+              <p className="text-[11px] font-semibold text-danger-fg mt-1">{bitisGun < 0 ? 'Bitiş, başlangıçtan önce olamaz.' : 'En çok 60 gün, yıl içinde.'}</p>
+            )}
+          </div>
+          </>
+          )}
+          <div className="col-span-2 sm:col-span-1">
             <label htmlFor="akt-birim" className="ui-label">Birim</label>
             <SelectBox id="akt-birim" className="ui-field w-full cursor-pointer" value={birim} onChange={(e) => setBirim(e.target.value)}>
               {BIRIMLER.map((b) => (
@@ -488,6 +578,19 @@ const EtkinlikPenceresi: React.FC<{
               ))}
             </SelectBox>
           </div>
+          <label className="col-span-2 sm:col-span-3 -mt-1 flex w-fit items-center gap-2 text-xs text-fg-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              id="akt-ay-icinde"
+              className="w-4 h-4 accent-[var(--color-brand)]"
+              checked={ayIcinde}
+              onChange={(e) => {
+                setAyIcinde(e.target.checked);
+                if (e.target.checked && tarih) setTarih(`${tarih.slice(0, 7)}-01`);
+              }}
+            />
+            Günü belli değil, ay içinde yapılacak
+          </label>
         </div>
         <div>
           <span className="ui-label flex items-center justify-between">
@@ -543,7 +646,7 @@ const EtkinlikPenceresi: React.FC<{
         </div>
         {salonCakisma && (
           <p className="rounded-xl bg-warning-soft text-warning-fg text-xs font-medium px-3 py-2.5">
-            Bu tarihte konferans salonu "{baslik(salonCakisma.ad)}" için ayrılmış. Yine de kaydedebilirsiniz.
+            {kayitBitis ? 'Bu günlerde' : 'Bu tarihte'} konferans salonu "{baslik(salonCakisma.ad)}" için ayrılmış. Yine de kaydedebilirsiniz.
           </p>
         )}
         {hata && <p className="rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold px-3 py-2.5">{hata}</p>}
@@ -622,7 +725,7 @@ const ExcelPenceresi: React.FC<{
     setHata(null);
     try {
       const veri: AktSatir[] = yazilacak.map((s) => ({
-        tarih: s.tarih!, ad: s.ad!, sinif: s.sinif || '', birim: s.birim || '', zumre: s.zumre || '',
+        tarih: s.tarih!, bitis: s.bitis || '', ayIcinde: !!s.ayIcinde, ad: s.ad!, sinif: s.sinif || '', birim: s.birim || '', zumre: s.zumre || '',
         kapsam: s.kapsam || 'ogrenci', yer: s.yer || 'ic', salon: !!s.salon, kontrol: !!s.kontrol,
       }));
       const r = await takvimYukle(mod, yil, veri);
@@ -762,7 +865,7 @@ const ExcelPenceresi: React.FC<{
                       : ['ui-chip-success', mod === 'ekle' ? 'Yeni' : 'Yazılacak'];
               return (
                 <li key={`${s.sayfa}-${s.satirNo}-${i}`} className={cx('flex items-center gap-3 px-3 py-2', atla && 'opacity-55')}>
-                  {s.tarih ? <DtKutu tarih={s.tarih} /> : <span className="w-12 h-12 rounded-xl bg-surface-2 grid place-items-center text-muted shrink-0">?</span>}
+                  {s.tarih ? <DtKutu tarih={s.tarih} bitis={s.bitis} ayIcinde={s.ayIcinde} /> : <span className="w-12 h-12 rounded-xl bg-surface-2 grid place-items-center text-muted shrink-0">?</span>}
                   <span className="min-w-0 flex-1">
                     <b className="block text-xs font-semibold text-fg truncate">{s.ad ? baslik(s.ad) : '(adsız)'}</b>
                     <span className="block text-[11px] text-muted truncate">

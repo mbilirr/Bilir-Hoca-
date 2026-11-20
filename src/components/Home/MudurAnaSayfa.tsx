@@ -22,11 +22,15 @@ import {
   GUN_KISA_PAZAR,
   GUN_TAM_PAZAR,
   adParca,
+  araliktaMi,
   baslik,
   etkinlikler,
+  gunAraligiYazi,
   gunEkle as tGunEkle,
+  gundeMi,
   pazartesi,
   siniflarYazi,
+  sonGun,
   tarihCoz,
   tarihYaz as tYaz,
   type AktEtkinlik,
@@ -445,13 +449,13 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
   const lede = (() => {
     const parca: React.ReactNode[] = [];
     if (can.takvim && kayitlar) {
-      const buHafta = hepsi.filter((g) => g.tarih >= buPzt && g.tarih <= tYaz(pazD));
+      const buHafta = hepsi.filter((g) => !g.ayIcinde && araliktaMi(g, buPzt, tYaz(pazD))); // Aşama 327: haftaya değen (birkaç günlük dahil)
       const sonraki = hepsi.find((g) => g.tarih > tYaz(pazD));
       if (!hepsi.length) parca.push(<React.Fragment key="t">Akademik takvim henüz yüklenmedi.</React.Fragment>);
       else if (buHafta.length)
         parca.push(
           <React.Fragment key="t">
-            Bu hafta akademik takvimde <b>{buHafta.length} etkinlik</b> var; ilki <b>{GUN_TAM_PAZAR[tarihCoz(buHafta[0].tarih).getDay()]}</b> günü.
+            Bu hafta akademik takvimde <b>{buHafta.length} etkinlik</b> var; ilki <b>{GUN_TAM_PAZAR[tarihCoz(buHafta[0].tarih < buPzt ? buPzt : buHafta[0].tarih).getDay()]}</b> günü.
           </React.Fragment>,
         );
       else
@@ -485,12 +489,15 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
     if (!can.takvim || !kurumId || kayitlar === null) return null;
     const pzt = tGunEkle(pztD, kaydir * 7);
     const paz = tGunEkle(pzt, 6);
-    const icinde = (g: AktEtkinlik) => g.tarih >= tYaz(pzt) && g.tarih <= tYaz(paz);
-    const hafta = hepsi.filter(icinde);
+    // Aşama 327: birkaç gün süren etkinlik sürdüğü her günde; süren etkinlik "Sıradakiler"de kalır
+    const icinde = (g: AktEtkinlik) => araliktaMi(g, tYaz(pzt), tYaz(paz));
+    const hafta = hepsi.filter((g) => !g.ayIcinde && icinde(g));
+    const ayIci = hepsi.filter((g) => g.ayIcinde && icinde(g)); // günü belli değil
     const sonraki = hepsi.find((g) => g.tarih > tYaz(paz));
-    const siradakiler = hepsi.filter((g) => g.tarih >= bugunS).slice(0, 4);
+    const siradakiler = hepsi.filter((g) => sonGun(g) >= bugunS).slice(0, 4);
     const ne = kaydir === 0 ? 'bu hafta' : `${Math.abs(kaydir)} hafta ${kaydir > 0 ? 'sonra' : 'önce'}`;
     const kalan = (s: string) => {
+      if (s < bugunS) return 'Sürüyor';
       const n = Math.round((tarihCoz(s).getTime() - tarihCoz(bugunS).getTime()) / 864e5);
       return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n < 7 ? GUN_TAM_PAZAR[tarihCoz(s).getDay()] : `${n} gün`;
     };
@@ -521,7 +528,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               {Array.from({ length: 7 }, (_, i) => {
                 const d = tGunEkle(pzt, i);
                 const ds = tYaz(d);
-                const gun = hafta.filter((g) => g.tarih === ds);
+                const gun = hafta.filter((g) => gundeMi(g, ds));
                 return (
                   <div key={ds} className={['od-akd', i > 4 && 'we', ds === bugunS && 'today', ds < bugunS && 'past'].filter(Boolean).join(' ')}>
                     <div className="dh">
@@ -556,7 +563,14 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
                 );
               })}
             </div>
-            {!hafta.length && (
+            {ayIci.length > 0 && (
+              <div className="od-akw-empty" id="od-akt-ay-ici">
+                <span>
+                  <b>Bu ay içinde:</b> {ayIci.map((g) => `${baslik(g.ad)} (${siniflarYazi(g.siniflar)})`).join(' · ')}
+                </span>
+              </div>
+            )}
+            {!hafta.length && !ayIci.length && (
               <div className="od-akw-empty">
                 <span>
                   {hepsi.length ? 'Bu hafta takvimde etkinlik yok.' : 'Akademik takvim henüz yüklenmedi.'}
@@ -594,16 +608,16 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
                   return (
                     <li key={g.key}>
                       <span className="od-dt">
-                        <b className="tnum">{d.getDate()}</b>
-                        <span>{GUN_KISA_PAZAR[d.getDay()]}</span>
+                        <b className="tnum">{g.ayIcinde ? AY_KISA[d.getMonth()] : d.getDate()}</b>
+                        <span>{g.ayIcinde ? 'ay içi' : GUN_KISA_PAZAR[d.getDay()]}</span>
                       </span>
                       <span className="x">
                         <b title={baslik(g.ad)}>{baslik(g.ad)}</b>
                         <span>
-                          {AY_KISA[d.getMonth()]} · {siniflarYazi(g.siniflar)} · {g.yer === 'dis' ? 'okul dışı' : 'okul içi'}
+                          {g.bitis ? gunAraligiYazi(g) : AY_KISA[d.getMonth()]} · {siniflarYazi(g.siniflar)} · {g.yer === 'dis' ? 'okul dışı' : 'okul içi'}
                         </span>
                       </span>
-                      <span className="in">{kalan(g.tarih)}</span>
+                      <span className="in">{g.ayIcinde ? (g.tarih <= bugunS ? 'Bu ay' : 'Ay içinde') : kalan(g.tarih)}</span>
                     </li>
                   );
                 })}

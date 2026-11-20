@@ -8,13 +8,17 @@ import {
   GUN_KISA_PAZAR,
   GUN_TAM_PAZAR,
   adParca,
+  araliktaMi,
   baslik,
   bugun,
   egitimYili,
   etkinlikler,
+  gunAraligiYazi,
   gunEkle,
+  gundeMi,
   pazartesi,
   siniflarYazi,
+  sonGun,
   takvimCanliDinle,
   takvimListesi,
   tarihCoz,
@@ -69,10 +73,11 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
   const pzt = gunEkle(buPzt, kaydir * 7);
   const paz = gunEkle(pzt, 6);
   const hepsi = useMemo(() => etkinlikler(kayitlar || []), [kayitlar]);
-  const icinde = (g: AktEtkinlik, a: Date, b: Date) => g.tarih >= tarihYaz(a) && g.tarih <= tarihYaz(b);
-  const hafta = hepsi.filter((g) => icinde(g, pzt, paz));
+  // Aşama 327: birkaç gün süren etkinlik sürdüğü her günde görünür; süren etkinlik "Sıradakiler"de kalır
+  const hafta = hepsi.filter((g) => !g.ayIcinde && araliktaMi(g, tarihYaz(pzt), tarihYaz(paz)));
+  const ayIci = hepsi.filter((g) => g.ayIcinde && araliktaMi(g, tarihYaz(pzt), tarihYaz(paz))); // günü belli değil
   const sonraki = hepsi.find((g) => g.tarih > tarihYaz(paz));
-  const siradakiler = hepsi.filter((g) => g.tarih >= bugunS).slice(0, 4);
+  const siradakiler = hepsi.filter((g) => sonGun(g) >= bugunS).slice(0, 4);
 
   if (!kurumId || kayitlar === null) return null;
 
@@ -80,6 +85,7 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
     a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${AY_ADLARI[b.getMonth()]}` : `${a.getDate()} ${AY_ADLARI[a.getMonth()]} – ${b.getDate()} ${AY_ADLARI[b.getMonth()]}`;
   const ne = kaydir === 0 ? 'bu hafta' : `${Math.abs(kaydir)} hafta ${kaydir > 0 ? 'sonra' : 'önce'}`;
   const kalan = (s: string) => {
+    if (s < bugunS) return 'Sürüyor'; // Aşama 327: başlamış, bitmemiş
     const n = Math.round((tarihCoz(s).getTime() - tarihCoz(bugunS).getTime()) / 864e5);
     return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n < 7 ? GUN_TAM_PAZAR[tarihCoz(s).getDay()] : `${n} gün`;
   };
@@ -115,7 +121,7 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
             {Array.from({ length: 7 }, (_, i) => {
               const d = gunEkle(pzt, i);
               const ds = tarihYaz(d);
-              const gun = hafta.filter((g) => g.tarih === ds);
+              const gun = hafta.filter((g) => gundeMi(g, ds));
               const sonu = i > 4;
               return (
                 <div
@@ -159,7 +165,12 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
               );
             })}
           </div>
-          {!hafta.length && (
+          {ayIci.length > 0 && (
+            <p className="mt-2 rounded-xl bg-surface-2 px-4 py-2.5 text-xs text-fg-2" id="home-akt-ay-ici">
+              <b className="text-fg">Bu ay içinde:</b> {ayIci.map((g) => `${baslik(g.ad)} (${siniflarYazi(g.siniflar)})`).join(' · ')}
+            </p>
+          )}
+          {!hafta.length && !ayIci.length && (
             <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 px-4 py-3 text-xs text-fg-2">
               <span className="flex-1 min-w-0">
                 {hepsi.length ? 'Bu hafta takvimde etkinlik yok.' : 'Akademik takvim henüz yüklenmedi.'}
@@ -196,18 +207,18 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
                 return (
                   <li key={g.key} className="flex items-center gap-3 py-2">
                     <span className="w-10 h-11 rounded-lg bg-surface-2 flex flex-col items-center justify-center leading-none shrink-0">
-                      <b className="text-base font-bold tabular-nums text-fg">{d.getDate()}</b>
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-muted mt-0.5">{GUN_KISA_PAZAR[d.getDay()]}</span>
+                      <b className={cx('font-bold tabular-nums text-fg', g.ayIcinde ? 'text-[11px] uppercase' : 'text-base')}>{g.ayIcinde ? AY_KISA[d.getMonth()] : d.getDate()}</b>
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-muted mt-0.5">{g.ayIcinde ? 'ay içi' : GUN_KISA_PAZAR[d.getDay()]}</span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <b className="block text-xs font-semibold text-fg truncate" title={baslik(g.ad)}>
                         {baslik(g.ad)}
                       </b>
                       <span className="block text-[11px] text-muted truncate">
-                        {AY_KISA[d.getMonth()]} · {siniflarYazi(g.siniflar)} · {g.yer === 'dis' ? 'okul dışı' : 'okul içi'}
+                        {g.bitis ? gunAraligiYazi(g) : AY_KISA[d.getMonth()]} · {siniflarYazi(g.siniflar)} · {g.yer === 'dis' ? 'okul dışı' : 'okul içi'}
                       </span>
                     </span>
-                    <span className="text-[11px] font-bold text-brand-fg whitespace-nowrap">{kalan(g.tarih)}</span>
+                    <span className="text-[11px] font-bold text-brand-fg whitespace-nowrap">{g.ayIcinde ? (g.tarih <= bugunS ? 'Bu ay' : 'Ay içinde') : kalan(g.tarih)}</span>
                   </li>
                 );
               })}
