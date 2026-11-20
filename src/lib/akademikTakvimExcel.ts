@@ -4,7 +4,7 @@
 // OKUL İÇİ/OKUL DIŞI, KONFERANS SALONU KULLANIMI, KONTROL. Sütunlar başlık adından bulunur (sıra değişse de okunur).
 // Boş satırlar atlanır. Yıl yanlış yazılmışsa (ör. Ocak sayfasında 2026) ay sayfasına göre düzeltilir ve gösterilir.
 // ============================================================================
-import { AY_ADLARI, ZUMRELER, buyuk, tarihYaz, zumreAdi, type AktSatir } from '../services/akademikTakvimService';
+import { AY_ADLARI, buyuk, dosyaZumresi, tarihYaz, zumreAdi, type AktSatir } from '../services/akademikTakvimService';
 
 export const AY_SAYFALARI: Record<string, number> = {
   EYLÜL: 9, EKİM: 10, KASIM: 11, ARALIK: 12, OCAK: 1, ŞUBAT: 2, MART: 3, NİSAN: 4, MAYIS: 5, HAZİRAN: 6,
@@ -90,9 +90,8 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
   const wb = XLSX.read(await dosya.arrayBuffer(), { type: 'array' });
   const satirlar: OkunanSatir[] = [];
   let sayfaSayisi = 0;
-  // Aşama 327/329: dosya adındaki zümre (varsa bütün satırlara yazılır) ("MATEMATİK ZÜMRESİ 2026 AKADEMİK TAKVİM.xlsx")
-  const dosyaAdi = buyuk(String(dosya.name || '').replace(/\.xlsx?$/i, '').replace(/[_\-.]+/g, ' ')); // "MATEMATİK_ZÜMRESİ_2026" de olur
-  const dosyaZumresi = [...ZUMRELER].sort((a, b) => b.length - a.length).find((z) => dosyaAdi.includes(z)) || '';
+  // Aşama 327/329: dosya adındaki zümre varsa BÜTÜN satırlara yazılır ("MATEMATİK ZÜMRESİ 2026 ….xlsx", "… FEN BİLGİSİ.xlsx")
+  const dosyaZ = dosyaZumresi(dosya.name || '');
   for (const ad of wb.SheetNames) {
     const ay = AY_SAYFALARI[buyuk(ad)];
     if (!ay) continue;
@@ -123,7 +122,7 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
         birim: buyuk(v('birim')),
         // Aşama 329: dosya adında zümre yazıyorsa dosyadaki BÜTÜN etkinlikler o zümreye yazılır (Mustafa'nın kuralı);
         // yazmıyorsa hücredeki zümre tam adına çevrilir ("MATEMATİK" → "MATEMATİK ZÜMRESİ")
-        zumre: dosyaZumresi || zumreAdi(v('zumre'), v('birim')),
+        zumre: (dosyaZ && dosyaZ(v('birim'))) || zumreAdi(v('zumre'), v('birim')),
         kapsam: /VELİ/.test(buyuk(v('kapsam'))) ? 'veli' : 'ogrenci',
         yer: /DIŞ/.test(buyuk(v('yer'))) ? 'dis' : 'ic',
         salon: buyuk(v('salon')) === 'EVET',

@@ -106,6 +106,29 @@ export function zumreAdi(ham: unknown, birim: unknown = ''): string {
   return birimli.length === 1 ? birimli[0] : z;
 }
 
+/**
+ * Aşama 329: dosya adından zümre. Tam ad yazıyorsa o ("MATEMATİK ZÜMRESİ …"); yazmıyorsa zümrenin ana kelimesi aranır
+ * ("… FEN BİLGİSİ.xlsx" → FEN BİLİMLERİ ZÜMRESİ; "… İNGİLİZCE.xlsx" → satırın birimine göre İlkokul / Ortaokul İngilizce).
+ * Bulunamazsa ya da iki farklı zümreye uyuyorsa null (hücredeki zümre kullanılır).
+ */
+export function dosyaZumresi(dosyaAdi: string): ((birim: unknown) => string) | null {
+  const ad = buyuk(String(dosyaAdi || '').replace(/\.xlsx?$/i, '').replace(/_+/g, ' '));
+  const tam = [...ZUMRELER].sort((a, b) => b.length - a.length).find((z) => ad.includes(z));
+  if (tam) return () => tam;
+  const harf = /[^0-9A-ZÇĞİÖŞÜ]+/g;
+  const kelime = new Set(ad.split(harf).filter(Boolean));
+  const sik = ad.replace(harf, '');
+  const koks = new Set<string>();
+  for (const z of ZUMRELER) {
+    const kok = zumreKok(z);
+    const ilk = kok.split(' ')[0];
+    if (/\d/.test(ilk) ? sik.includes(kok.replace(harf, '')) : kelime.has(ilk)) koks.add(kok);
+  }
+  if (koks.size !== 1) return null;
+  const kok = [...koks][0];
+  return (birim) => zumreAdi(kok, birim);
+}
+
 const KUCUK = new Set(['ve', 'ile', 'ya', 'da', 'de', 'için', 'veya', 'ki']);
 /** "BİLİM MERKEZİ(GÜNEŞİN YAPISI)" → "Bilim Merkezi (Güneşin Yapısı)" */
 export function baslik(s: string): string {

@@ -1083,18 +1083,35 @@ const ExcelPenceresi: React.FC<{
   const ETIKET: Record<string, [string, string]> = sonuc
     ? { yeni: ['ui-chip-success', 'Eklendi'], guncel: ['ui-chip-brand', 'Güncellendi'], ayni: ['ui-chip-neutral', 'Zaten vardı'], yil_disi: ['ui-chip-danger', 'Yıl dışında'], bos: ['ui-chip-danger', 'Yazılamadı'] }
     : { yeni: ['ui-chip-success', mod === 'ekle' ? 'Yeni' : 'Yazılacak'], guncel: ['ui-chip-brand', 'Güncellenecek'], ayni: ['ui-chip-neutral', 'Aynısı var'], hatali: ['ui-chip-danger', 'Hatalı'] };
-  const kutular: [string, number, string][] = sonuc && dogrulama
+  // Aşama 329: aynı tarih, ad, kapsam ve yerdeki sınıf satırları takvimdeki gibi TEK etkinlik olarak gösterilir ("5, 6, 7. sınıf")
+  type Grup = { key: string; s: OkunanSatir; d: string; siniflar: string[]; satir: number };
+  const gruplar: Grup[] = [];
+  const gm = new Map<string, Grup>();
+  for (const { s: r, d } of sirali) {
+    const k = r.tarih ? `${r.tarih}|${r.bitis || ''}|${r.ayIcinde ? 'ay' : ''}|${buyuk(r.ad)}|${r.kapsam}|${r.yer}` : `${r.sayfa}-${r.satirNo}`;
+    let g = gm.get(k);
+    if (!g) {
+      g = { key: k, s: r, d, siniflar: [], satir: 0 };
+      gm.set(k, g);
+      gruplar.push(g);
+    } else if (ONCE[d] < ONCE[g.d]) g.d = d;
+    if (r.sinif && !g.siniflar.includes(r.sinif)) g.siniflar.push(r.sinif);
+    g.satir++;
+  }
+  const gs = (...ds: string[]) => gruplar.filter((g) => ds.includes(g.d)).length;
+  const yazilacakEtkinlik = mod === 'ekle' ? gs('yeni', 'guncel') : gruplar.length - gs('hatali');
+  const kutular: [string, number, string][] = sonuc
     ? [
-        ['Eklendi', dogrulama.yeni, 'text-success-fg'],
-        ['Güncellendi', dogrulama.guncel, 'text-brand-fg'],
-        ['Zaten vardı', dogrulama.ayni, 'text-fg'],
-        ['Yazılamadı', dogrulama.yazilamadi, 'text-danger-fg'],
+        ['Eklendi', gs('yeni'), 'text-success-fg'],
+        ['Güncellendi', gs('guncel'), 'text-brand-fg'],
+        ['Zaten vardı', gs('ayni'), 'text-fg'],
+        ['Yazılamadı', gs('yil_disi', 'bos'), 'text-danger-fg'],
       ]
     : [
-        ['Yeni', mod === 'ekle' ? hesap.say.yeni : hesap.gecerli.length, 'text-success-fg'],
-        ['Güncellenecek', mod === 'ekle' ? hesap.say.guncel : 0, 'text-brand-fg'],
-        ['Aynısı var', mod === 'ekle' ? hesap.say.ayni : 0, 'text-fg'],
-        ['Hatalı', hesap.say.hatali, 'text-danger-fg'],
+        ['Yeni', gs('yeni'), 'text-success-fg'],
+        ['Güncellenecek', gs('guncel'), 'text-brand-fg'],
+        ['Aynısı var', gs('ayni'), 'text-fg'],
+        ['Hatalı', gs('hatali'), 'text-danger-fg'],
       ];
 
   return (
@@ -1118,7 +1135,7 @@ const ExcelPenceresi: React.FC<{
                 Vazgeç
               </button>
               <button type="button" id="akt-excel-kaydet" className={cx(BTN, 'min-w-28 px-4 ui-btn-primary')} onClick={() => void kaydet()} disabled={!satirlar || !yazilacakSay || !!mesgul}>
-                {mesgul === 'yaz' ? 'Yazılıyor…' : satirlar && yazilacakSay ? `${yazilacakSay} satırı yaz` : 'Kaydet'}
+                {mesgul === 'yaz' ? 'Yazılıyor…' : satirlar && yazilacakSay ? `${yazilacakEtkinlik} etkinliği yaz` : 'Kaydet'}
               </button>
             </>
           )}
@@ -1178,7 +1195,7 @@ const ExcelPenceresi: React.FC<{
             <div className="min-w-0 flex-1">
               <b className="block text-sm text-fg truncate">{dosyaAd}</b>
               <span className="text-xs text-muted">
-                {sayfa} ay sayfası · {hesap.l.length} etkinlik satırı
+                {sayfa} ay sayfası · {gruplar.length} etkinlik · {hesap.l.length} sınıf satırı
               </span>
             </div>
             <button type="button" className={cx(BTN, 'w-28 ui-btn-secondary')} onClick={() => input.current?.click()} disabled={!!mesgul}>
@@ -1189,7 +1206,7 @@ const ExcelPenceresi: React.FC<{
             {kutular.map(([k, v, c]) => (
               <div key={k} className="rounded-xl bg-surface-2 border border-line px-3 py-2.5">
                 <b className={cx('block text-xl font-bold tabular-nums', v ? c : 'text-subtle')}>{v}</b>
-                <span className="text-[11px] font-medium text-muted">{k}</span>
+                <span className="text-[11px] font-medium text-muted">{k} etkinlik</span>
               </div>
             ))}
           </div>
@@ -1203,7 +1220,7 @@ const ExcelPenceresi: React.FC<{
             >
               {dogrulama.bulunan === dogrulama.yazilan ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
               {dogrulama.bulunan === dogrulama.yazilan
-                ? `Takvim yeniden okundu: dosyadaki ${dogrulama.yazilan} satırın hepsi takvimde.${sonuc.silinen ? ` (${sonuc.silinen} eski kayıt silindi)` : ''}`
+                ? `Takvim yeniden okundu: dosyadaki ${gruplar.length - gs('yil_disi', 'bos')} etkinliğin (${dogrulama.yazilan} sınıf satırı) hepsi takvimde.${sonuc.silinen ? ` (${sonuc.silinen} eski kayıt silindi)` : ''}`
                 : `Takvim yeniden okundu: ${dogrulama.yazilan} satırdan ${dogrulama.bulunan} tanesi görünüyor. Sayfayı yenileyip tekrar bakın.`}
             </p>
           ) : (
@@ -1220,26 +1237,26 @@ const ExcelPenceresi: React.FC<{
               <p className="text-xs text-muted">
                 {mod === 'ekle'
                   ? yazilacakSay
-                    ? `Takvimde olmayan ${hesap.say.yeni} satır eklenir, bilgisi değişen ${hesap.say.guncel} satır güncellenir; diğer etkinliklere dokunulmaz.`
+                    ? `Takvimde olmayan ${gs('yeni')} etkinlik eklenir, bilgisi değişen ${gs('guncel')} etkinlik güncellenir; diğer etkinliklere dokunulmaz.`
                     : 'Dosyadaki satırların hepsi takvimde aynen var.'
-                  : `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinir, dosyadaki ${hesap.gecerli.length} satır yazılır.`}
-                {hesap.say.hatali > 0 && ' Hatalı satırlar yazılmaz.'}
+                  : `${yilAdi(yil)} takvimindeki ${kayitlar.length} kayıt silinir, dosyadaki ${yazilacakEtkinlik} etkinlik yazılır.`}
+                {gs('hatali') > 0 && ' Hatalı satırlar yazılmaz.'}
                 {hesap.duzeltilen > 0 && ` ${hesap.duzeltilen} satırın yılı ay sayfasına göre düzeltildi.`}
               </p>
             </>
           )}
           <ul className="rounded-xl border border-line divide-y divide-line max-h-[42vh] overflow-y-auto" id="akt-excel-liste">
-            {sirali.map(({ s, d }, i) => {
+            {gruplar.map(({ key, s, d, siniflar, satir }) => {
               const [cls, et] = ETIKET[d] || ['ui-chip-neutral', d];
-              const soluk = d === 'ayni';
               return (
-                <li key={`${s.sayfa}-${s.satirNo}-${i}`} className={cx('flex items-center gap-3 px-3 py-2', soluk && 'opacity-60')}>
+                <li key={key} className={cx('flex items-center gap-3 px-3 py-2', d === 'ayni' && 'opacity-60')}>
                   {s.tarih ? <DtKutu tarih={s.tarih} bitis={s.bitis} ayIcinde={s.ayIcinde} /> : <span className="w-12 h-12 rounded-xl bg-surface-2 grid place-items-center text-muted shrink-0">?</span>}
                   <span className="min-w-0 flex-1">
                     <b className="block text-xs font-semibold text-fg truncate">{s.ad ? baslik(s.ad) : '(adsız)'}</b>
                     <span className="block text-[11px] text-muted truncate">
-                      {s.sayfa} · satır {s.satirNo} · {sinifAdi(s.sinif || '')}
-                      {s.zumre && ` · ${baslik(s.zumre)}`}
+                      {siniflar.length ? siniflarYazi(siniflar) : 'Sınıf yok'}
+                      {s.zumre && ` · ${baslik(s.zumre)}`} · {s.sayfa}
+                      {satir > 1 ? ` · ${satir} satır` : ` · satır ${s.satirNo}`}
                       {s.not && <span className="text-warning-fg"> · {s.not}</span>}
                     </span>
                   </span>
