@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BellRing, CalendarRange, Check, Download, FileSpreadsheet, MapPin, Mic2, Minus, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
-import { EmptyState, Modal, PageHeader, Panel, Segmented, StatCard, cx } from '../ui/kit';
+import { EmptyState, Modal, PageHeader, Panel, Segmented, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from './FormParts';
 import { appConfirm } from '../../lib/appDialog';
@@ -10,6 +10,7 @@ import {
   AY_KISA,
   BIRIMLER,
   GUN_KISA_PAZAR,
+  KADEMELER,
   OKUL_AYLARI,
   SINIFLAR,
   ZUMRELER,
@@ -18,6 +19,7 @@ import {
   bugun,
   buyuk,
   egitimYili,
+  etkinlikKademeleri,
   etkinlikKaydet,
   etkinlikleriSil,
   etkinlikler,
@@ -41,6 +43,7 @@ import {
   zumreKaydet,
   zumreListesi,
   type AktEtkinlik,
+  type AktKademe,
   type AktKapsam,
   type AktKayit,
   type AktSatir,
@@ -122,6 +125,64 @@ const SecKutusu: React.FC<{ durum: boolean | 'mixed'; onClick: () => void; etike
   </button>
 );
 
+/** Aşama 330: üst kutular — başlık, alt alta seçim düğmeleri (sayılı), dipte kısa not; aynı sıradaki kutular eşit boy */
+type KutuTon = 'warn' | 'ok' | 'bad';
+const Kutu: React.FC<{ baslik: string; ek?: string; not?: string; children: React.ReactNode }> = ({ baslik, ek, not, children }) => (
+  <section className="rounded-2xl bg-surface border border-line shadow-card p-3 flex flex-col gap-1.5 min-w-0" aria-label={baslik}>
+    <h2 className="flex items-baseline justify-between gap-2 px-0.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted">
+      {baslik}
+      {ek && <span className="text-[11px] font-semibold normal-case tracking-normal text-subtle truncate">{ek}</span>}
+    </h2>
+    {children}
+    {not && <p className="mt-auto pt-1 px-0.5 text-[11px] leading-snug text-subtle">{not}</p>}
+  </section>
+);
+const KutuSecenek: React.FC<{ id: string; etiket: string; alt?: string; n: number; ton?: KutuTon; secili: boolean; onClick: () => void }> = ({ id, etiket, alt, n, ton, secili, onClick }) => (
+  <button
+    type="button"
+    id={id}
+    aria-pressed={secili}
+    onClick={onClick}
+    className={cx(
+      'h-8 w-full flex items-center gap-2 pl-2.5 pr-1.5 rounded-lg text-left text-xs font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
+      secili ? 'bg-fg text-canvas' : 'bg-surface-2 text-fg-2 hover:bg-surface-3 hover:text-fg'
+    )}
+  >
+    <span className="flex-1 min-w-0 truncate">
+      {etiket}
+      {alt && <span className={cx('hidden sm:inline ml-1 font-medium', secili ? 'opacity-60' : 'text-subtle')}>{alt}</span>}
+    </span>
+    <span
+      className={cx(
+        'min-w-7 h-[22px] px-1.5 rounded-md grid place-items-center text-[11px] tabular-nums',
+        secili
+          ? 'bg-canvas/15'
+          : !n
+            ? 'bg-surface text-subtle'
+            : ton === 'warn'
+              ? 'bg-warning-soft text-warning-fg'
+              : ton === 'ok'
+                ? 'bg-success-soft text-success-fg'
+                : ton === 'bad'
+                  ? 'bg-danger-soft text-danger-fg'
+                  : 'bg-surface text-fg'
+      )}
+    >
+      {n}
+    </span>
+  </button>
+);
+type Odak = '' | 'gun' | 'hafta' | 'ay' | 'dis' | 'salon' | 'kontrolEdilen' | 'kontrolEdilmeyen';
+const ODAK_ADI: Record<Exclude<Odak, ''>, string> = {
+  gun: 'Bugün',
+  hafta: 'Bu hafta',
+  ay: 'Bu ay',
+  dis: 'Okul dışı çakışmaları',
+  salon: 'Konferans salonu çakışmaları',
+  kontrolEdilen: 'Geçmiş · kontrol edilen',
+  kontrolEdilmeyen: 'Geçmiş · kontrol edilmeyen',
+};
+
 export const AkademikTakvim: React.FC = () => {
   const kurumId = dataService.getMyKurumId();
   const yonetir = dataService.canManageAkademikTakvim();
@@ -135,6 +196,8 @@ export const AkademikTakvim: React.FC = () => {
   const [fZumre, setFZumre] = useState(''); // Aşama 327: zümre süzgeci
   const [fKapsam, setFKapsam] = useState<'' | AktKapsam>('');
   const [fYer, setFYer] = useState<'' | AktYer>('');
+  const [kademe, setKademe] = useState<'' | AktKademe>(''); // Aşama 330
+  const [odak, setOdak] = useState<Odak>(''); // Aşama 330: zaman / çakışma / kontrol kutusu seçimi
   const [duzenle, setDuzenle] = useState<AktEtkinlik | 'yeni' | null>(null);
   const [excelAcik, setExcelAcik] = useState(false);
   const [zumreAcik, setZumreAcik] = useState(false); // Aşama 328
@@ -170,12 +233,42 @@ export const AkademikTakvim: React.FC = () => {
     const p = pazartesi(bugun());
     return { bas: tarihYaz(p), bit: tarihYaz(gunEkle(p, 6)) };
   }, []);
-  const salonGun = useMemo(() => {
-    const c: Record<string, number> = {};
-    hepsi.forEach((g) => g.salon && gunleri(g).forEach((t) => (c[t] = (c[t] || 0) + 1)));
-    return c;
+  // Aşama 330: aynı gün kaç salon / okul dışı etkinliği var (çakışma = 2 ve üstü)
+  const { salonGun, disGun } = useMemo(() => {
+    const salon: Record<string, number> = {};
+    const dis: Record<string, number> = {};
+    hepsi.forEach((g) =>
+      gunleri(g).forEach((t) => {
+        if (g.salon) salon[t] = (salon[t] || 0) + 1;
+        if (g.yer === 'dis') dis[t] = (dis[t] || 0) + 1;
+      })
+    );
+    return { salonGun: salon, disGun: dis };
   }, [hepsi]);
-  const uyar = (g: AktEtkinlik) => (!fSinif || g.siniflar.includes(fSinif)) && (!fZumre || buyuk(g.zumre) === fZumre) && (!fKapsam || g.kapsam === fKapsam) && (!fYer || g.yer === fYer);
+  const salonCakisir = (g: AktEtkinlik) => g.salon && gunleri(g).some((t) => salonGun[t] > 1);
+  const disCakisir = (g: AktEtkinlik) => g.yer === 'dis' && gunleri(g).some((t) => disGun[t] > 1);
+  const kademeleri = useMemo(() => new Map(hepsi.map((g) => [g.key, etkinlikKademeleri(g)])), [hepsi]);
+  const ayBas = bugunS.slice(0, 8) + '01';
+  const aySon = tarihYaz(new Date(bugun().getFullYear(), bugun().getMonth() + 1, 0));
+  const odakUyar: Record<Exclude<Odak, ''>, (g: AktEtkinlik) => boolean> = {
+    gun: (g) => !g.ayIcinde && araliktaMi(g, bugunS, bugunS),
+    hafta: (g) => !g.ayIcinde && araliktaMi(g, hafta.bas, hafta.bit),
+    ay: (g) => araliktaMi(g, ayBas, aySon),
+    dis: disCakisir,
+    salon: salonCakisir,
+    kontrolEdilen: (g) => sonGun(g) < bugunS && g.kontrol,
+    kontrolEdilmeyen: (g) => sonGun(g) < bugunS && !g.kontrol,
+  };
+  // Süzgeç sırası: kademe + sınıf + zümre (taban) → kutu seçimi → ay → kapsam → yer
+  const sinifZumreUyar = (g: AktEtkinlik) => (!fSinif || g.siniflar.includes(fSinif)) && (!fZumre || buyuk(g.zumre) === fZumre);
+  const taban = (g: AktEtkinlik) => (!kademe || !!kademeleri.get(g.key)?.has(kademe)) && sinifZumreUyar(g);
+  const odakta = (g: AktEtkinlik) => !odak || odakUyar[odak](g);
+  const kapsamUyar = (g: AktEtkinlik) => !fKapsam || g.kapsam === fKapsam;
+  const yerUyar = (g: AktEtkinlik) => !fYer || g.yer === fYer;
+  // Salon ve servis bütün okulun ortak işi: çakışma görünümünde kademe / sınıf / zümre süzgeci uygulanmaz (çakışan iki taraf da görünsün)
+  const cakismaGorunumu = odak === 'dis' || odak === 'salon';
+  const tabanda = (g: AktEtkinlik) => cakismaGorunumu || taban(g);
+  const uyar = (g: AktEtkinlik) => taban(g) && kapsamUyar(g) && yerUyar(g);
   // Aşama 327: zümre listesi = bilinen zümreler + takvimde geçen başka zümre adları (sayısıyla)
   const zumreler = useMemo(() => {
     const say = new Map<string, number>();
@@ -184,7 +277,8 @@ export const AkademikTakvim: React.FC = () => {
     return [...ZUMRELER, ...ek].map((z) => ({ z, n: say.get(z) || 0 }));
   }, [hepsi]);
   const ayOf = (g: AktEtkinlik) => tarihCoz(g.tarih).getMonth() + 1;
-  const gorunen = hepsi.filter((g) => uyar(g) && (!ay || ayOf(g) === ay));
+  const ayda = (g: AktEtkinlik) => !!odak || !ay || ayOf(g) === ay;
+  const gorunen = hepsi.filter((g) => tabanda(g) && kapsamUyar(g) && yerUyar(g) && odakta(g) && ayda(g));
   // Aşama 329: seçim yalnız ekranda görünen etkinliklerde geçerli (süzgeç değişince gizlenen seçili kalmaz)
   const secili = gorunen.filter((g) => secim.has(g.key));
   const hepsiSecili = gorunen.length > 0 && secili.length === gorunen.length;
@@ -233,6 +327,22 @@ export const AkademikTakvim: React.FC = () => {
 
   const yillar = [egitimYili() - 1, egitimYili(), egitimYili() + 1];
   const say = (f: (g: AktEtkinlik) => boolean) => hepsi.filter(f).length;
+  // Aşama 330: kutu yardımcıları
+  const kademeSec = (k: '' | AktKademe) => {
+    setKademe(k);
+    if (k && fSinif && !KADEMELER[k].siniflar.includes(fSinif)) setFSinif('');
+    if (k && fZumre && !KADEMELER[k].zumreler.includes(fZumre)) setFZumre('');
+  };
+  const odakSec = (o: Odak) => setOdak((p) => (p === o ? '' : o));
+  const cakisanGun = (gun: Record<string, number>, f: (g: AktEtkinlik) => boolean) =>
+    new Set(hepsi.filter(f).flatMap((g) => gunleri(g).filter((t) => gun[t] > 1))).size;
+  const kEdilen = say((g) => taban(g) && odakUyar.kontrolEdilen(g));
+  const kEdilmeyen = say((g) => taban(g) && odakUyar.kontrolEdilmeyen(g));
+  const kontrolNotu = kEdilen + kEdilmeyen ? `${kEdilen + kEdilmeyen} geçmiş etkinliğin %${Math.round((kEdilen * 100) / (kEdilen + kEdilmeyen))}'i kontrol edildi` : 'Geçmiş etkinlik yok';
+  const sinifSecenek = kademe ? KADEMELER[kademe].siniflar : SINIFLAR;
+  const zumreSecenek = kademe ? zumreler.filter(({ z }) => KADEMELER[kademe].zumreler.includes(z)) : zumreler;
+  const segSay = (f: (g: AktEtkinlik) => boolean) => say((g) => tabanda(g) && odakta(g) && ayda(g) && f(g));
+  const sayiEk = (n: number) => <span className="tabular-nums font-medium text-subtle">({n})</span>;
 
   return (
     <div className="space-y-5" id="akademik-takvim">
@@ -282,11 +392,34 @@ export const AkademikTakvim: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Etkinlik" value={hepsi.length} hint={`${kayitlar.length} sınıf kaydı`} />
-        <StatCard label="Öğrenci etkinliği" value={say((g) => g.kapsam === 'ogrenci')} hint="öğrencilere yönelik" />
-        <StatCard label="Veli etkinliği" value={say((g) => g.kapsam === 'veli')} hint={`${say((g) => g.salon)} tanesi konferans salonunda`} />
-        <StatCard label="Okul dışı" value={say((g) => g.yer === 'dis')} hint="gezi ve ziyaret" />
+      {/* Aşama 330: dört kutu — kademe, zaman, çakışmalar, kontrol (düğmeler süzgeçtir; sayılar seçili kademe/sınıf/zümreye göre) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 items-stretch">
+        <Kutu baslik="Kademe" ek={kademe ? KADEMELER[kademe].ad : undefined}>
+          <KutuSecenek id="akt-kademe-tumu" etiket="Tüm okul" n={say(sinifZumreUyar)} secili={!kademe} onClick={() => kademeSec('')} />
+          {(Object.keys(KADEMELER) as AktKademe[]).map((k) => (
+            <KutuSecenek
+              key={k}
+              id={`akt-kademe-${k}`}
+              etiket={KADEMELER[k].ad}
+              n={say((g) => sinifZumreUyar(g) && !!kademeleri.get(g.key)?.has(k))}
+              secili={kademe === k}
+              onClick={() => kademeSec(k)}
+            />
+          ))}
+        </Kutu>
+        <Kutu baslik="Zaman" not="Bugün, bu hafta ve bu ayın etkinlikleri">
+          <KutuSecenek id="akt-odak-gun" etiket="Gün" alt={`${tarihCoz(bugunS).getDate()} ${AY_KISA[tarihCoz(bugunS).getMonth()]}`} n={say((g) => taban(g) && odakUyar.gun(g))} secili={odak === 'gun'} onClick={() => odakSec('gun')} />
+          <KutuSecenek id="akt-odak-hafta" etiket="Hafta" alt={gunAraligiYazi({ tarih: hafta.bas, bitis: hafta.bit })} n={say((g) => taban(g) && odakUyar.hafta(g))} secili={odak === 'hafta'} onClick={() => odakSec('hafta')} />
+          <KutuSecenek id="akt-odak-ay" etiket="Ay" alt={AY_ADLARI[tarihCoz(bugunS).getMonth()]} n={say((g) => taban(g) && odakUyar.ay(g))} secili={odak === 'ay'} onClick={() => odakSec('ay')} />
+        </Kutu>
+        <Kutu baslik="Çakışmalar" ek="bütün okul" not={`${cakisanGun(disGun, disCakisir)} günde okul dışı, ${cakisanGun(salonGun, salonCakisir)} günde salon çakışıyor`}>
+          <KutuSecenek id="akt-odak-dis" etiket="Okul dışı" n={say(disCakisir)} ton="warn" secili={odak === 'dis'} onClick={() => odakSec('dis')} />
+          <KutuSecenek id="akt-odak-salon" etiket="Konferans" n={say(salonCakisir)} ton="warn" secili={odak === 'salon'} onClick={() => odakSec('salon')} />
+        </Kutu>
+        <Kutu baslik="Kontrol" ek="geçmiş" not={kontrolNotu}>
+          <KutuSecenek id="akt-odak-kontrol-edilen" etiket="Kontrol edilen" n={kEdilen} ton="ok" secili={odak === 'kontrolEdilen'} onClick={() => odakSec('kontrolEdilen')} />
+          <KutuSecenek id="akt-odak-kontrol-edilmeyen" etiket="Kontrol edilmeyen" n={kEdilmeyen} ton="bad" secili={odak === 'kontrolEdilmeyen'} onClick={() => odakSec('kontrolEdilmeyen')} />
+        </Kutu>
       </div>
 
       <Panel padded={false}>
@@ -295,7 +428,7 @@ export const AkademikTakvim: React.FC = () => {
           <div className="grid grid-flow-col auto-cols-[64px] sm:auto-cols-fr gap-1 p-1 rounded-xl bg-surface-2 border border-line overflow-x-auto" role="tablist" aria-label="Ay">
             {[0, ...OKUL_AYLARI].map((m) => {
               const n = hepsi.filter((g) => uyar(g) && (!m || ayOf(g) === m)).length;
-              const aktif = ay === m;
+              const aktif = !odak && ay === m;
               const simdi = m === tarihCoz(bugunS).getMonth() + 1;
               return (
                 <button
@@ -304,7 +437,7 @@ export const AkademikTakvim: React.FC = () => {
                   role="tab"
                   aria-selected={aktif}
                   id={`akt-ay-${m}`}
-                  onClick={() => setAy(m)}
+                  onClick={() => (setAy(m), setOdak(''))}
                   className={cx(
                     'h-11 rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors cursor-pointer',
                     aktif ? 'bg-surface text-fg shadow-card' : 'text-muted hover:text-fg',
@@ -324,18 +457,18 @@ export const AkademikTakvim: React.FC = () => {
             <div className="w-40">
               <SelectBox id="akt-sinif" aria-label="Sınıf" value={fSinif} onChange={(e) => setFSinif(e.target.value)}>
                 <option value="">Bütün sınıflar</option>
-                {SINIFLAR.map((s) => (
+                {sinifSecenek.map((s) => (
                   <option key={s} value={s}>
                     {sinifAdi(s)}
                   </option>
                 ))}
               </SelectBox>
             </div>
-            {/* Aşama 327: zümre süzgeci */}
+            {/* Aşama 327: zümre süzgeci (Aşama 330: seçili kademenin zümreleri) */}
             <div className="w-52">
               <SelectBox id="akt-zumre-suzgec" aria-label="Zümre" value={fZumre} onChange={(e) => setFZumre(e.target.value)}>
-                <option value="">Zümre seçiniz</option>
-                {zumreler.map(({ z, n }) => (
+                <option value="">{kademe ? `${KADEMELER[kademe].ad} zümreleri` : 'Zümre seçiniz'}</option>
+                {zumreSecenek.map(({ z, n }) => (
                   <option key={z} value={z}>
                     {baslik(z)}
                     {n ? ` (${n})` : ''}
@@ -348,9 +481,9 @@ export const AkademikTakvim: React.FC = () => {
               value={fKapsam}
               onChange={setFKapsam}
               items={[
-                { value: '', label: 'Tümü', id: 'akt-kapsam-tumu' },
-                { value: 'ogrenci', label: 'Öğrenci', id: 'akt-kapsam-ogrenci' },
-                { value: 'veli', label: 'Veli', id: 'akt-kapsam-veli' },
+                { value: '', label: 'Tümü', badge: sayiEk(segSay(yerUyar)), id: 'akt-kapsam-tumu' },
+                { value: 'ogrenci', label: 'Öğrenci', badge: sayiEk(segSay((g) => yerUyar(g) && g.kapsam === 'ogrenci')), id: 'akt-kapsam-ogrenci' },
+                { value: 'veli', label: 'Veli', badge: sayiEk(segSay((g) => yerUyar(g) && g.kapsam === 'veli')), id: 'akt-kapsam-veli' },
               ]}
             />
             <Segmented
@@ -358,14 +491,25 @@ export const AkademikTakvim: React.FC = () => {
               value={fYer}
               onChange={setFYer}
               items={[
-                { value: '', label: 'Tümü', id: 'akt-yer-tumu' },
-                { value: 'ic', label: 'Okul içi', id: 'akt-yer-ic' },
-                { value: 'dis', label: 'Okul dışı', id: 'akt-yer-dis' },
+                { value: '', label: 'Tümü', badge: sayiEk(segSay(kapsamUyar)), id: 'akt-yer-tumu' },
+                { value: 'ic', label: 'Okul içi', badge: sayiEk(segSay((g) => kapsamUyar(g) && g.yer === 'ic')), id: 'akt-yer-ic' },
+                { value: 'dis', label: 'Okul dışı', badge: sayiEk(segSay((g) => kapsamUyar(g) && g.yer === 'dis')), id: 'akt-yer-dis' },
               ]}
             />
           </div>
         </div>
 
+        {/* Aşama 330: kutudan seçilen görünüm */}
+        {odak && (
+          <div className="flex items-center gap-3 px-4 sm:px-5 h-11 border-b border-line bg-brand-soft/60" role="status">
+            <span className="text-xs font-semibold text-brand-fg truncate">
+              {odak === 'ay' ? `Bu ay · ${AY_ADLARI[tarihCoz(bugunS).getMonth()]}` : ODAK_ADI[odak]} · {gorunen.length} etkinlik
+            </span>
+            <button type="button" id="akt-odak-temizle" className={cx(BTN, 'w-28 ui-btn-secondary ml-auto')} onClick={() => setOdak('')}>
+              Temizle
+            </button>
+          </div>
+        )}
         {/* Aşama 329: toplu seçim ve silme */}
         {yonetir && !yukleniyor && gorunen.length > 0 && (
           <div className={cx('flex items-center gap-3 px-4 sm:px-5 h-12 border-b border-line transition-colors', secili.length ? 'bg-brand-soft/50' : 'bg-surface-2/60')}>
@@ -398,7 +542,7 @@ export const AkademikTakvim: React.FC = () => {
           <EmptyState
             icon={CalendarRange}
             title={hepsi.length ? 'Bu seçimde etkinlik yok' : `${yilAdi(yil)} takvimi henüz yüklenmedi`}
-            description={hepsi.length ? 'Ayı ya da süzgeci değiştirin.' : yonetir ? 'Kurumun Excel takvimini yükleyin ya da etkinlikleri tek tek ekleyin.' : 'Takvim kurum yönetimi tarafından yüklenecek.'}
+            description={hepsi.length ? (odak ? 'Bu kutuda gösterilecek etkinlik yok.' : 'Ayı ya da süzgeci değiştirin.') : yonetir ? 'Kurumun Excel takvimini yükleyin ya da etkinlikleri tek tek ekleyin.' : 'Takvim kurum yönetimi tarafından yüklenecek.'}
             action={
               !hepsi.length && yonetir ? (
                 <button type="button" className={cx(BTN, 'w-28 ui-btn-primary')} onClick={() => setExcelAcik(true)}>
@@ -420,7 +564,9 @@ export const AkademikTakvim: React.FC = () => {
                   </span>
                 </h3>
                 <ul className="divide-y divide-line">
-                  {liste.map((g) => {
+                  {liste.map((g, i) => {
+                    // Aşama 330: çakışma görünümünde aynı gün bir başlık altında
+                    const gunBasi = cakismaGorunumu && (i === 0 || liste[i - 1].tarih !== g.tarih);
                     const buHafta = !g.ayIcinde && araliktaMi(g, hafta.bas, hafta.bit);
                     const buAy = g.ayIcinde && araliktaMi(g, bugunS, bugunS); // Aşama 327
                     const gecti = sonGun(g) < bugunS && !buHafta;
@@ -436,7 +582,8 @@ export const AkademikTakvim: React.FC = () => {
                           {buHafta && <span className="ui-chip ui-chip-brand">Bu hafta</span>}
                           {g.ayIcinde && <span className={cx('ui-chip', buAy ? 'ui-chip-brand' : 'ui-chip-neutral')}>{buAy ? 'Bu ay' : 'Ay içinde'}</span>}
                           {gecti && <span className="ui-chip ui-chip-neutral">Geçti</span>}
-                          {g.salon && gunleri(g).some((t) => salonGun[t] > 1) && <span className="ui-chip ui-chip-warning">Salon çakışıyor</span>}
+                          {disCakisir(g) && <span className="ui-chip ui-chip-warning">Okul dışı çakışıyor</span>}
+                          {salonCakisir(g) && <span className="ui-chip ui-chip-warning">Salon çakışıyor</span>}
                           <span className={cx('ui-chip', g.kapsam === 'veli' ? 'ui-chip-warning' : 'ui-chip-brand')}>{g.kapsam === 'veli' ? 'Veli' : 'Öğrenci'}</span>
                           <span className="ui-chip ui-chip-neutral">
                             {g.yer === 'dis' && <MapPin className="w-3 h-3" />}
@@ -451,7 +598,13 @@ export const AkademikTakvim: React.FC = () => {
                       </>
                     );
                     return (
-                      <li key={g.key} className={cx('flex items-center gap-3 py-2.5', gecti && !secim.has(g.key) && 'opacity-60')}>
+                      <React.Fragment key={g.key}>
+                      {gunBasi && (
+                        <li className="pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-warning-fg" aria-hidden>
+                          {tarihCoz(g.tarih).getDate()} {AY_ADLARI[m - 1]} · çakışma
+                        </li>
+                      )}
+                      <li className={cx('flex items-center gap-3 py-2.5', gecti && !secim.has(g.key) && 'opacity-60')}>
                         {yonetir && <SecKutusu durum={secim.has(g.key)} onClick={() => sec(g.key)} etiket={`${baslik(g.ad)} seç`} />}
                         {yonetir ? (
                           <button
@@ -479,6 +632,7 @@ export const AkademikTakvim: React.FC = () => {
                           g.kontrol && <span className="ui-chip ui-chip-success shrink-0">Kontrol edildi</span>
                         )}
                       </li>
+                      </React.Fragment>
                     );
                   })}
                 </ul>
@@ -850,7 +1004,7 @@ const ZumrelerPenceresi: React.FC<{
       size="lg"
       icon={Users}
       title="Zümreler"
-      description="Zümresi yazılı etkinlik yaklaşınca üyelerine bir kez e-posta gider."
+      description="Öğretmenler branşlarına göre zümreye kendiliğinden eklenir. Etkinlik yaklaşınca üyelere bir kez e-posta gider."
       id="akt-zumre-pencere"
       footer={
         <>
@@ -918,7 +1072,8 @@ const ZumrelerPenceresi: React.FC<{
             <ul className="max-h-[44vh] overflow-y-auto divide-y divide-line" role="list">
               {gorunen.map((t) => {
                 const on = seciliMi(t.id);
-                const baskan = secili.find((u) => u.teacherId === t.id)?.baskan || false;
+                const uye = secili.find((u) => u.teacherId === t.id);
+                const baskan = uye?.baskan || false;
                 return (
                   <li key={t.id} className={cx('flex items-center gap-3 px-3 h-14 transition-colors', on ? 'bg-brand-soft/40' : 'hover:bg-surface-2')}>
                     <button type="button" role="checkbox" aria-checked={on} onClick={() => degistir(t.id)} className="flex-1 min-w-0 flex items-center gap-3 h-full text-left cursor-pointer">
@@ -930,6 +1085,7 @@ const ZumrelerPenceresi: React.FC<{
                         <span className="block text-xs text-muted truncate">
                           {t.branch || 'Branş yazılı değil'}
                           {baskanlar.has(t.id) ? ' · Zümre başkanı rolü' : ''}
+                          {uye?.otomatik ? ' · branşından eklendi' : ''}
                         </span>
                       </span>
                     </button>

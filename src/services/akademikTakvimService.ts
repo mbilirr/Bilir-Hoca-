@@ -57,6 +57,33 @@ export const ZUMRELER = [
   'ORTAOKUL DEĞERLER EĞİTİMİ ZÜMRESİ', 'ORTAOKUL BRANŞ ZÜMRESİ',
 ] as const;
 
+// Aşama 330: kademeler (sayfadaki Kademe kutusu; sınıf ve zümre listesi seçilen kademeye daralır)
+export type AktKademe = 'ana' | 'ilk' | 'orta';
+export const KADEMELER: Record<AktKademe, { ad: string; birim: string; siniflar: readonly string[]; zumreler: readonly string[] }> = {
+  ana: { ad: 'Anasınıfı', birim: 'ANASINIFI', siniflar: ['3 YAŞ', '4 YAŞ', '5 YAŞ'],
+    zumreler: ['3 YAŞ', '4 YAŞ', '5 YAŞ', 'ANASINIFI İNGİLİZCE', 'ANASINIFI REHBERLİK', 'ANASINIFI DEĞERLER EĞİTİMİ', 'ANASINIFI BRANŞ ZÜMRESİ'] },
+  ilk: { ad: 'İlkokul', birim: 'İLKOKUL', siniflar: ['1.SINIF', '2.SINIF', '3.SINIF', '4.SINIF'],
+    zumreler: ['1.SINIF ZÜMRESİ', '2.SINIF ZÜMRESİ', '3.SINIF ZÜMRESİ', '4.SINIF ZÜMRESİ', 'İLKOKUL İNGİLİZCE', 'İLKOKUL REHBERLİK', 'BEDEN EĞİTİMİ', 'İLKOKUL DEĞERLER EĞİTİMİ', 'İLKOKUL BRANŞ ZÜMRESİ'] },
+  orta: { ad: 'Ortaokul', birim: 'ORTAOKUL', siniflar: ['5.SINIF', '6.SINIF', '7.SINIF', '8.SINIF'],
+    zumreler: ['TÜRKÇE ZÜMRESİ', 'MATEMATİK ZÜMRESİ', 'FEN BİLİMLERİ ZÜMRESİ', 'SOSYAL BİLGİLER ZÜMRESİ', 'ORTAOKUL İNGİLİZCE ZÜMRESİ', 'ORTAOKUL REHBERLİK ZÜMRESİ', 'ORTAOKUL DEĞERLER EĞİTİMİ ZÜMRESİ', 'ORTAOKUL BRANŞ ZÜMRESİ'] },
+};
+const KADEME_KODLARI = Object.keys(KADEMELER) as AktKademe[];
+
+/** Aşama 330: etkinliğin kademeleri — sınıflarından; sınıfı yoksa birim ya da zümreden; hiçbiri yoksa bütün okul */
+export function etkinlikKademeleri(g: { siniflar: string[]; birim?: string; zumre?: string }): Set<AktKademe> {
+  const k = new Set<AktKademe>();
+  for (const s of g.siniflar) {
+    const b = buyuk(s);
+    const kod = KADEME_KODLARI.find((x) => KADEMELER[x].siniflar.includes(b));
+    if (kod) k.add(kod);
+  }
+  if (k.size) return k;
+  const birim = buyuk(g.birim);
+  const z = buyuk(g.zumre);
+  const kod = KADEME_KODLARI.find((x) => KADEMELER[x].birim === birim) || KADEME_KODLARI.find((x) => KADEMELER[x].zumreler.includes(z));
+  return kod ? new Set([kod]) : new Set(KADEME_KODLARI);
+}
+
 export const AY_ADLARI = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'] as const;
 export const AY_KISA = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'] as const;
 export const GUN_KISA_PAZAR = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'] as const;
@@ -301,6 +328,7 @@ export async function kontrolIsaretle(ids: string[], kontrol: boolean): Promise<
 export interface ZumreUye {
   teacherId: string;
   baskan: boolean;
+  otomatik?: boolean; // Aşama 330: branşından otomatik eklendi
 }
 const ZUMRE_SQL_EKSIK = "Zümre hatırlatması için Supabase SQL Editor'de 328 numaralı SQL dosyasını çalıştırın.";
 const hata328 = (e: { message?: string; code?: string } | null | undefined): Error => {
@@ -316,7 +344,7 @@ export async function zumreListesi(): Promise<{ uyeler: Record<string, ZumreUye[
   for (const u of (data?.uyeler || []) as any[]) {
     const z = buyuk(u?.zumre);
     if (!z || !u?.teacher_id) continue;
-    (uyeler[z] ||= []).push({ teacherId: String(u.teacher_id), baskan: u.baskan === true });
+    (uyeler[z] ||= []).push({ teacherId: String(u.teacher_id), baskan: u.baskan === true, otomatik: u.otomatik === true });
   }
   return { uyeler, baskanlar: ((data?.baskanlar || []) as unknown[]).map(String) };
 }
