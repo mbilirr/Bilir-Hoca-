@@ -110,7 +110,7 @@ export const KazanimKartlari: React.FC<{ dersler: BirlesikDers[]; n: number }> =
   return (
     <section className="ui-card ui-card-pad space-y-3" id="karne-kazanim-analizi">
       <div>
-        <h3 className="text-base font-extrabold text-fg">Konu ve kazanım analizi</h3>
+        <h3 className="text-base font-extrabold text-fg">Konu ve Kazanım Analizi</h3>
         <p className="text-xs text-muted">
           {ikiSeri
             ? `Kalın çubuk bu denemeyi, ince çubuk seçilen ${n} denemenin toplamını gösterir; siyah çizgi kurumun başarısıdır. Sağdaki büyük sayı bu deneme, küçük sayı ${n} denemedir. Kutular bu denemedeki soru numaralarıdır.`
@@ -403,7 +403,7 @@ export const IsiNokta: React.FC<{ data: IsiNoktaData; adlar: string[]; fazla?: n
   <section className="ui-card ui-card-pad space-y-3" id="karne-isi-tablosu">
     <div>
       <h3 className="text-base font-extrabold text-fg flex items-center gap-1.5">
-        Konu ısı tablosu
+        Konu Isı Tablosu
         <InfoTip text="Satırlar kazanımlar, sütunlar denemeler; her daire o denemedeki başarıdır (içindeki sayı yüzde). Kesikli boş daire o denemede sorulmadı demektir." />
       </h3>
       <p className="mt-1 text-[11px] text-muted">

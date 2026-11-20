@@ -1523,7 +1523,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <Users className="w-6 h-6" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-fg">
-                Sınıf ya da öğrenci seçin
+                Sınıf ya da Öğrenci Seçin
               </h3>
               <p className="text-xs text-muted">Sınıf seçince sıralama, öğrenci seçince ayrıntılı analiz açılır.</p>
             </div>

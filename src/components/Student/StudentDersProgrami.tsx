@@ -76,7 +76,7 @@ export const StudentDersProgrami: React.FC = () => {
     <section className="bg-surface border border-line rounded-2xl p-4 space-y-3" id="student-ders-programi">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-fg flex items-center gap-2">
-          <CalendarDays className="w-4 h-4 text-brand-fg" /> Ders programım{v.classAd ? ` · ${v.classAd}` : ''}
+          <CalendarDays className="w-4 h-4 text-brand-fg" /> Ders Programım{v.classAd ? ` · ${v.classAd}` : ''}
         </h3>
         <div className="flex items-center gap-1.5">
           <button type="button" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => setBas(gunEkle(bas, -7))} aria-label="Önceki hafta">

@@ -21,6 +21,7 @@ import { ROLE_DEFS, fetchTeacherRoles, onTeacherRolesSaved, type TeacherRole } f
 import { yonetimHedefle, type DersAdim, type YonetimHedef } from '../../lib/yonetimGecis';
 import { trBugun } from '../../lib/trSaat';
 import { AnaSayfaKabuk, AkSheet, akSelam, akTarih } from './AnaSayfaKabuk';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331
 import { AkTatilSheet } from './AkTatilSheet';
 
 // ============================================================================
@@ -186,7 +187,8 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
   const [rapor, setRapor] = useState<null | 'yoklama' | 'devamsizlik'>(null);
 
   // ---- kurulum adımları (yalnız açık bölümler; ders adımları ders verisi gelince)
-  type Adim = { id: string; tamam: boolean; ad: string; ozet: string; ico: string; warn?: boolean; t: string; d: string; act: string; on: () => void };
+  // Aşama 331: ac = tamamlanan kutuya basınca açılan yer (ayarı değiştirmek için)
+  type Adim = { id: string; tamam: boolean; ad: string; ozet: string; ico: string; warn?: boolean; t: string; d: string; act: string; on: () => void; ac: () => void };
   const adimlar: Adim[] = [];
   const dersHazir = can.ders && !!ders;
   if (dersHazir) {
@@ -195,27 +197,29 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
     adimlar.push({
       id: 'saat',
       tamam: kayitli,
-      ad: 'Ders saatleri',
+      ad: 'Ders Saatleri',
       ozet: kayitli && a!.saatler.length ? `${a!.dersSayisi} ders · ${a!.saatler[0].bas}–${a!.saatler[a!.saatler.length - 1].bit}` : '',
       ico: '!',
       warn: true,
-      t: 'Ders saatleri girilmedi',
+      t: 'Ders Saatleri Girilmedi',
       d: 'Program ve yoklama bu saatlere göre işler',
       act: 'Ayarla',
       on: () => yonetim('dersler', 'saatler'),
+      ac: () => yonetim('dersler', 'saatler'),
     });
     if (kayitli)
       adimlar.push({
         id: 'sinir',
         tamam: a!.devamsizlikSinir > 0,
-        ad: 'Devamsızlık sınırı',
+        ad: 'Devamsızlık Sınırı',
         ozet: `${a!.devamsizlikSinir} gün · ${a!.devamsizlikKala} gün kala uyarı`,
         ico: '!',
         warn: true,
-        t: 'Devamsızlık sınırı kapalı',
+        t: 'Devamsızlık Sınırı Kapalı',
         d: 'Sınıra yaklaşan öğrenci için uyarı gitmez',
         act: 'Ayarla',
         on: () => yonetim('dersler', 'saatler'),
+        ac: () => yonetim('dersler', 'saatler'),
       });
   }
   if (can.ogrenci)
@@ -226,10 +230,11 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
       ozet: `${siniflar.length} şube`,
       ico: '!',
       warn: true,
-      t: 'Sınıf açılmadı',
+      t: 'Sınıf Açılmadı',
       d: 'Öğrenciler sınıflara göre izlenir',
       act: can.sinifYonet ? 'Sınıf aç' : 'Öğrenciler',
       on: () => git('students'),
+      ac: () => git('students'),
     });
   if (can.ogretmenYonet || ogretmenler.length > 1)
     adimlar.push({
@@ -239,10 +244,11 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
       ozet: `${ogretmenler.length} hesap`,
       ico: '!',
       warn: true,
-      t: 'Öğretmen eklenmedi',
+      t: 'Öğretmen Eklenmedi',
       d: 'Tek tek ya da Excel ile toplu eklenir',
       act: 'Ekle',
       on: () => yonetim('ogretmen'),
+      ac: () => yonetim('ogretmen'),
     });
   if (dersHazir && siniflar.length) {
     const tanimli = new Set(ders!.atama.map((x) => x.classId));
@@ -250,52 +256,56 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
     adimlar.push({
       id: 'atama',
       tamam: !dersiz.length,
-      ad: 'Ders öğretmenleri',
+      ad: 'Ders Öğretmenleri',
       ozet: `${siniflar.length - dersiz.length} sınıf`,
       ico: String(dersiz.length),
-      t: 'Sınıfın ders öğretmeni yok',
+      t: 'Sınıfın Ders Öğretmeni Yok',
       d: adlar(dersiz.map((c) => c.name)),
       act: 'Ata',
       on: () => yonetim('dersler', 'ogretmenler'),
+      ac: () => yonetim('dersler', 'ogretmenler'),
     });
     const programli = new Set(ders!.program.map((x) => x.classId));
     const bos = siniflar.filter((c) => tanimli.has(c.id) && !programli.has(c.id));
     adimlar.push({
       id: 'program',
       tamam: tanimli.size > 0 && !bos.length,
-      ad: 'Ders programı',
+      ad: 'Ders Programı',
       ozet: `${programli.size} sınıf`,
       ico: String(bos.length || '!'),
       warn: true,
-      t: bos.length ? 'Sınıfın programı boş' : 'Ders programı yok',
+      t: bos.length ? 'Sınıfın Programı Boş' : 'Ders Programı Yok',
       d: bos.length ? `${adlar(bos.map((c) => c.name))} · Excel ile de yüklenir` : 'Önce sınıfların ders öğretmenleri girilir',
       act: 'Program',
       on: () => (ders!.ayar?.kayitli && tanimli.size ? setExcel(true) : yonetim('dersler', tanimli.size ? 'program' : 'ogretmenler')),
+      ac: () => yonetim('dersler', 'program'),
     });
     adimlar.push({
       id: 'tatil',
       tamam: ders!.tatil.length > 0,
-      ad: 'Tatil günleri',
+      ad: 'Tatil Günleri',
       ozet: `${ders!.tatil.length} gün`,
       ico: '!',
       warn: true,
-      t: 'Tatil günleri girilmedi',
+      t: 'Tatil Günleri Girilmedi',
       d: 'Girilmezse tatilde yoklama "gecikti" sayılır',
       act: 'Tatil ekle',
       on: () => setSheet('tatil'),
+      ac: () => setSheet('tatil'),
     });
   }
   if (can.ogrenci && can.ogrenciYonet && siniflar.length && ogrenciler.length)
     adimlar.push({
       id: 'sinifsiz',
       tamam: !sinifsiz.length,
-      ad: 'Öğrenci sınıfları',
-      ozet: 'hepsi sınıfta',
+      ad: 'Öğrenci Sınıfları',
+      ozet: 'Hepsi sınıfta',
       ico: String(sinifsiz.length),
-      t: 'Öğrenci sınıfsız',
+      t: 'Öğrenci Sınıfsız',
       d: 'Etüt ve yoklamada görünmezler',
       act: 'Sınıfa ata',
       on: () => setSheet('sinif'),
+      ac: () => git('students'),
     });
   const eksik = adimlar.filter((a) => !a.tamam);
   const tamam = adimlar.filter((a) => a.tamam);
@@ -442,7 +452,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
         <section className="ak-decide" aria-labelledby="ky-eksik">
           <div className="n">
             <b className={'tnum' + (eksik.length ? '' : ' ok')}>{yukleniyor ? '—' : eksik.length}</b>
-            <strong id="ky-eksik">{eksik.length ? 'eksik kaldı' : 'eksik yok'}</strong>
+            <strong id="ky-eksik">{eksik.length ? 'Eksik Kaldı' : 'Eksik Yok'}</strong>
             <span>Tamamlayınca listeden düşer, hazırlık yükselir.</span>
           </div>
           <div>
@@ -474,13 +484,25 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
         <section aria-labelledby="ky-tamam">
           <div className="ak-h2 sm">
             <span id="ky-tamam">Tamamlananlar</span>
-            <small>Değiştirmek için Yönetim'e girin</small>
+            <small className="tnum">{tamam.length} adım tamam · Değiştirmek için seçin</small>
           </div>
+          {/* Aşama 331: dağınık çipler yerine kurulum sırasıyla eşit boy kutular; her kutu ilgili ayarı açar */}
           <div className="ak-done">
             {tamam.map((a) => (
-              <span className="ak-chip" key={a.id}>
-                ✓ {a.ad} {a.ozet && <span>{a.ozet}</span>}
-              </span>
+              <button type="button" className="ak-ok" key={a.id} onClick={a.ac} aria-label={`${a.ad}: ${a.ozet || 'tamam'}. Değiştirmek için aç`}>
+                <span className="ck" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                </span>
+                <span className="tx">
+                  <b>{a.ad}</b>
+                  <span title={a.ozet}>{a.ozet || 'Tamam'}</span>
+                </span>
+                <span className="ar" aria-hidden="true">
+                  ›
+                </span>
+              </button>
             ))}
           </div>
         </section>
@@ -490,7 +512,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
       {(ozet || can.etut) && (
         <section aria-labelledby="ky-bugun">
           <div className="ak-h2 sm">
-            <span id="ky-bugun">Bugün kurumda</span>
+            <span id="ky-bugun">Bugün Kurumda</span>
             {raporVar && (
               <button type="button" className="lnk" onClick={() => setRapor('yoklama')}>
                 Kurum raporu ›
@@ -502,7 +524,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               <div className={'ak-it' + (geciken.length ? ' bad' : '')}>
                 <span className="ak-av tnum">{geciken.length}</span>
                 <span className="w">
-                  <b>{geciken.length ? 'yoklama gecikti' : 'geciken yoklama yok'}</b>
+                  <b>{geciken.length ? 'Yoklama Gecikti' : 'Geciken Yoklama Yok'}</b>
                   <span title={geciken.map((g) => `${g.classAd} ${g.sira}. ders`).join(', ')}>
                     {geciken.length ? adlar(geciken.map((g) => `${g.classAd} ${g.sira}. ders`), 2) : `Bitiminden ${ozet.gecikmeDk} dk sonra sayılır`}
                   </span>
@@ -522,7 +544,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               <div className="ak-it">
                 <span className="ak-av tnum">{ozet.gelmeyen}</span>
                 <span className="w">
-                  <b>öğrenci gelmedi</b>
+                  <b>Öğrenci Gelmedi</b>
                   <span>Bugünkü ders yoklamalarından</span>
                 </span>
                 <button type="button" className="ak-btn w-24" onClick={() => setRapor('devamsizlik')}>
@@ -534,7 +556,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               <div className={'ak-it' + (etutEksik.length ? ' bad' : '')}>
                 <span className="ak-av tnum">{bugunEtut.length}</span>
                 <span className="w">
-                  <b>{bugunEtut.length ? 'etüt var' : 'bugün etüt yok'}</b>
+                  <b>{bugunEtut.length ? 'Etüt Var' : 'Bugün Etüt Yok'}</b>
                   <span>
                     {etutEksik.length
                       ? `${etutEksik.length} etüdün yoklaması alınmadı`
@@ -556,7 +578,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
       {can.yonetim && (can.ogretmenYonet || can.ogrenciYonet) && (
         <section aria-labelledby="ky-hesap">
           <div className="ak-h2 sm">
-            <span id="ky-hesap">Hesap işleri</span>
+            <span id="ky-hesap">Hesap İşleri</span>
             <small>{can.ogrenciYonet ? 'Öğretmen, öğrenci ve veli hesapları' : 'Öğretmen hesapları'}</small>
           </div>
           <div className="ak-acc">
@@ -566,7 +588,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
                   +
                 </span>
                 <span className="w">
-                  <b>Öğretmen ekle</b>
+                  <b>Öğretmen Ekle</b>
                   <span>Tek tek ya da Excel ile toplu</span>
                 </span>
                 <button type="button" className="ak-btn w-24" onClick={() => yonetim('ogretmen')}>
@@ -580,7 +602,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
                   ✉
                 </span>
                 <span className="w">
-                  <b>Giriş bilgisi gönder</b>
+                  <b>Giriş Bilgisi Gönder</b>
                   <span>Öğrenci ya da veliye · sınıfça</span>
                 </span>
                 <button type="button" className="ak-btn w-24" onClick={() => yonetim('ogrenci')}>
@@ -593,7 +615,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
                 ⟳
               </span>
               <span className="w">
-                <b>Şifre yenileme</b>
+                <b>Şifre Yenileme</b>
                 <span>{can.ogrenciYonet && can.ogretmenYonet ? 'Öğrenci ya da öğretmen · toplu' : can.ogrenciYonet ? 'Öğrenci · sınıfça toplu' : 'Öğretmen · toplu'}</span>
               </span>
               <button type="button" className="ak-btn w-24" onClick={() => yonetim(can.ogrenciYonet ? 'ogrenci' : 'ogretmen')}>
@@ -634,13 +656,13 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
         )}
         <section aria-labelledby="ky-bolum">
           <div className="ak-h2 sm">
-            <span id="ky-bolum">Kurumun bölümleri</span>
+            <span id="ky-bolum">Kurumun Bölümleri</span>
             <small className="tnum">{acikBolumler.length} bölüm açık</small>
           </div>
           <div className="ak-mods">
             {acikBolumler.map((m) => (
               <span className="ak-mod" key={m.key} title={m.description}>
-                {m.title}
+                {baslikYaz(m.title)}
               </span>
             ))}
           </div>
@@ -732,7 +754,7 @@ const SinifSheet: React.FC<{
       onClose={onClose}
       locked={busy}
       kicker="Kurulum"
-      title="Sınıfa ata"
+      title="Sınıfa Ata"
       desc="Sınıfı olmayan öğrenci etüt ve yoklamada görünmez."
       footer={
         <>

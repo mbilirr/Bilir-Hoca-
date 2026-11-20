@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { dataService } from '../../services/dataService';
 import { ogretmenMenuOgeleri, SolMenuDugmeleri, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260: ortak sol menü
 import type { Teacher, TeacherTabType } from '../../types';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331
 import './anaSayfaKabuk.css';
 import './odakKabuk.css'; // Aşama 246
 
@@ -148,7 +149,7 @@ export const AkSheet: React.FC<{
         <div className="sh-h">
           <div className="tt">
             <small>{kicker}</small>
-            <h3>{title}</h3>
+            <h3>{baslikYaz(title)}</h3>
             {desc && <p>{desc}</p>}
           </div>
           <button type="button" className="x" aria-label="Kapat" onClick={onClose} disabled={locked}>

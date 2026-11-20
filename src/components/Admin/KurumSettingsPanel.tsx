@@ -332,7 +332,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
             {show('genel') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-identity">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-brand-fg" /> Kurum adı ve logosu
+                <Building2 className="w-3.5 h-3.5 text-brand-fg" /> Kurum Adı ve Logosu
               </h3>
               <div className="flex items-center gap-2.5">
                 <span className="w-28 h-20 rounded-lg border border-line bg-white p-1.5 flex items-center justify-center overflow-hidden shrink-0" id="kurum-logo-onizleme">
@@ -371,7 +371,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
             {show('genel') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-mail">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-brand-fg" /> Kurum gönderim e-postası
+                <Mail className="w-3.5 h-3.5 text-brand-fg" /> Kurum Gönderim E-postası
               </h3>
               {mailAccount === undefined ? (
                 <p className="text-[11px] text-muted">Durum okunuyor…</p>
@@ -405,7 +405,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
             {show('roller') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-roles">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> Rol yetkileri
+                <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> Rol Yetkileri
               </h3>
               <div className="flex items-center justify-between gap-2 h-8">
                 <span className="text-xs text-fg-2">Rollere göre yetkiler</span>
@@ -453,7 +453,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
             {gecis && show('bolumler') && (
               <section className="rounded-xl border border-line p-3 space-y-2.5 lg:col-span-3" id="kurum-modules">
                 <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
-                  <LayoutGrid className="w-3.5 h-3.5 text-brand-fg" /> Kurum bölümleri
+                  <LayoutGrid className="w-3.5 h-3.5 text-brand-fg" /> Kurum Bölümleri
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1">
                   {kurumModulListesi(kurum?.tur === 'bireysel').map((m) => (

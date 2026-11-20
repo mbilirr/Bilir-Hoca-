@@ -192,7 +192,7 @@ export const OgrenciBolumPanel: React.FC<{
           <GraduationCap className="w-4 h-4" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-xs font-bold text-fg">Öğrenci bölümleri</h3>
+          <h3 className="text-xs font-bold text-fg">Öğrenci Bölümleri</h3>
           {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
           <p className="text-[11px] text-muted flex items-center gap-1">
             Öğrencinin ekranında hangi bölümlerin açık olacağını seçin.

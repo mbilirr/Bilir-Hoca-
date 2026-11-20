@@ -26,6 +26,7 @@ import { setQuickFocus } from '../../lib/quickFocus';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './rehberlik.css';
 import { usePlanCanli } from '../../lib/planCanli';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 
 // ============================================================================
 // Aşama 249: REHBERLİK ANA SAYFASI (taslak: "rehberlik 2.html" + "Okulun nabzı" v3, Odak renkleri)
@@ -690,7 +691,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             <div className={`rh-frow${can.deneme && can.plan ? '' : ' n1'}`}>
               {can.deneme && (
                 <div className="rh-mini">
-                  <div className="k">Deneme neti</div>
+                  <div className="k">Deneme Neti</div>
                   {net.length ? (
                     <>
                       <div className="v tnum">{netYazi(net[net.length - 1].net)}</div>
@@ -703,7 +704,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
               )}
               {can.plan && (
                 <div className="rh-mini">
-                  <div className="k">Bu hafta plan</div>
+                  <div className="k">Bu Hafta Plan</div>
                   {pl && pl.vade > 0 ? (
                     <>
                       <div className="v tnum">%{Math.round((pl.biten / pl.vade) * 100)}</div>
@@ -814,7 +815,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             return (
               <button key={q.k} type="button" className="rh-q" aria-pressed={on} onClick={() => suz(null, on ? null : q.k)}>
                 <span className="bar" style={{ background: q.renk }} />
-                <span className="k">{q.ad}</span>
+                <span className="k">{baslikYaz(q.ad)}</span>
                 <span className="v tnum">{q.v}</span>
                 <span className="d">{q.d}</span>
               </button>
@@ -828,7 +829,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
         <section className="od-card rh-pulse" aria-labelledby="rh-h-heat">
           <div className="rh-sec-h">
             <div>
-              <h2 id="rh-h-heat">Okulun nabzı</h2>
+              <h2 id="rh-h-heat">Okulun Nabzı</h2>
               <p>Sınıf başına kaç öğrencide sinyal var. Koyu kare yoğunluğun arttığı yer; dokunun, aşağıdaki masa o sınıfa süzülsün.</p>
             </div>
             <div className="rh-ph-r">
@@ -936,14 +937,14 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
         <section aria-labelledby="rh-h-desk" ref={masaRef} className="rh-deskwrap">
           <div className="rh-sec-h">
             <div>
-              <h2 id="rh-h-desk">Rehberlik masası</h2>
+              <h2 id="rh-h-desk">Rehberlik Masası</h2>
               <p>Sinyal sayısına göre sıralı ({P.ad.toLocaleLowerCase('tr')}). Bir öğrenci seçin; yanda bütün resmi ve yapabilecekleriniz açılsın.</p>
             </div>
           </div>
           <div className={`rh-desk${secili ? '' : ' tek'}${hepsi ? ' acik' : ''}`}>
             <div className="od-card rh-list">
               <div className="rh-list-h">
-                <b>{filt.c || filt.k ? `${gorunen.length} öğrenci` : 'Tüm öğrenciler'}</b>
+                <b>{filt.c || filt.k ? `${gorunen.length} Öğrenci` : 'Tüm Öğrenciler'}</b>
                 {(filt.c || filt.k) && (
                   <span className="rh-pill">
                     <span>{[filt.c, filt.k && SIG_AD[filt.k]].filter(Boolean).join(' · ')}</span>
@@ -1025,7 +1026,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
         <section className="od-card rh-gcard" aria-labelledby="rh-h-gantt">
           <div className="rh-sec-h">
             <div>
-              <h2 id="rh-h-gantt">Bugünün etütleri</h2>
+              <h2 id="rh-h-gantt">Bugünün Etütleri</h2>
               <p>Okulun etütleri öğretmen öğretmen · kırmızı çizgi şu an. Yoklamaları görürsünüz, değiştiremezsiniz.</p>
             </div>
             <button type="button" className="od-link" onClick={() => go('etuts')}>
@@ -1116,7 +1117,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             <section className="od-card rh-pad" aria-labelledby="rh-h-den">
               <div className="rh-sec-h">
                 <div>
-                  <h2 id="rh-h-den">Son deneme</h2>
+                  <h2 id="rh-h-den">Son Deneme</h2>
                   <p>
                     {sonDeneme
                       ? `${sonDeneme.name} · ${tarihUzun(sonDeneme.examDate)}${sonDeneme.grade ? ` · ${sonDeneme.grade}. sınıflar` : ''} · ortalama net`
@@ -1191,7 +1192,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             <section className="od-card rh-pad" aria-labelledby="rh-h-plan">
               <div className="rh-sec-h">
                 <div>
-                  <h2 id="rh-h-plan">Çalışma planları</h2>
+                  <h2 id="rh-h-plan">Çalışma Planları</h2>
                   <p>Bu hafta · gönderilen planlardaki görevlerin tamamlanması</p>
                 </div>
                 <button type="button" className="od-link" onClick={() => go('homework', ['action', 'plan', ''])}>
@@ -1212,7 +1213,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
                       <li>
                         <span className="od-av warn tnum">{planToplam.eksikSay}</span>
                         <span className="who">
-                          <b>Bu hafta planı olmayan</b>
+                          <b>Bu Hafta Planı Olmayan</b>
                           <span>{planToplam.eksikYazi}</span>
                         </span>
                         {can.planVer && (

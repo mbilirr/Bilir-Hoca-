@@ -111,7 +111,7 @@ export const TeacherAnnouncements: React.FC = () => {
       {/* ===== Gönderme formu ===== */}
       <form onSubmit={handleSend} className="lg:col-span-7 bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div>
-          <h3 className="text-base font-bold text-fg">Öğrencilere duyuru veya not gönder</h3>
+          <h3 className="text-base font-bold text-fg">Öğrencilere Duyuru veya Not Gönder</h3>
           <p className="text-xs text-muted mt-0.5">Gönderdiğiniz mesaj öğrencinin ana sayfasındaki “Duyurular” bölümünde görünür.</p>
         </div>
 

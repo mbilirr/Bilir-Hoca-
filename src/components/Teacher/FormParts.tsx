@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Search, X, Mail, AlertTriangle, Check, Users, ChevronDown, Lock } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { cx } from '../ui/kit';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331
 import { callMail, type MailResult } from '../../lib/mailApi';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
@@ -19,7 +20,7 @@ export const FormSection: React.FC<{ title: string; hint?: React.ReactNode; chil
 }) => (
   <section id={id} className="space-y-2.5">
     <div className="flex items-baseline justify-between gap-3">
-      <h3 className="text-[13px] font-semibold text-fg">{title}</h3>
+      <h3 className="text-[13px] font-semibold text-fg">{baslikYaz(title)}</h3>
       {hint && <span className="text-[11px] text-muted text-right">{hint}</span>}
     </div>
     {children}

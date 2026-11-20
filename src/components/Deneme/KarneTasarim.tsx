@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact';
+import { baslik as basligiYaz } from '../../lib/baslik'; // Aşama 331
 import { LEVEL_INFO, levelOf, type Level } from '../../lib/deneme/analiz';
 import { getKurumBrand } from '../../lib/kurumBrand';
 import { kurumRenkHazirla, kurumRenkOnbellek, seritRenk, type KurumRenk } from '../../lib/kurumRenk';
@@ -143,7 +144,7 @@ export const KBolum: React.FC<{
       <div className="min-w-0">
         {baslik && (
           <h3 className="flex items-center gap-1.5 text-base font-extrabold text-fg">
-            {baslik}
+            {basligiYaz(baslik)}
             {bilgi && <InfoTip text={bilgi} />}
           </h3>
         )}

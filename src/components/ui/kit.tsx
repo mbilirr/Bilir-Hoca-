@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Sun, Moon } from 'lucide-react';
 import { useTheme, THEME_SWITCH_ENABLED } from '../../lib/theme';
 import { InfoTip } from './Compact'; // Aşama 215
+import { baslik } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 
 // Aşama 215: uzun açıklama başlığın altında durmaz; başlığın yanındaki (i) simgesine taşınır.
 // Kısa açıklamalar (sayı, tarih vb.) eskisi gibi görünür.
@@ -61,7 +62,7 @@ export const PageHeader: React.FC<{
       {icon && <IconBox icon={icon} tone={tone} />}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-fg truncate">{title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-fg truncate">{baslik(title)}</h1>
           <DescTip d={description} />
         </div>
         {description && !isLongDesc(description) && <p className="text-sm text-muted mt-0.5">{description}</p>}
@@ -92,7 +93,7 @@ export const Panel: React.FC<{
           <div className="min-w-0">
             {title && (
               <div className="flex items-center gap-1.5 min-w-0">
-                <h2 className="text-base font-semibold text-fg truncate">{title}</h2>
+                <h2 className="text-base font-semibold text-fg truncate">{baslik(title)}</h2>
                 <DescTip d={description} />
               </div>
             )}
@@ -316,7 +317,7 @@ export const Modal: React.FC<{
                 {title && (
                   <div className="flex items-center gap-1.5 min-w-0">
                     <h2 id={titleId} className="text-base sm:text-lg font-semibold text-fg">
-                      {title}
+                      {baslik(title)}
                     </h2>
                     <DescTip d={description} />
                   </div>

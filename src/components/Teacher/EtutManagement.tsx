@@ -1352,7 +1352,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <div className="w-8 h-8 rounded-lg bg-brand-soft flex items-center justify-center text-brand-fg">
                         <CalendarCheck className="w-4 h-4" />
                       </div>
-                      <h3 className="text-sm font-bold text-fg">Etüt seçin</h3>
+                      <h3 className="text-sm font-bold text-fg">Etüt Seçin</h3>
                       <InfoTip text="Yoklamasını almak istediğiniz etüde dokunun. Yoklaması alınmamış geçmiş etütler Bekleyen'de görünür." />
                     </div>
                     <div role="tablist" aria-label="Etüt süzgeci" className="inline-flex rounded-lg bg-surface-2 border border-line p-0.5">

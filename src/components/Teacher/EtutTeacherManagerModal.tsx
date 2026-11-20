@@ -294,7 +294,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
 
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-semibold text-fg">Dış öğretmenler (hesabı olmayan) · {external.length}</h3>
+            <h3 className="text-[13px] font-semibold text-fg">Dış Öğretmenler (Hesabı Olmayan) · {external.length}</h3>
             {!draft && (
               <button type="button" id="et-add" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => startDraft({ ...EMPTY })}>
                 <UserPlus className="w-3.5 h-3.5" />
@@ -349,7 +349,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[13px] font-semibold text-fg">Sistemde kayıtlı öğretmenler · {teachers.length}</h3>
+          <h3 className="text-[13px] font-semibold text-fg">Sistemde Kayıtlı Öğretmenler · {teachers.length}</h3>
           {draft && draft.teacherId && editor}
           {systemList.length === 0 ? (
             <p className="text-xs text-muted">{q ? 'Aramaya uyan kayıtlı öğretmen yok.' : 'Kayıtlı öğretmen yok.'}</p>

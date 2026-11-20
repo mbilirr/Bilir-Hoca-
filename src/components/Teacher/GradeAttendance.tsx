@@ -350,7 +350,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <GraduationCap className="w-8 h-8" />
           </div>
           <h3 className="text-lg font-bold text-fg mb-2">
-            Sınıf ve ders seçin
+            Sınıf ve Ders Seçin
           </h3>
           <p className="text-xs text-muted max-w-lg mx-auto mb-6">Yukarıdaki kutulardan sınıf ve ders seçin.</p>
 

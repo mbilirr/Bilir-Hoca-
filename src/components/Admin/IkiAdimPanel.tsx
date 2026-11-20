@@ -96,7 +96,7 @@ export const IkiAdimPanel: React.FC = () => {
           </div>
           <div className="min-w-0">
             <h2 className="text-base font-bold text-fg flex items-center gap-2">
-              İki adımlı giriş
+              İki Adımlı Giriş
               {asama !== 'okunuyor' && <span className={`ui-chip ${acik ? 'ui-chip-success' : ''}`}>{acik ? 'Açık' : 'Kapalı'}</span>}
             </h2>
             <p className="text-xs text-muted">Sistem sahibi hesabı: şifreden sonra telefondaki kod uygulamasının 6 haneli kodu sorulur.</p>

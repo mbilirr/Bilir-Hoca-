@@ -31,6 +31,7 @@ import { etutEndTime, etutExpectsAttendance, hasEtutAttendance } from '../../lib
 import { dersHatirlat } from '../../lib/push';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './mudurYardimcisi.css';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 
 // ============================================================================
 // Aşama 247: MÜDÜR YARDIMCISI ANA SAYFASI (taslak: mudur-yardimcisi-v3.html, Odak renkleri)
@@ -623,7 +624,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
         <div className={'my-stats' + nCls(istatistik.length)}>
           {istatistik.map((s) => (
             <div key={s.k} className={'my-stat' + (s.alert ? ' alert' : '')}>
-              <span className="k">{s.k}</span>
+              <span className="k">{baslikYaz(s.k)}</span>
               <span className="v tnum">{s.v}</span>
               <span className="d">{s.d}</span>
             </div>
@@ -641,7 +642,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
         <section className="my-card my-mapcard" aria-labelledby="my-h-map">
           <div className="my-card-h">
             <div>
-              <h2 id="my-h-map">Yoklama haritası</h2>
+              <h2 id="my-h-map">Yoklama Haritası</h2>
               <p>Bugün · her kutu bir ders saati · kırmızı kutuya tıklayınca öğretmene hatırlatma gider (günde bir kez)</p>
             </div>
             <div className="my-seg" role="group" aria-label="Harita süzgeci">
@@ -780,7 +781,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
             <aside className="my-side" aria-label="Geciken yoklamalar ve seçili ders">
               <div>
                 <h3>
-                  Geciken yoklamalar <b className="tnum">{gecikenSayi}</b>
+                  Geciken Yoklamalar <b className="tnum">{gecikenSayi}</b>
                 </h3>
                 <div className="my-lrows">
                   {gecikenler.length ? (
@@ -821,7 +822,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
         <section className="my-card" aria-labelledby="my-h-vek">
           <div className="my-card-h">
             <div>
-              <h2 id="my-h-vek">Bugün vekil ve izinler</h2>
+              <h2 id="my-h-vek">Bugün Vekil ve İzinler</h2>
               <p>Vekil öğretmen yoklamayı kendisi alır · gün boyu izinli öğrenci "İzinli" sayılır</p>
             </div>
             <button type="button" className="od-link" onClick={() => git('grades')}>
@@ -901,7 +902,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
             <section className="my-card" aria-labelledby="my-h-gel">
               <div className="my-card-h">
                 <div>
-                  <h2 id="my-h-gel">Bugün gelmeyenler</h2>
+                  <h2 id="my-h-gel">Bugün Gelmeyenler</h2>
                   <p>Yalnız ders yoklamasından · etüt karışmaz</p>
                 </div>
                 <button type="button" className="od-link" onClick={() => setRapor('devamsizlik')}>
@@ -947,7 +948,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
             <section className="my-card" aria-labelledby="my-h-et">
               <div className="my-card-h">
                 <div>
-                  <h2 id="my-h-et">Bugünün etütleri</h2>
+                  <h2 id="my-h-et">Bugünün Etütleri</h2>
                   <p>
                     {etutBugun.length
                       ? `${etutBugun.length} etüt · ${new Set(etutBugun.map((e) => e.teacherId || e.teacherName || '')).size} öğretmen`
@@ -1009,7 +1010,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
         <section className="my-card" aria-labelledby="my-h-okh">
           <div className="my-card-h">
             <div>
-              <h2 id="my-h-okh">Okulun haftası</h2>
+              <h2 id="my-h-okh">Okulun Haftası</h2>
               <p>
                 Her gün: {[can.etut && 'etüt', dersHazir && 'vekil ders ve izinli öğrenci sayısı'].filter(Boolean).join(', ')}
                 {[can.deneme && 'deneme', dersHazir && 'tatil'].filter(Boolean).length

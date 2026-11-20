@@ -1079,7 +1079,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
               <div className="od-card-h">
                 <div>
                   <h2 id="og-h-bek">
-                    Sizi bekleyenler <span className={`og-count${isler.length ? '' : ' ok'}`}>{isler.length}</span>
+                    Sizi Bekleyenler <span className={`og-count${isler.length ? '' : ' ok'}`}>{isler.length}</span>
                   </h2>
                   <p>Geciken ya da unutulan işler · yapınca kendiliğinden kaybolur</p>
                 </div>
@@ -1123,7 +1123,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
             <section className="od-card" aria-labelledby="og-h-dis">
               <div className="od-card-h">
                 <div>
-                  <h2 id="og-h-dis">Bugün ders dışında</h2>
+                  <h2 id="og-h-dis">Bugün Ders Dışında</h2>
                   <p>Saat sırasıyla</p>
                 </div>
               </div>
@@ -1294,7 +1294,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
         <section className="od-card" aria-labelledby="og-h-hafta">
           <div className="od-card-h">
             <div>
-              <h2 id="og-h-hafta">Bu hafta</h2>
+              <h2 id="og-h-hafta">Bu Hafta</h2>
               <p>
                 {haftaParcalar
                   .join(', ')

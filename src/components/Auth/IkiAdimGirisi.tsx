@@ -39,7 +39,7 @@ export const IkiAdimGirisi: React.FC<{ ad?: string; onCikis: () => void }> = ({ 
         </div>
         {ad && <p className="mt-4 text-sm text-muted">Hoş geldiniz, {ad}</p>}
         <h1 id="iki-adim-baslik" className="mt-1 text-xl font-bold tracking-tight">
-          Doğrulama kodu
+          Doğrulama Kodu
         </h1>
         <p className="mt-2 text-sm text-muted">Telefonunuzdaki kod uygulamasında bilirEdu için görünen 6 haneli kodu girin.</p>
 

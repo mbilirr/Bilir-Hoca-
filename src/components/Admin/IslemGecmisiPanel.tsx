@@ -122,7 +122,7 @@ export const IslemGecmisiPanel: React.FC<{ students: Student[] }> = ({ students 
         <IconBox icon={History} tone="brand" />
         <div className="min-w-0">
           <h2 id="islem-gecmisi-baslik" className="text-base font-bold text-fg">
-            İşlem geçmişi
+            İşlem Geçmişi
           </h2>
           <p className="text-xs text-muted">
             Not, yoklama ve öğrenci bilgisinde kim neyi ne zaman değiştirdi. Telefon, e-posta, veli ve TC'nin kendisi yazılmaz; kayıtlar 2 yıl saklanır.

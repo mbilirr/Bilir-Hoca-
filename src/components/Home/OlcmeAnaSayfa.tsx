@@ -660,7 +660,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               <span className="live" />
               Deneme analizi
             </div>
-            <h2>Henüz sonuçlu deneme yok</h2>
+            <h2>Henüz Sonuçlu Deneme Yok</h2>
             <div className="sub">Cevap anahtarını, optik formatını ve sonuç dosyalarını yükleyince ortalamalar, karneler ve kazanım durumu burada görünür.</div>
             <div className="row">
               {can.yonet && (
@@ -685,7 +685,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
                 <div className="kl-card-h">
                   <div>
                     <h3>
-                      Sizi bekleyenler {isler.length > 0 && <span className="kl-cnt tnum">{isler.length}</span>}
+                      Sizi Bekleyenler {isler.length > 0 && <span className="kl-cnt tnum">{isler.length}</span>}
                     </h3>
                     <p>Yarım kalan ya da eksik işler · yapınca kaybolur</p>
                   </div>
@@ -726,7 +726,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               <section className="kl-card" aria-label="Net değişimi">
                 <div className="kl-card-h">
                   <div>
-                    <h3>Net değişimi</h3>
+                    <h3>Net Değişimi</h3>
                     <p>{onceki ? `${son.name} · ${onceki.name} denemesine göre${degisim ? ` ${degisim.ogr} öğrenci` : ''}` : `${son.name} · karşılaştırılacak önceki deneme yok`}</p>
                   </div>
                   <button type="button" className="od-link" onClick={() => denemeAc('detay', son.id)}>
@@ -858,7 +858,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               <section className="kl-card" aria-label="Kazanım durumu">
                 <div className="kl-card-h">
                   <div>
-                    <h3>Kazanım durumu</h3>
+                    <h3>Kazanım Durumu</h3>
                     <p>{son.name} · kazanım sayısı, doğru yüzdesine göre</p>
                   </div>
                   <button type="button" className="od-link" onClick={() => denemeAc('detay', son.id)}>

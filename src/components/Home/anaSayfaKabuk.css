@@ -177,10 +177,18 @@
 .ak-today { display: grid; grid-template-columns: 1fr auto; gap: calc(0.5 * var(--ak-rem)); align-items: center; padding: calc(0.5 * var(--ak-rem)) 0; border-top: 1px solid var(--ink-line); font-size: calc(0.8125 * var(--ak-rem)); color: var(--ink-soft); }
 .ak-today:first-of-type { border-top: 0; }
 .ak-today b { font: 400 calc(1.625 * var(--ak-rem))/1 var(--serif); color: #fff; margin-right: calc(0.5 * var(--ak-rem)); }
-.ak-done { display: flex; flex-wrap: wrap; gap: calc(0.5 * var(--ak-rem)); }
-.ak-chip { display: inline-flex; align-items: center; gap: calc(0.5 * var(--ak-rem)); min-height: calc(2 * var(--ak-rem)); padding: calc(0.25 * var(--ak-rem)) calc(0.75 * var(--ak-rem)); border-radius: calc(62.4375 * var(--ak-rem)); background: var(--green-soft); color: var(--green); font-size: calc(0.75 * var(--ak-rem)); font-weight: 600; animation: ak-rise .4s var(--out) both; }
-.ak-chip span { font-weight: 400; color: var(--muted); }
-.ak-acc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(0.625 * var(--ak-rem)); }
+/* Aşama 331: Tamamlananlar = eşit boy kutu ızgarası (kurulum sırasıyla), her kutu düğme */
+.ak-done { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(0.625 * var(--ak-rem)); }
+.ak-ok { display: grid; grid-template-columns: calc(1.75 * var(--ak-rem)) minmax(0, 1fr) auto; align-items: center; column-gap: calc(0.625 * var(--ak-rem)); height: calc(3.5 * var(--ak-rem)); padding: 0 calc(0.875 * var(--ak-rem)); border: 1px solid var(--line); border-radius: calc(0.875 * var(--ak-rem)); background: var(--paper-2); color: var(--fg); text-align: left; font: inherit; box-shadow: var(--shadow); cursor: pointer; animation: ak-rise .4s var(--out) both; transition: transform .35s var(--spring), border-color .15s, background-color .15s; }
+.ak-ok .ck { width: calc(1.75 * var(--ak-rem)); height: calc(1.75 * var(--ak-rem)); border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green); }
+.ak-ok .ck svg { width: calc(0.875 * var(--ak-rem)); height: calc(0.875 * var(--ak-rem)); }
+.ak-ok .tx { min-width: 0; display: flex; flex-direction: column; gap: calc(0.125 * var(--ak-rem)); }
+.ak-ok .tx b { font-size: calc(0.8125 * var(--ak-rem)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ak-ok .tx span { font-size: calc(0.6875 * var(--ak-rem)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ak-ok .ar { font-size: calc(1.125 * var(--ak-rem)); line-height: 1; color: var(--subtle, var(--muted)); transition: transform .35s var(--spring), color .15s; }
+.ak-ok:active { transform: scale(.98); }
+@media (hover: hover) and (pointer: fine) { .ak-ok:hover { border-color: var(--line-2); transform: translateY(calc(-0.125 * var(--ak-rem))); } .ak-ok:hover .ar { color: var(--fg); transform: translateX(calc(0.125 * var(--ak-rem))); } }
+.ak-acc { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: calc(0.625 * var(--ak-rem)); } /* Aşama 331: kart sayısı kadar eşit sütun, boş yuva kalmaz */
 .ak-it { border: 1px solid var(--line); border-radius: calc(0.875 * var(--ak-rem)); background: var(--paper-2); padding: calc(1 * var(--ak-rem)); box-shadow: var(--shadow); display: grid; grid-template-columns: calc(2 * var(--ak-rem)) minmax(0, 1fr); grid-template-rows: auto 1fr auto; column-gap: calc(0.75 * var(--ak-rem)); row-gap: calc(0.75 * var(--ak-rem)); align-items: start; min-width: 0; }
 .ak-it .ak-av { grid-row: 1 / 3; width: calc(2 * var(--ak-rem)); height: calc(2 * var(--ak-rem)); font-size: calc(1 * var(--ak-rem)); }
 .ak-it .w { min-width: 0; font-size: calc(0.8125 * var(--ak-rem)); }
@@ -189,6 +197,7 @@
 .ak-it .ak-btn { grid-column: 1 / -1; justify-self: end; }
 .ak-it.bad .ak-av { background: var(--red-soft); color: var(--red); }
 .ak-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: calc(1.5 * var(--ak-rem)); }
+.ak-two > section:only-child { grid-column: 1 / -1; } /* Aşama 331: tek bölüm kalınca yarım satırda kalmasın */
 .ak-team { display: flex; height: calc(0.625 * var(--ak-rem)); border-radius: calc(0.3125 * var(--ak-rem)); overflow: hidden; gap: calc(0.125 * var(--ak-rem)); margin: calc(0.375 * var(--ak-rem)) 0 calc(0.875 * var(--ak-rem)); }
 .ak-team i { display: block; height: 100%; }
 .ak-legend { display: grid; grid-template-columns: 1fr 1fr; gap: calc(0.5 * var(--ak-rem)) calc(1 * var(--ak-rem)); font-size: calc(0.8125 * var(--ak-rem)); }
@@ -252,6 +261,14 @@
 
 @media (max-width: 767px) { .ak-toast { bottom: 5.5rem; } }
 
-@media (max-width: 1180px) { .ak-acc { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1180px) {
+  .ak-acc { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); }
+  /* Aşama 331: tek sütunda kart yatay satır olur (simge · yazı · düğme), boş orta alan kalmaz */
+  .ak-it { grid-template-columns: calc(2 * var(--ak-rem)) minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; }
+  .ak-it .ak-av { grid-row: auto; }
+  .ak-it .ak-btn { grid-column: auto; }
+  .ak-done { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) { .ak-two { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 340px) { .ak-done { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) { .ak-fgrid { grid-template-columns: minmax(0, 1fr); } .ak-legend { grid-template-columns: minmax(0, 1fr); } }

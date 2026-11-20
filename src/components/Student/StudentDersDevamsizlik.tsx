@@ -68,7 +68,7 @@ export const StudentDersDevamsizlik: React.FC = () => {
     <section className="bg-surface border border-line rounded-2xl p-4 space-y-3" id="student-ders-devamsizlik">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-fg flex items-center gap-2">
-          <UserX className="w-4 h-4 text-danger-fg" /> Ders devamsızlığım
+          <UserX className="w-4 h-4 text-danger-fg" /> Ders Devamsızlığım
         </h3>
         <span className="text-[11px] text-muted">
           {tarihUzun(v.bas)} – {tarihUzun(v.bit)} · {toplam} ders saati yoklaması

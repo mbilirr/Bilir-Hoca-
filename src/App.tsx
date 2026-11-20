@@ -693,7 +693,7 @@ export default function App() {
         {anaSayfaBekliyor ? (
           kurumGecikti && !kurumDeneniyor ? (
             <div className="ui-card p-8 text-center space-y-3 max-w-md mx-auto mt-10" id="ana-sayfa-bekleme" role="status">
-              <h2 className="text-base font-bold text-fg">Kurum bilgileri alınamadı</h2>
+              <h2 className="text-base font-bold text-fg">Kurum Bilgileri Alınamadı</h2>
               <p className="text-sm text-muted">Bağlantı yavaş ya da kesik olabilir. Ana sayfa, bilgiler gelince açılır.</p>
               <button type="button" onClick={() => void kurumYenidenDene()} className="ui-btn ui-btn-primary ui-btn-sm w-28 mx-auto">
                 Yeniden dene
@@ -820,7 +820,7 @@ export default function App() {
             {teacherTab === 'home' && dataService.roleEtutOnly() && !dataService.canUseTab('etuts') && (
               <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="etut-only-locked">
                 <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
-                <h2 className="text-lg font-bold text-fg">Size açık bir bölüm yok</h2>
+                <h2 className="text-lg font-bold text-fg">Size Açık Bir Bölüm Yok</h2>
                 <p className="text-sm text-muted">
                   Unvanınız yalnızca Etüt Öğretmeni; Etütler bölümü ise şu anda size kapalı. Kurum yöneticinize başvurun.
                 </p>
@@ -840,7 +840,7 @@ export default function App() {
                     <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="module-locked">
                       <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
                       <h2 className="text-lg font-bold text-fg">
-                        {dataService.yonetimMerkezi() ? 'Kendi paneliniz yönetim merkezidir' : dataService.rolesActive() ? 'Bu bölüm rolünüze açık değil' : 'Bu bölüm kurumunuz için kapalı'}
+                        {dataService.yonetimMerkezi() ? 'Kendi Paneliniz Yönetim Merkezidir' : dataService.rolesActive() ? 'Bu Bölüm Rolünüze Açık Değil' : 'Bu Bölüm Kurumunuz İçin Kapalı'}
                       </h2>
                       <p className="text-sm text-muted">
                         {/* Aşama 259: sistem sahibinin kendi panelinde ders bölümleri yoktur */}

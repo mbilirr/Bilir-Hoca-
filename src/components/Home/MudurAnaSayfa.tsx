@@ -41,6 +41,7 @@ import { odevTeslimGruplari } from '../../lib/odevTeslim';
 import { trBugun } from '../../lib/trSaat';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import { AkTatilSheet } from './AkTatilSheet';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 
 // ============================================================================
 // Aşama 246: MÜDÜR ANA SAYFASI (taslak: mudur-akademik-takvim.html, Odak renkleri)
@@ -505,7 +506,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
       <section className="od-card" aria-labelledby="od-h-akw">
         <div className="od-card-h">
           <div>
-            <h2 id="od-h-akw">Haftanın faaliyetleri</h2>
+            <h2 id="od-h-akw">Haftanın Faaliyetleri</h2>
             <p>
               {aralikYaz(pzt, paz)} · {ne}
             </p>
@@ -665,7 +666,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
     },
     can.deneme && {
       id: 'deneme',
-      ad: 'Deneme analizi',
+      ad: 'Deneme Analizi',
       alt: 'Sonuçlar ve kazanım analizi',
       fn: () => git('deneme'),
     },
@@ -738,7 +739,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
         <section aria-labelledby="od-h-nab">
           <div className="od-sec-h">
             <div>
-              <h2 id="od-h-nab">Haftanın nabzı</h2>
+              <h2 id="od-h-nab">Haftanın Nabzı</h2>
               <p>Her gün bir nokta · son nokta {nabizHafta === 0 ? 'bugün' : 'haftanın son günü'}</p>
             </div>
             <div className="od-pillseg" role="group" aria-label="Hafta">
@@ -753,7 +754,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
           <div className={'od-grid4' + nCls(nabiz.length)}>
             {nabiz.map((s) => (
               <div key={s.k} className={'od-stat' + (s.dn ? ' alert' : '')} title={s.title}>
-                <span className="k">{s.k}</span>
+                <span className="k">{baslikYaz(s.k)}</span>
                 <span className="v tnum">{s.v}</span>
                 <Spark a={s.dizi} dn={s.dn} />
                 <span className="d">
@@ -801,7 +802,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
           <section className="od-card" aria-labelledby="od-h-ogr">
             <div className="od-card-h">
               <div>
-                <h2 id="od-h-ogr">Dikkat isteyen öğretmenler</h2>
+                <h2 id="od-h-ogr">Dikkat İsteyen Öğretmenler</h2>
                 <p>Bu hafta · zamanında yoklama oranı</p>
               </div>
               <button type="button" className="od-link" onClick={() => setRapor('ogretmen')}>
@@ -847,7 +848,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
           <section className="od-card" aria-labelledby="od-h-dev">
             <div className="od-card-h">
               <div>
-                <h2 id="od-h-dev">Devamsızlığı artanlar</h2>
+                <h2 id="od-h-dev">Devamsızlığı Artanlar</h2>
                 <p>Bu hafta 2 gün ve üstü · {artan && artan.sinir > 0 ? 'sağda sınıra kalan gün' : 'sağda yıl toplamı'}</p>
               </div>
               <button type="button" className="od-link" onClick={() => setRapor('devamsizlik')}>

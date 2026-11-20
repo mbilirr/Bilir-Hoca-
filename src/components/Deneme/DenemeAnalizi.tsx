@@ -281,7 +281,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     return (
       <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto">
         <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
-        <h2 className="text-lg font-bold text-fg">Bu bölüm size kapalı</h2>
+        <h2 className="text-lg font-bold text-fg">Bu Bölüm Size Kapalı</h2>
         <p className="text-sm text-muted">Deneme Analizi yalnızca genel yönetici ve izin verilen kurum yöneticileri tarafından kullanılabilir.</p>
       </div>
     );

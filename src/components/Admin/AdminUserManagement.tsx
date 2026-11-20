@@ -2628,7 +2628,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
 
           {/* Kişisel bilgiler */}
           <section className="space-y-3 pt-4 border-t border-line">
-            <h3 className="ui-eyebrow">Kişisel bilgiler</h3>
+            <h3 className="ui-eyebrow">Kişisel Bilgiler</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <FieldLabel htmlFor="teacher-create-branch">Branş</FieldLabel>
@@ -2688,7 +2688,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
 
           {/* Yetki ve erişim */}
           <section className="space-y-4 pt-4 border-t border-line">
-            <h3 className="ui-eyebrow">Yetki ve erişim</h3>
+            <h3 className="ui-eyebrow">Yetki ve Erişim</h3>
             {/* Aşama 99b: unvan / rol (kurumda) */}
             {roleUi && (
               <div id="teacher-create-roles">

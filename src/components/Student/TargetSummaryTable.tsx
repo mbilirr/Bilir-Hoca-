@@ -207,7 +207,7 @@ export const TargetSummaryTable: React.FC<{
           </span>
           <div className="min-w-0">
             <h3 id={`${id}-title`} className="text-base font-semibold text-fg">
-              Soru hedefleri
+              Soru Hedefleri
             </h3>
             <p className="text-xs text-muted">
               {(() => {

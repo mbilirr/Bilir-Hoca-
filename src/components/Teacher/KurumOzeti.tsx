@@ -186,7 +186,7 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
         {gecikenDers.length > 0 && (
           <section className="rounded-xl border border-danger/40 bg-danger-soft/40 p-3 space-y-1.5" id="kurum-ozeti-geciken">
             <h3 className="text-xs font-bold text-danger-fg flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" /> Yoklaması alınmayan dersler
+              <AlertTriangle className="w-3.5 h-3.5" /> Yoklaması Alınmayan Dersler
               <span className="font-normal text-muted">· bitiminden {ders?.gecikmeDk || 40} dk sonra</span>
             </h3>
             <ul className="space-y-0.5">
@@ -240,7 +240,7 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
         {bugunEtut.length > 0 && (
           <section className="rounded-xl border border-line p-3 space-y-1.5" id="kurum-ozeti-etut">
             <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5 text-info-fg" /> Bugünün etütleri
+              <CalendarDays className="w-3.5 h-3.5 text-info-fg" /> Bugünün Etütleri
             </h3>
             <ul className="divide-y divide-line">
               {gosterilenEtut.map((e) => {

@@ -384,7 +384,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
                     <span className="live" />
                     Etütlerim
                   </div>
-                  <h2>Planlanmış etüt yok</h2>
+                  <h2>Planlanmış Etüt Yok</h2>
                   <div className="sub">Size etüt atandığında saati, dersliği ve öğrencileri burada görünür.</div>
                   <div className="row">
                     <button type="button" className="ak-btn light" onClick={() => go('etuts')}>
@@ -443,7 +443,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
               <div className="kl-card-h">
                 <div>
                   <h3>
-                    Sizi bekleyenler {eksikYoklama.length + gorusYok.length > 0 && <span className="kl-cnt tnum">{eksikYoklama.length + gorusYok.length}</span>}
+                    Sizi Bekleyenler {eksikYoklama.length + gorusYok.length > 0 && <span className="kl-cnt tnum">{eksikYoklama.length + gorusYok.length}</span>}
                   </h3>
                   <p>Geciken işler · yapınca kaybolur</p>
                 </div>
@@ -507,7 +507,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
             <section className="kl-card" aria-label="Bu ay">
               <div className="kl-card-h">
                 <div>
-                  <h3>Bu ay</h3>
+                  <h3>Bu Ay</h3>
                   <p>Verdiğim etütler ve katılım · {AYLAR[simdi.getMonth()]}</p>
                 </div>
               </div>
@@ -555,7 +555,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
           <section className="kl-card" aria-label="Bu hafta">
             <div className="kl-card-h">
               <div>
-                <h3>Bu hafta</h3>
+                <h3>Bu Hafta</h3>
                 <p>{haftaToplam ? `${haftaToplam} etüt · ${sureYazi(haftaDk)}` : 'Bu hafta etüdünüz yok'}</p>
               </div>
               <button type="button" className="od-link" onClick={() => go('etuts')}>
@@ -594,7 +594,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
           <section className="kl-card" aria-label="Etüt öğrencilerim">
             <div className="kl-card-h">
               <div>
-                <h3>Etüt öğrencilerim</h3>
+                <h3>Etüt Öğrencilerim</h3>
                 <p>Bu ay etüdüme atanan öğrencilerin özeti · liste Etütlerim sayfasında</p>
               </div>
               <button type="button" className="od-link" onClick={() => go('etuts')}>

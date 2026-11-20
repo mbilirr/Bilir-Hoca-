@@ -133,7 +133,7 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
     <section className="ui-card overflow-hidden" id="etut-notes-inbox">
       <header className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-line">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-fg">Etüt notları</h2>
+          <h2 className="text-base font-semibold text-fg">Etüt Notları</h2>
           <p className="text-xs text-muted">
             Yoklamada öğrenciye anlatılan farklı konu ve öğrenci hakkında yazılan notlar · son {ETUT_NOTE_DAYS} gün
             {unseen > 0 ? ` · ${unseen} yeni` : ''}

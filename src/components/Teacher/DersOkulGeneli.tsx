@@ -169,7 +169,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
         <section className="rounded-2xl border border-line bg-surface shadow-card min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-line">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-bold">Yoklama haritası</h3>
+              <h3 className="text-[15px] font-bold">Yoklama Haritası</h3>
               <p className="text-xs text-muted">Sınıf × ders saati. Kareye tıklayınca dersin yoklaması açılır.</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -260,7 +260,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
         <section className="rounded-2xl border border-line bg-surface shadow-card self-start">
           <div className="px-5 py-4 border-b border-line">
             <h3 className="text-[15px] font-bold flex items-center gap-2">
-              Geciken yoklamalar
+              Geciken Yoklamalar
               {gecikenler.length > 0 && <span className="rounded-md bg-danger-soft text-danger-fg px-1.5 py-0.5 text-[11px] font-bold tabular-nums">{gecikenler.length}</span>}
             </h3>
             <p className="text-xs text-muted">Öğretmene ve idareye hatırlatma gider.</p>
@@ -290,7 +290,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
             </div>
           )}
           <div className="px-5 py-4 border-y border-line">
-            <h3 className="text-[15px] font-bold">Gün boyu izinler</h3>
+            <h3 className="text-[15px] font-bold">Gün Boyu İzinler</h3>
             <p className="text-xs text-muted">Yoklamaya kendiliğinden yazılır.</p>
           </div>
           {izinler.length === 0 ? (

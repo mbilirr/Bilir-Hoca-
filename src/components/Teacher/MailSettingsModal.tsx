@@ -109,7 +109,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
             <div className="flex items-start gap-3 p-3 rounded-xl border border-line bg-surface-2/50" id="mail-status-own">
               <User className="w-5 h-5 text-brand-fg shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs">
-                <div className="font-semibold text-fg text-sm">Kendi Gmail hesabım</div>
+                <div className="font-semibold text-fg text-sm">Kendi Gmail Hesabım</div>
                 {own ? (
                   <div className="text-success-fg font-semibold flex items-center gap-1 mt-0.5">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Bağlı: {own.gmail} — e-postalarınız bu adresten gider
@@ -122,7 +122,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
             <div className="flex items-start gap-3 p-3 rounded-xl border border-line bg-surface-2/50" id="mail-status-school">
               <School className="w-5 h-5 text-info-fg shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs">
-                <div className="font-semibold text-fg text-sm">Okul hesabı</div>
+                <div className="font-semibold text-fg text-sm">Okul Hesabı</div>
                 {status?.schoolConfigured ? (
                   <div className="text-muted mt-0.5">
                     {status.schoolAddress} — kendi Gmail'iniz bağlı değilse e-postalar buradan sizin adınızla gider, yanıtlar size gelir.

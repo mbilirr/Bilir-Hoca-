@@ -5,6 +5,7 @@ import { callMail } from '../../lib/mailApi';
 import { setQuickFocus } from '../../lib/quickFocus';
 import { BACKUP_REMINDER_DAYS, createFullBackup, getLastBackupDate } from '../../services/maintenanceService';
 import type { KurumInfo, Teacher, TeacherTabType } from '../../types';
+import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 import { AnaSayfaKabuk, AkSheet, akBasHarf, akSelam, akTarih } from './AnaSayfaKabuk';
 import { GozuyleBakSheet } from './GozuyleBakSheet';
 
@@ -318,7 +319,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
       <section className="ak-decide" aria-labelledby="ss-uyari">
         <div className="n">
           <b className={'tnum' + (gorunen.length ? '' : ' ok')}>{gorunen.length}</b>
-          <strong id="ss-uyari">{gorunen.length ? 'uyarı var' : 'uyarı yok'}</strong>
+          <strong id="ss-uyari">{gorunen.length ? 'Uyarı Var' : 'Uyarı Yok'}</strong>
           <span>İşlem yapınca listeden düşer.</span>
         </div>
         <div>
@@ -326,7 +327,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
             <div className="ak-drow" key={u.id}>
               <span className={'ico tnum' + (u.warn ? ' w' : '')}>{u.ico}</span>
               <span className="t">
-                <b>{u.t}</b>
+                <b>{baslikYaz(u.t)}</b>
                 <span>{u.d}</span>
               </span>
               <button type="button" className="ak-btn w-24" onClick={u.on} disabled={!!busyAlert && u.id === busyAlert}>
@@ -363,7 +364,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
       {/* Bugün giden bildirimler */}
       <section aria-labelledby="ss-bildirim">
         <div className="ak-h2">
-          <span id="ss-bildirim">Bugün giden bildirimler</span>
+          <span id="ss-bildirim">Bugün Giden Bildirimler</span>
           <button type="button" className="lnk" onClick={() => yonetimAc('bildirim')}>
             Bildirim ve SMS ›
           </button>
@@ -396,16 +397,16 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
       <section aria-label="Kısayollar">
         <div className="ak-shelf">
           <button type="button" onClick={() => yonetimAc('bildirim')}>
-            Bildirim izinleri<span>Kime, hangi yolla</span>
+            Bildirim İzinleri<span>Kime, hangi yolla</span>
           </button>
           <button type="button" onClick={() => yonetimAc('bildirim')}>
             Sınama SMS'i<span>Bildirim ve SMS içinde</span>
           </button>
           <button type="button" onClick={() => yonetimAc('yedek')}>
-            Yedek ve bakım<span>Yedek, eski dosyalar</span>
+            Yedek ve Bakım<span>Yedek, eski dosyalar</span>
           </button>
           <button type="button" onClick={() => yonetimAc('kendi')}>
-            Kendi alanım<span>Kurumsuz sınıf ve hesaplar</span>
+            Kendi Alanım<span>Kurumsuz sınıf ve hesaplar</span>
           </button>
         </div>
       </section>

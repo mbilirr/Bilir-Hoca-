@@ -300,7 +300,7 @@ export const ParentAnnouncements: React.FC = () => {
       <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-card space-y-5">
         <div>
           <h3 className="text-base font-bold text-fg flex items-center gap-1.5">
-            Veli / öğrenci duyurusu gönder
+            Veli / Öğrenci Duyurusu Gönder
             <InfoTip text="Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) ve/veya öğrencilerin kendilerine (kayıtlı e-posta ve telefon) e-posta ve/veya SMS ile gider. İletişim bilgisi olmayanlar atlanır." />
           </h3>
         </div>

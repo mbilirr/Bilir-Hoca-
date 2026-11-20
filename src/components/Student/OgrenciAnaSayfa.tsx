@@ -578,7 +578,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     <section className="kl-card" aria-label="Bana gelenler" id="ogr-bana-gelenler">
       <div className="kl-card-h">
         <div>
-          <h3>Bana gelenler</h3>
+          <h3>Bana Gelenler</h3>
           <p>{[can.odev && 'ödev', can.etut && 'etüt', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
         </div>
       </div>
@@ -766,7 +766,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     <section className="kl-card" aria-label="Bugünkü ders programım">
       <div className="kl-card-h">
         <div>
-          <h3>Bugünkü ders programım</h3>
+          <h3>Bugünkü Ders Programım</h3>
           <p>
             {GUN[simdi.getDay()]}
             {program.tatil ? ' · tatil' : program.dersSay ? ` · ${program.dersSay} ders${program.etutSay ? ` ve ${program.etutSay} etüt` : ''}` : program.etutSay ? ` · ${program.etutSay} etüt` : ' · ders yok'}
@@ -846,7 +846,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     <section className="kl-card" aria-label="Bu hafta">
       <div className="kl-card-h">
         <div>
-          <h3>Bu hafta</h3>
+          <h3>Bu Hafta</h3>
           <p>Günlük soru sayın{hafta.hedef ? ' · kesik çizgi günlük hedef' : ''}</p>
         </div>
         <button type="button" className="od-link" onClick={() => go('questions')}>
@@ -895,7 +895,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     <section className="kl-card" aria-label="Son denemem">
       <div className="kl-card-h">
         <div>
-          <h3>Son denemem</h3>
+          <h3>Son Denemem</h3>
           <p>{deneme ? `${deneme.name}${deneme.date ? ` · ${parseYmd(deneme.date)?.getDate()} ${AYLAR[parseYmd(deneme.date)?.getMonth() ?? 0]}` : ''}` : 'Sonucun açıklanınca burada görünür'}</p>
         </div>
         <button type="button" className="od-link" onClick={() => go('deneme')}>
@@ -1028,7 +1028,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
               </div>
               <div>
                 <div className="k">{q.todayGoal > 0 ? 'Bugünün hedefi' : 'Bugün'}</div>
-                <h2 style={{ fontSize: 'calc(2.125 * var(--ak-rem))' }}>{q.todayGoal > 0 ? (goalDone ? 'Hedef tamam' : `${fmt(kalan)} soru kaldı`) : bugunCozulen ? `${fmt(bugunCozulen)} soru çözdün` : 'Hedefin yok'}</h2>
+                <h2 style={{ fontSize: 'calc(2.125 * var(--ak-rem))' }}>{q.todayGoal > 0 ? (goalDone ? 'Hedef Tamam' : `${fmt(kalan)} Soru Kaldı`) : bugunCozulen ? `${fmt(bugunCozulen)} Soru Çözdün` : 'Hedefin Yok'}</h2>
                 <div className="sub">
                   {bugunDersler.length
                     ? `${bugunDersler

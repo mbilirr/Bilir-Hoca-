@@ -1001,7 +1001,7 @@ export const DenemeWizard: React.FC<{
         <button type="button" className={BACK_BTN} onClick={leave} id="deneme-wizard-geri">
           <ArrowLeft /> Denemelere dön
         </button>
-        <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: optik yükleme` : draftId ? name.trim() || 'Yeni deneme' : 'Yeni deneme'}</h2>
+        <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: Optik Yükleme` : draftId ? name.trim() || 'Yeni Deneme' : 'Yeni Deneme'}</h2>
         {/^\d+$/.test(grade) && (
           <span className="ui-chip ui-chip-info" id="deneme-wizard-sinif" title="Deneme bu sınıf düzeyine kaydedilir">
             {grade}. sınıf

@@ -42,7 +42,7 @@ const ManualTargetCards: React.FC<{
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-fg">
-                    {t.subject ? `${t.subject} soru hedefi` : 'Soru hedefi'}: <span className="text-warning-fg">{p.total} soru</span>
+                    {t.subject ? `${t.subject} Soru Hedefi` : 'Soru Hedefi'}: <span className="text-warning-fg">{p.total} soru</span>
                     <span className="text-xs font-semibold text-muted">
                       {isFlexibleTarget(t)
                         ? ' (gün gün farklı dağıtıldı)'

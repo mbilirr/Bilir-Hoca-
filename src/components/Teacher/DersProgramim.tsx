@@ -313,7 +313,7 @@ export const DersProgramim: React.FC = () => {
           <>
             <p className="text-xs font-medium opacity-85">{GUN_ADLARI[isoGun(bugun) - 1]} {tarihUzun(bugun)}</p>
             <h2 className={cx('font-extrabold tracking-tight', kucuk ? 'text-xl mt-0.5' : 'text-2xl mt-1')}>
-              {tatil.has(bugun) ? `Bugün tatil${tatil.get(bugun) ? ` · ${tatil.get(bugun)}` : ''}` : bugunBitti ? 'Bugünkü dersler bitti' : 'Bugün dersiniz yok'}
+              {tatil.has(bugun) ? `Bugün Tatil${tatil.get(bugun) ? ` · ${tatil.get(bugun)}` : ''}` : bugunBitti ? 'Bugünkü Dersler Bitti' : 'Bugün Dersiniz Yok'}
             </h2>
             <p className="text-xs opacity-85 mt-1 tabular-nums">
               {bugunBitti ? `${bugunDersler.length} dersin ${bugunAlinan} tanesinde yoklama alındı.` : ''}

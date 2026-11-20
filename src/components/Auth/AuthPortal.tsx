@@ -545,7 +545,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       <main className="auth-sheet relative z-10 grow flex flex-col px-6 pt-7 md:flex-none pb-[max(20px,env(safe-area-inset-bottom))] md:-mt-24 md:px-0 md:pt-0 lg:mt-0 lg:col-span-5 lg:justify-center lg:px-[clamp(32px,4vw,56px)] lg:py-8">
         <div className="auth-card w-full md:mx-auto md:w-[520px] md:p-9 lg:w-full lg:max-w-[400px] lg:p-0">
           <div className="hidden md:block mb-5">
-            <h2 className="text-[26px] lg:text-[28px] font-bold text-fg tracking-tight leading-tight">Giriş yap</h2>
+            <h2 className="text-[26px] lg:text-[28px] font-bold text-fg tracking-tight leading-tight">Giriş Yap</h2>
             <p className="text-sm text-muted mt-1">Kaldığınız yerden devam edin.</p>
           </div>
 
@@ -597,7 +597,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   <Fingerprint className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-fg">Parmak izinizi kaydedin</h3>
+                  <h3 className="text-base font-bold text-fg">Parmak İzinizi Kaydedin</h3>
                   <p className="text-xs text-muted leading-relaxed mt-1">
                     Şifreniz doğrulandı. Düğmeye basınca cihazınız parmak izinizi (veya yüz tanımayı) ister. Bundan sonra bu cihazda
                     şifre yazmadan girersiniz. Parmak iziniz cihazınızdan çıkmaz.
