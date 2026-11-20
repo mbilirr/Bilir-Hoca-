@@ -6,7 +6,7 @@
 // Sunucudaki kopya: api/_notifyPolicy.js — kategori / kanal listesi iki dosyada AYNI tutulmalıdır.
 // ============================================================================
 
-export type PolicyCategory = 'etut' | 'yoklama' | 'devamsizlik' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik'; // Aşama 223: devamsizlik
+export type PolicyCategory = 'etut' | 'yoklama' | 'devamsizlik' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik' | 'takvim'; // Aşama 223: devamsizlik · Aşama 328: takvim
 export type PolicyRecipient = 'ogrenci' | 'veli' | 'ogretmen';
 export type PolicyChannel = 'email' | 'push' | 'sms' | 'whatsapp';
 
@@ -91,6 +91,13 @@ export const POLICY_CATEGORIES: {
     label: 'Tebrik',
     hint: 'Öğretmenin tebrik mesajı',
     channels: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: [] },
+  },
+  // Aşama 328: zümre etkinliği yaklaşınca zümre öğretmenlerine (okul dışı 12, okul içi 6 gün önce)
+  {
+    id: 'takvim',
+    label: 'Akademik takvim',
+    hint: 'Yaklaşan zümre etkinliği hatırlatması (okul dışı 12 gün, okul içi 6 gün önce); üyeler Akademik takvim › Zümreler',
+    channels: { ogrenci: [], veli: [], ogretmen: ['email', 'sms'] },
   },
 ];
 

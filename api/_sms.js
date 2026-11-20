@@ -284,6 +284,7 @@ const EVENT_TEXT = {
   'plan-sent': 'Haftalık çalışma planı gönderildi.',
   'plan-report': 'Haftalık plan raporu hazır.',
   'deneme-karne': 'Deneme sonucu (karne) hazır.',
+  'akademik-takvim': 'Zümre etkinliği yaklaşıyor.', // Aşama 328
 };
 export function smsTextFor(event, role, appUrl) {
   const e = smsEnv();

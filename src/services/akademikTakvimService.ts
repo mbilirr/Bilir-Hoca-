@@ -233,6 +233,70 @@ export async function kontrolIsaretle(ids: string[], kontrol: boolean): Promise<
   await rpc('akademik_takvim_kontrol', { p_ids: ids, p_kontrol: kontrol });
 }
 
+// ---------------------------------------------------------------- Aşama 328: zümre üyeleri (hatırlatma alıcıları)
+// Zümresi yazılı etkinlik yaklaşınca üyelere bir kez e-posta (izin verildiyse SMS) gider: okul dışı 12 gün, okul içi 6 gün önce,
+// günü belli olmayan okul içi etkinlik ay başından 1 gün önce. Gönderimi sunucu yapar (api/mail.js, sql/328).
+export interface ZumreUye {
+  teacherId: string;
+  baskan: boolean;
+}
+const ZUMRE_SQL_EKSIK = "Zümre hatırlatması için Supabase SQL Editor'de 328 numaralı SQL dosyasını çalıştırın.";
+const hata328 = (e: { message?: string; code?: string } | null | undefined): Error => {
+  const h = hata(e);
+  return h.message === SQL_EKSIK ? new Error(ZUMRE_SQL_EKSIK) : h;
+};
+
+/** Kurumun zümre üyeleri (zümre adı → üyeler) ve Zümre Başkanı rolü olan öğretmenler (yalnız yönetici) */
+export async function zumreListesi(): Promise<{ uyeler: Record<string, ZumreUye[]>; baskanlar: string[] }> {
+  const { data, error } = await supabase.rpc('akademik_zumre_listesi');
+  if (error) throw hata328(error);
+  const uyeler: Record<string, ZumreUye[]> = {};
+  for (const u of (data?.uyeler || []) as any[]) {
+    const z = buyuk(u?.zumre);
+    if (!z || !u?.teacher_id) continue;
+    (uyeler[z] ||= []).push({ teacherId: String(u.teacher_id), baskan: u.baskan === true });
+  }
+  return { uyeler, baskanlar: ((data?.baskanlar || []) as unknown[]).map(String) };
+}
+
+/** Bir zümrenin üyelerini yazar (listede olmayan çıkar); kaç üye yazıldığını döner */
+export async function zumreKaydet(zumre: string, uyeler: ZumreUye[]): Promise<number> {
+  const { data, error } = await supabase.rpc('akademik_zumre_kaydet', {
+    p_zumre: buyuk(zumre),
+    p_uyeler: uyeler.map((u) => ({ teacher_id: u.teacherId, baskan: u.baskan })),
+  });
+  if (error) throw hata328(error);
+  return Number(data) || 0;
+}
+
+const katla = (v: unknown) =>
+  String(v ?? '')
+    .toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+/**
+ * Branşa göre öneri: "MATEMATİK ZÜMRESİ" → branşında matematik geçenler; "1.SINIF ZÜMRESİ" → sınıf öğretmenleri;
+ * "3 YAŞ" → okul öncesi. "BRANŞ ZÜMRESİ" gibi branştan çıkmayan zümrede öneri yoktur (elle seçilir).
+ */
+export function zumreBransUyar(zumre: string, brans: string | undefined): boolean {
+  const z = katla(zumre);
+  const b = katla(brans);
+  if (!b.trim() || z.includes('brans')) return false;
+  if (/^\d\s*\.?\s*sinif/.test(z)) return b.includes('sinif ogretmen');
+  if (/\d\s*yas/.test(z)) return b.includes('okul oncesi') || b.includes('anaokul') || b.includes('anasinif');
+  const kelime = z
+    .replace(/zumresi|zumre/g, ' ')
+    .replace(/\b(ilkokul|ortaokul|anasinifi|lise)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!kelime) return false;
+  if (kelime.includes('rehber')) return b.includes('rehber') || b.includes('pdr') || b.includes('psikolojik');
+  if (kelime.includes('degerler')) return b.includes('din kultur') || b.includes('ahlak') || b.includes('degerler');
+  if (kelime.includes('fen')) return /(^|[^a-z])fen([^a-z]|$)/.test(b);
+  return b.includes(kelime.split(' ')[0]);
+}
+
 /** Açık ekran için kurumun takvim tablosunu dinler; değişince (kısa beklemeyle) onChange. Dönen işlev dinlemeyi kapatır. */
 export function takvimCanliDinle(kurumId: string | null | undefined, onChange: () => void): () => void {
   if (!kurumId) return () => {};

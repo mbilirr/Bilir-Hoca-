@@ -16,6 +16,7 @@ const CHANNELS = {
   deneme: { ogrenci: ['email', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
   mesaj: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: ['push', 'whatsapp'] },
   tebrik: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: [] },
+  takvim: { ogrenci: [], veli: [], ogretmen: ['email', 'sms'] }, // Aşama 328: yaklaşan zümre etkinliği
 };
 
 /** E-posta olayı → kategori. Listede olmayanlar (hesap bilgisi, deneme e-postası) her zaman gönderilir. */
@@ -35,6 +36,7 @@ export const MAIL_EVENT_CATEGORY = {
   'plan-sent': 'plan',
   'plan-report': 'plan',
   'deneme-karne': 'deneme',
+  'akademik-takvim': 'takvim', // Aşama 328
 };
 
 function defaultValue(cat, rec, ch) {
