@@ -40,6 +40,21 @@ function gunOku(t: string): [number, number, number | null] | null {
 }
 
 /**
+ * Aşama 329c: TARİH hücresinde gün yerine ay yazılmışsa ("MART", "Mart ayı", "Mart ayı içinde", "MART 2027", "Ay içinde")
+ * o ayın numarası döner; "Ay içinde" gibi ay adı olmayan yazıda sayfanın ayı. Ay değilse 0.
+ */
+const AY_SOZ = new Set(['AY', 'AYI', 'İÇİNDE', 'İÇERİSİNDE', 'BOYUNCA', 'SÜRESİNCE', 'TARİHİ', 'BELLİ', 'DEĞİL', 'BELİRSİZ']);
+function ayAdiOku(v: unknown, sayfaAyi: number): number {
+  const kelime = buyuk(v)
+    .split(/[^0-9A-ZÇĞİÖŞÜ]+/)
+    .filter((w) => w && !/^\d{4}$/.test(w));
+  if (!kelime.length) return 0;
+  const kalan = kelime.filter((w) => !AY_SOZ.has(w));
+  if (!kalan.length) return sayfaAyi; // "Ay içinde", "Tarihi belli değil"
+  return kalan.length === 1 ? AYLAR_TR.indexOf(kalan[0]) + 1 : 0;
+}
+
+/**
  * Aşama 327: TARİH hücresi → { bas, bit? }. Yılı yazılmamışsa ay sayfasının eğitim yılından alınır (Eyl–Ara = yil, Oca–Haz = yil+1).
  * Birkaç gün süren etkinlik: "15-19.03", "15-19.03.2027", "15.03-19.03", "30.03-02.04.2027", "15-19 Mart", "15 Mart - 19 Mart".
  */
@@ -135,13 +150,20 @@ export async function takvimExcelOku(dosya: File, yil: number): Promise<OkumaSon
       if (!etkinlik) {
         s.durum = 'hatali';
         s.not = 'Etkinlik adı boş';
-      } else if (tv === null || tv === '' || !buyuk(tv)) {
+      } else if (tv === null || tv === '' || !buyuk(tv) || (!d && ayAdiOku(tv, ay))) {
         // Aşama 327: tarihi boş etkinlik sayfanın ayı içinde yapılacak sayılır ("Aralık içinde")
-        const y = ay >= 9 ? yil : yil + 1;
-        s.tarih = tarihYaz(new Date(y, ay - 1, 1));
-        s.bitis = tarihYaz(new Date(y, ay, 0));
-        s.ayIcinde = true;
-        s.not = `Günü yok: ${AY_ADLARI[ay - 1]} içinde`;
+        // Aşama 329c: tarih yerine ay adı yazılmışsa ("MART", "Mart ayı içinde") o ayın içinde yapılacak sayılır
+        const a = (!d && ayAdiOku(tv, ay)) || ay;
+        const y = a >= 9 ? yil : yil + 1;
+        if (a >= 7 && a <= 8) {
+          s.durum = 'hatali';
+          s.not = 'Ay yaz tatilinde';
+        } else {
+          s.tarih = tarihYaz(new Date(y, a - 1, 1));
+          s.bitis = tarihYaz(new Date(y, a, 0));
+          s.ayIcinde = true;
+          s.not = `Günü yok: ${AY_ADLARI[a - 1]} içinde${a !== ay ? ` (${AY_ADLARI[ay - 1]} sayfasında)` : ''}`;
+        }
       } else if (!d) {
         s.durum = 'hatali';
         s.not = `Tarih okunamadı ("${String(tv).trim().slice(0, 24)}")`;
