@@ -57,6 +57,7 @@ import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 const TeacherExcelUploadModal = lazyNamed(() => import('./TeacherExcelUploadModal'), 'TeacherExcelUploadModal');
 // Aşama 171: cinsiyeti addan doldur (ad listesi yalnız açılınca iner)
 const CinsiyetDoldurModal = lazyNamed(() => import('./CinsiyetDoldurModal'), 'CinsiyetDoldurModal');
+const ProfilResmiSecModal = lazyNamed(() => import('../ProfilResmiSecModal'), 'ProfilResmiSecModal'); // Aşama 334
 const TeacherCredentialSendModal = lazyNamed(() => import('./TeacherCredentialSendModal'), 'TeacherCredentialSendModal');
 // Aşama 149: Yönetim › Öğrenciler — öğrencilere giriş bilgisi (pencereler yalnız açılınca yüklenir)
 const StudentCredentialPickModal = lazyNamed(() => import('./StudentCredentialPickModal'), 'StudentCredentialPickModal');
@@ -151,6 +152,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     schoolLevel: 'Ortaokul' | 'Lise';
     newPassword: string;
     mustChangePassword: boolean;
+    avatar: string; // Aşama 334: '' = otomatik çizim
   }>({
     name: '',
     username: '',
@@ -165,7 +167,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     schoolLevel: 'Ortaokul',
     newPassword: '',
     mustChangePassword: false,
+    avatar: '',
   });
+  const [resimAcik, setResimAcik] = useState(false); // Aşama 334: düzenleme penceresinden profil resmi
 
   const [showPassword, setShowPassword] = useState(false);
   const [editPwOpen, setEditPwOpen] = useState(false); // Aşama 182: şifre satırı kapalı başlar
@@ -418,6 +422,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       schoolLevel: user.schoolLevel || 'Ortaokul',
       newPassword: '',
       mustChangePassword: !!user.mustChangePassword,
+      avatar: user.avatar || '',
     });
     setShowPassword(false);
     setCopiedPassword(false);
@@ -450,6 +455,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         schoolLevel: editFormData.schoolLevel,
         mustChangePassword: editFormData.mustChangePassword,
         newPassword: editFormData.newPassword ? editFormData.newPassword : undefined,
+        // Aşama 334: yalnız değiştiyse yazılır ('' = kendi resmi kaldırılır, otomatik çizim)
+        avatar: editFormData.avatar !== (before.avatar || '') ? editFormData.avatar : undefined,
       });
 
       if (isTeacherEdit && (phoneN.value !== phoneOf(before) || editFormData.birthDate !== birthOf(before))) {
@@ -1503,8 +1510,43 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
             </div>
 
+            {resimAcik && (
+              <React.Suspense fallback={null}>
+                <ProfilResmiSecModal
+                  open
+                  onClose={() => setResimAcik(false)}
+                  kind={editModalUser.role === 'student' ? 'student' : 'teacher'}
+                  rol={editModalUser.role === 'student' ? 'student' : ogretmenProfilRol(editModalUser, unvanlar.get(editModalUser.id))}
+                  person={{ id: editModalUser.id, name: editFormData.name, avatar: editFormData.avatar || undefined, gender: editFormData.gender || undefined }}
+                  onSave={async (avatar: string | undefined) => setEditFormData((f) => ({ ...f, avatar: avatar || '' }))}
+                />
+              </React.Suspense>
+            )}
             {/* Form */}
             <form onSubmit={handleSaveEdit} className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Aşama 334: bilgileri düzenleme izni olan profil resmini de değiştirir (Kaydet ile yazılır) */}
+              <CompactRow
+                lead={
+                  <div className="w-8 h-8 rounded-lg bg-surface-2 border border-line overflow-hidden shrink-0">
+                    <img
+                      decoding="async"
+                      src={profilResmi(
+                        { id: editModalUser.id, name: editFormData.name, avatar: editFormData.avatar, gender: editFormData.gender || undefined },
+                        editModalUser.role === 'student' ? 'student' : ogretmenProfilRol(editModalUser, unvanlar.get(editModalUser.id))
+                      )}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                }
+                title="Profil Resmi"
+                info="Çizim seçin ya da fotoğraf yükleyin; Kaydet ile yazılır."
+                actions={
+                  <button type="button" onClick={() => setResimAcik(true)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24" id="edit-profil-resmi-btn">
+                    Değiştir
+                  </button>
+                }
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Ad Soyad */}
                 <div>

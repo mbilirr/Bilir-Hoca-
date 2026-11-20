@@ -44,7 +44,6 @@ import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue
 import { dataService } from '../../services/dataService';
 import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
-import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { ogrenciGuncellendi } from '../../lib/geriAl'; // Aşama 306
 import { bugunTarih, gecerliDogumTarihi, yasHesapla } from '../../lib/dogumTarihi'; // Aşama 324
@@ -95,6 +94,7 @@ import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { profilResmi } from '../../lib/profilResmi';
+import { ProfilResmiSecModal } from '../ProfilResmiSecModal'; // Aşama 334
 
 interface StudentManagementProps {
   students: Student[];
@@ -322,7 +322,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentBirthDate, setStudentBirthDate] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'K' | 'E' | 'none'>('all');
   const [isGenderFillOpen, setIsGenderFillOpen] = useState(false);
-  const [isProcessingStudentPhoto, setIsProcessingStudentPhoto] = useState(false);
+  const [resimAcik, setResimAcik] = useState(false); // Aşama 334: ortak profil resmi penceresi
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
   const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
   const [studentPhoneError, setStudentPhoneError] = useState<string | null>(null);
@@ -346,7 +346,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentTcError, setStudentTcError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
   useAutoDismiss(quickClassChangeFeedback, () => setQuickClassChangeFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
-  const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Hızlı Sınıf Değiştirme / Aktarma İşleyicisi
   const handleQuickChangeStudentClass = async (student: Student, targetClassId: string) => {
@@ -378,25 +377,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     newStudentPayload: StudentFormPayload;
   }
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarningState | null>(null);
-
-  const handleStudentPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setStudentFormError('Lütfen geçerli bir resim dosyası seçiniz (PNG, JPG, WebP).');
-      return;
-    }
-    try {
-      setIsProcessingStudentPhoto(true);
-      setStudentFormError(null);
-      const compressed = await compressImageToDataUrl(file, 200, 200, 0.82);
-      setStudentAvatar(compressed);
-    } catch {
-      setStudentFormError('Resim işlenirken bir hata oluştu.');
-    } finally {
-      setIsProcessingStudentPhoto(false);
-    }
-  };
 
   // New class form state
   const [className, setClassName] = useState('');
@@ -805,7 +785,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       studentNumber: cleanNumber,
       phone: phoneNorm.value,
       parents: cleanParents(parents),
-      avatar: studentAvatar || editingStudent?.avatar || undefined,
+      avatar: studentAvatar || undefined, // Aşama 334: '' = kendi resmi kaldırıldı (eskiden kaldırma kaydedilmiyordu)
       gender: studentGender || undefined,
       birthDate: studentBirthDate,
       password: cleanPassword,
@@ -2642,7 +2622,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               );
             })()}
 
-            {/* Öğrenci fotoğrafı: önizleme, seç ve kaldır tek satırda */}
+            {/* Aşama 334: profil resmi ortak pencereden (çizim, fotoğraf yükle, otomatik); Kaydet ile yazılır */}
             <CompactRow
               lead={
                 <div className="w-8 h-8 rounded-lg bg-surface-2 border border-line overflow-hidden shrink-0">
@@ -2655,40 +2635,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   />
                 </div>
               }
-              title="Profil fotoğrafı"
-              info="İsteğe bağlı. PNG, JPG veya WebP; resim otomatik küçültülür."
+              title="Profil Resmi"
+              info="İsteğe bağlı. Çizim seçin ya da fotoğraf yükleyin; Kaydet ile yazılır."
               actions={
-                <>
-                  <input
-                    ref={studentFileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/jpg"
-                    onChange={handleStudentPhotoChange}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => studentFileInputRef.current?.click()}
-                    disabled={isProcessingStudentPhoto}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{isProcessingStudentPhoto ? 'İşleniyor…' : 'Resim seç'}</span>
-                  </button>
-                  {studentAvatar && (
-                    <button
-                      type="button"
-                      onClick={() => setStudentAvatar('')}
-                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon h-8 w-8 hover:text-danger-fg"
-                      title="Fotoğrafı kaldır"
-                      aria-label="Fotoğrafı kaldır"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </>
+                <button type="button" onClick={() => setResimAcik(true)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24" id="ogrenci-profil-resmi-btn">
+                  Değiştir
+                </button>
               }
             />
+            {resimAcik && (
+              <ProfilResmiSecModal
+                open
+                onClose={() => setResimAcik(false)}
+                kind="student"
+                rol="student"
+                person={{ id: editingStudent?.id || 'yeni', name: studentName || 'Öğrenci', avatar: studentAvatar || undefined, gender: studentGender || undefined }}
+                onSave={async (avatar) => setStudentAvatar(avatar || '')}
+              />
+            )}
           </div>
         </form>
       </Modal>
