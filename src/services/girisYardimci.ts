@@ -46,6 +46,40 @@ export function generatePasswordOnce(length: number): string {
   return out;
 }
 
+// Aşama 332 (HIZ): kullanıcı adıyla girişte hangi adresin tuttuğu bu cihazda hatırlanır; sonraki girişte ilk o denenir.
+// Eskiden ör. sistem sahibi her girişte önce iki sistem adresini (her biri ayrı robot jetonu + boşa giriş isteği) deniyordu.
+// Yalnız sistemin ürettiği adresler (…@okul.internal.net) ve kodda zaten açık duran yönetici adresi saklanır; şifre saklanmaz.
+const IPUCU = 'bilir_giris_ipucu_v1';
+const ipucuDeposu = (): Storage | null => {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+};
+export function girisIpucuOku(anahtar: string): string | null {
+  try {
+    const m = JSON.parse(ipucuDeposu()?.getItem(IPUCU) || '{}');
+    const v = m && typeof m[anahtar] === 'string' ? m[anahtar] : null;
+    return v || null;
+  } catch {
+    return null;
+  }
+}
+export function girisIpucuYaz(anahtar: string, adres: string, izinli: (a: string) => boolean): void {
+  if (!anahtar || !izinli(adres)) return;
+  try {
+    const d = ipucuDeposu();
+    const m = JSON.parse(d?.getItem(IPUCU) || '{}') || {};
+    m[anahtar] = adres;
+    const k = Object.keys(m);
+    if (k.length > 12) delete m[k[0]]; // cihazda en çok 12 kullanıcı adı
+    d?.setItem(IPUCU, JSON.stringify(m));
+  } catch {
+    /* depolama kapalı */
+  }
+}
+
 // Sırayla aday giriş adreslerini dener. Kilitli/askıdaki hesapta hemen durur.
 export async function signInWithCandidates(
   emails: string[],

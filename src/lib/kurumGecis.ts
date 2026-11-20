@@ -1,7 +1,7 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { dataService } from '../services/dataService';
 import type { Teacher } from '../types';
-import { acikKalSekmesi, acikKalVazgec, acikKalGeriAl } from './acikKal';
+import { acikKalSekmesi, acikKalVazgec, acikKalGeriAl, acikKalSekmeyeAyir, acikKalCihazYenileme, acikKalCihazaYaz } from './acikKal';
 import { robotJetonu } from './robotKoruma'; // Aşama 309
 
 // ============================================================================
@@ -208,8 +208,9 @@ function perdeKapat(): void {
 
 async function switchTab(tokens: { access_token: string; refresh_token: string }, next: GecisState | null): Promise<never> {
   perdeAc(); // Aşama 269: setSession'dan önce (önceki hesabın sayfası bir an bile görünmesin)
-  acikKalVazgec(true); // Aşama 295: hesap geçişinde "bu cihazda açık kal" biter; geçilen hesap eskisi gibi yalnız bu sekmede yaşar
-  // Aşama 326: kendi hesabına dönüşte (next = null) kalıcı oturum cihaza yeniden kurulur; yazılacak oturum cihaza gider
+  // Aşama 332: kendi oturumunuz cihazda kalır; geçilen hesap yalnız bu sekmede yaşar (eskiden cihazdaki kopya siliniyordu)
+  acikKalSekmeyeAyir();
+  // Aşama 326: kendi hesabına dönüşte (next = null) sekme yeniden cihaz oturumuna bağlanır; yazılacak oturum cihaza gider
   if (next === null) acikKalGeriAl();
   const { data, error } = await supabase.auth.setSession(tokens);
   if (error) {
@@ -276,14 +277,17 @@ async function restoreHead(g: GecisState): Promise<{ access_token: string; refre
   perdeAc(); // Aşama 269: geçerli oturum kapanırken giriş ekranı bir an görünmesin
   const { data: cur } = await supabase.auth.getSession();
   const kurumToken = cur.session?.access_token || '';
+  // Aşama 332: "açık kal" oturumundan çıkılmışsa cihazdaki GÜNCEL anahtar kullanılır (başka sekme yenilemiş olabilir)
+  const cihazAnahtari = acikKalCihazYenileme();
   const [head] = await Promise.all([
-    authFetch('token?grant_type=refresh_token', { body: { refresh_token: g.headRefresh } }).catch(() => null),
+    authFetch('token?grant_type=refresh_token', { body: { refresh_token: cihazAnahtari || g.headRefresh } }).catch(() => null),
     kurumToken ? authFetch('logout?scope=local', { token: kurumToken }).catch(() => null) : Promise.resolve(null),
   ]);
   if (!head?.access_token || !head?.refresh_token) {
     perdeKapat();
     throw new Error('Kendi oturumunuza dönülemedi; lütfen yeniden giriş yapın.');
   }
+  if (cihazAnahtari) acikKalCihazaYaz(head); // eski anahtar artık geçersiz: cihazda yenisi durur
   return { access_token: head.access_token, refresh_token: head.refresh_token };
 }
 

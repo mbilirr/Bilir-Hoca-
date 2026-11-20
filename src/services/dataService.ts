@@ -149,7 +149,7 @@ import {
 export { geriAlYalnizDokunulan }; // Aşama 318: eski içe aktarma yolu çalışmaya devam etsin
 import { parseKurumRpc, kurumStateFrom, kurumAccessKey } from './kurumTanimlari'; // Aşama 319
 import { isMissingGenderColumn, isMissingBirthColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage } from './hataMetinleri'; // Aşama 319
-import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords } from './girisYardimci'; // Aşama 319
+import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords, girisIpucuOku, girisIpucuYaz } from './girisYardimci'; // Aşama 319, 332
 import {
   deleteRowsVerified,
   fetchAllRows,
@@ -5981,6 +5981,9 @@ class DataService {
       // Beni hatırla kaydı olmayan cihazda da kullanıcı adıyla girilebilsin diye EN SONA eklenir:
       // önce sistem adresleri denenir, yalnız onlar tutmazsa bir istek daha gider.
       candidates.push(ADMIN_EMAIL);
+      // Aşama 332 (HIZ): bu cihazda bu kullanıcı adıyla en son tutan adres önce denenir
+      const ipucu = girisIpucuOku(folded || term);
+      if (ipucu && candidates.includes(ipucu)) candidates.unshift(ipucu);
     }
 
     // Giriş YALNIZCA Supabase Auth üzerinden yapılır (yerel şifre / arka kapı yoktur).
@@ -5990,6 +5993,12 @@ class DataService {
       return null;
     }
     const authUser = signed.user;
+    // Aşama 332: ilk aday tutmadıysa tutan adres bu cihazda hatırlanır (yalnız sistem adresleri ve yönetici adresi)
+    {
+      const tutan = (authUser.email || '').trim().toLowerCase();
+      if (!term.includes('@') && tutan && tutan !== candidates[0])
+        girisIpucuYaz(trLoginFold(usernameOrEmail) || term, tutan, (a) => a === ADMIN_EMAIL || a.endsWith('@okul.internal.net'));
+    }
     this.lastTeacherLoginEmail = (authUser.email || '').trim().toLowerCase(); // Aşama 155: beni hatırla gerçek giriş adresini saklar
 
     const appRole = authUser.app_metadata?.role;
@@ -6392,7 +6401,7 @@ class DataService {
     // kişinin bütün cihazlarındaki oturumlar düşüyordu (telefon boşta kalınca bilgisayardaki oturum da kapanıyordu).
     // Şifre değişiminde bütün cihazlardan çıkış aynen sürer (changeOwnPassword).
     // Aşama 290: abonelik silme isteği oturum anahtarıyla gider; bu yüzden oturum ondan SONRA kapanır (en çok 4 sn beklenir)
-    acikKalCikis(); // Aşama 295: "bu cihazda açık kal" oturumu çıkışta cihazdan da silinir
+    acikKalCikis(elle); // Aşama 295: "bu cihazda açık kal" oturumu çıkışta cihazdan da silinir (332: geçişte elle çıkışta da)
     const oturumuKapat = () => supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     if (elle) void Promise.race([disablePush(), new Promise((r) => setTimeout(r, 4000))]).then(oturumuKapat, oturumuKapat);
     else void oturumuKapat();

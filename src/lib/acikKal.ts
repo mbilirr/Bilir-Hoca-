@@ -5,12 +5,15 @@
 // Aşama 326: sistem sahibi hesabında da kullanılır (eskiden 294 nedeniyle dışlanmıştı). İki adımlı giriş kodu yine ilk
 // girişte sorulur; doğrulanmış (aal2) oturum cihazda 30 gün durur, yenilemede doğrulama düzeyi korunur.
 // Cihazda yalnız giriş anahtarı durur; öğrenci / not / mesaj verisi yine yalnız açık sekmede tutulur.
-// Hesap / kurum geçişi sırasında cihazdaki kopya silinir (yenileme anahtarı iki yerde olursa biri geçersiz kalır ve oturum
-// kapanır); geçişten KENDİ hesabına dönüldüğünde kalıcı oturum yeniden cihaza yazılır (acikKalGeriAl, Aşama 326).
+// Aşama 332: hesap / kurum geçişinde (kurum, gözüyle bakış, bağlı hesap) kendi oturumunuz CİHAZDA KALIR; yalnız bu sekme
+// geçilen hesap için sekme deposuna geçer (acikKalSekmeyeAyir). Eskiden cihazdaki kopya geçişte siliniyordu: tarayıcı geçişteyken
+// kapanırsa ya da açılışta "seçimimi hatırla" bağlı hesaba geçerse ertesi gün oturum kapalı bulunuyordu.
+// Kendi hesabına dönüşte cihazın GÜNCEL yenileme anahtarı kullanılır ve yenisi cihaza yazılır (acikKalCihazYenileme /
+// acikKalCihazaYaz): aynı anahtarın iki yerde eskiyip oturumu düşürmesi önlenir.
 const ISARET = 'bilir_acik_kal_v1'; // localStorage: { son: bitiş zamanı (ms) }
 const SURE_MS = 30 * 24 * 60 * 60 * 1000;
 const OTURUM_ANAHTARI = /^sb-.*-auth-token/;
-const GERI = 'bilir_acik_kal_geri'; // sessionStorage: geçişe çıkmadan önce kalıcı oturumdaydık (değer: bitiş zamanı ms)
+const GERI = 'bilir_acik_kal_geri'; // sessionStorage: bu sekme kalıcı oturumdan bir geçişe çıktı (değer: bitiş zamanı ms)
 
 const ls = (): Storage | null => {
   try {
@@ -103,6 +106,52 @@ export function acikKalVazgec(donusIcin = false): void {
   cihaziTemizle();
 }
 
+/** Aşama 332: hesap geçişinde kalıcı oturum cihazda KALIR; bu sekme bundan sonra (geçilen hesap) yalnız sekme deposunu kullanır.
+ *  Dönüşte acikKalGeriAl sekmeyi yeniden cihaz oturumuna bağlar. Kalıcı oturum yoksa hiçbir şey yapmaz. */
+export function acikKalSekmeyeAyir(): void {
+  if (!kalici) return;
+  try {
+    ss()?.setItem(GERI, String(isaretSon()));
+  } catch {
+    /* depolama kapalı */
+  }
+  kalici = false;
+}
+
+/** Aşama 332: bu sekme kalıcı oturumdan geçişe çıkmış ve cihazdaki oturum hâlâ geçerli mi */
+export function acikKalGeciste(): boolean {
+  try {
+    return !kalici && !!ss()?.getItem(GERI) && acikKalGecerli();
+  } catch {
+    return false;
+  }
+}
+
+/** Aşama 332: geçişten dönüşte kullanılacak cihazdaki GÜNCEL yenileme anahtarı (başka sekme yenilemiş olabilir); yoksa null */
+export function acikKalCihazYenileme(): string | null {
+  if (!acikKalGeciste()) return null;
+  try {
+    const l = ls();
+    const k = anahtarlar(l)[0];
+    const v = k ? JSON.parse(l!.getItem(k) || 'null') : null;
+    return v && typeof v.refresh_token === 'string' && v.refresh_token ? v.refresh_token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Aşama 332: dönüşte yenilenen kendi oturumunuz hemen cihaza yazılır (eski anahtar artık geçersiz; cihazda yenisi durmalı) */
+export function acikKalCihazaYaz(oturum: unknown): void {
+  if (!acikKalGeciste()) return;
+  try {
+    const l = ls();
+    const k = anahtarlar(l)[0];
+    if (k && oturum) l!.setItem(k, JSON.stringify(oturum));
+  } catch {
+    /* depolama kapalı */
+  }
+}
+
 /** Aşama 326: geçişten kendi hesabına dönülürken (sayfa yenilenmeden, yeni oturum yazılmadan HEMEN ÖNCE): geçişe kalıcı
  *  oturumdan çıkılmışsa ve süresi dolmadıysa cihaz işareti yeniden kurulur, sekmedeki geçiş oturumu silinir; sonra yazılan
  *  kendi oturum anahtarı cihaza gider. Dönüş işareti yoksa (kalıcı oturum yoktu) hiçbir şey yapmaz. */
@@ -111,23 +160,26 @@ export function acikKalGeriAl(): void {
     const s = ss();
     const son = Number(s?.getItem(GERI) || 0);
     s?.removeItem(GERI);
-    if (!s || !(son > Date.now())) return;
+    // Aşama 332: cihazdaki oturum başka sekmede "Çıkış"la silindiyse yeniden kurulmaz (dönülen oturum yalnız bu sekmede yaşar)
+    if (!s || !(son > Date.now()) || !acikKalGecerli()) return;
     anahtarlar(s).forEach((k) => s.removeItem(k));
-    ls()?.setItem(ISARET, JSON.stringify({ son }));
-    kalici = acikKalGecerli();
+    kalici = true;
   } catch {
     kalici = false;
   }
 }
 
-/** Çıkışta: bu sekme kalıcı oturumdaysa cihazdaki oturum da silinir (öbür sekmeler `acikKalDinle` ile kapanır). */
-export function acikKalCikis(): void {
+/** Çıkışta: bu sekme kalıcı oturumdaysa cihazdaki oturum da silinir (öbür sekmeler `acikKalDinle` ile kapanır).
+ *  Aşama 332: geçişteki sekmede ELLE "Çıkış"a basılırsa da cihazdaki kendi oturumunuz silinir (çıkış = bu cihazdan çıkış). */
+export function acikKalCikis(elle = false): void {
+  let geciste = false;
   try {
+    geciste = !!ss()?.getItem(GERI);
     ss()?.removeItem(GERI);
   } catch {
     /* depolama kapalı */
   }
-  if (kalici) cihaziTemizle();
+  if (kalici || (elle && geciste)) cihaziTemizle();
   kalici = false;
 }
 

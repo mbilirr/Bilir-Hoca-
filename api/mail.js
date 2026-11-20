@@ -2148,6 +2148,38 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
   }
   // Tekrarlanabilen (değişti/iptal) e-postalarda günlük sınır
   const since = new Date(Date.now() - 86400000).toISOString();
+  // Aşama 332 (HIZ): son 24 saatte gönderilenler tür başına TOPLU okunur (eskiden alıcı başına bir sorgu, sırayla:
+  // 300 alıcılı duyuruda 300 istek). Sonuç sınıra dayanırsa (1000 satır) o kayıtlar eskisi gibi tek tek sorulur.
+  const tekrarSay = new Map();
+  const tekTek = new Set();
+  {
+    const refsByEv = new Map();
+    for (const it of valid) {
+      if (ONCE_EVENTS.has(it.event) || !it.refId) continue;
+      if (!refsByEv.has(it.event)) refsByEv.set(it.event, new Set());
+      refsByEv.get(it.event).add(String(it.refId));
+    }
+    const isler = [];
+    for (const [ev, refSet] of refsByEv) {
+      const ids = [...refSet];
+      for (let i = 0; i < ids.length; i += 50) {
+        const parca = ids.slice(i, i + 50);
+        isler.push(
+          rest(
+            `mail_log?select=ref_id,recipient&status=eq.sent&event=eq.${encodeURIComponent(ev)}&ref_id=in.${inList(parca)}&created_at=gte.${encodeURIComponent(since)}&limit=1000`,
+            { token: 'service' },
+          ).then((rows) => {
+            if ((rows || []).length >= 1000) return parca.forEach((r) => tekTek.add(`${ev}|${r}`));
+            for (const r of rows || []) {
+              const k = `${ev}|${r.ref_id}|${r.recipient}`;
+              tekrarSay.set(k, (tekrarSay.get(k) || 0) + 1);
+            }
+          }),
+        );
+      }
+    }
+    await Promise.all(isler);
+  }
   const queue = [];
   const seen = new Set();
   for (const it of valid) {
@@ -2157,6 +2189,12 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
     if (ONCE_EVENTS.has(it.event)) {
       if (already.has(k)) {
         summary.skipped++;
+        continue;
+      }
+    } else if (it.refId && !tekTek.has(`${it.event}|${it.refId}`)) {
+      if ((tekrarSay.get(k) || 0) >= (it.repeatLimit || REPEAT_LIMIT_PER_DAY)) {
+        summary.skipped++;
+        summary.rateLimited = true;
         continue;
       }
     } else if (it.refId) {
@@ -2243,6 +2281,9 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
     summary.authError = !!err.auth;
     return summary;
   }
+  // Aşama 332 (HIZ): gönderim kaydı bir sonraki e-posta gönderilirken yazılır (her e-postada bir veritabanı turu beklenmez);
+  // bütün kayıtlar bağlantı kapanmadan önce beklenir. "Gönderiliyor" kaydı (claimMail) eskisi gibi gönderimden ÖNCE alınır.
+  const kayitlar = [];
   try {
     for (let i = 0; i < queue.length; i++) {
       const it = queue[i];
@@ -2282,8 +2323,7 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
         summary.failed++;
         if (summary.errors.length < 5) summary.errors.push(`${it.toName || it.to}: ${error}`);
       }
-      if (claimId) await finishClaim(claimId, status, error);
-      else await logMail(senderMeta, sender, it, status, error);
+      kayitlar.push(claimId ? finishClaim(claimId, status, error) : logMail(senderMeta, sender, it, status, error));
       if (status === 'failed' && client.closedError) {
         // bağlantı koptu: yeniden bağlanmayı bir kez dene
         try {
@@ -2295,6 +2335,7 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
       }
     }
   } finally {
+    await Promise.all(kayitlar);
     if (client) await client.quit();
   }
   return summary;
