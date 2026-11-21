@@ -294,15 +294,15 @@ export default function App() {
     };
 
     // Aşama 26: hareketsizlik süresi role göre belirlenir
-    //  - genel yönetici: 1 gün (24 saat)
+    //  - genel yönetici: 30 dakika (Aşama 341: eskiden 24 saatti; en yetkili hesap en uzun açık kalmasın.
+    //    Uzun süre açık kalmak isteyen "Bu cihazda açık kal"ı seçer, o zaman süre uygulanmaz)
     //  - kurum yöneticisi: 30 dakika
     //  - öğretmen ve öğrenci: 15 dakika
     const getIdleLimitMs = () => {
       // Aşama 295: "Bu cihazda açık kal" oturumunda boşta kalma süresi uygulanmaz (30 gün sonunda biter, aşağıda)
       // Aşama 332: kalıcı oturumdan kuruma / bağlı hesaba geçilmiş sekmede de (kendi oturumunuz cihazda duruyor)
       if (acikKalSekmesi() || acikKalGeciste()) return Number.POSITIVE_INFINITY;
-      if (dataService.isHeadAdmin()) return 24 * 60 * 60 * 1000;
-      if (dataService.isKurumAdmin() || dataService.isCurrentUserAdmin()) return 30 * 60 * 1000;
+      if (dataService.isHeadAdmin() || dataService.isKurumAdmin() || dataService.isCurrentUserAdmin()) return 30 * 60 * 1000;
       return 15 * 60 * 1000;
     };
 
