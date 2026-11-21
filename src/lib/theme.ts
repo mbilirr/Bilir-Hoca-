@@ -12,7 +12,8 @@ const THEME_KEY = 'edu_ui_theme';
 export const DEFAULT_CHOICE: ThemeChoice = 'auto';
 export const THEME_SWITCH_ENABLED = true;
 
-const META_COLOR: Record<ThemeName, string> = { light: '#f5f6fa', dark: '#0b1020' };
+// Aşama 340b: telefon üst çubuğu sayfa zeminiyle aynı (Odak --color-canvas: açık #f3f5f9, koyu #0b0f18)
+const META_COLOR: Record<ThemeName, string> = { light: '#f3f5f9', dark: '#0b0f18' };
 export const themeColorFor = (t: ThemeName) => META_COLOR[t];
 
 const listeners = new Set<() => void>();

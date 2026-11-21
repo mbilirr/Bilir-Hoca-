@@ -362,6 +362,8 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
       if (e.key === 'Escape') {
         setAcik(false);
         dugmeRef.current?.focus();
+      } else if (e.key === 'Tab') {
+        setAcik(false); // Aşama 340b: Tab ile menüden çıkınca menü açık kalmaz
       }
     };
     document.addEventListener('pointerdown', disari);
