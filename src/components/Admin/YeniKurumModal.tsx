@@ -96,7 +96,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
     if (!ready || busy) return;
     setErr(null);
     // Aşama 145: kurum açılmadan önce yönetici şifresi denetlenir (yarım kalan kurum olmasın)
-    const sifreHata = sifreSorunu(password.trim(), { identifier: username.trim(), name: adminName });
+    const sifreHata = sifreSorunu(password.trim(), { identifier: username.trim(), name: adminName, personel: true }); // Aşama 339
     if (sifreHata) {
       setErr(sifreHata);
       return;

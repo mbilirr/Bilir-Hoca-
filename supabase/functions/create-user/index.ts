@@ -70,6 +70,9 @@ export function generateSyntheticEmail(type: AccountType, identifier: string): s
 // Birini değiştirirseniz diğerini de değiştirin.
 // SIFRE_KURALI_BASLA
 const SIFRE_EN_AZ = 6;
+// Aşama 339 (Mustafa, 21 Kasım 2026): personel (öğretmen, idare, yönetici) için en az 8 karakter + harf ve rakam.
+// Öğrenci 6'da kalır. Yalnız YENİ verilen / değiştirilen şifreye uygulanır; eski şifreyle giriş sürer.
+const PERSONEL_EN_AZ = 8;
 
 const TR_HARF: Record<string, string> = { ç: 'c', ğ: 'g', ı: 'i', i: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' };
 const sifreSade = (v: string): string =>
@@ -128,12 +131,17 @@ const sifreTekrar = (s: string): 'tek' | 'kalip' | null => {
 export interface SifreKisi {
   identifier?: string | null; // öğrenci numarası / kullanıcı adı
   name?: string | null; // ad soyad
+  personel?: boolean; // Aşama 339: öğretmen / idare / yönetici hesabı
 }
 
 // Şifre kurala uyuyorsa null, uymuyorsa Türkçe neden döner.
 export function sifreSorunu(password: string, kisi?: SifreKisi): string | null {
   const ham = String(password || '');
   if (ham.trim().length < SIFRE_EN_AZ) return `Şifre en az ${SIFRE_EN_AZ} karakter olmalıdır.`;
+  if (kisi?.personel) {
+    if (ham.trim().length < PERSONEL_EN_AZ) return `Öğretmen ve yönetici şifresi en az ${PERSONEL_EN_AZ} karakter olmalıdır.`;
+    if (!/[a-zA-ZçğıöşüÇĞİÖŞÜâîûÂÎÛ]/.test(ham) || !/[0-9]/.test(ham)) return 'Öğretmen ve yönetici şifresinde en az bir harf ve bir rakam olmalıdır.';
+  }
   const s = sifreSade(ham).replace(/\s+/g, '');
   const tekrar = sifreTekrar(s);
   if (tekrar === 'tek') return 'Şifre aynı karakterin tekrarı olamaz (ör. 111111).';
@@ -495,7 +503,7 @@ Deno.serve(async (req: Request) => {
       const mustChange = input?.mustChangePassword === false ? false : true;
       // Aşama 145: basit şifre (123456, 111111, yaygın şifre, kendi numarası/adı) sunucuda da reddedilir
       if (password) {
-        const kural = sifreSorunu(password, { identifier, name: String(row.name || input?.name || '') });
+        const kural = sifreSorunu(password, { identifier, name: String(row.name || input?.name || ''), personel: type === 'teacher' }); // Aşama 339
         if (kural) throw new HttpError(400, kural);
       }
 

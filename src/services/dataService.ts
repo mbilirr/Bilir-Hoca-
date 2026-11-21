@@ -149,7 +149,7 @@ import {
 export { geriAlYalnizDokunulan }; // Aşama 318: eski içe aktarma yolu çalışmaya devam etsin
 import { parseKurumRpc, kurumStateFrom, kurumAccessKey } from './kurumTanimlari'; // Aşama 319
 import { isMissingGenderColumn, isMissingBirthColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage } from './hataMetinleri'; // Aşama 319
-import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords, girisIpucuOku, girisIpucuYaz } from './girisYardimci'; // Aşama 319, 332
+import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords, girisIpucuOku, girisIpucuYaz, girisHatasiniBildir, girisKilidiDenetle, girisKilidiniUygula } from './girisYardimci'; // Aşama 319, 332, 339
 import {
   deleteRowsVerified,
   fetchAllRows,
@@ -4928,6 +4928,7 @@ class DataService {
         const kuralHata = sifreSorunu(newPassword, {
           identifier: teacherUpdates.username || teacher.username,
           name: teacherUpdates.name || teacher.name,
+          personel: true, // Aşama 339
         });
         if (kuralHata) throw new Error(kuralHata);
       }
@@ -5231,7 +5232,8 @@ class DataService {
     // Aşama 145: üretilen şifre de basit şifre kuralına uymalı (pratikte ilk denemede uyar)
     for (let i = 0; i < 20; i++) {
       const pw = generatePasswordOnce(length);
-      if (!sifreSorunu(pw)) return pw;
+      // Aşama 339: 8+ hanede personel kuralı da sağlanır (harf + rakam); öğretmene verilen şifre her zaman geçer
+      if (!sifreSorunu(pw, length >= 8 ? { personel: true } : undefined)) return pw;
     }
     return generatePasswordOnce(length);
   }
@@ -5261,7 +5263,7 @@ class DataService {
     }
     // Aşama 145: yöneticinin/öğretmenin verdiği şifre de basit olamaz (sunucu da aynı kuralı uygular)
     if (password) {
-      const kuralHata = sifreSorunu(password, { identifier, name: record.name });
+      const kuralHata = sifreSorunu(password, { identifier, name: record.name, personel: type === 'teacher' }); // Aşama 339
       if (kuralHata) throw new Error(kuralHata);
     }
 
@@ -5314,7 +5316,7 @@ class DataService {
     if (password.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
     }
-    const kuralHata = sifreSorunu(password, { identifier: username, name }); // Aşama 145
+    const kuralHata = sifreSorunu(password, { identifier: username, name, personel: true }); // Aşama 145, 339
     if (kuralHata) throw new Error(kuralHata);
     if (this.teachers.some((t) => (t.username || '').toLowerCase() === username)) {
       throw new Error(`"${username}" kullanıcı adı başka bir öğretmende kullanılıyor.`);
@@ -5533,7 +5535,8 @@ class DataService {
     const session = this.getAuthSession();
     if (!session?.user) return {};
     const u = session.user as Teacher & Student;
-    return { identifier: session.role === 'student' ? u.studentNumber || u.username : u.username, name: u.name };
+    // Aşama 339: öğrenci dışındaki herkes (öğretmen, idare, yönetici) personel kuralına tabi
+    return { identifier: session.role === 'student' ? u.studentNumber || u.username : u.username, name: u.name, personel: session.role !== 'student' };
   }
 
   /** Girişte yazılan şifreyi denetler; basitse işaretler. Basitse true döner. */
@@ -5666,7 +5669,15 @@ class DataService {
     if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
     }
-    const kuralHata = sifreSorunu(newPassword, this.oturumSifreKisi()); // Aşama 145
+    // Aşama 339: sıfırlama bağlantısıyla gelende uygulama oturumu yok; hesabın türü giriş oturumundan okunur
+    const kisi = this.oturumSifreKisi();
+    try {
+      const rolu = (await supabase.auth.getSession()).data?.session?.user?.app_metadata?.role;
+      if (rolu) kisi.personel = rolu !== 'student' && rolu !== 'applicant';
+    } catch {
+      /* okunamadı: oturumdaki bilgi geçerli */
+    }
+    const kuralHata = sifreSorunu(newPassword, kisi); // Aşama 145
     if (kuralHata) throw new Error(kuralHata);
     const baglantiHata = await passwordRecoveryLinkReady(); // Aşama 262: kendi bağlantımız doğrulanmış olmalı
     if (baglantiHata) throw new Error(baglantiHata);
@@ -6000,9 +6011,11 @@ class DataService {
     const signed = await signInWithCandidates(candidates, password, 'teacher');
     if (!signed) {
       console.warn('Supabase Auth: öğretmen girişi başarısız');
+      await girisHatasiniBildir(usernameOrEmail, 'teacher'); // Aşama 339: kayıt; 5. hatada kilit mesajı fırlatır
       return null;
     }
     const authUser = signed.user;
+    const kilitDenetimi = girisKilidiDenetle(signed.session); // Aşama 339: kaydın okunmasıyla aynı anda yürür
     // Aşama 332: ilk aday tutmadıysa tutan adres bu cihazda hatırlanır (yalnız sistem adresleri ve yönetici adresi)
     {
       const tutan = (authUser.email || '').trim().toLowerCase();
@@ -6093,6 +6106,9 @@ class DataService {
       throw new Error('Hesabınız henüz kurum yöneticisi tarafından onaylanmamıştır. Lütfen kurum yöneticinize başvurunuz.');
     }
 
+    // Aşama 339: hesap hatalı girişlerle kilitliyse şifre doğru olsa da oturum açılmaz
+    await girisKilidiniUygula(kilitDenetimi);
+
     // Aşama 103: kilit anahtarı şifreden üretilir, aynı hesabın kilitli önbelleği açılır (ilk eşitleme bunu bekler)
     this.secureDisabled = false;
     this.secureRestore = unlockSecureCache(authUser.id, password)
@@ -6126,8 +6142,10 @@ class DataService {
     const signed = await signInWithCandidates(candidates, password, 'student');
     if (!signed) {
       console.warn('Supabase Auth: öğrenci girişi başarısız');
+      await girisHatasiniBildir(identifier, 'student'); // Aşama 339: kayıt; 5. hatada kilit mesajı fırlatır
       return null;
     }
+    const kilitDenetimi = girisKilidiDenetle(signed.session); // Aşama 339
     this.stopSecureCache(); // Aşama 103: öğrenci hesabında cihaz önbelleği tutulmaz; önceki hesabın kaydı silinir
     const authUser = signed.user;
     const appRole = authUser.app_metadata?.role;
@@ -6143,7 +6161,9 @@ class DataService {
 
     // Aşama 252: öğrenci kaydından oturum bilgisi ortak yöntemle kurulur (kullanıcı gözüyle bakışta da kullanılır)
     try {
-      return await this.ogrenciOturumu(authUser);
+      const oturum = await this.ogrenciOturumu(authUser);
+      await girisKilidiniUygula(kilitDenetimi); // Aşama 339: kayıt okunurken denetlendi; kilitliyse oturum kapanır
+      return oturum;
     } catch (e) {
       await supabase.auth.signOut({ scope: 'local' }); // Aşama 275: yalnız bu sekmedeki sınama oturumu kapanır
       throw e;

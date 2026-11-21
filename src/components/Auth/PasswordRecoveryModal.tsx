@@ -104,7 +104,7 @@ export const PasswordRecoveryModal: React.FC = () => {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
               <p className="text-xs text-muted">
-                Hesabınız için yeni bir şifre belirleyiniz (en az 6 karakter).
+                Hesabınız için yeni bir şifre belirleyiniz (öğrenci en az 6; öğretmen ve yönetici en az 8 karakter, harf ve rakam).
               </p>
 
               {errorMsg && (

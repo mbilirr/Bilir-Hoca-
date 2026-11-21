@@ -466,8 +466,9 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
       setErrorMsg('Lütfen yeni şifrenizi giriniz.');
       return;
     }
-    if (newPassword.length < 6) {
-      setErrorMsg('Yeni şifreniz en az 6 karakter uzunluğunda olmalıdır.');
+    if (newPassword.length < 8) {
+      // Aşama 339: öğretmen / yönetici şifresi en az 8 karakter (harf + rakam denetimi dataService'te)
+      setErrorMsg('Yeni şifreniz en az 8 karakter uzunluğunda olmalıdır.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -587,7 +588,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Yeni şifreniz (En az 6 karakter)"
+                placeholder="Yeni şifreniz (en az 8 karakter, harf ve rakam)"
                 className="ui-field w-full pl-9 pr-10"
                 required
               />

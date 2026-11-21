@@ -45,6 +45,7 @@ const YeniKurumModal = lazyNamed(() => import('./YeniKurumModal'), 'YeniKurumMod
 const OgrenciBolumPanel = lazyNamed(() => import('./OgrenciBolumPanel'), 'OgrenciBolumPanel'); // Aşama 165
 const DersYonetimi = lazyNamed(() => import('./DersYonetimi'), 'DersYonetimi'); // Aşama 217
 const IslemGecmisiPanel = lazyNamed(() => import('./IslemGecmisiPanel'), 'IslemGecmisiPanel'); // Aşama 307
+const GirisGuvenligiPanel = lazyNamed(() => import('./GirisGuvenligiPanel'), 'GirisGuvenligiPanel'); // Aşama 339
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
 type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler' | 'gecmis'; // Aşama 217: dersler · 307: gecmis
@@ -229,6 +230,8 @@ export const YonetimSayfasi: React.FC<{
 
       <Suspense fallback={<PageLoading />}>
         {altAktif === 'genel' && <KurumSettingsPanel kurumId={isHead ? kid : undefined} part="genel" onChanged={isHead ? loadRows : undefined} />}
+        {/* Aşama 339: kurum yöneticisi kendi kurumunun hatalı girişlerini görür (sistem sahibi kurumunkini görmez; kendi alanı Bildirim ve SMS'te) */}
+        {altAktif === 'genel' && !isHead && <GirisGuvenligiPanel />}
         {altAktif === 'ogretmen' && (
           <AdminUserManagement
             key={`t-${kid}`}
@@ -430,6 +433,8 @@ export const YonetimSayfasi: React.FC<{
 
       <Suspense fallback={<PageLoading />}>
         {ust === 'bildirim' && <NotificationPolicyPanel />}
+        {/* Aşama 339: sistem sahibinin kendi alanı (kurumsuz hesaplar) ve kendi hesabı */}
+        {ust === 'bildirim' && <GirisGuvenligiPanel />}
         {ust === 'yedek' && <AdminMaintenancePanel />}
         {ust === 'kendi' && (
           <div className="space-y-3">

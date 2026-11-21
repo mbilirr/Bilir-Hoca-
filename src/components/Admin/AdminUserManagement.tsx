@@ -1684,7 +1684,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           autoCapitalize="none"
                           autoFocus={editPwOpen && !editFormData.newPassword}
                           aria-label="Yeni şifre"
-                          placeholder="En az 6 karakter"
+                          placeholder="En az 8 karakter, harf ve rakam"
                           value={editFormData.newPassword}
                           onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
                           className={`ui-field w-full pl-3 pr-16 font-mono ${showPassword ? '' : 'pw-mask'}`}

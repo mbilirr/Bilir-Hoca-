@@ -6,7 +6,7 @@
 // çağrıları doğrudan çağrı oldu); davranış aynı.
 // ============================================================================
 import { supabase } from '../lib/supabase';
-import { robotJetonu } from '../lib/robotKoruma'; // Aşama 309
+import { robotJetonu, robotKorumaAcik } from '../lib/robotKoruma'; // Aşama 309, 339
 import { appStorage } from './depo';
 import { loginErrorMessage } from './hataMetinleri';
 
@@ -85,7 +85,7 @@ export async function signInWithCandidates(
   emails: string[],
   password: string,
   role: 'teacher' | 'student'
-): Promise<{ user: any } | null> {
+): Promise<{ user: any; session: any } | null> {
   const tried = new Set<string>();
   for (const email of emails) {
     const clean = (email || '').trim().toLowerCase();
@@ -94,7 +94,7 @@ export async function signInWithCandidates(
     // Aşama 309: her deneme kendi taze jetonuyla (jeton tek kullanımlık); koruma kapalıysa jetonsuz, eskisi gibi
     const captchaToken = await robotJetonu();
     const { data, error } = await supabase.auth.signInWithPassword({ email: clean, password, options: captchaToken ? { captchaToken } : undefined });
-    if (!error && data?.user) return { user: data.user };
+    if (!error && data?.user) return { user: data.user, session: data.session }; // Aşama 339: oturum, kilit denetimi için
     const friendly = loginErrorMessage(error, role);
     if (friendly) throw new Error(friendly);
   }
@@ -118,4 +118,69 @@ export function purgeSavedPasswords(): void {
       try { localStorage.removeItem(key); } catch {}
     }
   });
+}
+
+// ============================================================================
+// Aşama 339: HATALI GİRİŞ KAYDI VE HESAP KİLİDİ (sunucu: api/giris.js, SQL 339)
+// Aynı hesapta 15 dakikada 5 hatalı deneme: hesap 15 dakika kilitli, yöneticiye bildirim + SMS (ayara göre).
+// Şifre sunucuya gitmez; yalnız "bu kullanıcı adında şifre tutmadı" bilgisi gider.
+// Sunucuya ulaşılamazsa (SQL kurulmamış, ağ) giriş eskisi gibi çalışır: kilit yok sayılır, giriş durmaz.
+// Hız: başarılı girişte denetim, hesabın kendi kaydı okunurken AYNI ANDA yürür; ek bekleme olmaz.
+// ============================================================================
+export interface GirisKilit {
+  kilitli: boolean;
+  dakika: number;
+}
+const KILIT_YOK: GirisKilit = { kilitli: false, dakika: 0 };
+
+export const kilitMesaji = (dakika: number): string =>
+  `Bu hesapta çok fazla hatalı giriş yapıldı. Güvenlik için hesap kilitlendi; ${Math.max(1, dakika || 15)} dakika sonra tekrar deneyin.`;
+
+async function girisApi(govde: Record<string, unknown>, token?: string): Promise<GirisKilit> {
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const zaman = ctrl ? setTimeout(() => ctrl.abort(), 9000) : null;
+  try {
+    const r = await fetch('/api/giris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(govde),
+      signal: ctrl?.signal,
+    });
+    if (!r.ok) return KILIT_YOK;
+    const d = await r.json().catch(() => null);
+    return d && d.kilitli ? { kilitli: true, dakika: Number(d.dakika) || 15 } : KILIT_YOK;
+  } catch {
+    return KILIT_YOK;
+  } finally {
+    if (zaman) clearTimeout(zaman);
+  }
+}
+
+/** Şifre tutmadı: kaydı gönderir; kilit düştüyse kilit mesajıyla hata fırlatır. */
+export async function girisHatasiniBildir(kimlik: string, rol: 'teacher' | 'student'): Promise<void> {
+  let robot: string | undefined;
+  if (robotKorumaAcik()) {
+    try {
+      robot = (await robotJetonu()) || undefined; // tek kullanımlık taze jeton (girişteki jeton harcandı)
+    } catch {
+      robot = undefined;
+    }
+  }
+  const k = await girisApi({ action: 'hata', tur: rol === 'student' ? 'ogrenci' : 'ogretmen', kimlik: (kimlik || '').trim(), robot });
+  if (k.kilitli) throw new Error(kilitMesaji(k.dakika));
+}
+
+/** Şifre doğru: kilit sürüyor mu? Başarılı girişin hemen ardından başlatılır, sonuç sonra beklenir. */
+export function girisKilidiDenetle(session: any): Promise<GirisKilit> {
+  const token = session?.access_token;
+  if (!token) return Promise.resolve(KILIT_YOK);
+  return girisApi({ action: 'basari' }, token);
+}
+
+/** Kilit sürüyorsa bu sekmedeki oturumu kapatır ve kilit mesajıyla hata fırlatır. */
+export async function girisKilidiniUygula(p: Promise<GirisKilit>): Promise<void> {
+  const k = await p;
+  if (!k.kilitli) return;
+  await supabase.auth.signOut({ scope: 'local' });
+  throw new Error(kilitMesaji(k.dakika));
 }
