@@ -6723,7 +6723,7 @@ class DataService {
       toast.id = 'dataservice-error-toast';
       toast.setAttribute('role', 'status');
       toast.className =
-        'fixed top-5 right-5 z-[120] max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500 text-xs font-semibold';
+        'fixed top-5 right-5 z-(--z-bildirim) max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500 text-xs font-semibold';
       toast.textContent = message;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 15_000); // Aşama 32: genel bildirimler 15 sn görünür
@@ -6764,7 +6764,7 @@ class DataService {
       toast.id = 'dataservice-error-toast';
       toast.className =
         // Aşama 305: sitenin hata rengi (tema jetonu); eski sabit gül kırmızısı yerine
-        'fixed top-5 right-5 z-50 max-w-md bg-danger text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs font-semibold';
+        'fixed top-5 right-5 z-(--z-bildirim) max-w-md bg-danger text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs font-semibold';
       // GÜVENLİK: mesaj (sunucudan gelen hata metnini içerebilir) HTML olarak değil düz metin olarak eklenir
       const svgNs = 'http://www.w3.org/2000/svg';
       const icon = document.createElementNS(svgNs, 'svg');

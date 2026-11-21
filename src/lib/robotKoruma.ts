@@ -72,7 +72,7 @@ async function kutuHazirla(): Promise<{ t: Turnstile; id: string }> {
   if (kutu && document.body.contains(kutu.dis)) return { t, id: kutu.id };
   const dis = document.createElement('div');
   dis.id = 'robot-dogrulama';
-  dis.className = 'fixed inset-x-0 bottom-4 z-[10000] flex justify-center px-4 pointer-events-none';
+  dis.className = 'fixed inset-x-0 bottom-4 z-(--z-bildirim) flex justify-center px-4 pointer-events-none';
   const kart = document.createElement('div');
   kart.className = KART_GIZLI;
   const baslik = document.createElement('p');

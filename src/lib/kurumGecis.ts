@@ -181,7 +181,7 @@ function perdeAc(yazi = 'Hesap açılıyor…'): void {
     d.setAttribute('role', 'status');
     d.setAttribute('aria-live', 'polite');
     d.style.cssText =
-      'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:var(--color-canvas,#f3f5f9);color:var(--color-muted,#5b6679);font:600 13px/1.4 system-ui,-apple-system,sans-serif';
+      'position:fixed;inset:0;z-index:var(--z-perde,1500);display:grid;place-items:center;background:var(--color-canvas,#f3f5f9);color:var(--color-muted,#5b6679);font:600 13px/1.4 system-ui,-apple-system,sans-serif';
     const ic = document.createElement('div');
     ic.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px';
     const halka = document.createElement('span');

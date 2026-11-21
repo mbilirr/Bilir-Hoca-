@@ -108,6 +108,28 @@
 
   --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -8px rgb(15 23 42 / 0.1);
   --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.06);
+
+  /* Aşama 347: PUNTO ÖLÇEĞİ. Bütün yazılar kök ölçüye (14–15 px) bağlı; sabit piksel (text-[11px]) yazılmaz.
+     3xs ≈ 9 px (sıkışık rozet, ızgara), 2xs ≈ 10 px (küçük etiket), xs ≈ 11 px (düğme, ikincil yazı),
+     sm ≈ 13 px (gövde), base ≈ 15 px (başlık); büyük rakamlar 2xl / 3xl. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 1.4;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.4;
+}
+
+/* Aşama 347: KATMAN ÖLÇEĞİ. Sayı yazılmaz; sınıf olarak z-(--z-pencere) gibi kullanılır. Alttan üste:
+   sayfa içi (z-10…z-50: yapışkan başlık, sol menü, sayfa içi açılır liste) → çekmece (alt menü, ana sayfa yan pencere)
+   → pencere → pencere üstü pencere (onay, yetkiler, ikinci pencere) → açılır (pencerenin dışına taşan menü, ipucu)
+   → bildirim (kaydedildi/hata, bağlantı şeridi, geri al) → kritik (oturum kapanıyor uyarısı) → perde (hesap geçişi). */
+:root {
+  --z-cekmece: 70;
+  --z-pencere: 1000;
+  --z-pencere-ust: 1100;
+  --z-acilir: 1200;
+  --z-bildirim: 1300;
+  --z-kritik: 1400;
+  --z-perde: 1500;
 }
 
 /* KOYU tema ("Koyu ve Odaklı") */
@@ -267,7 +289,7 @@
   /* Aşama 190: pencere alt düğmeleri her yerde aynı boy (h-8, en az w-28, küçük yazı).
      Katman içinde olduğu için bir düğmeye özel verilen genişlik / yükseklik sınıfı yine geçerlidir. */
   .ui-modal-footer .ui-btn:not(.ui-btn-icon) {
-    @apply h-8 min-w-28 px-2.5 py-0 text-xs leading-4 gap-1 rounded-md justify-center;
+    @apply h-8 min-w-28 px-2.5 py-0 text-xs leading-4 gap-1 rounded-lg justify-center;
   }
 
   /* Dokunmatik ekranlarda parmakla rahat basılabilsin (görünüm yine kompakt) */
@@ -338,7 +360,7 @@
 
   /* Etiket / rozet */
   .ui-chip {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-5 whitespace-nowrap;
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold leading-5 whitespace-nowrap;
   }
   .ui-chip-neutral {
     @apply bg-surface-2 text-fg-2;
@@ -361,7 +383,7 @@
 
   /* Bölüm başlıkları */
   .ui-eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-wider text-muted;
+    @apply text-xs font-semibold uppercase tracking-wider text-muted;
   }
   .ui-title {
     @apply text-lg sm:text-xl font-bold tracking-tight text-fg;
