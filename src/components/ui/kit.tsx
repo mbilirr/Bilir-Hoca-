@@ -1,7 +1,7 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sun, Moon } from 'lucide-react';
-import { useTheme, THEME_SWITCH_ENABLED } from '../../lib/theme';
+import { X, Sun, Moon, SunMoon, Check } from 'lucide-react';
+import { useThemeChoice, THEME_SWITCH_ENABLED, type ThemeChoice } from '../../lib/theme';
 import { InfoTip } from './Compact'; // Aşama 215
 import { baslik } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 
@@ -339,21 +339,111 @@ export const Modal: React.FC<{
   );
 };
 
-// Tema düğmesi (geçiş dönemi bitene kadar gizli)
+// Aşama 340: tema düğmesi = Otomatik (cihaza uyar) / Açık / Koyu seçimi. Düğmedeki simge seçimi gösterir.
+const TEMA_SECENEKLERI: { k: ThemeChoice; ad: string; Icon: typeof Sun }[] = [
+  { k: 'auto', ad: 'Otomatik', Icon: SunMoon },
+  { k: 'light', ad: 'Açık', Icon: Sun },
+  { k: 'dark', ad: 'Koyu', Icon: Moon },
+];
+
 export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => {
-  const [theme, setTheme] = useTheme();
+  const [choice, , setChoice] = useThemeChoice();
+  const [acik, setAcik] = useState(false);
+  const kutuRef = useRef<HTMLDivElement | null>(null);
+  const dugmeRef = useRef<HTMLButtonElement | null>(null);
+  const ogeRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    if (!acik) return;
+    const disari = (e: PointerEvent) => {
+      if (kutuRef.current && !kutuRef.current.contains(e.target as Node)) setAcik(false);
+    };
+    const tus = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setAcik(false);
+        dugmeRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', disari);
+    document.addEventListener('keydown', tus);
+    // açılınca seçili öğeye odak (klavyeyle gezilebilir)
+    const i = Math.max(0, TEMA_SECENEKLERI.findIndex((o) => o.k === choice));
+    requestAnimationFrame(() => ogeRef.current[i]?.focus());
+    return () => {
+      document.removeEventListener('pointerdown', disari);
+      document.removeEventListener('keydown', tus);
+    };
+  }, [acik]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!THEME_SWITCH_ENABLED) return null;
-  const dark = theme === 'dark';
+  const secili = TEMA_SECENEKLERI.find((o) => o.k === choice) || TEMA_SECENEKLERI[0];
+  const SeciliIcon = secili.Icon;
+
+  const okTusu = (e: React.KeyboardEvent, i: number) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const n = TEMA_SECENEKLERI.length;
+    const h = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+    ogeRef.current[h]?.focus();
+  };
+
   return (
-    <button
-      type="button"
-      id="theme-toggle-btn"
-      onClick={() => setTheme(dark ? 'light' : 'dark')}
-      className={cx('ui-btn ui-btn-ghost ui-btn-icon', className)}
-      title={dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
-      aria-label={dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
-    >
-      {dark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
-    </button>
+    <div className="relative" ref={kutuRef}>
+      <button
+        type="button"
+        id="theme-toggle-btn"
+        ref={dugmeRef}
+        onClick={() => setAcik((a) => !a)}
+        className={cx('ui-btn ui-btn-ghost ui-btn-icon', acik && 'bg-surface-2', className)}
+        title={`Tema: ${secili.ad}`}
+        aria-label={`Tema: ${secili.ad}`}
+        aria-haspopup="menu"
+        aria-expanded={acik}
+      >
+        <SeciliIcon className="w-[18px] h-[18px]" />
+      </button>
+      {acik && (
+        <div
+          role="menu"
+          aria-label="Tema"
+          className="ui-menu-in absolute right-0 top-full mt-2 min-w-52 origin-top-right rounded-xl border border-line bg-surface p-1.5 shadow-pop z-50"
+        >
+          <p className="ui-eyebrow px-2.5 pt-1 pb-1">Tema</p>
+          {TEMA_SECENEKLERI.map((o, i) => {
+            const on = o.k === choice;
+            return (
+              <button
+                key={o.k}
+                type="button"
+                role="menuitemradio"
+                aria-checked={on}
+                ref={(el) => {
+                  ogeRef.current[i] = el;
+                }}
+                onKeyDown={(e) => okTusu(e, i)}
+                onClick={() => {
+                  setChoice(o.k);
+                  setAcik(false);
+                }}
+                className={cx(
+                  // Aşama 340: "Diğer ⋯" menüsüyle aynı satır ölçüsü (h-9 telefonda, h-8 bilgisayarda), basınca hafif yay
+                  'flex w-full h-9 sm:h-8 items-center gap-2.5 rounded-lg px-2.5 text-left text-xs cursor-pointer',
+                  'transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.98]',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
+                  on ? 'bg-surface-2 text-fg font-semibold' : 'text-fg-2 hover:bg-surface-2'
+                )}
+              >
+                <o.Icon className={cx('w-4 h-4 shrink-0', on ? 'text-brand-fg' : 'text-muted')} />
+                <span className="flex-1 min-w-0 truncate">
+                  {o.ad}
+                  {o.k === 'auto' && <span className="ml-1.5 font-normal text-subtle">Cihaza uyar</span>}
+                </span>
+                <Check className={cx('w-4 h-4 shrink-0 text-brand-fg transition-opacity', on ? 'opacity-100' : 'opacity-0')} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 };
