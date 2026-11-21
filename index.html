@@ -15,16 +15,18 @@
     <meta name="description" content="Öğretmen ve öğrenciler için sınıf yönetimi, kazanım odaklı ödev çizelgesi, günlük/haftalık/aylık soru sayısı takibi ve grafik analizi, devamsızlık ve not takibi, etüt planlama ve mesajlaşma platformu." />
     
     <!-- Aşama 181: tema betiğinden ÖNCE tanımlı olmalı; yoksa betik bulamaz, koyu temada telefon üst çubuğu açık kalır -->
-    <meta name="theme-color" content="#f5f6fa" />
+    <!-- Aşama 340b: üst çubuk rengi = Odak zemin rengi (açık #f3f5f9, koyu #0b0f18) -->
+    <meta name="theme-color" content="#f3f5f9" />
     <!-- Tema: sayfa açılmadan önce seçili tema uygulanır (beyaz/siyah yanıp sönme olmaz) -->
     <script>
       (function () {
         try {
+          // Aşama 340: varsayılan 'auto' = cihazın açık/koyu ayarı (src/lib/theme.ts ile aynı kural)
           var t = localStorage.getItem('edu_ui_theme');
-          if (t !== 'light' && t !== 'dark') t = 'light';
+          if (t !== 'light' && t !== 'dark') t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', t);
           var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute('content', t === 'dark' ? '#0b1020' : '#f5f6fa');
+          if (m) m.setAttribute('content', t === 'dark' ? '#0b0f18' : '#f3f5f9');
         } catch (e) {}
       })();
     </script>
