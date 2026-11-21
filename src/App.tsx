@@ -19,6 +19,7 @@ import { GeriAlCubugu } from './components/Common/GeriAlCubugu'; // Aşama 306
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
+import { appConfirm } from './lib/appDialog'; // Aşama 343
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
 import { supabase } from './lib/supabase';
 import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
@@ -312,6 +313,8 @@ export default function App() {
         const now = Date.now();
         const diff = now - lastActivityRef.current;
         if (diff >= getIdleLimitMs() || acikKalBitti()) {
+          // Aşama 343: gönderilmeyi bekleyen kayıt (bağlantı yok) varken oturum kapatılmaz; kapanırsa kayıt kaybolurdu
+          if (dataService.bekleyenKayitSayisi() > 0) return;
           dataService.logout();
           resetRouteHash();
           setAuthSession(null);
@@ -413,7 +416,17 @@ export default function App() {
   };
 
   // Logout handler (returns to AuthPortal entrance and resets to home)
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Aşama 343: bağlantı yokken cihazda bekleyen kayıt varsa çıkmadan önce sorulur
+    const bekleyen = dataService.bekleyenKayitSayisi();
+    if (bekleyen > 0) {
+      const cik = await appConfirm({
+        title: 'Gönderilmeyi Bekleyen Kayıt Var',
+        message: `${bekleyen} kayıt henüz sunucuya ulaşmadı (bağlantı yok). Şimdi çıkarsanız bu kayıtlar kaybolur.`,
+        confirmText: 'Yine de çık',
+      });
+      if (!cik) return;
+    }
     dataService.logout(true); // Aşama 290: elle çıkışta bu cihazın bildirimi de kapanır
     resetRouteHash();
     setAuthSession(null);

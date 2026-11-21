@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, RefreshCw, WifiOff } from 'lucide-react';
+import { CheckCircle2, CloudUpload, RefreshCw, WifiOff } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 
 // ============================================================================
@@ -18,6 +18,9 @@ export const NetworkSyncStatusBanner: React.FC = () => {
     typeof navigator !== 'undefined' && navigator.onLine === false ? 'cevrimdisi' : null,
   );
   const sira = useRef(0); // art arda kesilip gelirse yalnız son bağlantının sonucu gösterilir
+  // Aşama 343: bağlantı yokken cihazda bekleyen kayıt sayısı (yoklama, not, ödev kontrolü, soru kaydı)
+  const [bekleyen, setBekleyen] = useState<number>(() => dataService.bekleyenKayitSayisi());
+  useEffect(() => dataService.bekleyenKayitDinle(setBekleyen), []);
 
   useEffect(() => {
     let kapat: ReturnType<typeof setTimeout> | null = null;
@@ -55,16 +58,28 @@ export const NetworkSyncStatusBanner: React.FC = () => {
     };
   }, []);
 
-  if (!durum) return null;
+  // Aşama 343: bağlantı var ama bekleyen kayıt henüz gitmediyse (sunucuya ulaşılamıyor) şerit açık kalır
+  const gorunen: Durum | 'bekliyor' = durum === 'cevrimdisi' ? durum : bekleyen > 0 ? 'bekliyor' : durum;
+  if (!gorunen) return null;
 
   const icerik =
-    durum === 'cevrimdisi' ? (
+    gorunen === 'cevrimdisi' ? (
       <>
         <WifiOff className="w-4 h-4 shrink-0" aria-hidden />
         <span className="font-semibold">İnternet bağlantısı yok</span>
-        <span className="hidden sm:inline opacity-75">· Değişiklikler kaydedilmez, bağlantı gelince sayfa kendiliğinden güncellenir</span>
+        {bekleyen > 0 ? (
+          <span className="opacity-75">· {bekleyen} kayıt cihazda bekliyor</span>
+        ) : (
+          <span className="hidden sm:inline opacity-75">· Yoklama, not ve ödev kontrolü cihazda bekler, bağlantı gelince gönderilir</span>
+        )}
       </>
-    ) : durum === 'esitleniyor' ? (
+    ) : gorunen === 'bekliyor' ? (
+      <>
+        <CloudUpload className="w-4 h-4 shrink-0" aria-hidden />
+        <span className="font-semibold">{bekleyen} kayıt gönderilmeyi bekliyor</span>
+        <span className="hidden sm:inline opacity-75">· sunucuya ulaşılınca kendiliğinden gönderilir</span>
+      </>
+    ) : gorunen === 'esitleniyor' ? (
       <>
         <RefreshCw className="w-4 h-4 shrink-0 animate-spin" aria-hidden />
         <span className="font-semibold">Bağlantı geldi</span>
@@ -79,7 +94,7 @@ export const NetworkSyncStatusBanner: React.FC = () => {
 
   return (
     <div
-      id={durum === 'cevrimdisi' ? 'offline-sync-alert-banner' : 'online-sync-success-toast'}
+      id={gorunen === 'cevrimdisi' || gorunen === 'bekliyor' ? 'offline-sync-alert-banner' : 'online-sync-success-toast'}
       role="status"
       aria-live="polite"
       className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[95] max-w-[calc(100vw-2rem)] flex items-center gap-2 whitespace-nowrap rounded-full bg-fg text-canvas text-xs px-4 py-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"

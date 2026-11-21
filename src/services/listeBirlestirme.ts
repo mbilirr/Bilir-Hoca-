@@ -6,7 +6,7 @@
 // Kod dataService.ts'ten KELİMESİ KELİMESİNE taşındı (yalnız başlarına "export" eklendi, "this." / "DataService." çağrıları
 // doğrudan çağrı oldu); davranış aynı.
 // ============================================================================
-import type { StudentQuestionLog, EtutStudentAttendance } from '../types';
+import type { StudentQuestionLog, EtutStudentAttendance, AttendanceRecord } from '../types';
 
 export function sameData(a: any, b: any, depth = 0): boolean {
   if (a === b) return true;
@@ -260,4 +260,19 @@ export function mergeAttendance(
     if (ti >= tl) out[id] = inc;
   }
   return out;
+}
+
+// Aşama 343: yoklamada bu cihazda değişen ve çıkarılan öğrenciler (sunucu yalnız bunları kendi kaydına işler)
+export function yoklamaFarki(
+  onceki: AttendanceRecord['records'],
+  yeni: AttendanceRecord['records']
+): { degisen: AttendanceRecord['records']; silinen: string[] } {
+  const eski = new Map(onceki.map((r) => [r.studentId, r]));
+  const yeniIdler = new Set(yeni.map((r) => r.studentId));
+  const degisen = yeni.filter((r) => {
+    const o = eski.get(r.studentId);
+    return !o || o.status !== r.status || (o.note || '') !== (r.note || '') || (o.studentName || '') !== (r.studentName || '');
+  });
+  const silinen = onceki.filter((r) => !yeniIdler.has(r.studentId)).map((r) => r.studentId);
+  return { degisen, silinen };
 }

@@ -136,7 +136,8 @@ import {
   byDateDesc,
   questionLogSig,
   mergeAttendance,
-} from './listeBirlestirme'; // Aşama 318
+  yoklamaFarki,
+} from './listeBirlestirme'; // Aşama 318, 343
 import {
   MIN_PASSWORD_LENGTH,
   translatePasswordError,
@@ -293,6 +294,14 @@ const currentEpoch = (): number => {
 type GeriAlmaListe =
   | 'classes' | 'students' | 'homeworks' | 'submissions' | 'etuts' | 'attendance'
   | 'grades' | 'messages' | 'documents' | 'questionLogs' | 'weeklyQuestionTargets';
+// Aşama 343: giden kutusundaki bir yazma (bkz. gidenKutusunuGonder)
+type GidenIs = {
+  op: () => PromiseLike<{ error: any }>;
+  rollback: () => void;
+  userMessage: string;
+  yazarken: Record<GeriAlmaListe, any[]>;
+  deneme: number;
+};
 
 export type RealtimeTableCfg = { table: string; onEvent: (payload: any) => void; resync: () => unknown; filter?: string; optional?: boolean };
 // Aşama 179: etüt yazımında hangi yorum alanlarının ve hangi öğrencilerin yoklamasının yazılacağı
@@ -571,8 +580,15 @@ class DataService {
       });
       window.addEventListener('online', () => {
         // İnternet geri geldi: kanallar onarılır ve veriler hemen yenilenir
+        // (Aşama 343: revalidateAndSyncAll önce bekleyen kayıtları gönderir)
         this.ensureRealtime();
         this.revalidateAndSyncAll(false);
+      });
+      // Aşama 343: gönderilmeyi bekleyen kayıt varken sayfa kapatılır / yenilenirse tarayıcı uyarır
+      window.addEventListener('beforeunload', (e) => {
+        if (!this.gidenKutusu.length) return;
+        e.preventDefault();
+        e.returnValue = '';
       });
       window.addEventListener('offline', () => this.updateRealtimeHealth());
       window.addEventListener('focus', () => {
@@ -2977,11 +2993,16 @@ class DataService {
     op: () => PromiseLike<{ error: any }>,
     rollback: () => void,
     userMessage: string,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; kuyruk?: boolean }
   ): Promise<boolean> {
     // Aşama 286: yazma başlarken listelerin o anki hâli (yalnız başvuru; kopya değil). Çağıranlar yerel değişikliği
     // yapıp hemen bu işlevi çağırır; yani bu an "yerel değişiklik uygulanmış" hâldir.
     const yazarken = this.geriAlmaGoruntusu();
+    // Aşama 343: kutuda bekleyen kayıt varsa yenisi sıraya girer (sıra bozulmasın: önce ekleme, sonra düzeltme)
+    if (options?.kuyruk && this.gidenKutusu.length > 0) {
+      this.gidenKutusunaKoy({ op, rollback, userMessage, yazarken, deneme: 0 });
+      return true;
+    }
     let error: any = null;
     try {
       const res = await op();
@@ -2990,6 +3011,12 @@ class DataService {
       error = e;
     }
     if (!error) return true;
+
+    // Aşama 343: bağlantı hatasında (yalnız tekrar gönderilmesi güvenli kayıtlarda) değişiklik silinmez, cihazda bekler
+    if (options?.kuyruk && agHatasiMi(error)) {
+      this.gidenKutusunaKoy({ op, rollback, userMessage, yazarken, deneme: 1 });
+      return true;
+    }
 
     const hataAninda = this.geriAlmaGoruntusu();
     rollback();
@@ -3006,6 +3033,100 @@ class DataService {
     if (options?.silent) return false;
     this.showFloatingErrorToast(`Hata: ${userMessage} (${reason}). Değişiklikler geri alındı.`);
     throw new Error(`${userMessage}: ${reason}`);
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Aşama 343: GİDEN KUTUSU (bağlantı kopunca kayıt kaybolmaz)
+  //  Sınıfta zayıf Wi-Fi'de alınan yoklama, not, ödev kontrolü, soru kaydı eskiden "geri alındı" diye siliniyordu.
+  //  Artık bu kayıtlar (çağıran "kuyruk: true" der; yalnız tekrar gönderilmesi güvenli, yan etkisi olmayan yazmalar)
+  //  ekranda kalır ve sırayla bekler; bağlantı gelince, sekmeye dönünce ya da artan aralıklarla yeniden gönderilir.
+  //  - Sıra korunur; biri gitmeden arkadaki gönderilmez.
+  //  - Sunucu kaydı REDDEDERSE (yetki, kural) yalnız o kayıt geri alınır ve kullanıcıya yazılır.
+  //  - İlk denemede kayıt sunucuya ulaşıp yanıt kaybolduysa tekrar eklemede "zaten var" (23505) başarı sayılır.
+  //  - Bekleyen kayıt varken sunucudan tam okuma yapılmaz (ekrandaki bekleyen değişikliği silerdi), sayfa kapatılırken
+  //    ve çıkışta uyarı verilir, hareketsizlik çıkışı ertelenir. Kutu sekmede (bellekte) durur.
+  // ---------------------------------------------------------------------------------------------------------------
+  private gidenKutusu: GidenIs[] = [];
+  private gidenGonderim: Promise<void> | null = null;
+  private gidenZamanlayici: ReturnType<typeof setTimeout> | null = null;
+  private gidenDinleyiciler = new Set<(n: number) => void>();
+
+  /** Gönderilmeyi bekleyen kayıt sayısı (bağlantı şeridi, çıkış uyarısı) */
+  public bekleyenKayitSayisi(): number {
+    return this.gidenKutusu.length;
+  }
+  public bekleyenKayitDinle(fn: (n: number) => void): () => void {
+    this.gidenDinleyiciler.add(fn);
+    return () => {
+      this.gidenDinleyiciler.delete(fn);
+    };
+  }
+  private gidenBildir(): void {
+    const n = this.gidenKutusu.length;
+    this.gidenDinleyiciler.forEach((fn) => {
+      try {
+        fn(n);
+      } catch {
+        /* dinleyici hatası kutuyu bozmaz */
+      }
+    });
+  }
+  private gidenKutusunaKoy(is: GidenIs): void {
+    this.gidenKutusu.push(is);
+    this.gidenBildir();
+    this.gidenZamanla();
+  }
+  private gidenZamanla(): void {
+    if (this.gidenZamanlayici || !this.gidenKutusu.length || typeof window === 'undefined') return;
+    const deneme = this.gidenKutusu[0]?.deneme || 1;
+    const bekle = Math.min(60_000, 5_000 * 2 ** Math.max(0, deneme - 1)); // 5, 10, 20, 40, 60 sn
+    this.gidenZamanlayici = setTimeout(() => {
+      this.gidenZamanlayici = null;
+      void this.gidenKutusunuGonder();
+    }, bekle);
+  }
+
+  /** Bekleyen kayıtları sırayla gönderir. Bağlantı yine yoksa durur, sonra yeniden dener. */
+  public gidenKutusunuGonder(): Promise<void> {
+    if (this.gidenGonderim) return this.gidenGonderim;
+    if (!this.gidenKutusu.length) return Promise.resolve();
+    if (this.gidenZamanlayici) {
+      clearTimeout(this.gidenZamanlayici);
+      this.gidenZamanlayici = null;
+    }
+    this.gidenGonderim = (async () => {
+      while (this.gidenKutusu.length) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
+        const is = this.gidenKutusu[0];
+        let error: any = null;
+        try {
+          const res = await is.op();
+          error = res?.error || null;
+        } catch (e) {
+          error = e;
+        }
+        if (error && agHatasiMi(error)) {
+          is.deneme++;
+          break;
+        }
+        this.gidenKutusu.shift();
+        if (error && !(is.deneme > 0 && error?.code === '23505')) {
+          const hataAninda = this.geriAlmaGoruntusu();
+          is.rollback();
+          this.geriAlmayiDaralt(is.yazarken, hataAninda);
+          this.notify();
+          const reason = error?.code === '42501' ? 'Bu işlem için yetkiniz yok' : error?.message || 'Sunucu kaydı kabul etmedi';
+          console.warn(`[GidenKutusu] ${is.userMessage}:`, error);
+          this.showFloatingErrorToast(`Hata: ${is.userMessage} (${reason}). Bu değişiklik geri alındı.`);
+        }
+        this.gidenBildir();
+      }
+    })().finally(() => {
+      this.gidenGonderim = null;
+      this.gidenBildir();
+      this.gidenZamanla();
+    });
+    return this.gidenGonderim;
   }
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -3397,6 +3518,12 @@ class DataService {
   // Tüm verileri buluttan yeniler. Arka plan istekleri (odak, sekmeye dönüş, yedek kontrol) en fazla
   // 15 saniyede bir çalışır; aynı anda ikinci bir tam eşitleme başlatılmaz (çalışan beklenir).
   public async revalidateAndSyncAll(isBackground = false, shortGap = false): Promise<void> {
+    // Aşama 343: önce bekleyen kayıtlar gönderilir; hâlâ gönderilemiyorsa sunucudan tam okuma yapılmaz
+    // (okunan liste, ekranda duran ama henüz sunucuya ulaşmamış değişikliği silerdi)
+    if (this.gidenKutusu.length) {
+      await this.gidenKutusunuGonder();
+      if (this.gidenKutusu.length) return;
+    }
     if (this.fullSyncInFlight) return this.fullSyncInFlight;
     // Aşama 126: anlık kanal sağlıklıysa arka plan tam eşitlemesi en fazla dakikada bir; kanal sorunluysa,
     // uzun arka plandan dönüldüyse ya da kullanıcı isteğiyse (isBackground=false) eskisi gibi
@@ -6398,6 +6525,14 @@ class DataService {
    * süresi dolan oturumdan çıkışta abonelik durur (kişinin kendi telefonu boşta kalınca bildirimleri kesilmesin).
    */
   public logout(elle = false): void {
+    // Aşama 343: bekleyen kayıtlar bu oturuma aittir; çıkıştan sonra başka hesapla gönderilmesin diye kutu boşaltılır
+    // (elle çıkışta kullanıcıya önceden sorulur, hareketsizlik çıkışı bekleyen kayıt varken yapılmaz)
+    this.gidenKutusu = [];
+    if (this.gidenZamanlayici) {
+      clearTimeout(this.gidenZamanlayici);
+      this.gidenZamanlayici = null;
+    }
+    this.gidenBildir();
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };
@@ -7889,7 +8024,8 @@ class DataService {
         this.submissions = prevSubmissions;
         saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
       },
-      'Puan kaydedilemedi'
+      'Puan kaydedilemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
   }
 
@@ -7986,10 +8122,12 @@ class DataService {
         this.submissions = prevSubmissions;
         saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
       },
-      'Ödev kontrol durumu kaydedilemedi'
+      'Ödev kontrol durumu kaydedilemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
 
-    await this.refreshSubmissionsForHomework(homeworkId);
+    // Aşama 343: kayıt cihazda bekliyorsa sunucudan okunmaz (okunan liste bekleyen işaretleri ekrandan silerdi)
+    if (!this.gidenKutusu.length) await this.refreshSubmissionsForHomework(homeworkId);
   }
 
   public async updateHomeworkCheckStatus(
@@ -8191,6 +8329,10 @@ class DataService {
       (a) => a.date === attData.date && a.classId === attData.classId && (a.subject || 'Genel') === subjKey
     );
     if (existingIndex >= 0) this.assertOwnedRecord(this.attendance[existingIndex], 'yoklama');
+    // Aşama 343: yalnız bu cihazda DEĞİŞEN öğrenciler sunucuya gider; sunucu kendi kaydıyla birleştirir.
+    // Böylece aynı yoklamayı başka cihaz (öğretmenin telefonu, müdür yrd.) az önce değiştirdiyse onun işaretleri silinmez.
+    const oncekiKayit = existingIndex >= 0 ? this.attendance[existingIndex] : null;
+    const { degisen, silinen } = yoklamaFarki(oncekiKayit?.records || [], attData.records || []);
 
     const record: AttendanceRecord = {
       ...attData,
@@ -8207,8 +8349,12 @@ class DataService {
     this.notify();
 
     // Merkezi veritabanı tek doğruluk kaynağıdır: bulut onayı beklenir, hata varsa geri alınır
+    // Aşama 343: bağlantı yoksa kayıt cihazda bekler (giden kutusu), bağlantı gelince gönderilir
     await this.runCloudWrite(
       async () => {
+        const birlesik = await this.yoklamaBirlestir(record, degisen, silinen);
+        if (birlesik !== 'yok') return birlesik;
+        // SQL 343 kurulu değilse eski yol (bütün liste yazılır)
         const row = attendanceToRow(record);
         let res: { error: any } = await supabase.from('attendance').upsert(row);
         // Aşama 109: aynı sınıf / gün / ders için kayıt başka cihazda az önce açıldıysa (tekil kural) o kayıt güncellenir
@@ -8229,11 +8375,59 @@ class DataService {
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
       },
       'Yoklama buluta kaydedilemedi',
-      options
+      { ...options, kuyruk: true }
     );
 
     return record;
   }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Aşama 343: YOKLAMAYI SUNUCUDA BİRLEŞTİRME (sql/343 yoklama_birlestir)
+  //  Eskiden yoklamanın bütün öğrenci listesi yazılıyordu: iki cihaz aynı yoklamayı değiştirince son yazan, öbürünün
+  //  işaretlerini siliyordu. Şimdi yalnız değişen / çıkarılan öğrenciler gider; sunucu kilitleyerek birleştirir ve
+  //  birleşmiş listeyi döndürür (ekran sunucudaki gerçek hâli gösterir). Tekrar gönderim güvenlidir (aynı sonuç).
+  //  'yok' = SQL 343 kurulu değil (çağıran eski yolla yazar).
+  // ---------------------------------------------------------------------------------------------------------------
+  private async yoklamaBirlestir(
+    kayit: AttendanceRecord,
+    degisen: AttendanceRecord['records'],
+    silinen: string[]
+  ): Promise<{ error: any } | 'yok'> {
+    if (this.yoklamaBirlestirYok) return 'yok';
+    const { data, error } = await supabase.rpc('yoklama_birlestir', {
+      p_id: kayit.id,
+      p_class_id: kayit.classId,
+      p_date: kayit.date,
+      p_subject: kayit.subject || 'Genel',
+      p_degisen: degisen,
+      p_silinen: silinen,
+    });
+    if (error) {
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        this.yoklamaBirlestirYok = true;
+        return 'yok';
+      }
+      return { error };
+    }
+    const d = data as { id?: unknown; records?: unknown } | null;
+    if (d && typeof d.id === 'string' && Array.isArray(d.records)) {
+      const sunucuId = d.id;
+      const kayitlar = d.records as AttendanceRecord['records'];
+      kayit.id = sunucuId;
+      let degisti = false;
+      this.attendance = this.attendance.map((a) => {
+        if (a.id !== kayit.id && !(a.classId === kayit.classId && a.date === kayit.date && (a.subject || 'Genel') === (kayit.subject || 'Genel'))) return a;
+        degisti = true;
+        return { ...a, id: sunucuId, records: kayitlar };
+      });
+      if (degisti) {
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+        this.notify();
+      }
+    }
+    return { error: null };
+  }
+  private yoklamaBirlestirYok = false;
 
   public async deleteAttendance(id: string): Promise<void> {
     this.assertOwnedRecord(this.attendance.find((a) => a.id === id), 'yoklama');
@@ -8248,7 +8442,8 @@ class DataService {
         this.attendance = prevAttendance;
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
       },
-      'Yoklama buluttan silinemedi'
+      'Yoklama buluttan silinemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
   }
 
@@ -8292,12 +8487,18 @@ class DataService {
     const updated = this.attendance.find((a) => a.id === attendanceId);
     if (updated) {
       await this.runCloudWrite(
-        () => supabase.from('attendance').update({ records: updated.records || [] }).eq('id', attendanceId),
+        async () => {
+          // Aşama 343: yalnız bu öğrenci çıkarılır (başka cihazdaki işaretler korunur)
+          const birlesik = await this.yoklamaBirlestir(updated, [], [studentId]);
+          if (birlesik !== 'yok') return birlesik;
+          return supabase.from('attendance').update({ records: updated.records || [] }).eq('id', attendanceId);
+        },
         () => {
           this.attendance = prevAttendance;
           saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
         },
-        'Yoklama güncellemesi buluta kaydedilemedi'
+        'Yoklama güncellemesi buluta kaydedilemedi',
+        { kuyruk: true }
       );
     }
   }
@@ -8343,7 +8544,8 @@ class DataService {
         this.grades = prevGrades;
         saveData(STORAGE_KEYS.GRADES, this.grades);
       },
-      'Not buluta kaydedilemedi'
+      'Not buluta kaydedilemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
 
     return newGrade;
@@ -8367,7 +8569,8 @@ class DataService {
           this.grades = prevGrades;
           saveData(STORAGE_KEYS.GRADES, this.grades);
         },
-        'Not güncellemesi buluta kaydedilemedi'
+        'Not güncellemesi buluta kaydedilemedi',
+        { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
       );
     }
   }
@@ -8385,7 +8588,8 @@ class DataService {
         this.grades = prevGrades;
         saveData(STORAGE_KEYS.GRADES, this.grades);
       },
-      'Not buluttan silinemedi'
+      'Not buluttan silinemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
   }
 
@@ -8477,7 +8681,7 @@ class DataService {
         saveData(STORAGE_KEYS.MESSAGES, this.messages);
       },
       'Mesaj okundu olarak işaretlenemedi',
-      { silent: true }
+      { silent: true, kuyruk: true } // Aşama 343
     );
   }
 
@@ -10015,7 +10219,8 @@ class DataService {
         this.questionLogs = prevLogs;
         this.persistQuestionLogsLocal();
       },
-      'Soru kaydı kaydedilemedi'
+      'Soru kaydı kaydedilemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
 
     this.persistQuestionLogsLocal();
@@ -10060,7 +10265,8 @@ class DataService {
         saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
         this.persistQuestionLogsLocal();
       },
-      'Soru kaydı silinemedi'
+      'Soru kaydı silinemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
   }
 
@@ -10536,7 +10742,8 @@ class DataService {
     await this.runCloudWrite(
       () => supabase.from('question_targets').upsert([questionTargetToRow(saved)], { onConflict: 'id' }),
       rollback,
-      'Soru hedefi kaydedilemedi'
+      'Soru hedefi kaydedilemedi',
+      { kuyruk: true } // Aşama 343: bağlantı yoksa cihazda bekler
     );
     if (legacyCopies.length) {
       const ids = legacyCopies.map((t) => t.id).filter((id): id is string => !!id);
