@@ -43,6 +43,9 @@ jobs:
       - name: Tasarım denetimi (punto, katman, köşe, geçiş, düğme boyu)
         run: npm run denetim:tasarim
 
+      - name: Veri konusu denetimi (sayfa yalnız okuduğu veri değişince yeniden çizilir)
+        run: npm run denetim:konu
+
       - name: Birim testleri
         run: npm test
 
