@@ -5242,10 +5242,13 @@ class DataService {
     const PAGE = 1000;
     const readAll = async (table: string, col: string): Promise<Array<Record<string, string>> | null> => {
       const rows: Array<Record<string, string>> = [];
+      // Aşama 346: sütun listesi düz metin tipinde verilir; şablon tipi supabase-js'in sorgu çözümleyicisinde
+      // "ParserError" tipi üretip tip denetimini bozuyordu (CI'da tip denetimi hatasız geçsin)
+      const sutunlar: string = `teacher_auth_id,${col}`;
       for (let from = 0; from < 200000; from += PAGE) {
         const { data, error } = await supabase
           .from(table)
-          .select(`teacher_auth_id,${col}`)
+          .select<string, Record<string, string>>(sutunlar)
           .order('teacher_auth_id', { ascending: true })
           .order(col, { ascending: true })
           .range(from, from + PAGE - 1);
