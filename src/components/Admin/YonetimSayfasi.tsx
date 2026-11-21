@@ -11,7 +11,6 @@ import {
   Users,
   GraduationCap,
   School,
-  UserCheck,
   ShieldAlert,
   LayoutGrid,
   Info,
@@ -24,6 +23,7 @@ import { SelectBox } from '../Teacher/FormParts';
 import { KendiAlaniTasima } from './KendiAlaniTasima'; // Aşama 259
 import type { KurumRow } from '../../lib/kurumSettings';
 import { useQuickFocus } from '../../lib/quickFocus'; // Aşama 244
+import { KurumOzetKartlari } from './KurumOzetKartlari'; // Aşama 336
 
 // ============================================================================
 // Aşama 143: YÖNETİM SAYFASI — tek uzun sayfa yerine bölümler (Örnek A, 3 Kasım 2026)
@@ -158,14 +158,13 @@ export const YonetimSayfasi: React.FC<{
   const counts = useMemo(() => {
     const kid = isHead ? kurumId : my.kurumId;
     const teachers = dataService.getAllTeachersInternal().filter((t) => (t.kurumId || '') === (kid || '') && t.status !== 'rejected');
-    const pending = teachers.filter((t) => t.status === 'pending').length;
     const students = isHead ? null : dataService.getAllStudents().filter((s) => (s.kurumId || '') === (kid || '')).length;
     const sinif = isHead ? null : classes.filter((c) => (c.kurumId || '') === (kid || '')).length;
     const yonetici = teachers
       .filter((t) => t.isAdmin)
       .map((t) => t.name)
       .join(', ');
-    return { teachers: teachers.length - pending, pending, students, sinif, yonetici };
+    return { teachers: teachers.filter((t) => t.status !== 'pending').length, students, sinif, yonetici };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, kurumId, classes, isHead]);
   const acikBolum = isHead ? null : kurumModulListesi(bireysel).filter((m) => (my.modules as any)?.[m.key] === true).length;
@@ -185,7 +184,7 @@ export const YonetimSayfasi: React.FC<{
 
   const tumAltSekmeler: Array<{ value: KurumSekme; label: string; id: string }> = [
     { value: 'genel', label: 'Genel', id: 'yonetim-alt-genel' },
-    { value: 'ogretmen', label: `Öğretmenler${counts.pending ? ` (${counts.pending} bekleyen)` : ''}`, id: 'yonetim-alt-ogretmen' },
+    { value: 'ogretmen', label: 'Öğretmenler', id: 'yonetim-alt-ogretmen' },
     { value: 'ogrenci', label: 'Öğrenciler', id: 'yonetim-alt-ogrenci' },
     { value: 'roller', label: 'Roller ve yetkiler', id: 'yonetim-alt-roller' },
     { value: 'bolumler', label: 'Bölümler ve sınıflar', id: 'yonetim-alt-bolumler' },
@@ -214,21 +213,16 @@ export const YonetimSayfasi: React.FC<{
             <Sayi icon={School} tone="bg-success-soft text-success-fg" value={counts.sinif ?? '—'} label={`Sınıf · ${acikBolum ?? 0} açık bölüm`} />
           )}
         </div>
-      ) : (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <Sayi icon={GraduationCap} tone="bg-brand-soft text-brand-fg" value={counts.teachers} label="Öğretmen" id="yonetim-sayi-ogretmen" />
-        {isHead ? (
+      ) : isHead ? (
+        // Sistem sahibi kendi panelinde: kurumun öğrenci bilgisi inmez, yalnız hesap düzeyi sayılar
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <Sayi icon={GraduationCap} tone="bg-brand-soft text-brand-fg" value={counts.teachers} label="Öğretmen" id="yonetim-sayi-ogretmen" />
           <Sayi icon={ShieldCheck} tone="bg-info-soft text-info-fg" value={rolesEnabled ? 'Açık' : 'Kapalı'} label="Rol yetkileri" />
-        ) : (
-          <Sayi icon={Users} tone="bg-info-soft text-info-fg" value={counts.students ?? '—'} label="Öğrenci" id="yonetim-sayi-ogrenci" />
-        )}
-        {isHead ? (
           <Sayi icon={LayoutGrid} tone="bg-success-soft text-success-fg" value={counts.yonetici || '—'} label="Kurum yöneticisi" />
-        ) : (
-          <Sayi icon={School} tone="bg-success-soft text-success-fg" value={counts.sinif ?? '—'} label={`Sınıf · ${acikBolum ?? 0} açık bölüm`} />
-        )}
-        <Sayi icon={UserCheck} tone="bg-warning-soft text-warning-fg" value={counts.pending} label="Onay bekleyen öğretmen" />
-      </div>
+        </div>
+      ) : (
+        // Aşama 336: işe yarayan dört kart (Onay bekleyen öğretmen kartı kaldırıldı: öğretmen başvurusu yok)
+        <KurumOzetKartlari kurumId={kid} classes={classes} acikBolum={acikBolum ?? 0} tick={tick} onGit={setAlt} />
       )}
 
       <Segmented size="sm" value={altAktif} onChange={setAlt} items={altSekmeler} />

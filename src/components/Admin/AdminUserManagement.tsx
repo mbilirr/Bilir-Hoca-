@@ -310,15 +310,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const stats = useMemo(() => {
     const scoped =
       kurumFilter === 'merkez' ? users.filter((u) => !u.kurumId) : kurumFilter ? users.filter((u) => u.kurumId === kurumFilter) : users;
-    let admins = 0, teachers = 0, students = 0, suspended = 0, pending = 0;
+    let admins = 0, teachers = 0, students = 0, suspended = 0;
     for (const u of scoped) {
       if (u.role === 'admin') admins++;
       else if (u.role === 'teacher') teachers++;
       else if (u.role === 'student') students++;
       if (u.isSuspended || u.status === 'suspended') suspended++;
-      if (u.status === 'pending') pending++;
     }
-    return { total: scoped.length, admins, teachers, students, suspended, pending };
+    return { total: scoped.length, admins, teachers, students, suspended };
   }, [users, kurumFilter]);
 
   // Filtered Users (Aşama 15: arama bir adım geriden gelir, liste parça parça çizilir)
@@ -337,7 +336,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       if (statusFilter !== 'all') {
         if (statusFilter === 'suspended' && !u.isSuspended && u.status !== 'suspended') return false;
         if (statusFilter === 'active' && (u.isSuspended || (u.status !== 'active' && u.status !== 'approved'))) return false;
-        if (statusFilter === 'pending' && u.status !== 'pending') return false;
         if (statusFilter === 'rejected' && u.status !== 'rejected') return false;
         if (statusFilter === 'inactive' && u.status !== 'inactive') return false;
       }
@@ -757,7 +755,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {!embedded && (
         <>
 {/* Metric Cards - Clickable Interactive Filters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Toplam */}
         <button
           type="button"
@@ -863,26 +861,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <span className="text-[10px] text-danger-fg/70 mt-1 block">Girişleri Kapatılmış</span>
         </button>
 
-        {/* Onay Bekleyenler */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
-            setRoleFilter('all');
-          }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
-            statusFilter === 'pending'
-              ? 'border-warning ring-2 ring-warning/50 bg-warning-soft'
-              : 'border-warning/20 hover:border-warning/40 hover:bg-warning-soft'
-          }`}
-        >
-          <div className="flex items-center justify-between text-warning-fg mb-2">
-            <span className="text-xs font-bold">Onay Bekleyen</span>
-            <AlertTriangle className="w-4 h-4 text-warning-fg" />
-          </div>
-          <p className="text-2xl font-bold text-warning-fg">{stats.pending}</p>
-          <span className="text-[10px] text-warning-fg/70 mt-1 block">Öğretmen Başvurusu</span>
-        </button>
       </div>
         </>
       )}
@@ -936,7 +914,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 <option value="all" className="bg-surface text-fg">Tüm Durumlar</option>
                 <option value="active" className="bg-surface text-fg">Aktif</option>
                 <option value="suspended" className="bg-surface text-fg">Askıda (Dondurulmuş)</option>
-                <option value="pending" className="bg-surface text-fg">Onay Bekleyen</option>
                 <option value="rejected" className="bg-surface text-fg">Reddedilen</option>
               </select>
             </div>
@@ -1132,21 +1109,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           >
             <Ban className="w-3.5 h-3.5" />
             <span>Askıda ({stats.suspended})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
-              setRoleFilter('all');
-            }}
-            className={`ui-btn ui-btn-sm ${
-              statusFilter === 'pending'
-                ? 'bg-warning text-white shadow-xs'
-                : 'bg-surface-2 hover:bg-surface-3 text-warning-fg'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Onay Bekleyen ({stats.pending})</span>
           </button>
         </div>
           </>

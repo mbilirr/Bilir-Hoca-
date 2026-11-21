@@ -113,7 +113,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isStudentEditProfileOpen, setIsStudentEditProfileOpen] = useState(false);
   const [isStudentChangePasswordOpen, setIsStudentChangePasswordOpen] = useState(false);
   const [isStudentAvatarModalOpen, setIsStudentAvatarModalOpen] = useState(false);
-  const [pendingTeachersCount, setPendingTeachersCount] = useState<number>(0);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -169,16 +168,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       document.removeEventListener('keydown', onKey);
     };
   }, [isMenuOpen]);
-
-  // Yönetici: onay bekleyen öğretmen başvuruları
-  useEffect(() => {
-    const updatePendingCount = () => {
-      setPendingTeachersCount(isTeacherSession && yoneticiGorunum ? dataService.getPendingTeachers().length : 0);
-    };
-    updatePendingCount();
-    const unsubscribe = dataService.subscribe(updatePendingCount);
-    return () => unsubscribe();
-  }, [isTeacherSession, yoneticiGorunum]);
 
   const handleLogoutAction = () => {
     if (onLogout) onLogout();
@@ -267,22 +256,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Hızlı ara"
               >
                 <Search className="w-5 h-5" />
-              </button>
-            )}
-
-            {/* Yönetici: onay bekleyen öğretmen başvurusu varsa görünür */}
-            {isTeacherSession && yoneticiGorunum && dataService.isHeadAdmin() && pendingTeachersCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsApprovalModalOpen(true)}
-                className="relative ui-btn ui-btn-ghost ui-btn-icon"
-                title={`${pendingTeachersCount} öğretmen başvurusu onay bekliyor`}
-                aria-label={`${pendingTeachersCount} öğretmen başvurusu onay bekliyor`}
-              >
-                <ShieldCheck className="w-5 h-5 text-warning-fg" />
-                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-warning text-white text-[10px] font-bold flex items-center justify-center">
-                  {pendingTeachersCount}
-                </span>
               </button>
             )}
 
@@ -430,7 +403,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <MenuItem
                                 icon={ShieldCheck}
                                 onClick={closeAnd(() => setIsApprovalModalOpen(true))}
-                                trailing={pendingTeachersCount > 0 ? <span className="ui-chip ui-chip-warning">{pendingTeachersCount}</span> : undefined}
                               >
                                 Öğretmenler & Sınıf İzinleri
                               </MenuItem>
