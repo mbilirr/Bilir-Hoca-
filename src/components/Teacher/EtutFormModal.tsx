@@ -6,6 +6,8 @@ import { dataService, type EtutTeacherOption } from '../../services/dataService'
 import { Modal, cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { etutTeacherNames } from '../../lib/etutStatus';
+import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
+import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { normalizeSubject, subjectsForBranch, subjectsForLevel, zumreOf } from '../../lib/subjects';
 import { EtutTeacherSelect, type TeacherGroup } from './EtutTeacherSelect';
 import { DenemeKonuSecici, type KonuRates } from '../Deneme/DenemeKonuSecici';
@@ -392,6 +394,45 @@ const EtutFormContent: React.FC<Props> = ({
     onClose();
   };
 
+  // Aşama 344: yazılanlar taslak olarak tutulur (oturum boşta kapanınca ya da pencere kazayla kapanınca kaybolmasın)
+  type EtutTaslak = {
+    subject: string;
+    teacherIds: string[];
+    topic: string;
+    notes: string;
+    filterClassIds: string[];
+    selectedIds: string[];
+    date: string;
+    lessonPeriod: string;
+    time: string;
+    duration: number;
+    location: string;
+    repeatWeeks: number;
+  };
+  const taslakDeger = useMemo<EtutTaslak>(
+    () => ({ subject: effectiveSubject, teacherIds, topic, notes, filterClassIds, selectedIds, date, lessonPeriod, time, duration, location, repeatWeeks }),
+    [effectiveSubject, teacherIds, topic, notes, filterClassIds, selectedIds, date, lessonPeriod, time, duration, location, repeatWeeks]
+  );
+  const taslak = useTaslak<EtutTaslak>(isEdit ? `etut_${source!.id}` : isCopy ? `etut_kopya_${source!.id}` : 'etut_yeni', taslakDeger, dirty);
+  const taslakGeriYukle = () => {
+    const t = taslak.geriYukle();
+    if (!t) return;
+    const ogrenciVar = new Set(students.map((st) => st.id));
+    if (t.subject) setSubject(t.subject);
+    if (Array.isArray(t.teacherIds)) setTeacherIds(t.teacherIds);
+    setTopic(t.topic || '');
+    setNotes(t.notes || '');
+    if (Array.isArray(t.filterClassIds)) setFilterClassIds(t.filterClassIds.filter((id) => classes.some((c) => c.id === id)));
+    if (Array.isArray(t.selectedIds)) setSelectedIds(t.selectedIds.filter((id) => ogrenciVar.has(id)));
+    setDate(t.date || '');
+    setLessonPeriod(t.lessonPeriod || '');
+    setTime(t.time || '');
+    if (Number(t.duration) > 0) setDuration(Number(t.duration));
+    setLocation(t.location || '');
+    if ((t.location || '').trim()) setMoreOpen(true);
+    if (Number(t.repeatWeeks) >= 1) setRepeatWeeks(Number(t.repeatWeeks));
+  };
+
   // ---- çakışma kontrolü (aynı öğretmen veya aynı öğrenci, aynı gün, kesişen saat)
   const findConflicts = (): string[] => {
     // Aşama 16: saat ve ders saati girilmediyse çakışma denetlenemez. Aşama 116: aynı ders saati de çakışmadır.
@@ -622,6 +663,7 @@ const EtutFormContent: React.FC<Props> = ({
         const nowIds = selectedTeachers.map((o) => o.id);
         const teacherChanged = prevIds.length !== nowIds.length || prevIds.some((id) => !nowIds.includes(id));
         await dataService.updateEtut(source.id, { ...payload, date });
+        taslak.temizle(); // Aşama 344
         onSaved({
           mode: 'edit',
           etuts: [{ ...source, ...payload, date } as Etut],
@@ -650,6 +692,7 @@ const EtutFormContent: React.FC<Props> = ({
           }
         }
         if (created.length === 0) throw new Error('Etüt kaydedilemedi (yetki veya bağlantı sorunu). Lütfen tekrar deneyin.');
+        taslak.temizle(); // Aşama 344
         onSaved({
           mode: isCopy ? 'copy' : 'create',
           etuts: created,
@@ -699,7 +742,13 @@ const EtutFormContent: React.FC<Props> = ({
       }
       footer={
         confirmDiscard ? (
-          <DiscardBar onKeep={() => setConfirmDiscard(false)} onDiscard={onClose} />
+          <DiscardBar
+            onKeep={() => setConfirmDiscard(false)}
+            onDiscard={() => {
+              taslak.temizle(); // Aşama 344: bilerek silinen form taslak olarak kalmaz
+              onClose();
+            }}
+          />
         ) : (
           <div className="w-full flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-muted truncate max-w-full sm:max-w-[55%]" id="etut-form-summary">
@@ -734,6 +783,7 @@ const EtutFormContent: React.FC<Props> = ({
         className="space-y-5"
         noValidate
       >
+        {taslak.bulunan && <TaslakCubugu id="etut-taslak" zaman={taslak.bulunan.zaman} onGeriYukle={taslakGeriYukle} onSil={taslak.vazgec} />}
         {/* Aşama 203: bilgisayarda iki sütun (solda bilgiler, sağda öğrenciler).
             Telefonda sıra: Ders → Konu → Öğretmen → Öğrenciler → Zaman → Not → E-posta (order sınıfları; lg'de sıra DOM'daki gibi). */}
         <div className="flex flex-col gap-5 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">

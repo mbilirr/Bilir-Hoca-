@@ -27,6 +27,7 @@ import { dataService } from '../../services/dataService';
 import { profilResmi } from '../../lib/profilResmi';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { useQuickFocus } from '../../lib/quickFocus';
+import { taslakAnahtari, taslakOku, taslakSil, taslakYaz } from '../../lib/taslak'; // Aşama 344
 
 // Aşama 111: kurumun tüm mesajlarını gören (genel yönetici, idare, Rehberlik) için süzgeçler.
 // İlk açılış "Bana gelenler + Cevapsız"; son seçim bu tarayıcıda hatırlanır.
@@ -137,6 +138,19 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
   const activeMessage = messages.find((m) => m.id === selectedMessageId) || filteredMessages[0];
 
+  // Aşama 344: cevap taslağı her mesaj için ayrı tutulur. Eskiden başka mesaja geçince yarım cevap yeni mesajın kutusunda
+  // kalıyordu; artık her mesaj kendi yarım cevabıyla açılır, oturum boşta kapanınca da kaybolmaz.
+  const aktifMesajId = activeMessage?.id || '';
+  const yanitAnahtari = taslakAnahtari(meId, aktifMesajId ? `yanit_${aktifMesajId}` : null);
+  useEffect(() => {
+    setReplyText(taslakOku<string>(yanitAnahtari)?.deger || '');
+  }, [yanitAnahtari]);
+  const yanitYaz = (v: string) => {
+    setReplyText(v);
+    if (v.trim()) taslakYaz(yanitAnahtari, v);
+    else taslakSil(yanitAnahtari);
+  };
+
   const handleSelectMessage = (msg: StudentMessage) => {
     setSelectedMessageId(msg.id);
     if (!msg.read) {
@@ -151,6 +165,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     setIsSendingReply(true);
     try {
       await dataService.replyToMessage(activeMessage.id, replyText.trim());
+      taslakSil(taslakAnahtari(meId, `yanit_${activeMessage.id}`)); // Aşama 344
       setReplyText('');
     } catch {
       // Hata uyarısı zaten gösterildi; yazılan cevap kaybolmasın diye kutu temizlenmez
@@ -464,7 +479,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     required
                     placeholder="Cevabınızı yazın"
                     value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                    onChange={(e) => yanitYaz(e.target.value)}
                     className={cx(msgInputCls, 'flex-1')}
                   />
                   <button

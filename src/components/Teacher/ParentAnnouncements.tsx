@@ -4,6 +4,8 @@ import { dataService } from '../../services/dataService';
 import { callMail } from '../../lib/mailApi';
 import type { MailResult } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
+import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { ParentChecklist, RelationChips, parentRelations, pickParents, reachableIndexes, type ParentChannel, type ParentSelection } from '../Common/ParentPicker'; // Aşama 134
 import { InfoTip } from '../ui/Compact'; // Aşama 215
@@ -72,6 +74,37 @@ export const ParentAnnouncements: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'warning' | 'danger'; lines: string[] } | null>(null);
   useAutoDismiss(feedback, () => setFeedback(null), 60_000);
+
+  // Aşama 344: yazılan duyuru taslak olarak tutulur (başka sayfaya geçince ya da oturum boşta kapanınca kaybolmasın)
+  type VeliTaslak = {
+    subject: string;
+    message: string;
+    useMail: boolean;
+    useSms: boolean;
+    toParents: boolean;
+    toStudents: boolean;
+    target: Target;
+    classIds: string[];
+    studentIds: string[];
+  };
+  const taslakDeger = useMemo<VeliTaslak>(
+    () => ({ subject, message, useMail, useSms, toParents, toStudents, target, classIds, studentIds }),
+    [subject, message, useMail, useSms, toParents, toStudents, target, classIds, studentIds]
+  );
+  const taslak = useTaslak<VeliTaslak>('duyuru_veli', taslakDeger, !!(subject.trim() || message.trim()));
+  const taslakGeriYukle = () => {
+    const t = taslak.geriYukle();
+    if (!t) return;
+    setSubject(t.subject || '');
+    setMessage(t.message || '');
+    setUseMail(t.useMail !== false);
+    setUseSms(!!t.useSms);
+    setToParents(t.toParents !== false);
+    setToStudents(!!t.toStudents);
+    setTarget(t.target === 'student' ? 'student' : 'class');
+    setClassIds(Array.isArray(t.classIds) ? t.classIds : []);
+    setStudentIds(Array.isArray(t.studentIds) ? t.studentIds : []);
+  };
 
   const classSize = useMemo(() => {
     const m = new Map<string, number>();
@@ -275,6 +308,7 @@ export const ParentAnnouncements: React.FC = () => {
       setFeedback(res);
       // Tamamı gittiyse formu temizle (yeni duyuru için yeni kimlik); yarım kaldıysa aynı kimlikle tekrar denenebilir
       if (res.tone !== 'danger' && r.ok && !r.remaining) {
+        taslak.temizle(); // Aşama 344
         setSubject('');
         setMessage('');
         setClassIds([]);
@@ -304,6 +338,7 @@ export const ParentAnnouncements: React.FC = () => {
             <InfoTip text="Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) ve/veya öğrencilerin kendilerine (kayıtlı e-posta ve telefon) e-posta ve/veya SMS ile gider. İletişim bilgisi olmayanlar atlanır." />
           </h3>
         </div>
+        {taslak.bulunan && <TaslakCubugu id="pa-taslak" zaman={taslak.bulunan.zaman} onGeriYukle={taslakGeriYukle} onSil={taslak.vazgec} />}
 
         <div className="space-y-2">
           <span className="text-xs font-semibold text-fg-2">Kime gitsin?</span>

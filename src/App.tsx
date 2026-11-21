@@ -16,6 +16,7 @@ import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { GeriAlCubugu } from './components/Common/GeriAlCubugu'; // Aşama 306
+import { OturumUyarisi } from './components/Common/OturumUyarisi'; // Aşama 344
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
@@ -268,6 +269,11 @@ export default function App() {
   }, []);
 
   const lastActivityRef = useRef<number>(Date.now());
+  // Aşama 344: oturum kapanmadan 1 dakika önce uyarı (bitiş anı; null = uyarı yok)
+  const [oturumBitis, setOturumBitis] = useState<number | null>(null);
+  const oturumBitisRef = useRef<number | null>(null);
+  const oturumDenetleRef = useRef<() => void>(() => {});
+  const devamRef = useRef<() => void>(() => {});
 
   // Kullanılmadığında Oturumu Otomatik Sonlandırma (süre role göre değişir, aşağıya bakın)
   useEffect(() => {
@@ -281,17 +287,60 @@ export default function App() {
       }
     } catch {}
 
+    // Aşama 344: aynı hesabın açık sekmeleri hareketi birbirine bildirir. Eskiden bir sekmede çalışırken öbür sekme
+    // boşta sayılıp oturumu kapatıyordu (oturum tarayıcıda ortak olduğu için çalışılan sekme de düşüyordu).
+    let kanal: BroadcastChannel | null = null;
+    try {
+      kanal = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bilir_etkinlik') : null;
+    } catch {
+      kanal = null;
+    }
+    const oturumUid = () => dataService.getAuthSession()?.user.id || '';
+    const hareketiYaz = (ts: number) => {
+      lastActivityRef.current = ts;
+      try {
+        sessionStorage.setItem('edu_sys_last_activity_ts', String(ts));
+      } catch {}
+    };
+
     let lastMarkTime = 0;
-    const markActivity = () => {
-      const now = Date.now();
-      // Throttle event updates to every 2.5 seconds for performance
-      if (now - lastMarkTime > 2500) {
-        lastMarkTime = now;
-        lastActivityRef.current = now;
+    const hareketiSay = (now: number) => {
+      lastMarkTime = now;
+      hareketiYaz(now);
+      const uid = oturumUid();
+      if (uid && kanal) {
         try {
-          sessionStorage.setItem('edu_sys_last_activity_ts', String(now));
+          kanal.postMessage({ uid, ts: now });
         } catch {}
       }
+    };
+    const markActivity = () => {
+      // Aşama 344: uyarı açıkken fare/klavye hareketi sayılmaz; oturum yalnız "Devam et" ile (ya da öbür sekmede
+      // çalışılınca) sürer. Yoksa uyarıdaki "Çıkış yap"a basarken uyarı kapanıp düğme kayboluyordu.
+      if (oturumBitisRef.current) return;
+      const now = Date.now();
+      // Throttle event updates to every 2.5 seconds for performance
+      if (now - lastMarkTime > 2500) hareketiSay(now);
+    };
+    devamRef.current = () => {
+      hareketiSay(Date.now());
+      performInactivityCheck();
+    };
+    if (kanal) {
+      kanal.onmessage = (e: MessageEvent) => {
+        const d = e.data as { uid?: string; ts?: number } | null;
+        const uid = oturumUid();
+        if (!d || !uid || d.uid !== uid || typeof d.ts !== 'number') return;
+        if (d.ts > lastActivityRef.current) {
+          hareketiYaz(Math.min(d.ts, Date.now()));
+          if (oturumBitisRef.current) performInactivityCheck();
+        }
+      };
+    }
+    const uyariAyarla = (v: number | null) => {
+      if (oturumBitisRef.current === v) return;
+      oturumBitisRef.current = v;
+      setOturumBitis(v);
     };
 
     // Aşama 26: hareketsizlik süresi role göre belirlenir
@@ -307,23 +356,38 @@ export default function App() {
       return 15 * 60 * 1000;
     };
 
-    const performInactivityCheck = () => {
+    function performInactivityCheck() {
       const activeSession = dataService.getAuthSession();
-      if (activeSession) {
+      if (!activeSession) {
+        uyariAyarla(null);
+        return;
+      }
+      {
         const now = Date.now();
         const diff = now - lastActivityRef.current;
-        if (diff >= getIdleLimitMs() || acikKalBitti()) {
+        const limit = getIdleLimitMs();
+        if (diff >= limit || acikKalBitti()) {
           // Aşama 343: gönderilmeyi bekleyen kayıt (bağlantı yok) varken oturum kapatılmaz; kapanırsa kayıt kaybolurdu
-          if (dataService.bekleyenKayitSayisi() > 0) return;
+          if (dataService.bekleyenKayitSayisi() > 0) {
+            uyariAyarla(null);
+            return;
+          }
+          uyariAyarla(null);
           dataService.logout();
           resetRouteHash();
           setAuthSession(null);
           setCurrentStudent(null);
           setRole('teacher');
           setTeacherTab('home');
+        } else if (Number.isFinite(limit) && limit - diff <= 60 * 1000 && dataService.bekleyenKayitSayisi() === 0) {
+          // Aşama 344: son 1 dakika: uyarı (bitiş anı sabit; sayaç her saniye OturumUyarisi'nde)
+          uyariAyarla(lastActivityRef.current + limit);
+        } else {
+          uyariAyarla(null);
         }
       }
-    };
+    }
+    oturumDenetleRef.current = performInactivityCheck;
 
     // İlk açılışta hemen kontrol et
     performInactivityCheck();
@@ -352,6 +416,12 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
       clearInterval(inactivityInterval);
       acikKalBirak();
+      if (kanal) {
+        kanal.onmessage = null;
+        try {
+          kanal.close();
+        } catch {}
+      }
     };
   }, []);
 
@@ -559,6 +629,7 @@ export default function App() {
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+        <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         <IkiAdimGirisi ad={authSession.role === 'teacher' ? (authSession.user as Teacher).name : undefined} onCikis={handleLogout} />
       </div>
     );
@@ -570,6 +641,7 @@ export default function App() {
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+        <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         {hesapListe ? (
           <HesapSecimi
             ad={(authSession.user as Teacher).name}
@@ -596,6 +668,7 @@ export default function App() {
         <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+        <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         <PortalSecimi
           ad={(authSession.user as Teacher).name}
           onSec={() => {
@@ -637,6 +710,7 @@ export default function App() {
       <KullaniciGozuSeridi />
       <NetworkSyncStatusBanner />
       <GeriAlCubugu /> {/* Aşama 306 */}
+      <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
       {/* Top Main Navbar */}
       <Navbar
         role={role}

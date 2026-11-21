@@ -3,6 +3,8 @@ import { Megaphone, StickyNote, Send, Search, Trash2, Users, CheckCircle2, Alert
 import { dataService } from '../../services/dataService';
 import type { AnnouncementGroup } from '../../types';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
+import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // ============================================================================
@@ -39,6 +41,21 @@ export const TeacherAnnouncements: React.FC = () => {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
   useAutoDismiss(feedback, () => setFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Aşama 344: yazılan duyuru taslak olarak tutulur (başka sayfaya geçince ya da oturum boşta kapanınca kaybolmasın)
+  type DuyuruTaslak = { kind: 'announcement' | 'note'; title: string; text: string; target: Target; classIds: string[]; studentIds: string[] };
+  const taslakDeger = useMemo<DuyuruTaslak>(() => ({ kind, title, text, target, classIds, studentIds }), [kind, title, text, target, classIds, studentIds]);
+  const taslak = useTaslak<DuyuruTaslak>('duyuru_ogrenci', taslakDeger, !!(title.trim() || text.trim()));
+  const taslakGeriYukle = () => {
+    const t = taslak.geriYukle();
+    if (!t) return;
+    setKind(t.kind === 'note' ? 'note' : 'announcement');
+    setTitle(t.title || '');
+    setText(t.text || '');
+    setTarget(t.target === 'student' ? 'student' : 'class');
+    setClassIds(Array.isArray(t.classIds) ? t.classIds : []);
+    setStudentIds(Array.isArray(t.studentIds) ? t.studentIds : []);
+  };
 
   const classSize = useMemo(() => {
     const m = new Map<string, number>();
@@ -79,6 +96,7 @@ export const TeacherAnnouncements: React.FC = () => {
         tone: 'success',
         text: `${kind === 'announcement' ? 'Duyuru' : 'Not'} ${g.studentIds.length} öğrenciye gönderildi. Öğrenciler ana sayfalarındaki Duyurular bölümünde görecek.`,
       });
+      taslak.temizle(); // Aşama 344
       setTitle('');
       setText('');
       setClassIds([]);
@@ -114,6 +132,7 @@ export const TeacherAnnouncements: React.FC = () => {
           <h3 className="text-base font-bold text-fg">Öğrencilere Duyuru veya Not Gönder</h3>
           <p className="text-xs text-muted mt-0.5">Gönderdiğiniz mesaj öğrencinin ana sayfasındaki “Duyurular” bölümünde görünür.</p>
         </div>
+        {taslak.bulunan && <TaslakCubugu id="ann-taslak" zaman={taslak.bulunan.zaman} onGeriYukle={taslakGeriYukle} onSil={taslak.vazgec} />}
 
         {/* Tür */}
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Mesaj türü">

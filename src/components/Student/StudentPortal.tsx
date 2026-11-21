@@ -55,6 +55,8 @@ import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: Ove
 import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
+import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
+import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
@@ -209,6 +211,21 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [messageSentFeedback, setMessageSentFeedback] = useState(false);
   // Aşama 45: soru belirli bir öğretmene yazılabilir (yalnızca o öğretmen görür); boş = bütün öğretmenlerim
   const [messageTo, setMessageTo] = useState('');
+  // Aşama 344: yazılan mesaj taslak olarak tutulur (öğrenci oturumu 15 dk boşta kalınca kapanır; yazdığı kaybolmasın)
+  const mesajTaslakDeger = useMemo(() => ({ to: messageTo, subject: messageSubject, text: messageText, link: messageLink }), [messageTo, messageSubject, messageText, messageLink]);
+  const mesajTaslak = useTaslak<{ to: string; subject: string; text: string; link: string }>(
+    'ogrenci_mesaj',
+    mesajTaslakDeger,
+    !!(messageSubject.trim() || messageText.trim())
+  );
+  const mesajTaslakGeriYukle = () => {
+    const t = mesajTaslak.geriYukle();
+    if (!t) return;
+    setMessageTo(t.to || '');
+    setMessageSubject(t.subject || '');
+    setMessageText(t.text || '');
+    setMessageLink(t.link || '');
+  };
   const [myTeachers, setMyTeachers] = useState<Array<{ id: string; name: string; branch: string }>>([]);
   useEffect(() => {
     if (activeTab !== 'messages') return;
@@ -410,6 +427,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       setIsSendingMessage(false);
     }
 
+    mesajTaslak.temizle(); // Aşama 344
     setMessageSubject('');
     setMessageText('');
     setMessageLink('');
@@ -1034,6 +1052,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             )}
 
             <form onSubmit={handleSendMessage} className="space-y-4">
+              {mesajTaslak.bulunan && (
+                <TaslakCubugu id="student-message-taslak" zaman={mesajTaslak.bulunan.zaman} onGeriYukle={mesajTaslakGeriYukle} onSil={mesajTaslak.vazgec} />
+              )}
               {myTeachers.length > 0 && (
                 <div>
                   <label htmlFor="student-message-to" className="block text-xs font-semibold text-fg-2 mb-1">

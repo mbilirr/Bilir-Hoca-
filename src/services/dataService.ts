@@ -174,6 +174,7 @@ import {
   questionTargetOwnerKey,
 } from './kayitKurallari'; // Aşama 319
 import { agHatasiMi, baglantiNedeni } from '../lib/baglanti';
+import { taslaklariSil } from '../lib/taslak'; // Aşama 344
 // Aşama 302: kurum bölümleri ve portal tanımları ayrı dosyada (ekranlar için buradan da dışa verilir; davranış aynı)
 import {
   KURUM_MODULES,
@@ -6533,6 +6534,9 @@ class DataService {
       this.gidenZamanlayici = null;
     }
     this.gidenBildir();
+    // Aşama 344: elle çıkışta yarım kalan form taslakları da silinir (boşta kalıp kapanan oturumda kalır, aynı hesapla
+    // girilince geri yüklenebilir)
+    if (elle) taslaklariSil();
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };

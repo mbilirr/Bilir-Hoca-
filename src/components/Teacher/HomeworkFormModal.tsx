@@ -5,6 +5,8 @@ import { dataService } from '../../services/dataService';
 import { Modal } from '../ui/kit';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
 import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
+import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
+import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { normalizeSubject, subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import {
   FormSection,
@@ -168,6 +170,49 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
     resources.length !== initial.resources.length ||
     !!pendingResource;
 
+  // Aşama 344: yazılanlar taslak olarak tutulur (oturum boşta kapanınca ya da pencere kazayla kapanınca kaybolmasın)
+  type OdevTaslak = {
+    draftId: string;
+    classIds: string[];
+    selectedIds: string[];
+    subject: string;
+    title: string;
+    description: string;
+    outcomes: string[];
+    dueDate: string;
+    dueTime: string;
+    resources: HomeworkResource[];
+  };
+  const taslakDeger = useMemo<OdevTaslak>(
+    () => ({ draftId: draftId.current, classIds, selectedIds, subject: effectiveSubject, title, description, outcomes, dueDate, dueTime, resources }),
+    [classIds, selectedIds, effectiveSubject, title, description, outcomes, dueDate, dueTime, resources]
+  );
+  const taslak = useTaslak<OdevTaslak>(isEdit ? `odev_${source!.id}` : mode === 'copy' ? `odev_kopya_${source?.id || ''}` : 'odev_yeni', taslakDeger, dirty);
+  const taslakGeriYukle = () => {
+    const t = taslak.geriYukle();
+    if (!t) return;
+    if (!isEdit && t.draftId) draftId.current = t.draftId; // yüklenmiş dosyalar aynı klasörde kalır
+    const bilinen = t.classIds.filter((id) => classes.some((c) => c.id === id));
+    setClassIds(bilinen);
+    setSelectedIds(t.selectedIds.filter((id) => students.some((st) => st.id === id && bilinen.includes(st.classId))));
+    if (t.subject) setSubject(t.subject);
+    setTitle(t.title || '');
+    setDescription(t.description || '');
+    setOutcomes(Array.isArray(t.outcomes) ? t.outcomes : []);
+    setDueDate(t.dueDate || '');
+    setDueTime(t.dueTime || '23:59');
+    setResources(Array.isArray(t.resources) ? t.resources : []);
+  };
+  const taslakSilVeDosyalar = () => {
+    // Taslakla birlikte, taslakta kalan ve kaydedilmemiş yüklenmiş dosyalar da silinir
+    const t = taslak.bulunan?.deger;
+    taslak.vazgec();
+    if (!t || !Array.isArray(t.resources)) return;
+    const keep = new Set([...storedPathsOf(source && isEdit ? source.resources : []), ...storedPathsOf(resources)]);
+    const eski = storedPathsOf(t.resources).filter((p) => !keep.has(p));
+    if (eski.length) removeStoredFiles(eski);
+  };
+
   const discardUploads = () => {
     const keep = new Set(storedPathsOf(source && isEdit ? source.resources : []));
     const unsaved = storedPathsOf(resources).filter((p) => !keep.has(p));
@@ -243,6 +288,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
         });
         writePrefs({ classIds, subject: effectiveSubject });
       }
+      taslak.temizle(); // Aşama 344
       onSaved({ homework: saved, mode, sendMail: !isEdit && sendMail });
     } catch (err: any) {
       setErrorText(err?.message || 'Ödev kaydedilemedi. Lütfen tekrar deneyin.');
@@ -270,6 +316,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
           <DiscardBar
             onKeep={() => setConfirmDiscard(false)}
             onDiscard={() => {
+              taslak.temizle(); // Aşama 344: bilerek silinen form taslak olarak kalmaz
               discardUploads();
               onClose();
             }}
@@ -301,6 +348,9 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {taslak.bulunan && (
+          <TaslakCubugu id="hw-taslak" zaman={taslak.bulunan.zaman} onGeriYukle={taslakGeriYukle} onSil={taslakSilVeDosyalar} />
+        )}
         <FormSection title="1. Sınıf ve öğrenciler" hint="Sınıf seçince bütün öğrenciler işaretlenir">
           <StudentPicker
             variant="classes"
