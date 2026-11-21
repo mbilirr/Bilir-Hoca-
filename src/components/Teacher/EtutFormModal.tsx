@@ -751,7 +751,7 @@ const EtutFormContent: React.FC<Props> = ({
           />
         ) : (
           <div className="w-full flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] text-muted truncate max-w-full sm:max-w-[55%]" id="etut-form-summary">
+            <span className="text-xs text-muted truncate max-w-full sm:max-w-[55%]" id="etut-form-summary">
               {selectedTeacher ? teacherNamesText : 'Öğretmen seçilmedi'} · {selectedIds.length} öğrenci
               {date ? ` · ${shortTrDate(date)}${time ? ` ${time}` : ''}` : ''}
               {occurrences.length > 1 ? ` · ${occurrences.length} hafta` : ''}
@@ -849,7 +849,7 @@ const EtutFormContent: React.FC<Props> = ({
                     allLabel={zumre.subjects.length > 1 ? `${zumre.name} zümresinin tüm öğretmenleri` : undefined}
                   />
                   {idareAdina && (
-                    <p className="text-[11px] font-semibold text-info-fg mt-1" id="etut-idare-adina">
+                    <p className="text-xs font-semibold text-info-fg mt-1" id="etut-idare-adina">
                       Etüdü öğretmen adına planlıyorsunuz; etüt seçilen öğretmenin takviminde görünür ve ona e-posta gider.
                     </p>
                   )}
@@ -857,7 +857,7 @@ const EtutFormContent: React.FC<Props> = ({
                 {(() => {
                   const noMail = selectedTeachers.filter((o) => !o.isMe && !o.hasEmail);
                   return noMail.length ? (
-                    <p className="text-[11px] text-warning-fg" id="etut-teacher-nomail">
+                    <p className="text-xs text-warning-fg" id="etut-teacher-nomail">
                       {noMail.map((o) => o.name).join(', ')} için e-posta adresi kayıtlı değil; etüt kaydedilir ama {noMail.length > 1 ? 'bu öğretmenlere' : 'öğretmene'} e-posta gitmez.
                       {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
                     </p>
@@ -1006,7 +1006,7 @@ const EtutFormContent: React.FC<Props> = ({
                     {d} dk
                   </button>
                 ))}
-                {endLabel && <span className="self-center text-[11px] text-muted ml-1">Bitiş: {endLabel}</span>}
+                {endLabel && <span className="self-center text-xs text-muted ml-1">Bitiş: {endLabel}</span>}
               </div>
               <div>
                 <FieldLabel htmlFor="etut-location" optional>
@@ -1058,7 +1058,7 @@ const EtutFormContent: React.FC<Props> = ({
                     )}
                   </div>
                   {repeatWeeks > 1 && (
-                    <p className="text-[11px] text-muted" id="etut-repeat-preview">
+                    <p className="text-xs text-muted" id="etut-repeat-preview">
                       {occurrences.map(shortTrDate).join(' · ')}
                     </p>
                   )}
@@ -1066,7 +1066,7 @@ const EtutFormContent: React.FC<Props> = ({
               )}
               </div>
               {clashes.length > 0 && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="etut-cakisma-uyari">
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-xs font-semibold" id="etut-cakisma-uyari">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span>
                     {clashes.length === 1
@@ -1082,7 +1082,7 @@ const EtutFormContent: React.FC<Props> = ({
             </div>
             <div className="order-7 lg:order-none">
             {editScheduled ? (
-              <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[11px] text-muted flex items-center gap-1">
+              <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-xs text-muted flex items-center gap-1">
                 {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
                 <span className="flex-1">E-posta etüt günü güncel bilgilerle otomatik gider.</span>
                 <InfoTip text="Bu etüt kopyalanarak tanımlandı. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir." />
@@ -1147,13 +1147,13 @@ const EtutFormContent: React.FC<Props> = ({
               />
               </div>
               {copyInfo && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-surface-2 text-muted px-2.5 py-1.5 text-[11px] mt-2" id="etut-kopya-bilgi">
+                <p className="flex items-start gap-1.5 rounded-lg bg-surface-2 text-muted px-2.5 py-1.5 text-xs mt-2" id="etut-kopya-bilgi">
                   <Copy className="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span>{copyInfo}</span>
                 </p>
               )}
               {repeats.length > 0 && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold mt-2" id="etut-tekrar-uyari">
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-xs font-semibold mt-2" id="etut-tekrar-uyari">
                   <History className="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span>
                     {repeats.length === 1
@@ -1211,7 +1211,7 @@ const EtutFormContent: React.FC<Props> = ({
       {/* Aşama 116: hayalet uyarılar tek kapta alt alta (çakışma üstte); telefonda alt, bilgisayarda sağ üst */}
       {((clashGhost && clashes.length > 0) || (ghost && repeats.length > 0)) &&
         createPortal(
-          <div className="fixed z-[200] bottom-24 inset-x-4 sm:bottom-auto sm:top-4 sm:inset-x-auto sm:right-6 sm:w-96 flex flex-col gap-2 pointer-events-none">
+          <div className="fixed z-(--z-bildirim) bottom-24 inset-x-4 sm:bottom-auto sm:top-4 sm:inset-x-auto sm:right-6 sm:w-96 flex flex-col gap-2 pointer-events-none">
             {clashGhost && clashes.length > 0 && (
               <div
                 role="alert"
@@ -1230,7 +1230,7 @@ const EtutFormContent: React.FC<Props> = ({
                     ))}
                     {clashes.length > 3 && <p className="text-muted">ve {clashes.length - 3} öğrenci daha</p>}
                   </div>
-                  <button type="button" onClick={() => setClashGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
+                  <button type="button" onClick={() => setClashGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1254,7 +1254,7 @@ const EtutFormContent: React.FC<Props> = ({
                     ))}
                     {repeats.length > 3 && <p className="text-muted">ve {repeats.length - 3} öğrenci daha</p>}
                   </div>
-                  <button type="button" onClick={() => setGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
+                  <button type="button" onClick={() => setGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>

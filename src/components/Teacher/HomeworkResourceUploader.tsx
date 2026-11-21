@@ -408,7 +408,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                 <k.Icon className={cx('w-4 h-4 shrink-0', k.tone)} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-fg truncate">{res.title}</p>
-                  {res.description && <p className="text-[11px] text-muted truncate">{res.description}</p>}
+                  {res.description && <p className="text-xs text-muted truncate">{res.description}</p>}
                 </div>
                 <span className="ui-chip ui-chip-neutral shrink-0">
                   {k.label}
@@ -488,7 +488,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           </button>
           {cur.openFile && (
             <>
-              <span className="text-[11px] text-subtle shrink-0">ya da</span>
+              <span className="text-xs text-subtle shrink-0">ya da</span>
               <button
                 type="button"
                 onClick={cur.openFile}

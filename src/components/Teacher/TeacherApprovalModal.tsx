@@ -97,13 +97,13 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative w-full max-w-3xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+          className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -171,7 +171,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                 <AlertCircle className="w-4 h-4 text-brand-fg shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">Veri Gizliliği & Yetkilendirme Kuralı:</span>
-                  <p className="mt-0.5 text-fg-2 text-[11px] leading-relaxed">
+                  <p className="mt-0.5 text-fg-2 text-xs leading-relaxed">
                     Standart öğretmenler yalnızca <strong>kendi kaydettikleri öğrencileri</strong> ve <strong>yöneticinin izin verdiği sınıf / öğrencileri</strong> görebilir. Sınıf ve öğrenci erişimi <strong>Yönetim › Öğretmenler</strong> bölümündeki <strong>Erişim Matrisi</strong> düğmesinden verilir.
                   </p>
                 </div>
@@ -181,7 +181,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                 return (
                   <div
                     key={teacher.id}
-                    className={`p-4 rounded-2xl border transition-all ${
+                    className={`p-4 rounded-2xl border transition ${
                       teacher.isAdmin
                         ? 'bg-warning-soft/60 border-warning/30 shadow-sm'
                         : 'bg-surface border-line shadow-sm hover:shadow-md hover:border-line-strong'
@@ -201,16 +201,16 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h4 className="font-bold text-sm text-fg truncate">{teacher.name}</h4>
                             {teacher.isAdmin ? (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-warning-soft text-warning-fg border border-warning/30 flex items-center space-x-1">
+                              <span className="px-2 py-0.5 rounded-lg text-2xs font-extrabold bg-warning-soft text-warning-fg border border-warning/30 flex items-center space-x-1">
                                 <Crown className="w-3 h-3 text-warning-fg" />
                                 <span>Kurum Yöneticisi (Admin)</span>
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-2 text-fg-2 border border-line">
+                              <span className="px-2 py-0.5 rounded-lg text-2xs font-bold bg-surface-2 text-fg-2 border border-line">
                                 Öğretmen
                               </span>
                             )}
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-brand-soft text-brand-fg border border-brand/30">
+                            <span className="px-2 py-0.5 rounded-lg text-2xs font-medium bg-brand-soft text-brand-fg border border-brand/30">
                               {teacher.branch || 'Genel Branş'}
                             </span>
                           </div>

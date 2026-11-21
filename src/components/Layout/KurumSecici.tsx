@@ -9,7 +9,7 @@ import { canUseKurumSecici, enterKurum, exitKurum, gecisKurumlari, readGecis, ty
 // ============================================================================
 
 const Busy: React.FC<{ text: string }> = ({ text }) => (
-  <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]" role="status" aria-live="polite">
+  <div className="fixed inset-0 z-(--z-perde) flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]" role="status" aria-live="polite">
     <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-xs font-semibold text-fg shadow-lg">
       <Loader2 className="w-4 h-4 animate-spin text-brand-fg" />
       {text}

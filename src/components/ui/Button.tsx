@@ -1,31 +1,43 @@
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+/**
+ * Aşama 347: TEK DÜĞME. Bütün site için ortak düğme; görünümü index.css'teki .ui-btn ailesinden gelir:
+ * boy her zaman 32 px (h-8, dokunmatikte en az 36 px), yazı xs, köşe rounded-lg.
+ * Yeni kodda elle <button className="h-9 …"> yazılmaz; bu bileşen ya da .ui-btn sınıfları kullanılır.
+ *
+ *  variant  : primary (lacivert ana iş) | secondary (çerçeveli) | ghost (zeminsiz) | danger | danger-soft | success | warning
+ *  size     : sm | md | lg  → yalnız yan boşluk değişir, boy aynı kalır
+ *  genislik : kisa | orta | uzun → en az 6 / 7 / 8 rem (yan yana düğmeler simetrik dursun diye)
+ *  ikon     : yalnız simgeli kare düğme (aria-label verin)
+ */
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'danger-soft' | 'success' | 'warning';
 export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonGenislik = 'kisa' | 'orta' | 'uzun';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  genislik?: ButtonGenislik;
+  ikon?: boolean;
   isLoading?: boolean;
   loadingText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
 
-const variantStyles: Record<ButtonVariant, string> = {
-  primary: 'bg-brand text-white hover:bg-brand-hover active:bg-brand-hover shadow-sm',
-  secondary: 'bg-surface-2 text-fg-2 hover:bg-surface-3 active:bg-surface-3',
-  outline: 'border border-line-strong text-fg-2 hover:bg-surface-2 active:bg-surface-2 bg-surface shadow-sm',
-  ghost: 'bg-transparent text-fg-2 hover:bg-surface-2 active:bg-surface-3',
-  danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm',
+const VARYANT: Record<ButtonVariant, string> = {
+  primary: 'ui-btn-primary',
+  secondary: 'ui-btn-secondary',
+  outline: 'ui-btn-secondary', // eski ad; secondary ile aynı
+  ghost: 'ui-btn-ghost',
+  danger: 'ui-btn-danger',
+  'danger-soft': 'ui-btn-danger-soft',
+  success: 'ui-btn-success',
+  warning: 'ui-btn-warning',
 };
-
-// Aşama 42: daha kompakt boyutlar; simgeler yazıyla orantılı (her boyutta simge boyutu sabitlenir)
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-2.5 py-1 text-xs leading-4 gap-1 [&_svg]:size-3.5',
-  md: 'px-3 py-1.5 text-[0.8125rem] leading-5 gap-1.5 [&_svg]:size-4',
-  lg: 'px-4 py-2 text-sm gap-2 [&_svg]:size-4',
-};
+const BOY: Record<ButtonSize, string> = { sm: 'ui-btn-sm', md: '', lg: 'ui-btn-lg' };
+const GENISLIK: Record<ButtonGenislik, string> = { kisa: 'min-w-24', orta: 'min-w-28', uzun: 'min-w-32' };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -33,6 +45,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       variant = 'primary',
       size = 'md',
+      genislik,
+      ikon = false,
       isLoading = false,
       loadingText,
       leftIcon,
@@ -44,44 +58,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const isDisabled = disabled || isLoading;
+    const kapali = disabled || isLoading;
+    const sinif = ['ui-btn', VARYANT[variant], ikon ? 'ui-btn-icon' : BOY[size], genislik && !ikon ? GENISLIK[genislik] : '', className]
+      .filter(Boolean)
+      .join(' ');
 
     return (
-      <button
-        ref={ref}
-        type={type}
-        disabled={isDisabled}
-        className={`inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
-          variantStyles[variant]
-        } ${sizeStyles[size]} ${
-          isDisabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
-        } ${className}`}
-        {...rest}
-      >
+      <button ref={ref} type={type} disabled={kapali} aria-busy={isLoading || undefined} className={sinif} {...rest}>
         {isLoading ? (
           <>
-            <svg
-              className="animate-spin -ml-0.5 mr-2 h-4 w-4 text-current"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            <span>{loadingText || 'Yükleniyor...'}</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            {!ikon && <span>{loadingText || 'Yükleniyor…'}</span>}
           </>
         ) : (
           <>

@@ -164,7 +164,7 @@ export const StudentTodayPlan: React.FC<{
         <IconBox icon={CalendarCheck} tone="brand" size="sm" />
         <div className="min-w-0">
           <p className={cx('font-semibold text-fg leading-tight', compact ? 'text-sm' : 'text-base')}>Bugün yapılması gerekenler</p>
-          <p className="text-[11px] text-muted capitalize leading-tight mt-0.5">{dateText}</p>
+          <p className="text-xs text-muted capitalize leading-tight mt-0.5">{dateText}</p>
         </div>
       </div>
       {todayItems.length > 0 && (
@@ -172,7 +172,7 @@ export const StudentTodayPlan: React.FC<{
           <p className={cx('font-bold leading-none tabular-nums', allDone ? 'text-success-fg' : 'text-fg', compact ? 'text-base' : 'text-xl')}>
             {doneToday}/{todayItems.length}
           </p>
-          <p className="text-[10px] text-muted mt-0.5">görev tamamlandı</p>
+          <p className="text-2xs text-muted mt-0.5">görev tamamlandı</p>
         </div>
       )}
     </div>
@@ -192,7 +192,7 @@ export const StudentTodayPlan: React.FC<{
     );
   }
 
-  const smallBtn = 'inline-flex items-center justify-center h-7 w-20 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+  const smallBtn = 'inline-flex items-center justify-center h-7 w-20 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 
   // Yapılan görevin soru kaydındaki payı: "Soru kaydında: 40 soru · Düzenle"
   const renderShare = (it: PlanItem) => {
@@ -208,7 +208,7 @@ export const StudentTodayPlan: React.FC<{
             void saveEdit(it);
           }}
         >
-          <label className="text-[11px] font-semibold text-fg-2" htmlFor={`share-${it.id}`}>
+          <label className="text-xs font-semibold text-fg-2" htmlFor={`share-${it.id}`}>
             Çözdüğün soru:
           </label>
           <input
@@ -219,7 +219,7 @@ export const StudentTodayPlan: React.FC<{
             maxLength={4}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            className="w-16 h-7 min-h-0 rounded-md border border-line-strong bg-surface px-2 py-0 text-xs font-semibold text-fg tabular-nums outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-16 h-7 min-h-0 rounded-lg border border-line-strong bg-surface px-2 py-0 text-xs font-semibold text-fg tabular-nums outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             autoFocus
           />
           <button type="submit" disabled={editSaving} className={cx(smallBtn, 'bg-brand text-white hover:bg-brand-hover')}>
@@ -232,7 +232,7 @@ export const StudentTodayPlan: React.FC<{
       );
     }
     return (
-      <div data-task-share className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] text-muted">
+      <div data-task-share className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs text-muted">
         <ListChecks className="w-3.5 h-3.5 shrink-0" />
         {share ? (
           <span data-task-share-count>
@@ -297,18 +297,18 @@ export const StudentTodayPlan: React.FC<{
           <div className={cx(compact ? 'space-y-0.5' : 'space-y-1', (done || kind === 'past') && 'opacity-75')}>
             <div className="flex flex-wrap items-center gap-1.5">
               {kind === 'overdue' && (
-                <span className="ui-chip ui-chip-warning !text-[10px] !leading-4" data-task-day>
+                <span className="ui-chip ui-chip-warning !text-2xs !leading-4" data-task-day>
                   {shortDayLabel(dateOfDay(weekStart, it.day))}
                 </span>
               )}
-              <span className="ui-chip ui-chip-neutral !text-[10px] !leading-4">{it.subject}</span>
+              <span className="ui-chip ui-chip-neutral !text-2xs !leading-4">{it.subject}</span>
               {it.book && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                <span className="inline-flex items-center gap-1 text-xs text-muted">
                   <BookOpen className="w-3 h-3" /> {it.book}
                 </span>
               )}
               {it.questionCount > 0 && (
-                <span className="ui-chip ui-chip-brand !text-[10px] !leading-4" data-task-qcount>
+                <span className="ui-chip ui-chip-brand !text-2xs !leading-4" data-task-qcount>
                   {it.questionCount} soru
                 </span>
               )}
@@ -402,12 +402,12 @@ export const StudentTodayPlan: React.FC<{
               return (
                 <div key={d} data-week-day={d} data-day-kind={kind} className={cx(kind === 'today' && 'rounded-lg border border-brand/25 bg-brand-soft/40 p-2')}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <p className={cx('text-[11px] font-semibold uppercase tracking-wide', kind === 'today' ? 'text-brand-fg' : kind === 'past' ? 'text-muted' : 'text-fg-2')}>
+                    <p className={cx('text-xs font-semibold uppercase tracking-wide', kind === 'today' ? 'text-brand-fg' : kind === 'past' ? 'text-muted' : 'text-fg-2')}>
                       {name} · {shortDayLabel(date)}
                     </p>
                     <span
                       className={cx(
-                        'ui-chip !text-[10px] !leading-4',
+                        'ui-chip !text-2xs !leading-4',
                         kind === 'today' ? 'ui-chip-brand' : dayDone === list.length ? 'ui-chip-success' : kind === 'past' ? 'ui-chip-warning' : 'ui-chip-neutral'
                       )}
                     >
@@ -421,7 +421,7 @@ export const StudentTodayPlan: React.FC<{
           </div>
         )}
       </div>
-      {sentBy && <p className="text-[11px] text-muted">Planı hazırlayan: {sentBy}</p>}
+      {sentBy && <p className="text-xs text-muted">Planı hazırlayan: {sentBy}</p>}
     </section>
   );
 };

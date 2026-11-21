@@ -178,7 +178,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
   const modalContent = (
     <>
       <div
-        className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
+        className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
         onClick={onClose}
       >
         <OverlayLayer onClose={onClose} />
@@ -193,7 +193,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg relative">
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white rounded-full text-[10px] font-bold flex items-center justify-center ring-2 ring-surface">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center ring-2 ring-surface">
                     {unreadCount}
                   </span>
                 )}
@@ -318,7 +318,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                   <div
                     key={email.id}
                     onClick={() => handleEmailClick(email)}
-                    className="p-3.5 rounded-xl bg-surface/90 border border-line hover:border-brand/50 hover:bg-surface-2 transition-all cursor-pointer shadow-sm group"
+                    className="p-3.5 rounded-xl bg-surface/90 border border-line hover:border-brand/50 hover:bg-surface-2 transition cursor-pointer shadow-sm group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start space-x-3">
@@ -336,14 +336,14 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                             <span className="text-xs font-bold text-fg group-hover:text-brand-fg transition-colors">
                               {email.subject}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-success/10 text-success-fg border border-success/20">
+                            <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-success/10 text-success-fg border border-success/20">
                               İletildi ✓
                             </span>
                           </div>
                           <p className="text-xs text-muted mt-0.5 line-clamp-1">
                             Kimden: {email.teacherName} • Kime: {email.recipientEmail}
                           </p>
-                          <p className="text-[11px] text-muted mt-1 flex items-center space-x-1">
+                          <p className="text-xs text-muted mt-1 flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>
                               {new Date(email.sentAt).toLocaleString('tr-TR', {
@@ -358,7 +358,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                       </div>
 
                       <div className="flex items-center text-xs text-brand-fg group-hover:translate-x-0.5 transition-transform shrink-0">
-                        <span className="hidden sm:inline text-[11px] font-semibold mr-1">
+                        <span className="hidden sm:inline text-xs font-semibold mr-1">
                           E-Postayı Aç
                         </span>
                         <ChevronRight className="w-4 h-4" />
@@ -377,7 +377,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 <div
                   key={notif.id}
                   onClick={() => handleItemClick(notif)}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm group ${
+                  className={`p-3.5 rounded-xl border transition cursor-pointer shadow-sm group ${
                     notif.read
                       ? 'bg-surface/60 border-line hover:border-line'
                       : 'bg-surface-2/90 border-brand/40 hover:border-brand ring-1 ring-brand/20'
@@ -420,13 +420,13 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                           </span>
 
                           {!notif.read && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-brand text-white">
+                            <span className="px-1.5 py-0.2 rounded-full text-3xs font-bold bg-brand text-white">
                               YENİ
                             </span>
                           )}
 
                           {notif.emailSent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-success/10 text-success-fg border border-success/20 flex items-center space-x-1">
+                            <span className="px-1.5 py-0.2 rounded text-2xs font-semibold bg-success/10 text-success-fg border border-success/20 flex items-center space-x-1">
                               <Mail className="w-2.5 h-2.5" />
                               <span>Mail Gönderildi</span>
                             </span>
@@ -437,7 +437,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                           {notif.message}
                         </p>
 
-                        <div className="flex items-center space-x-3 text-[11px] text-muted mt-1.5">
+                        <div className="flex items-center space-x-3 text-xs text-muted mt-1.5">
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>
@@ -458,7 +458,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                     </div>
 
                     <div className="flex items-center text-xs text-brand-fg group-hover:translate-x-0.5 transition-transform shrink-0">
-                      <span className="hidden sm:inline text-[11px] font-semibold mr-1">
+                      <span className="hidden sm:inline text-xs font-semibold mr-1">
                         Detayı Gör
                       </span>
                       <ChevronRight className="w-4 h-4" />
@@ -471,7 +471,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
           {/* Footer */}
           <div className="px-5 py-3 border-t border-line bg-canvas/70 flex items-center justify-between text-xs text-muted">
-            <span className="text-[11px]">
+            <span className="text-xs">
               Tüm ödev atamaları ve etüt planlamaları anında bildirim ve e-posta olarak iletilir.
             </span>
             <button

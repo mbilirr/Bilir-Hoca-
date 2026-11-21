@@ -72,7 +72,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -87,7 +87,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
           {/* Başlık */}
           <div className="flex items-start justify-between gap-3 pb-4 border-b border-line mb-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-fg">Öğrenci Teslimi</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-fg">Öğrenci Teslimi</p>
               <h3 className="text-lg font-bold text-fg truncate">{studentName}</h3>
               <p className="text-xs text-muted truncate">
                 {student?.studentNumber ? `No: ${student.studentNumber} · ` : ''}

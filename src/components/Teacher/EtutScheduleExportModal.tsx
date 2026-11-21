@@ -193,7 +193,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
           )}
           {byTeacher && (
             /* Aşama 185: uzun açıklama ⓘ içinde */
-            <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1" id="etut-schedule-teacher-help">
+            <p className="text-xs text-muted mt-1.5 flex items-center gap-1" id="etut-schedule-teacher-help">
               {pageMode === 'each' ? 'Her öğretmen ayrı sayfada.' : 'Bütün öğretmenler art arda, en az sayfada.'}
               <InfoTip
                 text={
@@ -205,7 +205,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
             </p>
           )}
           {layout === 'teacher' && split === 'class' && (
-            <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
+            <p className="text-xs text-muted mt-1.5 flex items-center gap-1">
               Her ders ve gün ayrı sayfada, A4 PDF.
               <InfoTip text='En üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo (öğretmen, etüt saati ve yeri, konu, öğrencilerin adı soyadı). Her ders/gün listesi tek sayfaya sığdırılır (gerekirse yazı küçültülür, tablolar iki sütuna dizilir). "Tüm sınıflar" seçilirse her sayfada yalnız bir sınıfın öğrencileri olur.' />
             </p>

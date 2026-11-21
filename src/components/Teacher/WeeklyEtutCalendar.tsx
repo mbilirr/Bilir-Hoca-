@@ -267,7 +267,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   // Etüt işlem düğmeleri (kart altı ve ayrıntı penceresi ortak)
   // ---------------------------------------------------------------------
   const ActionBar: React.FC<{ etut: Etut; afterAction?: () => void; labels?: boolean }> = ({ etut, afterAction, labels }) => {
-    const base = 'inline-flex items-center gap-1 rounded-lg transition-colors cursor-pointer text-[11px] font-semibold';
+    const base = 'inline-flex items-center gap-1 rounded-lg transition-colors cursor-pointer text-xs font-semibold';
     const pad = labels ? 'px-2.5 py-1.5 border border-line bg-surface hover:bg-surface-2 text-fg-2' : 'p-1.5 hover:bg-surface-2 text-muted';
     const run = (fn?: (e: Etut) => void) => (ev: React.MouseEvent) => {
       ev.stopPropagation();
@@ -286,7 +286,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           </button>
         )}
         {etut.privacyRedacted && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
             <Lock className="w-3.5 h-3.5" />
             {labels && 'Başka öğretmenin etüdü'}
           </span>
@@ -402,7 +402,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         aria-label={`${st.label}. ${hoverLines(etut).map(([k, v]) => `${k}: ${v}`).join('. ')}`}
         className={`w-full text-left border-l-4 px-1.5 py-1 hover:bg-surface-2 cursor-pointer ${st.accent}`}
       >
-        <span className="flex items-center gap-1 min-w-0 text-[11px] leading-tight">
+        <span className="flex items-center gap-1 min-w-0 text-xs leading-tight">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
           <span className="font-bold text-fg truncate">{subjectShort(etut.subject)}</span>
           {per && <span className="font-bold text-fg-2 shrink-0" data-etut-period>{per}</span>}
@@ -410,7 +410,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           {missing && <AlertCircle className="w-3 h-3 text-danger shrink-0" aria-label="Yoklama alınmadı" />}
           {status === 'done' && <CheckCircle2 className="w-3 h-3 text-success-fg shrink-0" aria-label="Yoklaması alındı" />}
         </span>
-        <span className="block text-[10px] text-muted truncate leading-tight">{[teacherShort(etutTeacherNames(etut)), who].filter(Boolean).join(' · ')}</span>
+        <span className="block text-2xs text-muted truncate leading-tight">{[teacherShort(etutTeacherNames(etut)), who].filter(Boolean).join(' · ')}</span>
       </button>
     );
   };
@@ -436,8 +436,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           className="w-full flex items-center gap-1 px-1.5 py-1 bg-canvas/60 hover:bg-surface-2 cursor-pointer text-left"
           title={closed ? 'Etütleri göster' : 'Grubu kapat'}
         >
-          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2">{slot.time === '--:--' ? slot.time : `S:${slot.time}`}</span>
-          <span className="text-[10px] font-semibold text-muted">· {slot.items.length} etüt</span>
+          <span className="font-mono text-2xs font-bold tabular-nums text-fg-2">{slot.time === '--:--' ? slot.time : `S:${slot.time}`}</span>
+          <span className="text-2xs font-semibold text-muted">· {slot.items.length} etüt</span>
           {missing && <span className="w-1.5 h-1.5 rounded-full bg-danger" title="Yoklaması alınmamış etüt var" />}
           <ChevronDown className={`w-3 h-3 ml-auto text-subtle transition-transform ${closed ? '-rotate-90' : ''}`} />
         </button>
@@ -448,7 +448,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               <button
                 type="button"
                 onClick={() => toggleIn(setOpenSlots, key)}
-                className="w-full py-1 text-[10px] font-semibold text-brand-fg hover:bg-surface-2 cursor-pointer"
+                className="w-full py-1 text-2xs font-semibold text-brand-fg hover:bg-surface-2 cursor-pointer"
                 data-etut-slot-more
               >
                 {all ? 'Daha az göster' : `+${slot.items.length - SLOT_ROWS} etüt daha`}
@@ -480,16 +480,16 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
             <span className="font-bold text-fg truncate">{etut.subject}</span>
             {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
+              <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
             )}
           </div>
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-fg-2">
+          <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-fg-2">
             <Clock className="w-3 h-3" />
             {etut.time || 'Saat yok'} · {etut.duration || 45} dk
           </span>
         </div>
-        {etut.topic && <h5 className="font-semibold text-fg text-[12px] leading-snug mb-1.5 line-clamp-2">{etut.topic}</h5>}
-        <div className="space-y-0.5 text-[11px] text-muted">
+        {etut.topic && <h5 className="font-semibold text-fg text-xs leading-snug mb-1.5 line-clamp-2">{etut.topic}</h5>}
+        <div className="space-y-0.5 text-xs text-muted">
           {teachers.length > 0 && <div className="truncate">👨‍🏫 {teachers.join(', ')}</div>}
           {etut.location && (
             <div className="flex items-center gap-1 truncate">
@@ -504,8 +504,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         </div>
         <div className="flex items-center justify-between gap-2 flex-wrap mt-2 pt-2 border-t border-black/5 dark:border-white/10">
           <span className="flex items-center gap-1">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
-            {missing && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama yok</span>}
+            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+            {missing && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama yok</span>}
           </span>
           <ActionBar etut={etut} />
         </div>
@@ -611,7 +611,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 key={day.dateKey}
                 type="button"
                 onClick={() => setSelectedKey(day.dateKey)}
-                className={`flex-1 min-w-[56px] py-1.5 px-1 rounded-xl text-center flex flex-col items-center cursor-pointer transition-all ${
+                className={`flex-1 min-w-[56px] py-1.5 px-1 rounded-xl text-center flex flex-col items-center cursor-pointer transition ${
                   sel
                     ? 'bg-brand text-white shadow-md'
                     : day.isToday
@@ -619,9 +619,9 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                     : 'bg-surface text-muted border border-line hover:bg-surface-2'
                 }`}
               >
-                <span className="text-[10px] uppercase font-semibold">{day.dayName.slice(0, 3)}</span>
+                <span className="text-2xs uppercase font-semibold">{day.dayName.slice(0, 3)}</span>
                 <span className="text-sm font-bold">{day.date.getDate()}</span>
-                <span className={`text-[9px] px-1.5 rounded-full font-bold ${sel ? 'bg-white/25' : count ? 'bg-brand/20 text-brand-fg' : 'text-subtle'}`}>
+                <span className={`text-3xs px-1.5 rounded-full font-bold ${sel ? 'bg-white/25' : count ? 'bg-brand/20 text-brand-fg' : 'text-subtle'}`}>
                   {count}
                 </span>
               </button>
@@ -656,18 +656,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                     className="text-left cursor-pointer"
                     title="Bu günü ayrıntılı göster"
                   >
-                    <span className={`block text-[11px] font-bold ${day.isToday ? 'text-brand-fg' : 'text-fg-2'}`}>{day.dayName}</span>
-                    <span className="block text-[10px] text-muted">{day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+                    <span className={`block text-xs font-bold ${day.isToday ? 'text-brand-fg' : 'text-fg-2'}`}>{day.dayName}</span>
+                    <span className="block text-2xs text-muted">{day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
                   </button>
                   <div className="flex items-center gap-1">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${dayEtuts.length ? (day.isToday ? 'bg-brand text-white' : 'bg-surface-2 text-fg-2') : 'text-subtle'}`}>
+                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-lg ${dayEtuts.length ? (day.isToday ? 'bg-brand text-white' : 'bg-surface-2 text-fg-2') : 'text-subtle'}`}>
                       {dayEtuts.length}
                     </span>
                     {!readOnly && onAddEtutForDate && (
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="p-1 hover:bg-surface-2 text-muted hover:text-brand-fg rounded-md cursor-pointer"
+                        className="p-1 hover:bg-surface-2 text-muted hover:text-brand-fg rounded-lg cursor-pointer"
                         title={`${day.dayName} gününe etüt ekle`}
                         aria-label={`${day.dayName} gününe etüt ekle`}
                       >
@@ -679,7 +679,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 {/* Sabit yükseklik: çok etüt olsa da sayfa uzamaz, sütun içinde kayar */}
                 <div className="p-1.5 space-y-1.5 overflow-y-auto max-h-[62vh] min-h-[120px]">
                   {dayEtuts.length === 0 ? (
-                    <p className="text-[10px] text-subtle text-center py-6">Etüt yok</p>
+                    <p className="text-2xs text-subtle text-center py-6">Etüt yok</p>
                   ) : (
                     (slotsByDay[day.dateKey] || []).map((slot) => renderSlot(day.dateKey, slot))
                   )}
@@ -696,7 +696,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           <div className="flex items-center justify-between gap-2 mb-3">
             <h3 className="text-sm font-bold text-fg">
               {selectedDay.dayName}, {selectedDay.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
-              {selectedDay.isToday && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand text-white align-middle">Bugün</span>}
+              {selectedDay.isToday && <span className="ml-2 text-2xs font-bold px-1.5 py-0.5 rounded bg-brand text-white align-middle">Bugün</span>}
               <span className="ml-2 text-xs font-normal text-muted">{selectedEtuts.length} etüt</span>
             </h3>
             {!readOnly && onAddEtutForDate && (
@@ -727,10 +727,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           <div
             role="tooltip"
             id="etut-hover-card"
-            className={`fixed z-40 w-60 pointer-events-none rounded-xl border border-line border-l-4 bg-surface shadow-xl p-2.5 text-[11px] leading-snug ${st.accent}`}
+            className={`fixed z-(--z-acilir) w-60 pointer-events-none rounded-xl border border-line border-l-4 bg-surface shadow-xl p-2.5 text-xs leading-snug ${st.accent}`}
             style={{ top: Math.max(8, hover.y), left: hover.x, transform: hover.left ? 'translateX(-100%)' : undefined }}
           >
-            <span className={`inline-block mb-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+            <span className={`inline-block mb-1 text-2xs font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
             <dl className="space-y-0.5">
               {hoverLines(hover.etut).map(([k, v]) => (
                 <div key={k} className="flex gap-1">
@@ -760,7 +760,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         })();
         return (
           <div
-            className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-(--z-pencere) flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpenId(null)}
             role="dialog"
             aria-modal="true"
@@ -776,8 +776,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`w-2.5 h-2.5 rounded-full ${subjectDot(openEtut.subject)}`} />
                     <h3 className="text-base font-bold text-fg">{openEtut.subject}</h3>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
-                    {missing && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama alınmadı</span>}
+                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+                    {missing && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama alınmadı</span>}
                   </div>
                   {openEtut.topic && <p className="text-sm text-fg-2 mt-1">{openEtut.topic}</p>}
                 </div>
@@ -820,7 +820,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   </div>
                 )}
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                     Katılacak öğrenciler {assignedList ? `(${assignedList.length})` : ''}
                   </p>
                   {assignedList === null ? (
@@ -830,7 +830,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   ) : (
                     <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                       {assignedList.map((s) => (
-                        <span key={s.id} className="inline-flex items-center gap-1 text-[11px] bg-surface-2 border border-line rounded-md px-2 py-0.5">
+                        <span key={s.id} className="inline-flex items-center gap-1 text-xs bg-surface-2 border border-line rounded-lg px-2 py-0.5">
                           <span className={`w-1.5 h-1.5 rounded-full ${s.att === 'present' ? 'bg-success' : s.att === 'absent' ? 'bg-danger' : s.att === 'late' ? 'bg-warning' : 'bg-slate-400'}`} />
                           {s.name}
                         </span>

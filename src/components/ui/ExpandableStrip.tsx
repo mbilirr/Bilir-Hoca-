@@ -49,7 +49,7 @@ export const ExpandableStrip: React.FC<ExpandableStripProps> = ({
     data-strip
     data-open={open ? '1' : '0'}
     className={cx(
-      'rounded-xl border border-l-4 bg-surface transition-all scroll-mt-24',
+      'rounded-xl border border-l-4 bg-surface transition scroll-mt-24',
       accent,
       open ? 'border-brand/30 shadow-md ring-1 ring-brand/10' : 'border-line hover:border-line-strong shadow-sm',
       className
@@ -132,7 +132,7 @@ export const StripProgress: React.FC<{ label: string; value: number; total: numb
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px] font-semibold gap-2">
+      <div className="flex items-center justify-between text-xs font-semibold gap-2">
         <span className="text-muted">{label}</span>
         <span className="text-fg tabular-nums whitespace-nowrap">
           {value} / {total}
@@ -141,7 +141,7 @@ export const StripProgress: React.FC<{ label: string; value: number; total: numb
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden mt-1">
-        <div className={cx('h-full rounded-full transition-all', done || (total > 0 && value >= total) ? 'bg-success' : 'bg-brand')} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className={cx('h-full rounded-full transition-[width]', done || (total > 0 && value >= total) ? 'bg-success' : 'bg-brand')} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
     </div>
   );

@@ -56,7 +56,7 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
   if (d.durum !== 'var') {
     const kim = tur === 'student' ? 'Öğrenci' : 'Öğretmen';
     return (
-      <p className={cx('text-[12px] font-semibold text-muted', className)}>
+      <p className={cx('text-xs font-semibold text-muted', className)}>
         {d.durum === 'degisti'
           ? `${kim} şifresini kendisi değiştirdi; güvenlik gereği kimse göremez. Unuttuysa Yeni şifre verin.`
           : 'Bu şifre, sistem şifre saklamaya başlamadan önce verilmiş; görülemez. Bir kez "Yeni şifre" verin, bundan sonra burada görünür.'}
@@ -105,13 +105,13 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
     <div className={cx('flex items-center gap-1.5', className)}>
       <span
         className={cx(
-          'flex-1 min-w-0 h-9 px-3 flex items-center rounded-lg border border-line bg-surface-2 font-mono text-[13px] font-bold text-fg truncate',
+          'flex-1 min-w-0 h-9 px-3 flex items-center rounded-lg border border-line bg-surface-2 font-mono text-sm font-bold text-fg truncate',
           acik ? 'tracking-wider' : 'tracking-[0.2em]'
         )}
         aria-label={acik ? 'Giriş şifresi' : 'Giriş şifresi gizli'}
         aria-busy={aciliyor}
       >
-        {hata ? <span className="font-sans text-[12px] font-semibold text-danger-fg tracking-normal">Açılamadı, tekrar deneyin</span> : acik && d.sifre ? d.sifre : '•'.repeat(d.sifre ? Math.max(6, Math.min(d.sifre.length, 12)) : 8)}
+        {hata ? <span className="font-sans text-xs font-semibold text-danger-fg tracking-normal">Açılamadı, tekrar deneyin</span> : acik && d.sifre ? d.sifre : '•'.repeat(d.sifre ? Math.max(6, Math.min(d.sifre.length, 12)) : 8)}
       </span>
       <button
         type="button"

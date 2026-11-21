@@ -557,7 +557,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
           { value: 'class', label: 'Sınıf', icon: School, id: 'plan-mode-class' },
         ]}
       />
-      <span className="text-[11px] text-muted hidden sm:inline">
+      <span className="text-xs text-muted hidden sm:inline">
         {mode === 'class' ? 'Bir ya da birden çok sınıfa, istediğiniz öğrencilere birlikte plan verin.' : 'Tek öğrencinin planı.'}
       </span>
     </div>
@@ -684,7 +684,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
               </button>
               <button type="button" id="plan-books" className={planTileCls} onClick={() => setBooksOpen(true)} aria-label={`Kitaplar (${books.filter(ownBook).length})`}>
                 <Library className="text-brand-fg" /> Kitaplar
-                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-[10px] leading-4">{books.filter(ownBook).length}</span>
+                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-2xs leading-4">{books.filter(ownBook).length}</span>
               </button>
             </>
           ),
@@ -692,11 +692,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
             (student && !student.auth_user_id) || sent ? (
               <div className="space-y-1">
                 {student && !student.auth_user_id && (
-                  <p className="flex items-start gap-1 text-[11px] text-warning-fg font-semibold" id="plan-no-account">
+                  <p className="flex items-start gap-1 text-xs text-warning-fg font-semibold" id="plan-no-account">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" /> Bu öğrencinin giriş hesabı görünmüyor; PDF/Excel ile verebilirsiniz.
                   </p>
                 )}
-                {sent && <p className="text-[11px] text-muted">Gönderilmiş planda yaptığınız değişiklikler öğrencide anında görünür.</p>}
+                {sent && <p className="text-xs text-muted">Gönderilmiş planda yaptığınız değişiklikler öğrencide anında görünür.</p>}
               </div>
             ) : null,
         })}
@@ -767,9 +767,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-fg leading-tight">
                     {planDayName(weekStart, d)}
-                    {isToday && <span className="ml-1.5 text-[10px] font-bold text-brand-fg uppercase">bugün</span>}
+                    {isToday && <span className="ml-1.5 text-2xs font-bold text-brand-fg uppercase">bugün</span>}
                   </p>
-                  <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
+                  <p className="text-xs text-muted">{shortDayLabel(date)}</p>
                 </div>
                 {dataService.canEditPlans() && !planKapali && (
                 <button
@@ -791,19 +791,19 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
                   return (
                     <article key={it.id} data-plan-item={it.id} data-subject={it.subject} className="rounded-xl border border-line bg-surface p-2.5 space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
-                        <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-bold', subjectTone(it.subject))}>{it.subject}</span>
+                        <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold', subjectTone(it.subject))}>{it.subject}</span>
                         <span className="flex items-center gap-0.5 shrink-0">
                           {it.doneAt && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-success-fg mr-1" data-done title="Öğrenci yaptı olarak işaretledi">
+                            <span className="inline-flex items-center gap-0.5 text-2xs font-bold text-success-fg mr-1" data-done title="Öğrenci yaptı olarak işaretledi">
                               <Check className="w-3 h-3" /> Yaptı
                             </span>
                           )}
                           {editable && (
                             <>
-                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => setTaskModal({ mode: 'edit', item: it, day: it.day })}>
+                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => setTaskModal({ mode: 'edit', item: it, day: it.day })}>
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-md text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteItem(it)}>
+                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-lg text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteItem(it)}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </>
@@ -818,11 +818,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
                       )}
                       {it.note && <p className="text-xs text-fg-2 whitespace-pre-wrap break-words">{it.note}</p>}
                       {it.questionCount > 0 && (
-                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-[11px] font-bold" data-plan-qcount>
+                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-xs font-bold" data-plan-qcount>
                             {it.questionCount} soru
                           </p>
                         )}
-                      {it.createdByName && <p className="text-[10px] text-subtle">{it.createdByName}</p>}
+                      {it.createdByName && <p className="text-2xs text-subtle">{it.createdByName}</p>}
                     </article>
                   );
                 })}
@@ -1063,7 +1063,7 @@ const ApplyPlanModal: React.FC<{
       ) : (
         <div className="space-y-5">
           <section className="space-y-2">
-            <h3 className="text-[13px] font-semibold text-fg">1. Hangi haftaya?</h3>
+            <h3 className="text-sm font-semibold text-fg">1. Hangi haftaya?</h3>
             <div className="flex flex-wrap gap-2 items-center">
               <button type="button" id="apply-week-same" className={chipCls(weekMode === 'same')} onClick={() => setWeekMode('same')}>
                 Aynı hafta
@@ -1081,7 +1081,7 @@ const ApplyPlanModal: React.FC<{
             </p>
           </section>
           <section className="space-y-2">
-            <h3 className="text-[13px] font-semibold text-fg">2. Hangi öğrencilere? (tek öğrenci, birkaç öğrenci ya da sınıfın tamamı)</h3>
+            <h3 className="text-sm font-semibold text-fg">2. Hangi öğrencilere? (tek öğrenci, birkaç öğrenci ya da sınıfın tamamı)</h3>
             <StudentPicker
               variant="classes"
               classes={classes}
@@ -1099,10 +1099,10 @@ const ApplyPlanModal: React.FC<{
               <input type="checkbox" id="apply-send" checked={send} onChange={(e) => setSend(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--color-brand)]" />
               <span className="text-sm">
                 <span className="font-semibold text-fg">Planlar hemen öğrencilere ödev olarak gönderilsin</span>
-                <span className="block text-[11px] text-muted">İşaretlemezseniz her öğrencinin planı taslak olarak kalır; sonra tek tek gönderebilirsiniz.</span>
+                <span className="block text-xs text-muted">İşaretlemezseniz her öğrencinin planı taslak olarak kalır; sonra tek tek gönderebilirsiniz.</span>
               </span>
             </label>
-            <p className="text-[11px] text-muted">
+            <p className="text-xs text-muted">
               Hedefte aynı görev zaten varsa tekrar eklenmez. {allowedCount < items.length ? `Yalnızca sizin branşınızdaki ${allowedCount} görev kopyalanır.` : `${allowedCount} görev kopyalanır.`}
             </p>
           </section>

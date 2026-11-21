@@ -682,7 +682,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               }}
               onClick={() => fileRef.current?.click()}
               className={cx(
-                'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all',
+                'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition',
                 dragOver ? 'border-brand bg-brand-soft' : 'border-line-strong hover:border-brand bg-surface-2/40'
               )}
             >
@@ -725,7 +725,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               ))}
             </div>
             {canTc && hasTcColumn && (
-              <p className="p-2.5 bg-info-soft rounded-lg text-[11px] text-info-fg flex items-start gap-1.5">
+              <p className="p-2.5 bg-info-soft rounded-lg text-xs text-info-fg flex items-start gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span className="flex-1">
                   <span className="inline-flex items-center gap-1">
@@ -738,7 +738,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               </p>
             )}
             {numberOn && (
-              <p className="p-2.5 bg-warning-soft rounded-lg text-[11px] text-warning-fg">
+              <p className="p-2.5 bg-warning-soft rounded-lg text-xs text-warning-fg">
                 Okul numarası öğrencinin <strong>giriş adıdır</strong>. Değişen öğrenciler bundan sonra yeni numarayla giriş yapar; şifreleri değişmez.
                 Numara yalnızca ad soyadla bulunan öğrencilerde değiştirilir.
               </p>
@@ -762,7 +762,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                   {label}
                 </button>
               ))}
-              {counts.same > 0 && <span className="text-[11px] text-muted">{counts.same} öğrencide değişiklik yok.</span>}
+              {counts.same > 0 && <span className="text-xs text-muted">{counts.same} öğrencide değişiklik yok.</span>}
             </div>
           </div>
         )}
@@ -804,12 +804,12 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                         />
                       </td>
                       <td className="px-3 py-2 font-mono text-muted align-top whitespace-nowrap" title={r.sheet ? `${r.sheet} sayfası, ${r.rowNumber}. satır` : undefined}>
-                        {r.sheet && <span className="block font-sans text-[10px] text-subtle max-w-24 truncate">{r.sheet}</span>}
+                        {r.sheet && <span className="block font-sans text-2xs text-subtle max-w-24 truncate">{r.sheet}</span>}
                         {r.rowNumber}
                       </td>
                       <td className="px-3 py-2 align-top">
                         <p className="text-fg font-medium">{r.excelName || '—'}</p>
-                        <p className="text-[11px] text-muted">{[r.excelNumber && `No ${r.excelNumber}`, r.excelClass].filter(Boolean).join(' · ')}</p>
+                        <p className="text-xs text-muted">{[r.excelNumber && `No ${r.excelNumber}`, r.excelClass].filter(Boolean).join(' · ')}</p>
                       </td>
                       <td className="px-3 py-2 align-top">
                         {r.student ? (
@@ -818,7 +818,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                               <UserCheck className="w-3.5 h-3.5 text-success-fg shrink-0" />
                               {r.student.name}
                             </p>
-                            <p className="text-[11px] text-muted">
+                            <p className="text-xs text-muted">
                               {[r.student.studentNumber && `No ${r.student.studentNumber}`, r.student.className, r.by && `${r.by} ile bulundu`].filter(Boolean).join(' · ')}
                             </p>
                           </>
@@ -834,7 +834,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                           </p>
                         ))}
                         {r.notes.map((n, i) => (
-                          <p key={i} className="text-[11px] text-warning-fg">
+                          <p key={i} className="text-xs text-warning-fg">
                             {n}
                           </p>
                         ))}
@@ -842,7 +842,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                       </td>
                       <td className="px-3 py-2 text-center align-top min-w-[150px]">
                         <span className={cx('ui-chip', STATUS_INFO[r.status].chip)}>{STATUS_INFO[r.status].label}</span>
-                        {r.reason && <p className="text-[11px] text-muted mt-1 text-left">{r.reason}</p>}
+                        {r.reason && <p className="text-xs text-muted mt-1 text-left">{r.reason}</p>}
                       </td>
                     </tr>
                   );
@@ -893,7 +893,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               <div className="flex flex-wrap items-center gap-2">
                 {confirmTcDelete ? (
                   <>
-                    <span className="text-[11px] font-semibold text-danger-fg">Yetkili olduğunuz bütün öğrencilerin TC parmak izleri silinsin mi?</span>
+                    <span className="text-xs font-semibold text-danger-fg">Yetkili olduğunuz bütün öğrencilerin TC parmak izleri silinsin mi?</span>
                     <button type="button" className="ui-btn ui-btn-danger-soft ui-btn-sm" disabled={busy} onClick={() => void deleteAllTc()}>
                       Evet, sil
                     </button>

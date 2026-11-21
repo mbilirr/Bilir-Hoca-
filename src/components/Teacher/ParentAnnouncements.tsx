@@ -350,7 +350,7 @@ export const ParentAnnouncements: React.FC = () => {
               <UserRound className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">Veliler</span>
-                <span className="block text-[11px] text-muted">Öğrenci kaydındaki veli e-posta ve telefonları</span>
+                <span className="block text-xs text-muted">Öğrenci kaydındaki veli e-posta ve telefonları</span>
               </span>
             </label>
             <label
@@ -360,18 +360,18 @@ export const ParentAnnouncements: React.FC = () => {
               <GraduationCap className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">Öğrenciler</span>
-                <span className="block text-[11px] text-muted">Öğrencinin kendi e-postası ve telefonu</span>
+                <span className="block text-xs text-muted">Öğrencinin kendi e-postası ve telefonu</span>
               </span>
             </label>
           </div>
-          {!toParents && !toStudents && <p className="text-[11px] text-danger-fg">En az bir alıcı seçin.</p>}
+          {!toParents && !toStudents && <p className="text-xs text-danger-fg">En az bir alıcı seçin.</p>}
           {single && (
             <div className="space-y-1.5" id="pa-veli-sec">
               <span className="text-xs font-semibold text-fg-2">Hangi velilere? ({single.name})</span>
               {reachableIndexes(single.parents, ['mail', 'sms']).length || (single.parents && single.parents.length) ? (
                 <ParentChecklist parents={single.parents || []} channels={channels} value={veliSira} onChange={setVeliSira} idPrefix="pa-veli-liste" />
               ) : (
-                <p className="text-[11px] text-muted">Bu öğrencinin kayıtlı velisi yok.</p>
+                <p className="text-xs text-muted">Bu öğrencinin kayıtlı velisi yok.</p>
               )}
             </div>
           )}
@@ -382,7 +382,7 @@ export const ParentAnnouncements: React.FC = () => {
                 <RelationChips relations={relations} value={veliRels} onChange={setVeliRels} idPrefix="pa-veli-yakinlik" />
               </div>
               {veliRels.length > 0 && (
-                <p className="text-[11px] text-muted">Yalnız {veliRels.join(', ')} olarak kayıtlı velilere gider; bu yakınlıkta velisi olmayan öğrenciler atlanır.</p>
+                <p className="text-xs text-muted">Yalnız {veliRels.join(', ')} olarak kayıtlı velilere gider; bu yakınlıkta velisi olmayan öğrenciler atlanır.</p>
               )}
             </div>
           )}
@@ -398,7 +398,7 @@ export const ParentAnnouncements: React.FC = () => {
               <Mail className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">E-posta</span>
-                <span className="block text-[11px] text-muted">Uzun metin yazılabilir ({TEXT_MAX} karakter)</span>
+                <span className="block text-xs text-muted">Uzun metin yazılabilir ({TEXT_MAX} karakter)</span>
               </span>
             </label>
             <label
@@ -408,12 +408,12 @@ export const ParentAnnouncements: React.FC = () => {
               <MessageSquare className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">SMS</span>
-                <span className="block text-[11px] text-muted">Kısa metin ({SMS_MAX} karakter), yalnızca cep numaralarına</span>
+                <span className="block text-xs text-muted">Kısa metin ({SMS_MAX} karakter), yalnızca cep numaralarına</span>
               </span>
             </label>
           </div>
           {useSms && (
-            <p className="flex items-start gap-1.5 text-[11px] text-warning-fg">
+            <p className="flex items-start gap-1.5 text-xs text-warning-fg">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
               <span>SMS’e öğrencinin notu, puanı, devamsızlığı gibi kişisel bilgi yazmayın. Mesajın başına okulun adı otomatik eklenir.</span>
             </p>
@@ -439,7 +439,7 @@ export const ParentAnnouncements: React.FC = () => {
               <label htmlFor="pa-text" className="block text-xs font-semibold text-fg-2">
                 Mesaj
               </label>
-              <span className={`text-[10px] tabular-nums ${smsTooLong ? 'text-danger-fg font-bold' : 'text-muted'}`}>
+              <span className={`text-2xs tabular-nums ${smsTooLong ? 'text-danger-fg font-bold' : 'text-muted'}`}>
                 {message.length}/{limit}
               </span>
             </div>
@@ -452,7 +452,7 @@ export const ParentAnnouncements: React.FC = () => {
               placeholder="Duyuru metnini yazın…"
               className="ui-field w-full resize-y"
             />
-            {smsTooLong && <p className="text-[11px] text-danger-fg mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
+            {smsTooLong && <p className="text-xs text-danger-fg mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
           </div>
         </div>
 
@@ -596,7 +596,7 @@ export const ParentAnnouncements: React.FC = () => {
                   <summary className="cursor-pointer font-semibold">
                     {preview.noContact.length} öğrencinin seçtiğiniz yola uygun iletişim bilgisi yok (gönderilmeyecek)
                   </summary>
-                  <p className="mt-1 text-[11px] leading-relaxed">{preview.noContact.join(', ')}</p>
+                  <p className="mt-1 text-xs leading-relaxed">{preview.noContact.join(', ')}</p>
                 </details>
               )}
             </>

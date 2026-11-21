@@ -41,7 +41,7 @@ const yaziAlaninda = (el: EventTarget | null) => {
 const pencereAcik = () => !!document.querySelector('[role="dialog"][aria-modal="true"]:not([aria-hidden="true"])');
 
 const Tus: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <kbd className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-md border border-line bg-surface-2 text-[11px] font-semibold text-fg-2 font-sans shadow-[inset_0_-1px_0_var(--color-line)]">
+  <kbd className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-lg border border-line bg-surface-2 text-xs font-semibold text-fg-2 font-sans shadow-[inset_0_-1px_0_var(--color-line)]">
     {children}
   </kbd>
 );
@@ -50,7 +50,7 @@ const Tus: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 const Satir: React.FC<{ ad: string; tuslar: string[][]; ara?: string }> = ({ ad, tuslar, ara }) => (
   <li className="h-10 flex items-center justify-between gap-3 px-3 border-b border-line last:border-b-0">
     <span className="text-sm text-fg truncate">{ad}</span>
-    <span className="shrink-0 flex items-center gap-1 text-[11px] text-subtle">
+    <span className="shrink-0 flex items-center gap-1 text-xs text-subtle">
       {tuslar.map((grup, g) => (
         <React.Fragment key={g}>
           {g > 0 && <span className="px-1">veya</span>}

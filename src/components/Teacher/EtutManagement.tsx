@@ -726,36 +726,36 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 className={`bg-surface ${status === 'past' ? 'opacity-90' : ''}`}
                 badges={
                   <>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-soft text-brand-fg">
+                    <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand-fg">
                       {etut.subject}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-warning-soft text-warning-fg inline-flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-warning-soft text-warning-fg inline-flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {dateText} · {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${ETUT_STATUS_STYLE[status].chip}`} data-etut-status={status}>
+                    <span className={`px-2 py-0.5 rounded-lg text-2xs font-bold ${ETUT_STATUS_STYLE[status].chip}`} data-etut-status={status}>
                       {ETUT_STATUS_STYLE[status].label}
                     </span>
                     {missingAtt && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-danger-soft text-danger-fg inline-flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-lg text-2xs font-bold bg-danger-soft text-danger-fg inline-flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
                         Yoklama alınmadı
                       </span>
                     )}
                     {etut.gradeLevel && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-info-soft text-info-fg">
+                      <span className="px-2 py-0.5 rounded-lg text-2xs font-semibold bg-info-soft text-info-fg">
                         {etut.gradeLevel}
                       </span>
                     )}
                     {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
+                      <span className="px-2 py-0.5 rounded-lg text-2xs font-bold bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
                     )}
                   </>
                 }
                 title={etut.topic}
                 meta={[etut.location, etut.teacherName ? `Öğretmen: ${etut.teacherName}` : '', `${assignedStudents.length} öğrenci`].filter(Boolean).join(' · ')}
                 stats={
-                  <div className="text-[11px] font-semibold">
+                  <div className="text-xs font-semibold">
                     <span className="text-muted block">Yoklama</span>
                     {att.length > 0 ? (
                       <span className="flex flex-wrap gap-x-2">
@@ -774,7 +774,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 }
                 actions={
                   etut.privacyRedacted ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted px-2" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted px-2" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
                       <Lock className="w-3.5 h-3.5" /> Başka öğretmenin etüdü
                     </span>
                   ) : !canEditEtut(etut) ? (
@@ -825,13 +825,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     )}
                     {etut.schoolLevel && <div>{etut.schoolLevel}</div>}
                     {etut.notes && (
-                      <p className="text-[11px] text-muted italic pt-1 border-t border-line">
+                      <p className="text-xs text-muted italic pt-1 border-t border-line">
                         <span className="font-semibold text-fg-2 not-italic">Açıklama:</span> {etut.notes}
                       </p>
                     )}
                     {etut.teacherFeedback && (
                       <div className="p-2.5 rounded-xl bg-warning-soft border border-warning/30 text-warning-fg space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
                           <MessageSquareQuote className="w-3.5 h-3.5 shrink-0" />
                           <span>Öğretmen Görüş ve Düşünceleri:</span>
                         </div>
@@ -882,9 +882,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2 flex items-center justify-between">
                       <span>Katılacak Öğrenciler ({assignedStudents.length})</span>
-                      {etut.assignedStudentIds === 'all' && <span className="text-[10px] text-brand-fg font-bold">Tümü Dahil</span>}
+                      {etut.assignedStudentIds === 'all' && <span className="text-2xs text-brand-fg font-bold">Tümü Dahil</span>}
                     </p>
                     <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                       {assignedStudents.map((std) => {
@@ -897,7 +897,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               setReportSelectedStudentId(std.id);
                               setIsReportModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] bg-surface-2 hover:bg-brand-soft text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs bg-surface-2 hover:bg-brand-soft text-fg-2 px-2 py-0.5 rounded-lg border border-line transition-colors cursor-pointer"
                             title={`${std.name} için etüt analizini görüntüle`}
                           >
                             <span
@@ -1083,23 +1083,23 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 {/* Sayaçlar */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <div className="p-2.5 rounded-xl bg-canvas/70 border border-line text-center">
-                    <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
+                    <span className="text-2xs uppercase font-bold text-muted block">Toplam</span>
                     <span className="text-base font-bold text-fg">{assignedStudents.length}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-success/10 border border-success/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-success-fg block">Geldi</span>
+                    <span className="text-2xs uppercase font-bold text-success-fg block">Geldi</span>
                     <span className="text-base font-bold text-success-fg">{countPresent}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-danger/10 border border-danger/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-danger-fg block">Gelmedi</span>
+                    <span className="text-2xs uppercase font-bold text-danger-fg block">Gelmedi</span>
                     <span className="text-base font-bold text-danger-fg">{countAbsent}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-warning/10 border border-warning/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-warning-fg block">Geç Kaldı</span>
+                    <span className="text-2xs uppercase font-bold text-warning-fg block">Geç Kaldı</span>
                     <span className="text-base font-bold text-warning-fg">{countLate}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-info/10 border border-info/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-info-fg block">İzinli</span>
+                    <span className="text-2xs uppercase font-bold text-info-fg block">İzinli</span>
                     <span className="text-base font-bold text-info-fg">{countExcused}</span>
                   </div>
                 </div>
@@ -1368,7 +1368,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             setAttPickLimit(15);
                           }}
                           className={cx(
-                            'h-8 w-24 rounded-md text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
+                            'h-8 w-24 rounded-lg text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
                             filt === f.key ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'
                           )}
                         >
@@ -1411,7 +1411,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         return (
                           <React.Fragment key={e.id}>
                             {head && (
-                              <div className="px-3 py-1 text-[11px] font-semibold text-muted bg-surface-2 border-b border-line first:border-t-0">
+                              <div className="px-3 py-1 text-xs font-semibold text-muted bg-surface-2 border-b border-line first:border-t-0">
                                 {dayLabel(day)}
                               </div>
                             )}
@@ -1447,7 +1447,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                                 </span>
                               </span>
                               {stt && (
-                                <span className={cx('shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full', stt.cls)}>{stt.label}</span>
+                                <span className={cx('shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full', stt.cls)}>{stt.label}</span>
                               )}
                               <ChevronDown className={cx('w-4 h-4 shrink-0 text-muted transition-transform', on && 'rotate-180')} aria-hidden />
                             </button>
@@ -1651,7 +1651,7 @@ const TeacherPicker: React.FC<{
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {blink && totalMissing > 0 && (
-            <span className="text-[10px] font-bold text-danger-fg" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
+            <span className="text-2xs font-bold text-danger-fg" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
               ⚠ {missingTeachers}
             </span>
           )}
@@ -1694,7 +1694,7 @@ const TeacherPicker: React.FC<{
                   <span className="truncate">
                     {t} ({n})
                   </span>
-                  {showMiss && <span className="shrink-0 text-[11px] font-bold text-danger-fg">{miss} yoklama eksik</span>}
+                  {showMiss && <span className="shrink-0 text-xs font-bold text-danger-fg">{miss} yoklama eksik</span>}
                 </button>
               </li>
             );

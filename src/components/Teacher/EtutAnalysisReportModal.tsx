@@ -120,7 +120,7 @@ const StatusStrip: React.FC<{ counts: Counts }> = ({ counts }) => (
     {STATUS_ORDER.map((k) => (
       <div key={k} className={cx('rounded-xl px-3 py-2', toneSoft[STATUS_TONE[k]])}>
         <div className="text-lg font-bold tabular-nums leading-tight">{counts[k]}</div>
-        <div className="text-[11px] font-semibold leading-tight">{STATUS_LABEL[k]}</div>
+        <div className="text-xs font-semibold leading-tight">{STATUS_LABEL[k]}</div>
       </div>
     ))}
   </div>
@@ -141,8 +141,8 @@ const Field: React.FC<{ label: string; htmlFor: string; children: React.ReactNod
 );
 
 const selectCls = 'ui-input cursor-pointer';
-const thCls = 'px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
-const thNum = 'px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
+const thCls = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
+const thNum = 'px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
 const tdCls = 'px-3 py-2 text-fg-2 align-top';
 const tdNum = 'px-3 py-2 text-right tabular-nums text-fg-2 align-top';
 
@@ -693,7 +693,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 <StatCard label="Yoklama alınmamış" value={summary.unrecordedEtuts} hint="geçmiş / bugünkü etüt" icon={ClipboardX} tone="warning" />
               </div>
               <StatusStrip counts={summary.totals} />
-              <p className="text-[11px] text-muted">{RATE_HINT}</p>
+              <p className="text-xs text-muted">{RATE_HINT}</p>
 
               <Segmented<Detail>
                 size="sm"
@@ -734,7 +734,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                               >
                                 {r.info.student.name}
                               </button>
-                              {r.info.student.studentNumber && <span className="block text-[11px] text-subtle">No {r.info.student.studentNumber}</span>}
+                              {r.info.student.studentNumber && <span className="block text-xs text-subtle">No {r.info.student.studentNumber}</span>}
                             </td>
                             <td className={cx(tdCls, 'whitespace-nowrap')}>{r.info.classLabel}</td>
                             <td className={tdNum}>{r.assigned}</td>
@@ -774,7 +774,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                       <tr key={r.pe.etut.id} className="border-t border-line">
                         <td className={cx(tdCls, 'whitespace-nowrap')}>
                           <span className="font-semibold text-fg tabular-nums">{trDate(r.pe.etut.date)}</span>
-                          <span className="block text-[11px] text-subtle tabular-nums">{r.pe.etut.time || '—'}</span>
+                          <span className="block text-xs text-subtle tabular-nums">{r.pe.etut.time || '—'}</span>
                         </td>
                         <td className={cx(tdCls, 'min-w-[12rem]')}>
                           <span className="font-semibold text-fg">{r.pe.subject}</span>
@@ -825,7 +825,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     <StatCard label="Yoklama alınmadı" value={studentReport.counts.unrecorded} icon={ClipboardX} tone="warning" />
                   </div>
                   <StatusStrip counts={studentReport.counts} />
-                  <p className="text-[11px] text-muted">{RATE_HINT}</p>
+                  <p className="text-xs text-muted">{RATE_HINT}</p>
                   <TableWrap>
                     <thead className="bg-surface-2">
                       <tr>
@@ -841,7 +841,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                         <tr key={r.pe.etut.id} className="border-t border-line">
                           <td className={cx(tdCls, 'whitespace-nowrap')}>
                             <span className="font-semibold text-fg tabular-nums">{trDate(r.pe.etut.date)}</span>
-                            <span className="block text-[11px] text-subtle tabular-nums">{r.pe.etut.time || '—'}</span>
+                            <span className="block text-xs text-subtle tabular-nums">{r.pe.etut.time || '—'}</span>
                           </td>
                           <td className={cx(tdCls, 'min-w-[12rem]')}>
                             <span className="font-semibold text-fg">{r.pe.subject}</span>

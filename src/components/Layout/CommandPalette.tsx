@@ -212,7 +212,7 @@ export const CommandPalette: React.FC<{
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-start justify-center px-3 pt-[8vh] sm:pt-[12vh] bg-slate-950/55 backdrop-blur-[2px]"
+      className="fixed inset-0 z-(--z-pencere) flex items-start justify-center px-3 pt-[8vh] sm:pt-[12vh] bg-slate-950/55 backdrop-blur-[2px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -284,7 +284,7 @@ export const CommandPalette: React.FC<{
           )}
         </div>
 
-        <div className="hidden sm:flex items-center gap-4 px-4 py-2.5 border-t border-line text-[11px] text-muted bg-surface-2/60">
+        <div className="hidden sm:flex items-center gap-4 px-4 py-2.5 border-t border-line text-xs text-muted bg-surface-2/60">
           <span>
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-surface font-sans">↑</kbd>{' '}
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-surface font-sans">↓</kbd> gezin
@@ -302,7 +302,7 @@ export const CommandPalette: React.FC<{
               close();
               kisayollariAc();
             }}
-            className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted hover:text-fg hover:bg-surface cursor-pointer transition-colors"
+            className="ml-auto inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-muted hover:text-fg hover:bg-surface cursor-pointer transition-colors"
           >
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-surface font-sans">?</kbd> kısayollar
           </button>

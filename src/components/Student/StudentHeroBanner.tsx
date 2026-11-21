@@ -346,7 +346,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <h3 className="text-sm font-bold text-fg flex items-center gap-2">
                 <span>Duyurular</span>
                 {duyurular.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-warning text-slate-950">{duyurular.length}</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-2xs font-bold bg-warning text-slate-950">{duyurular.length}</span>
                 )}
               </h3>
             </div>
@@ -354,7 +354,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             <button
               type="button"
               onClick={onOpenAvatarModal}
-              className="relative p-0.5 rounded-full ring-2 ring-brand/40 hover:ring-brand transition-all cursor-pointer"
+              className="relative p-0.5 rounded-full ring-2 ring-brand/40 hover:ring-brand transition cursor-pointer"
               title="Profil Resmini Değiştir"
             >
               <img src={studentAvatarUrl} alt={student.name} className="w-6 h-6 rounded-full object-cover bg-surface" />
@@ -375,18 +375,18 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                       data-duyuru={d.kind}
                       aria-expanded={expandable ? isOpen : undefined}
                       onClick={() => (expandable ? setOpenDuyuruId(isOpen ? null : d.id) : onNavigateTab(d.tab))}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-lg bg-surface/80 border hover:bg-surface transition-all flex items-center gap-2 cursor-pointer group ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg bg-surface/80 border hover:bg-surface transition flex items-center gap-2 cursor-pointer group ${
                         expandable ? 'border-danger/30 hover:border-danger/60' : 'border-line hover:border-warning/50'
                       }`}
                     >
-                      <span className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${st.box}`} title={st.label}>
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${st.box}`} title={st.label}>
                         <Icon className="w-3.5 h-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className={`block text-xs font-bold text-fg group-hover:text-warning-fg ${isOpen ? '' : 'truncate'}`}>
                           {d.title}
                         </span>
-                        {d.detail && <span className="block text-[10px] text-muted truncate">{d.detail}</span>}
+                        {d.detail && <span className="block text-2xs text-muted truncate">{d.detail}</span>}
                       </span>
                       {expandable && <ChevronRight className={`w-3.5 h-3.5 text-muted shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} />}
                     </button>
@@ -403,7 +403,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             <div className="py-4 text-center bg-surface/50 rounded-xl border border-line flex flex-col items-center gap-1" id="student-announcement-empty">
               <Sparkles className="w-5 h-5 text-warning-fg" />
               <p className="text-xs font-bold text-fg">Bugün için yeni duyuru yok.</p>
-              <p className="text-[10px] text-muted">Öğretmeninin duyuruları, etüt, ödev, soru hedefi veya yeni bir not olduğunda burada görünür.</p>
+              <p className="text-2xs text-muted">Öğretmeninin duyuruları, etüt, ödev, soru hedefi veya yeni bir not olduğunda burada görünür.</p>
             </div>
           )}
         </div>
@@ -424,7 +424,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleGoToToday}
-                className="px-2 py-0.5 text-[11px] font-bold text-brand-fg hover:text-fg bg-brand/20 hover:bg-brand-hover border border-brand/40 rounded-lg transition-colors cursor-pointer"
+                className="px-2 py-0.5 text-xs font-bold text-brand-fg hover:text-fg bg-brand/20 hover:bg-brand-hover border border-brand/40 rounded-lg transition-colors cursor-pointer"
               >
                 Bugün
               </button>
@@ -449,7 +449,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
 
           <div className="grid grid-cols-7 gap-0.5 text-center py-1 border-b border-line">
             {WEEKDAY_NAMES.map((w, idx) => (
-              <span key={w} className={`text-[10px] font-bold ${idx >= 5 ? 'text-warning-fg/80' : 'text-muted'}`}>
+              <span key={w} className={`text-2xs font-bold ${idx >= 5 ? 'text-warning-fg/80' : 'text-muted'}`}>
                 {w}
               </span>
             ))}
@@ -465,7 +465,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   key={`${cell.dateStr}-${idx}`}
                   type="button"
                   onClick={() => setSelectedDateStr(cell.dateStr)}
-                  className={`relative flex flex-col items-center justify-center h-7 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  className={`relative flex flex-col items-center justify-center h-7 rounded-lg text-xs font-semibold transition cursor-pointer ${
                     !cell.isCurrentMonth
                       ? 'text-subtle opacity-40 hover:opacity-80'
                       : cell.isToday
@@ -473,7 +473,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                       : 'text-fg hover:bg-surface-2/80'
                   } ${isSelected ? 'bg-brand text-white ring-1 ring-brand shadow-md z-10' : ''}`}
                 >
-                  <span className="text-[11px] leading-none">{cell.dayNumber}</span>
+                  <span className="text-xs leading-none">{cell.dayNumber}</span>
                   {(hasHw || hasEtut) && (
                     <span className="flex items-center gap-0.5 mt-0.5">
                       {hasHw && <span className="w-1 h-1 rounded-full bg-warning/40" title={`${cell.homeworkList.length} Ödev Teslimi`} />}
@@ -486,12 +486,12 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           <div className="mt-1.5 pt-1.5 border-t border-line space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-bold text-fg">
+            <div className="flex items-center justify-between text-xs font-bold text-fg">
               <span className="flex items-center space-x-1.5">
                 <Bookmark className="w-3 h-3 text-brand-fg" />
                 <span>{formatSelectedDateTurkish(selectedDateStr)}</span>
               </span>
-              <span className="text-[10px] text-muted font-normal flex items-center gap-2">
+              <span className="text-2xs text-muted font-normal flex items-center gap-2">
                 <span className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-warning/40" />
                   {selectedDetails.homeworks.length} Ödev
@@ -509,31 +509,31 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={hw.id}
                     onClick={() => onNavigateTab('homework')}
-                    className="px-1.5 py-1 rounded-md bg-warning-soft border border-warning/30 flex items-center justify-between text-[11px] text-warning-fg cursor-pointer"
+                    className="px-1.5 py-1 rounded-lg bg-warning-soft border border-warning/30 flex items-center justify-between text-xs text-warning-fg cursor-pointer"
                   >
                     <span className="flex items-center space-x-1.5 truncate">
                       <BookOpen className="w-3 h-3 shrink-0" />
                       <span className="truncate font-medium">{hw.title}</span>
                     </span>
-                    <span className="text-[9px] font-bold shrink-0 ml-1.5">{hw.subject}</span>
+                    <span className="text-3xs font-bold shrink-0 ml-1.5">{hw.subject}</span>
                   </div>
                 ))}
                 {selectedDetails.etuts.map((et) => (
                   <div
                     key={et.id}
                     onClick={() => onNavigateTab('etuts')}
-                    className="px-1.5 py-1 rounded-md bg-info-soft border border-info/30 flex items-center justify-between text-[11px] text-info-fg cursor-pointer"
+                    className="px-1.5 py-1 rounded-lg bg-info-soft border border-info/30 flex items-center justify-between text-xs text-info-fg cursor-pointer"
                   >
                     <span className="flex items-center space-x-1.5 truncate">
                       <Clock className="w-3 h-3 shrink-0" />
                       <span className="truncate font-medium">{et.subject}</span>
                     </span>
-                    <span className="text-[9px] font-bold shrink-0 ml-1.5">{et.time}</span>
+                    <span className="text-3xs font-bold shrink-0 ml-1.5">{et.time}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-muted italic text-center">Bu tarihte planlanmış ödev veya etüt bulunmuyor.</p>
+              <p className="text-2xs text-muted italic text-center">Bu tarihte planlanmış ödev veya etüt bulunmuyor.</p>
             )}
           </div>
         </div>

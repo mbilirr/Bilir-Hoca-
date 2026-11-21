@@ -780,7 +780,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <span className="font-bold text-fg text-xs">
               {data.dayName ? `${data.dayName} (${formatTurkishDate(data.dateStr)})` : data.weekLabel}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand-fg border border-brand/30">
+            <span className="px-2 py-0.5 rounded-full text-2xs font-semibold bg-brand-soft text-brand-fg border border-brand/30">
               {data.totalQuestions > 0 ? `${data.totalQuestions} Soru` : '0 Soru'}
             </span>
           </div>
@@ -810,23 +810,23 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             )}
 
             {data.totalQuestions >= dailyQuestionTarget ? (
-              <div className="text-[11px] text-success-fg font-semibold flex items-center gap-1 pt-1 border-t border-line">
+              <div className="text-xs text-success-fg font-semibold flex items-center gap-1 pt-1 border-t border-line">
                 <CheckCircle2 className="w-3 h-3 text-success-fg" />
                 <span>Günlük Hedefe Ulaşıldı (%{Math.round((data.totalQuestions / dailyQuestionTarget) * 100)})</span>
               </div>
             ) : data.totalQuestions > 0 ? (
-              <div className="text-[11px] text-brand-fg font-medium pt-1 border-t border-line">
+              <div className="text-xs text-brand-fg font-medium pt-1 border-t border-line">
                 Hedefe {dailyQuestionTarget - data.totalQuestions} soru kaldı
               </div>
             ) : (
-              <div className="text-[11px] text-danger-fg font-medium flex items-center gap-1 pt-1 border-t border-line">
+              <div className="text-xs text-danger-fg font-medium flex items-center gap-1 pt-1 border-t border-line">
                 <AlertCircle className="w-3 h-3 text-danger-fg" />
                 <span>Bu gün soru çözülmedi</span>
               </div>
             )}
 
             {data.subjectsText && (
-              <div className="pt-1 border-t border-line text-[10px] text-muted truncate max-w-[200px]">
+              <div className="pt-1 border-t border-line text-2xs text-muted truncate max-w-[200px]">
                 {data.subjectsText}
               </div>
             )}
@@ -951,7 +951,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
           {/* 1. Sınıf Seçimi */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line">
-            <label className="block text-[11px] font-bold text-fg-2 mb-1 flex items-center justify-between">
+            <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-fg" />
                 Sınıf Filtresi
@@ -960,7 +960,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSelectClass('')}
-                  className="text-[10px] text-muted hover:text-danger-fg font-semibold cursor-pointer"
+                  className="text-2xs text-muted hover:text-danger-fg font-semibold cursor-pointer"
                 >
                   Sınıfı Temizle ✕
                 </button>
@@ -991,7 +991,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
           {/* 2. Öğrenci Seçimi (Arama Kutulu & Renk Vurgulu Özel Açılır Menü) */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line relative" ref={studentDropdownRef}>
-            <label className="block text-[11px] font-bold text-fg-2 mb-1 flex items-center justify-between">
+            <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-brand-fg" />
                 Öğrenci Seçimi
@@ -1000,7 +1000,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedStudentId('')}
-                  className="text-[10px] text-muted hover:text-danger-fg font-semibold cursor-pointer"
+                  className="text-2xs text-muted hover:text-danger-fg font-semibold cursor-pointer"
                 >
                   Seçimi Kaldır ✕
                 </button>
@@ -1028,12 +1028,12 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     {activeStudent.name}
                   </span>
                   {activeStudent.className && (
-                    <span className="text-[10px] text-subtle truncate">
+                    <span className="text-2xs text-subtle truncate">
                       ({activeStudent.className})
                     </span>
                   )}
                   {getStudentTodayQuestionCount(activeStudent.id) > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-success-soft text-success-fg border border-success/30">
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-3xs font-bold bg-success-soft text-success-fg border border-success/30">
                       🎯 {getStudentTodayQuestionCount(activeStudent.id)}
                     </span>
                   )}
@@ -1076,7 +1076,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                   {/* Kapsam Filtresi: Eğer sınıf seçilmişse sınıf içi veya tüm okul toggle'ı */}
                   {selectedClassId && selectedClassId !== 'all' && (
-                    <div className="flex rounded-md bg-surface-3/80 p-0.5 text-[10px] font-bold">
+                    <div className="flex rounded-lg bg-surface-3/80 p-0.5 text-2xs font-bold">
                       <button
                         type="button"
                         onClick={() => setDropdownScope('class')}
@@ -1156,7 +1156,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {s.name}
                             </span>
                             {s.className && (
-                              <span className="text-[10px] text-subtle shrink-0">
+                              <span className="text-2xs text-subtle shrink-0">
                                 ({s.className})
                               </span>
                             )}
@@ -1164,7 +1164,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                           <div className="flex items-center gap-1.5 shrink-0 ml-2">
                             {hasSolvedToday && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success text-white shadow-xs">
+                              <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-success text-white shadow-xs">
                                 🎯 Bugün {todayCount} Soru
                               </span>
                             )}
@@ -1181,7 +1181,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
           {/* 3. Görünüm Dönemi (Haftalık / Aylık / Sınıf Sıralaması) */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line">
-            <label className="block text-[11px] font-bold text-fg-2 mb-1 flex items-center gap-1.5">
+            <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-fg" />
               Analiz Boyutu
             </label>
@@ -1239,7 +1239,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-brand-soft text-brand-fg border border-brand/30">
+                      <span className="text-2xs font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-brand-soft text-brand-fg border border-brand/30">
                         Bütün Sınıf Raporu
                       </span>
                       <span className="text-xs font-semibold text-muted">
@@ -1287,7 +1287,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="text-2xl font-bold text-fg">
                     {classStudents.length} <span className="text-xs font-normal text-muted">Öğrenci</span>
                   </div>
-                  <div className="text-[11px] text-success-fg font-semibold mt-1">
+                  <div className="text-xs text-success-fg font-semibold mt-1">
                     Bugün {classSummaryStats.todaySolvedCount} öğrenci soru girişi yaptı
                   </div>
                 </div>
@@ -1300,7 +1300,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="text-2xl font-bold text-brand-fg">
                     {classSummaryStats.weeklyTotal} <span className="text-xs font-normal text-muted">Soru</span>
                   </div>
-                  <div className="text-[11px] text-muted mt-1">
+                  <div className="text-xs text-muted mt-1">
                     Haftalık sınıf geneli çözülen toplam
                   </div>
                 </div>
@@ -1313,7 +1313,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="text-2xl font-bold text-success-fg">
                     {classSummaryStats.weeklyAvgPerStudent} <span className="text-xs font-normal text-muted">Soru</span>
                   </div>
-                  <div className="text-[11px] text-muted mt-1">
+                  <div className="text-xs text-muted mt-1">
                     Günlük ortalama ~{classSummaryStats.dailyAvgPerStudent} soru
                   </div>
                 </div>
@@ -1326,7 +1326,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="text-2xl font-bold text-brand-fg">
                     {classSummaryStats.monthlyTotal} <span className="text-xs font-normal text-muted">Soru</span>
                   </div>
-                  <div className="text-[11px] text-muted mt-1">
+                  <div className="text-xs text-muted mt-1">
                     Aylık genel sınıf soru hacmi
                   </div>
                 </div>
@@ -1377,15 +1377,15 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           >
                             <td className="px-4 py-3.5 font-bold text-muted">
                               {idx === 0 ? (
-                                <span className="w-6 h-6 rounded-full bg-warning-soft text-warning-fg flex items-center justify-center font-bold text-[11px]">
+                                <span className="w-6 h-6 rounded-full bg-warning-soft text-warning-fg flex items-center justify-center font-bold text-xs">
                                   🥇
                                 </span>
                               ) : idx === 1 ? (
-                                <span className="w-6 h-6 rounded-full bg-surface-3 text-fg-2 flex items-center justify-center font-bold text-[11px]">
+                                <span className="w-6 h-6 rounded-full bg-surface-3 text-fg-2 flex items-center justify-center font-bold text-xs">
                                   🥈
                                 </span>
                               ) : idx === 2 ? (
-                                <span className="w-6 h-6 rounded-full bg-brand-soft text-brand-fg flex items-center justify-center font-bold text-[11px]">
+                                <span className="w-6 h-6 rounded-full bg-brand-soft text-brand-fg flex items-center justify-center font-bold text-xs">
                                   🥉
                                 </span>
                               ) : (
@@ -1397,18 +1397,18 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                 {row.student.name}
                               </div>
                               {row.student.studentNumber && (
-                                <div className="text-[10px] text-subtle">
+                                <div className="text-2xs text-subtle">
                                   No: {row.student.studentNumber}
                                 </div>
                               )}
                             </td>
                             <td className="px-4 py-3.5 text-center">
                               {todayCount > 0 ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-success-soft text-success-fg border border-success/30">
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-success-soft text-success-fg border border-success/30">
                                   🎯 {todayCount} Soru
                                 </span>
                               ) : (
-                                <span className="text-subtle text-[11px] font-medium">-</span>
+                                <span className="text-subtle text-xs font-medium">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3.5 text-center font-extrabold text-fg text-sm">
@@ -1416,11 +1416,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             </td>
                             <td className="px-4 py-3.5 text-center">
                               {row.unsolvedDaysCount > 0 ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-soft text-brand-fg border border-brand/30">
+                                <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
                                   {row.unsolvedDaysCount} Gün Boş
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success-soft text-success-fg border border-success/30">
+                                <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-success-soft text-success-fg border border-success/30">
                                   Her Gün Çözüldü
                                 </span>
                               )}
@@ -1434,7 +1434,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {row.monthlyTotal} Soru
                             </td>
                             <td className="px-4 py-3.5 text-center">
-                              <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold bg-surface-2 text-fg border border-line">
+                              <span className="inline-block px-2.5 py-0.5 rounded text-xs font-semibold bg-surface-2 text-fg border border-line">
                                 {row.badgeText}
                               </span>
                             </td>
@@ -1489,18 +1489,18 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             {s.name}
                           </div>
                           {s.studentNumber && (
-                            <div className="text-[10px] text-subtle">
+                            <div className="text-2xs text-subtle">
                               No: {s.studentNumber}
                             </div>
                           )}
                         </div>
                         {todayCount > 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success text-white shadow-xs shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-success text-white shadow-xs shrink-0">
                             🎯 {todayCount}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-line">
+                      <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-line">
                         <span className="font-semibold text-fg-2">Bu Hafta: <strong className="text-brand-fg font-extrabold">{weeklyTotal} Soru</strong></span>
                         <span className="text-brand-fg font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
                           İncele →
@@ -1559,11 +1559,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           <div className="font-extrabold text-xs text-success-fg group-hover:text-success-fg transition-colors">
                             {s.name}
                           </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success text-white shadow-xs shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-success text-white shadow-xs shrink-0">
                             {todayQuestions} Soru
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-success/30">
+                        <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-success/30">
                           <span className="truncate">{s.className || 'Sınıf Belirtilmedi'}</span>
                           <span className="text-success-fg font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
                             İncele →
@@ -1593,7 +1593,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     id="btn-open-week-picker-modal"
                     type="button"
                     onClick={() => setIsWeekModalOpen(true)}
-                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
                     title="Geçmiş haftaları ve çözülen soruları görüntülemek için açılır pencereyi açın"
                   >
                     <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
@@ -1601,15 +1601,15 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-extrabold text-brand-fg uppercase tracking-wider">
+                        <span className="text-2xs font-extrabold text-brand-fg uppercase tracking-wider">
                           {weekOffset === 0 ? 'Güncel Dönem' : weekOffset === -1 ? 'Geçen Hafta' : `${Math.abs(weekOffset)} Hafta Önce`}
                         </span>
                         {weekOffset !== 0 ? (
-                          <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
+                          <span className="text-3xs font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-lg">
                             Geçmiş Hafta
                           </span>
                         ) : (
-                          <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
+                          <span className="text-3xs font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-lg">
                             Aktif Hafta
                           </span>
                         )}
@@ -1659,7 +1659,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <div className="text-left">
                       <span className="text-xs font-bold text-fg block">{activeStudent.name}</span>
                       {activeStudent.className && (
-                        <span className="text-[10px] text-subtle block">{activeStudent.className}</span>
+                        <span className="text-2xs text-subtle block">{activeStudent.className}</span>
                       )}
                     </div>
                   </div>
@@ -1699,7 +1699,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 text-[11px] text-muted">
+                  <div className="mt-2 text-xs text-muted">
                     Önceki Hafta: <strong className="text-fg-2">{weeklyAnalytics.previousWeekTotal} soru</strong>
                   </div>
                 </div>
@@ -1710,7 +1710,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <span className="flex items-center gap-1.5 min-w-0">
                       <span>Soru Hedefi</span>
                       {activeWeeklyTarget && (
-                        <span className="text-[9px] font-bold px-1.5 py-px rounded bg-success-soft text-success-fg truncate">
+                        <span className="text-3xs font-bold px-1.5 py-px rounded bg-success-soft text-success-fg truncate">
                           {activeWeeklyTarget.subject || 'Tüm dersler'}
                         </span>
                       )}
@@ -1732,9 +1732,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </span>
                   </div>
                   <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
-                    <div className="bg-brand h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }} />
+                    <div className="bg-brand h-2 rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }} />
                   </div>
-                  <div className="mt-2 text-[11px] text-muted space-y-0.5">
+                  <div className="mt-2 text-xs text-muted space-y-0.5">
                     {activeWeeklyTarget ? (
                       <>
                         <div>
@@ -1760,7 +1760,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     ) : (
                       <div className="flex justify-between items-center">
                         <span>Bu hafta hedef yok (varsayılan: günde 50 soru)</span>
-                        <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="text-[10px] font-bold text-brand-fg underline cursor-pointer">
+                        <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="text-2xs font-bold text-brand-fg underline cursor-pointer">
                           Hedef ver
                         </button>
                       </div>
@@ -1787,22 +1787,22 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="mt-3">
                     {weeklyAnalytics.unsolvedDaysCount > 0 ? (
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-soft text-brand-fg border border-brand/30 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-brand-soft text-brand-fg border border-brand/30 flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 text-brand-fg" />
                           {weeklyAnalytics.unsolvedDaysCount} Gün Çözülmedi
                         </span>
-                        <span className="text-[10px] text-muted font-medium">
+                        <span className="text-2xs text-muted font-medium">
                           ({weeklyAnalytics.unsolvedDays.join(', ')})
                         </span>
                       </div>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-success-soft text-success-fg border border-success/30 flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-success-soft text-success-fg border border-success/30 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3 text-success-fg" />
                         7 Gün Kesintisiz Çalışma
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 text-[11px] text-muted">
+                  <div className="mt-2 text-xs text-muted">
                     Haftalık Devamlılık Oranı: <strong className="text-fg-2">%{Math.round((weeklyAnalytics.solvedDaysCount / 7) * 100)}</strong>
                   </div>
                 </div>
@@ -1829,9 +1829,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             <span className="text-xs font-semibold text-muted">/ {wTotal} soru · %{wPct}</span>
                           </div>
                           <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
-                            <div className={`h-2 rounded-full transition-all duration-500 ${wPct >= 100 ? 'bg-success' : 'bg-brand'}`} style={{ width: `${wPct}%` }} />
+                            <div className={`h-2 rounded-full transition-[width] duration-500 ${wPct >= 100 ? 'bg-success' : 'bg-brand'}`} style={{ width: `${wPct}%` }} />
                           </div>
-                          <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto pr-1 text-[11px]">
+                          <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto pr-1 text-xs">
                             {planWall.weekly.map((w) => {
                               const ok = w.solved >= w.target;
                               return (
@@ -1864,11 +1864,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </div>
 
                       <div className="mt-3 flex items-center gap-1.5">
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-fg text-surface">
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-fg text-surface">
                           {weeklyAnalytics.statusAssessment.badgeText}
                         </span>
                       </div>
-                      <div className="mt-2 text-[11px] text-muted flex gap-2">
+                      <div className="mt-2 text-xs text-muted flex gap-2">
                         <span className="text-success-fg font-semibold">D: {weeklyAnalytics.totalCorrect}</span>
                         <span className="text-danger-fg font-semibold">Y: {weeklyAnalytics.totalWrong}</span>
                         <span className="text-muted">B: {weeklyAnalytics.totalEmpty}</span>
@@ -2091,16 +2091,16 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <h4 className="text-sm font-bold text-fg">
                         Günlük Soru Çözüm ve Başarı Tablosu
                       </h4>
-                      <p className="text-[11px] text-muted">
+                      <p className="text-xs text-muted">
                         Öğrenci: <strong className="text-fg">{weeklyAnalytics.studentName}</strong> • {weeklyAnalytics.className}
                       </p>
                     </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-surface-2 text-fg-2 border border-line">
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-surface-2 text-fg-2 border border-line">
                       7 Günlük Detay
                     </span>
                   </div>
 
-                  <p className="xl:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">
+                  <p className="xl:hidden mb-2 text-xs text-muted" data-testid="table-scroll-hint">
                     Tablo sığmazsa yana kaydırabilirsiniz →
                   </p>
                   <div className="overflow-x-auto">
@@ -2142,22 +2142,22 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                       style={{ width: `${completionRate}%` }}
                                     />
                                   </div>
-                                  <span className="text-[10px] font-bold text-muted">%{completionRate}</span>
+                                  <span className="text-2xs font-bold text-muted">%{completionRate}</span>
                                 </div>
                               </td>
                               <td className="px-2.5 py-2.5 text-center">
                                 {d.hasSolved ? (
                                   metTarget ? (
-                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-success-soft text-success-fg border border-success/30">
+                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-2xs font-bold bg-success-soft text-success-fg border border-success/30">
                                       Hedef Tamamlandı
                                     </span>
                                   ) : (
-                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-info-soft text-info-fg border border-info/30">
+                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-2xs font-bold bg-info-soft text-info-fg border border-info/30">
                                       Kısmi Çözüm
                                     </span>
                                   )
                                 ) : (
-                                  <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger-fg border border-danger/30">
+                                  <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-2xs font-bold bg-danger-soft text-danger-fg border border-danger/30">
                                     0 Soru ⚠️
                                   </span>
                                 )}
@@ -2165,7 +2165,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               <td className="px-2.5 py-2.5 text-center">
                                 {d.totalQuestions > 0 ? (
                                   praised ? (
-                                    <span className="inline-flex whitespace-nowrap items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-warning-soft text-warning-fg border border-warning/30 shadow-2xs">
+                                    <span className="inline-flex whitespace-nowrap items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-warning-soft text-warning-fg border border-warning/30 shadow-2xs">
                                       <CheckCircle2 className="w-3.5 h-3.5 text-warning-fg" />
                                       <span>Tebrik Edildi ✓</span>
                                     </span>
@@ -2269,7 +2269,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     id="btn-open-month-picker-modal"
                     type="button"
                     onClick={() => setIsMonthModalOpen(true)}
-                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
                     title="Geçmiş ayları ve çözülen soruları görüntülemek için açılır pencereyi açın"
                   >
                     <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
@@ -2277,15 +2277,15 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-extrabold text-brand-fg uppercase tracking-wider">
+                        <span className="text-2xs font-extrabold text-brand-fg uppercase tracking-wider">
                           Aylık İnceleme Dönemi
                         </span>
                         {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth() ? (
-                          <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
+                          <span className="text-3xs font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-lg">
                             Aktif Ay
                           </span>
                         ) : (
-                          <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
+                          <span className="text-3xs font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-lg">
                             Geçmiş Dönem
                           </span>
                         )}
@@ -2335,7 +2335,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <div className="text-left">
                       <span className="text-xs font-bold text-fg block">{activeStudent.name}</span>
                       {activeStudent.className && (
-                        <span className="text-[10px] text-subtle block">{activeStudent.className}</span>
+                        <span className="text-2xs text-subtle block">{activeStudent.className}</span>
                       )}
                     </div>
                   </div>
@@ -2358,7 +2358,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </span>
                     <span className="text-xs font-semibold text-muted">Soru</span>
                   </div>
-                  <div className="mt-3 text-[11px] text-muted">
+                  <div className="mt-3 text-xs text-muted">
                     Haftalık Ortalama: <strong className="text-fg">{monthlyAnalytics.weeklyAverage} soru</strong>
                   </div>
                 </div>
@@ -2383,9 +2383,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       style={{ width: `${Math.min(100, monthlyTargetCompletionRate)}%` }}
                     />
                   </div>
-                  <div className="mt-2 text-[11px] text-muted">
+                  <div className="mt-2 text-xs text-muted">
                     Aylık Hedef: <strong>{monthlyTargetTotal} Soru</strong>
-                    <span className="block text-[10px] text-subtle">
+                    <span className="block text-2xs text-subtle">
                       {monthlyPlan.hasGeneralTarget ? 'Genel hedeflerin günlük sayısı × ayın günleri' : `Genel hedef yok: günde 50 × ${monthlyPlan.days} gün`}
                     </span>
                   </div>
@@ -2405,7 +2405,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <span className="text-base text-subtle font-semibold"> Gün</span>
                     </span>
                   </div>
-                  <div className="mt-3 text-[11px] text-muted">
+                  <div className="mt-3 text-xs text-muted">
                     Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / monthlyPlan.days) * 100)}</strong>
                   </div>
                 </div>
@@ -2429,7 +2429,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="mt-3 text-[11px] text-muted">
+                  <div className="mt-3 text-xs text-muted">
                     Önceki Ay: <strong className="text-fg">{monthlyAnalytics.previousMonthTotal} soru</strong> {monthlyAnalytics.previousMonthTotal > 0 ? `(${monthlyAnalytics.monthlyGrowthRate >= 0 ? '+' : ''}%${monthlyAnalytics.monthlyGrowthRate})` : ''}
                   </div>
                 </div>
@@ -2629,11 +2629,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         </td>
                         <td className="px-4 py-3 text-center">
                           {row.unsolvedDaysCount > 0 ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-soft text-brand-fg border border-brand/30">
+                            <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
                               {row.unsolvedDaysCount} Gün Çözülmedi
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success-soft text-success-fg border border-success/30">
+                            <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-success-soft text-success-fg border border-success/30">
                               Her Gün Çözüldü
                             </span>
                           )}
@@ -2647,7 +2647,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           {row.monthlyTotal} Soru
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold bg-surface-2 text-fg border border-line">
+                          <span className="inline-block px-2.5 py-0.5 rounded text-xs font-semibold bg-surface-2 text-fg border border-line">
                             {row.badgeText}
                           </span>
                         </td>
@@ -2679,7 +2679,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isManageLogsModalOpen && activeStudent && (
         <div
           id="modal-manage-logs-backdrop"
-          className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsManageLogsModalOpen(false);
@@ -2701,7 +2701,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-fg flex items-center gap-2">
                     <span>{activeStudent.name} — Soru Kayıtları & Geçmiş</span>
-                    <span className="text-[11px] font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
                       Yönetim & Senkronizasyon
                     </span>
                   </h3>
@@ -2810,7 +2810,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isWeekModalOpen && activeStudent && (
         <div
           id="modal-week-picker-backdrop"
-          className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsWeekModalOpen(false);
@@ -2832,7 +2832,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-fg flex items-center gap-2">
                     <span>Geçmiş Hafta Seçimi</span>
-                    <span className="text-[11px] font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
                       Açılır Pencere
                     </span>
                   </h3>
@@ -2856,7 +2856,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <div className="p-4 border-b border-line bg-surface-2 space-y-3">
               {/* Hızlı Atlama Düğmeleri */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-muted mr-1 flex items-center gap-1">
+                <span className="text-xs font-bold text-muted mr-1 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-subtle" />
                   <span>Hızlı Seç:</span>
                 </span>
@@ -2976,7 +2976,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     }`}
                   >
                     <span>Soru Çözülenler</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+                    <span className="px-1.5 py-0.2 rounded-full text-2xs bg-black/20 text-white">
                       {activeWeeksCount}
                     </span>
                   </button>
@@ -3000,7 +3000,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         setWeekOffset(item.offset);
                         setIsWeekModalOpen(false);
                       }}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
                           : 'border-line hover:border-brand/30 hover:bg-surface-2'
@@ -3028,7 +3028,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {item.weekLabel}
                             </span>
                             <span
-                              className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
+                              className={`text-2xs font-extrabold uppercase px-1.5 py-0.5 rounded-lg ${
                                 item.offset === 0
                                   ? 'bg-success-soft text-success-fg'
                                   : isSelected
@@ -3039,7 +3039,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {item.relativeLabel}
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted mt-0.5">
+                          <p className="text-xs text-muted mt-0.5">
                             {formatTurkishDate(item.startDateStr)} - {formatTurkishDate(item.endDateStr)}
                           </p>
                         </div>
@@ -3053,7 +3053,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                 <span className="w-2 h-2 rounded-full bg-brand" />
                                 {item.totalQuestions} Soru Çözüldü
                               </span>
-                              <span className="text-[10px] text-success-fg font-semibold block">
+                              <span className="text-2xs text-success-fg font-semibold block">
                                 {item.activeDaysCount} gün soru girişi yapıldı
                               </span>
                             </div>
@@ -3124,7 +3124,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isMonthModalOpen && activeStudent && (
         <div
           id="month-picker-modal-backdrop"
-          className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs"
+          className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsMonthModalOpen(false);
@@ -3134,7 +3134,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
           <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
           <div
             id="month-picker-modal-content"
-            className="w-full max-w-2xl bg-surface border border-line-strong rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
+            className="w-full max-w-2xl bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
           >
             {/* Modal Başlık */}
             <div className="p-4 sm:p-5 bg-surface-2 flex items-center justify-between border-b border-line shrink-0">
@@ -3144,7 +3144,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-brand/20 text-brand-fg border border-brand/30">
+                    <span className="text-2xs font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-brand/20 text-brand-fg border border-brand/30">
                       Açılır Pencere
                     </span>
                     <span className="text-xs text-surface font-medium">
@@ -3172,7 +3172,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <div className="p-4 bg-surface-2 border-b border-line space-y-3 shrink-0">
               {/* Hızlı Butonlar */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-                <span className="text-subtle text-[11px] font-bold shrink-0">Hızlı Dönem:</span>
+                <span className="text-subtle text-xs font-bold shrink-0">Hızlı Dönem:</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -3270,7 +3270,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     }`}
                   >
                     <span>Soru Çözülenler</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+                    <span className="px-1.5 py-0.2 rounded-full text-2xs bg-black/20 text-white">
                       {activeMonthsCount}
                     </span>
                   </button>
@@ -3294,7 +3294,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         setMonthDate({ year: item.year, month: item.month });
                         setIsMonthModalOpen(false);
                       }}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
                           : 'border-line hover:border-brand/30 hover:bg-surface-2'
@@ -3322,7 +3322,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {item.monthLabel}
                             </span>
                             <span
-                              className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
+                              className={`text-2xs font-extrabold uppercase px-1.5 py-0.5 rounded-lg ${
                                 item.year === new Date().getFullYear() && item.month === new Date().getMonth()
                                   ? 'bg-success-soft text-success-fg'
                                   : isSelected
@@ -3333,7 +3333,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               {item.relativeLabel}
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted mt-0.5">
+                          <p className="text-xs text-muted mt-0.5">
                             {item.year} Yılı • {TURKISH_MONTHS[item.month]} Dönemi
                           </p>
                         </div>
@@ -3347,7 +3347,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                 <span className="w-2 h-2 rounded-full bg-brand" />
                                 {item.totalQuestions} Soru Çözüldü
                               </span>
-                              <span className="text-[10px] text-success-fg font-semibold block">
+                              <span className="text-2xs text-success-fg font-semibold block">
                                 {item.activeDaysCount} aktif çalışma günü
                               </span>
                             </div>
@@ -3474,7 +3474,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {/* ÖĞRETMEN TEBRİK VE AFERİN BİLDİRİMİ GÖNDERME MODALI                     */}
       {/* ========================================================================= */}
       {praiseTargetDay && activeStudent && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setPraiseTargetDay(null)} />
           <div className="bg-surface rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-warning/30 relative overflow-hidden">
             <div className="flex items-start justify-between mb-4">
@@ -3503,7 +3503,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             {/* Performans Özeti Rozeti */}
             <div className="bg-warning-soft/70 border border-warning/30 rounded-xl p-3.5 mb-4 text-xs text-warning-fg flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold text-warning-fg uppercase tracking-wider block">
+                <span className="text-2xs font-bold text-warning-fg uppercase tracking-wider block">
                   Günlük Çözülen Soru
                 </span>
                 <span className="text-lg font-bold text-warning-fg">
@@ -3511,7 +3511,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-bold text-warning-fg uppercase tracking-wider block">
+                <span className="text-2xs font-bold text-warning-fg uppercase tracking-wider block">
                   Ders Dağılımı
                 </span>
                 <span className="text-xs font-semibold text-warning-fg truncate max-w-[200px] block">
@@ -3522,7 +3522,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
             {/* Hızlı Tebrik Şablonları */}
             <div className="space-y-1.5 mb-3">
-              <label className="text-[11px] font-bold text-fg-2 block">
+              <label className="text-xs font-bold text-fg-2 block">
                 ⚡ Hızlı Tebrik Şablonu Seçin:
               </label>
               <div className="flex flex-col gap-1.5">
@@ -3536,7 +3536,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     key={i}
                     type="button"
                     onClick={() => setPraiseCustomMessage(tpl)}
-                    className={`text-left text-[11px] p-2 rounded-lg border transition-colors cursor-pointer ${
+                    className={`text-left text-xs p-2 rounded-lg border transition-colors cursor-pointer ${
                       praiseCustomMessage === tpl
                         ? 'bg-brand-soft/80 border-brand font-bold text-brand-fg ring-1 ring-brand'
                         : 'bg-surface-2 hover:bg-brand-soft/50 border-line text-fg-2'
@@ -3550,7 +3550,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
             {/* Özelleştirilebilir Mesaj Kutusu */}
             <div className="mb-4">
-              <label className="text-[11px] font-bold text-fg-2 block mb-1">
+              <label className="text-xs font-bold text-fg-2 block mb-1">
                 İletilecek Bildirim Mesajı:
               </label>
               <textarea
@@ -3560,7 +3560,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 className="ui-field w-full font-medium"
                 placeholder="Öğrenciye iletilecek tebrik mesajını yazınız..."
               />
-              <span className="text-[10px] text-muted block mt-1">
+              <span className="text-2xs text-muted block mt-1">
                 ℹ️ Bu bildirim öğrencinin ana ekranında (portalında) tebrik kartı olarak anında gösterilecektir.
               </span>
             </div>
@@ -3589,7 +3589,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
       {/* Başarı Toast Bildirimi */}
       {praiseSuccessToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-surface text-fg px-4 py-3 rounded-xl shadow-2xl border border-success/40 flex items-center space-x-2.5 animate-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-6 right-6 z-(--z-bildirim) bg-surface text-fg px-4 py-3 rounded-xl shadow-2xl border border-success/40 flex items-center space-x-2.5 animate-in slide-in-from-bottom-5 duration-200">
           <CheckCircle2 className="w-5 h-5 text-success-fg shrink-0" />
           <span className="text-xs font-bold">{praiseSuccessToast}</span>
         </div>

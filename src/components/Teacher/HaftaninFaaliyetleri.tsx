@@ -133,7 +133,7 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
                   )}
                 >
                   <div className="flex items-baseline justify-between">
-                    <span className={cx('text-[11px] font-semibold uppercase tracking-wide', ds === bugunS ? 'text-brand-fg' : 'text-muted')}>
+                    <span className={cx('text-xs font-semibold uppercase tracking-wide', ds === bugunS ? 'text-brand-fg' : 'text-muted')}>
                       {ds === bugunS ? 'Bugün' : GUN_KISA_PAZAR[d.getDay()]}
                     </span>
                     <b className="text-lg font-bold tabular-nums text-fg">{d.getDate()}</b>
@@ -152,8 +152,8 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
                         )}
                       >
                         <b className="block text-xs font-semibold text-fg leading-tight line-clamp-2">{ana}</b>
-                        {konu && <span className="block text-[11px] text-fg-2 leading-tight line-clamp-2 mt-0.5">{konu}</span>}
-                        <span className="flex items-center gap-1 text-[11px] text-muted mt-0.5 truncate">
+                        {konu && <span className="block text-xs text-fg-2 leading-tight line-clamp-2 mt-0.5">{konu}</span>}
+                        <span className="flex items-center gap-1 text-xs text-muted mt-0.5 truncate">
                           {g.yer === 'dis' && <MapPin className="w-3 h-3 shrink-0" />}
                           {siniflarYazi(g.siniflar)}
                           {g.kapsam === 'veli' && ' · veli'}
@@ -207,18 +207,18 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
                 return (
                   <li key={g.key} className="flex items-center gap-3 py-2">
                     <span className="w-10 h-11 rounded-lg bg-surface-2 flex flex-col items-center justify-center leading-none shrink-0">
-                      <b className={cx('font-bold tabular-nums text-fg', g.ayIcinde ? 'text-[11px] uppercase' : 'text-base')}>{g.ayIcinde ? AY_KISA[d.getMonth()] : d.getDate()}</b>
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-muted mt-0.5">{g.ayIcinde ? 'ay içi' : GUN_KISA_PAZAR[d.getDay()]}</span>
+                      <b className={cx('font-bold tabular-nums text-fg', g.ayIcinde ? 'text-xs uppercase' : 'text-base')}>{g.ayIcinde ? AY_KISA[d.getMonth()] : d.getDate()}</b>
+                      <span className="text-3xs font-bold uppercase tracking-wide text-muted mt-0.5">{g.ayIcinde ? 'ay içi' : GUN_KISA_PAZAR[d.getDay()]}</span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <b className="block text-xs font-semibold text-fg truncate" title={baslik(g.ad)}>
                         {baslik(g.ad)}
                       </b>
-                      <span className="block text-[11px] text-muted truncate">
+                      <span className="block text-xs text-muted truncate">
                         {g.bitis ? gunAraligiYazi(g) : AY_KISA[d.getMonth()]} · {siniflarYazi(g.siniflar)} · {g.yer === 'dis' ? 'okul dışı' : 'okul içi'}
                       </span>
                     </span>
-                    <span className="text-[11px] font-bold text-brand-fg whitespace-nowrap">{g.ayIcinde ? (g.tarih <= bugunS ? 'Bu ay' : 'Ay içinde') : kalan(g.tarih)}</span>
+                    <span className="text-xs font-bold text-brand-fg whitespace-nowrap">{g.ayIcinde ? (g.tarih <= bugunS ? 'Bu ay' : 'Ay içinde') : kalan(g.tarih)}</span>
                   </li>
                 );
               })}

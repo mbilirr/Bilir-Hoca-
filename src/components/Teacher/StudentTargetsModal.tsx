@@ -161,7 +161,7 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
           ) : (
             <div className="space-y-3" id="next-plan-targets">
               {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 Haftalık plandan otomatik açıldı. Değiştirmek için kaleme basın.
                 <InfoTip text="Bu hedefler haftalık plandaki gün gün soru sayılarından açıldı. Değiştirdiğiniz sayılar plan güncellense de korunur." />
               </p>
@@ -171,14 +171,14 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
                   <div key={g.key} className="rounded-xl border border-brand/25 bg-brand-soft/20 p-3 space-y-2" data-testid="next-plan-group">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-sm font-semibold text-fg">{g.name}</span>
-                      {g.className && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{g.className}</span>}
-                      <span className="text-[11px] text-muted">{targetPeriodText(g.list[0].t)}</span>
+                      {g.className && <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{g.className}</span>}
+                      <span className="text-xs text-muted">{targetPeriodText(g.list[0].t)}</span>
                     </div>
                     {g.list.map(({ t }) => (
                       <div key={t.id} className="rounded-lg border border-line bg-surface p-2 space-y-1.5" data-testid="next-plan-row">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-bold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
-                          <span className="text-[11px] text-muted">
+                          <span className="text-xs font-bold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
+                          <span className="text-xs text-muted">
                             {t.targetQuestions} soru{t.planCountsLocked ? ' · sayılar sizce değiştirildi' : ''}
                           </span>
                           <span className="ml-auto">
@@ -205,10 +205,10 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
                               <div
                                 key={d}
                                 title={topic || undefined}
-                                className={`min-w-0 rounded-md border px-1 py-1 text-center ${n > 0 ? 'border-brand/30 bg-brand-soft/40' : 'border-line bg-surface-2/40'}`}
+                                className={`min-w-0 rounded-lg border px-1 py-1 text-center ${n > 0 ? 'border-brand/30 bg-brand-soft/40' : 'border-line bg-surface-2/40'}`}
                               >
-                                <span className="block text-[10px] font-bold text-fg leading-tight">{dt ? GUN[dt.getDay()] : ''}</span>
-                                <span className="block text-[9px] text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
+                                <span className="block text-2xs font-bold text-fg leading-tight">{dt ? GUN[dt.getDay()] : ''}</span>
+                                <span className="block text-3xs text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
                                 <span className={`block text-xs font-black tabular-nums ${n > 0 ? 'text-brand-fg' : 'text-subtle'}`}>{n > 0 ? n : '—'}</span>
                               </div>
                             );
@@ -233,27 +233,27 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-semibold text-fg truncate">{g.name}</span>
-                        {g.className && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{g.className}</span>}
-                        <span className="text-[11px] text-muted">{targetPeriodText(g.list[0].t)}</span>
+                        {g.className && <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{g.className}</span>}
+                        <span className="text-xs text-muted">{targetPeriodText(g.list[0].t)}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {g.counted.map(({ t, p }) => (
                           <span
                             key={t.id}
-                            className={`text-[10px] font-semibold px-1.5 py-px rounded tabular-nums ${p.done ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg'}`}
+                            className={`text-2xs font-semibold px-1.5 py-px rounded tabular-nums ${p.done ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg'}`}
                             title={`${t.subject || 'Tüm dersler'}: ${p.solved}/${p.total} soru`}
                           >
                             {t.subject || 'Tüm dersler'} {t.targetQuestions}
                           </span>
                         ))}
                       </div>
-                      <div className="text-[11px] text-muted mt-1">
+                      <div className="text-xs text-muted mt-1">
                         Toplam {g.total} soru · {g.counted.length} ders hedefi · Veren: {g.owners.join(', ')}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:shrink-0">
                       <div className="w-32">
-                        <div className="flex justify-between text-[11px] mb-1">
+                        <div className="flex justify-between text-xs mb-1">
                           <span className="text-muted">%{g.percent}</span>
                           <span className="font-semibold text-fg">
                             {g.solved}/{g.total}
@@ -293,8 +293,8 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
                         return (
                           <li key={t.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg bg-surface border border-line px-2.5 py-2">
                             <div className="min-w-0 flex-1">
-                              <span className="text-[11px] font-bold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
-                              <span className="ml-1.5 text-[11px] text-muted">
+                              <span className="text-xs font-bold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
+                              <span className="ml-1.5 text-xs text-muted">
                                 {t.targetQuestions} soru ({t.dailyTarget}/gün) · {p.solved}/{p.total} çözüldü · {ownerText(t)}
                                 {mirror ? ' · plan toplamı, ayrıca sayılmaz' : ''}
                               </span>

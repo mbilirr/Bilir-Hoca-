@@ -181,7 +181,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -198,7 +198,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <div>
               <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                 <span>Etüt Yoklama ve Devamsızlık Takibi</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand-fg border border-brand/20">
+                <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand-fg border border-brand/20">
                   {etut.subject}
                 </span>
               </h3>
@@ -249,19 +249,19 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         <div className="px-6 py-3 bg-canvas/70 border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2 text-xs">
             <span className="text-muted">Katılım Durumu:</span>
-            <span className="px-2 py-0.5 rounded-md bg-success/15 text-success-fg font-bold border border-success/20">
+            <span className="px-2 py-0.5 rounded-lg bg-success/15 text-success-fg font-bold border border-success/20">
               {presentCount} Geldi
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-danger/15 text-danger-fg font-bold border border-danger/20">
+            <span className="px-2 py-0.5 rounded-lg bg-danger/15 text-danger-fg font-bold border border-danger/20">
               {absentCount} Gelmedi
             </span>
             {lateCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-warning/15 text-warning-fg font-bold border border-warning/20">
+              <span className="px-2 py-0.5 rounded-lg bg-warning/15 text-warning-fg font-bold border border-warning/20">
                 {lateCount} Geç
               </span>
             )}
             {excusedCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-info/15 text-info-fg font-bold border border-info/20">
+              <span className="px-2 py-0.5 rounded-lg bg-info/15 text-info-fg font-bold border border-info/20">
                 {excusedCount} İzinli
               </span>
             )}
@@ -289,7 +289,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
         {/* Etüt sonrası öğretmen görüşü */}
         <div className="mx-6 mt-3 shrink-0">
-          <label htmlFor="etut-feedback-input" className="block text-[11px] font-semibold text-fg-2 mb-1">
+          <label htmlFor="etut-feedback-input" className="block text-xs font-semibold text-fg-2 mb-1">
             Etüt sonrası görüş ve değerlendirme <span className="font-normal text-subtle">(isteğe bağlı)</span>
           </label>
           <textarea
@@ -334,7 +334,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               return (
                 <div
                   key={std.id}
-                  className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  className={`p-3 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     currentStatus === 'present'
                       ? 'bg-success-soft border-success/30'
                       : currentStatus === 'absent'

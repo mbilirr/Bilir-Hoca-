@@ -129,7 +129,7 @@ biliredu`.trim();
 
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -176,43 +176,43 @@ biliredu`.trim();
           <div className="bg-canvas/60 border border-line rounded-xl p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-success-fg">Ders & Konu</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-success-fg">Ders & Konu</span>
                 <h4 className="text-sm font-bold text-fg flex items-center space-x-2">
                   <span>{etut.subject}:</span>
                   <span className="text-success-fg">{etut.topic}</span>
                 </h4>
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Danışman Öğretmen</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-muted">Danışman Öğretmen</span>
                 <p className="text-xs font-semibold text-fg">{effectiveTeacher}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <div className="bg-surface/80 p-2 rounded-lg border border-line">
-                <span className="text-[10px] text-muted block font-medium">Tarih:</span>
+                <span className="text-2xs text-muted block font-medium">Tarih:</span>
                 <span className="font-semibold text-fg">{formattedDate}</span>
               </div>
               <div className="bg-surface/80 p-2 rounded-lg border border-line">
-                <span className="text-[10px] text-muted block font-medium">Saat & Süre:</span>
+                <span className="text-2xs text-muted block font-medium">Saat & Süre:</span>
                 <span className="font-semibold text-fg">{etut.time} ({etut.duration} dk)</span>
               </div>
               <div className="bg-surface/80 p-2 rounded-lg border border-line col-span-2 sm:col-span-1">
-                <span className="text-[10px] text-muted block font-medium">Derslik / Yer:</span>
+                <span className="text-2xs text-muted block font-medium">Derslik / Yer:</span>
                 <span className="font-semibold text-fg">{etut.location}</span>
               </div>
             </div>
 
             {etut.notes && (
               <div className="bg-surface/60 p-2.5 rounded-lg border border-line text-xs text-fg-2">
-                <span className="text-[10px] font-bold text-muted block">Öğretmen Notu:</span>
+                <span className="text-2xs font-bold text-muted block">Öğretmen Notu:</span>
                 <p className="mt-0.5">{etut.notes}</p>
               </div>
             )}
 
             {etut.teacherFeedback && (
               <div className="bg-warning/10 p-2.5 rounded-lg border border-warning/25 text-xs text-warning-fg">
-                <span className="text-[10px] font-bold text-warning-fg block">💬 Öğretmen Düşünce ve Görüşleri:</span>
+                <span className="text-2xs font-bold text-warning-fg block">💬 Öğretmen Düşünce ve Görüşleri:</span>
                 <p className="mt-0.5 italic text-fg">"{etut.teacherFeedback}"</p>
               </div>
             )}
@@ -306,11 +306,11 @@ biliredu`.trim();
 
           {/* Quick Copy / Preview Box */}
           <div className="p-3 bg-canvas/80 border border-line rounded-xl space-y-1.5">
-            <span className="text-[11px] font-bold text-muted block flex items-center space-x-1">
+            <span className="text-xs font-bold text-muted block flex items-center space-x-1">
               <FileText className="w-3.5 h-3.5 text-brand-fg" />
               <span>Hazır Bildirim Mesajı Önizlemesi:</span>
             </span>
-            <pre className="text-[11px] text-fg-2 font-sans whitespace-pre-wrap bg-surface/80 p-2.5 rounded-lg border border-line leading-relaxed select-all">
+            <pre className="text-xs text-fg-2 font-sans whitespace-pre-wrap bg-surface/80 p-2.5 rounded-lg border border-line leading-relaxed select-all">
               {universalMessage}
             </pre>
           </div>
@@ -318,7 +318,7 @@ biliredu`.trim();
 
         {/* Modal Footer */}
         <div className="bg-canvas/80 px-5 py-3 border-t border-line flex items-center justify-between">
-          <span className="text-[11px] text-muted">
+          <span className="text-xs text-muted">
             Eğitim Portalı • Otomatik İletişim Servisi
           </span>
           <button

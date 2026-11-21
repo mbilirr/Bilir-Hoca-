@@ -99,7 +99,7 @@ export const InfoTip: React.FC<{ text: React.ReactNode; label?: string; classNam
             id={id}
             role="tooltip"
             style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: POP_W }}
-            className="fixed z-[10002] rounded-lg border border-line bg-surface text-fg-2 shadow-pop px-3 py-2 text-[11px] leading-relaxed"
+            className="fixed z-(--z-acilir) rounded-lg border border-line bg-surface text-fg-2 shadow-pop px-3 py-2 text-xs leading-relaxed"
           >
             {text}
           </div>,

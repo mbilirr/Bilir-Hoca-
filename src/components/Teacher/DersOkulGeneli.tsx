@@ -131,9 +131,9 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
       {/* Günün özeti */}
       <section className="rounded-2xl border border-line bg-surface shadow-card grid grid-cols-2 lg:grid-cols-4">
         <div className="px-5 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted truncate">{baslik}</p>
-          <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">
-            {say.toplam} <span className="text-[13px] font-semibold text-muted">ders</span>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted truncate">{baslik}</p>
+          <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">
+            {say.toplam} <span className="text-sm font-semibold text-muted">ders</span>
           </p>
           <div className="mt-2 h-1.5 rounded-full bg-surface-2 flex overflow-hidden" aria-hidden="true">
             <span className="bg-success" style={{ width: yuzde(say.alindi) }} />
@@ -143,8 +143,8 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
           </div>
         </div>
         <div className="px-5 py-4 border-l border-line">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-success-fg">Alındı</p>
-          <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{say.alindi}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-success-fg">Alındı</p>
+          <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{say.alindi}</p>
           <p className="text-xs text-muted">{say.gec ? `${say.gec} tanesi geç alındı` : 'Hepsi zamanında'}</p>
         </div>
         <button
@@ -153,13 +153,13 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
           disabled={!say.geciken}
           className="px-5 py-4 border-t lg:border-t-0 lg:border-l border-line text-left enabled:hover:bg-surface-2 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-danger-fg">Geciken</p>
-          <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{say.geciken}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-danger-fg">Geciken</p>
+          <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{say.geciken}</p>
           <p className="text-xs text-muted">Ders bitiminden {ayar.gecikmeDk} dk sonra</p>
         </button>
         <div className="px-5 py-4 border-t lg:border-t-0 border-l border-line">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-warning-fg">Bekliyor</p>
-          <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{say.bekliyor}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-warning-fg">Bekliyor</p>
+          <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{say.bekliyor}</p>
           <p className="text-xs text-muted">Henüz gelmedi: {say.sonra}</p>
         </div>
       </section>
@@ -169,7 +169,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
         <section className="rounded-2xl border border-line bg-surface shadow-card min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-line">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-bold">Yoklama Haritası</h3>
+              <h3 className="text-base font-bold">Yoklama Haritası</h3>
               <p className="text-xs text-muted">Sınıf × ders saati. Kareye tıklayınca dersin yoklaması açılır.</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -202,19 +202,19 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
               <div className="grid gap-1.5 items-center min-w-[560px]" style={{ gridTemplateColumns: `64px repeat(${siralar.length}, minmax(44px, 1fr)) 64px` }}>
                 <div />
                 {siralar.map((s) => (
-                  <div key={s} className="text-center text-[11.5px] font-semibold text-muted leading-tight">
+                  <div key={s} className="text-center text-xs font-semibold text-muted leading-tight">
                     {s}
                     <span className="block font-medium text-subtle tabular-nums">{ayar.saatler[s - 1]?.bas || ''}</span>
                   </div>
                 ))}
-                <div className="text-center text-[11.5px] font-semibold text-muted">Alındı</div>
+                <div className="text-center text-xs font-semibold text-muted">Alındı</div>
                 {satirlar.map((r) => {
                   const planli = Array.from(r.hucre.values());
                   const alinan = planli.filter((h) => h.durum === 'alindi').length;
                   const gecmis = planli.filter((h) => h.durum !== 'sonra').length;
                   return (
                     <React.Fragment key={r.classId}>
-                      <div className="text-[13px] font-bold truncate">{r.classAd}</div>
+                      <div className="text-sm font-bold truncate">{r.classAd}</div>
                       {siralar.map((s) => {
                         const h = r.hucre.get(s);
                         if (!h) return <div key={s} className="h-10 rounded-lg border border-dashed border-line" aria-hidden="true" />;
@@ -228,7 +228,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                             aria-label={tam}
                             onClick={() => setHedef({ classId: r.classId, tarih: gun, sira: s })}
                             className={cx(
-                              'h-10 rounded-lg border text-[11px] font-bold tabular-nums',
+                              'h-10 rounded-lg border text-xs font-bold tabular-nums',
                               'transition-[scale,opacity] duration-150 hover:scale-[1.06] active:scale-[0.96]',
                               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                               KARE[h.durum],
@@ -239,7 +239,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                           </button>
                         );
                       })}
-                      <div className="text-center text-[11.5px] font-bold text-fg-2 tabular-nums">
+                      <div className="text-center text-xs font-bold text-fg-2 tabular-nums">
                         {alinan}/{gecmis || planli.length}
                       </div>
                     </React.Fragment>
@@ -248,7 +248,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-x-5 gap-y-1 px-5 pb-4 pt-1 text-[11.5px] text-muted">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 px-5 pb-4 pt-1 text-xs text-muted">
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success" />Alındı</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-danger" />Geciken</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning" />Bekliyor</span>
@@ -259,9 +259,9 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
         {/* Geciken + izinler */}
         <section className="rounded-2xl border border-line bg-surface shadow-card self-start">
           <div className="px-5 py-4 border-b border-line">
-            <h3 className="text-[15px] font-bold flex items-center gap-2">
+            <h3 className="text-base font-bold flex items-center gap-2">
               Geciken Yoklamalar
-              {gecikenler.length > 0 && <span className="rounded-md bg-danger-soft text-danger-fg px-1.5 py-0.5 text-[11px] font-bold tabular-nums">{gecikenler.length}</span>}
+              {gecikenler.length > 0 && <span className="rounded-lg bg-danger-soft text-danger-fg px-1.5 py-0.5 text-xs font-bold tabular-nums">{gecikenler.length}</span>}
             </h3>
             <p className="text-xs text-muted">Öğretmene ve idareye hatırlatma gider.</p>
           </div>
@@ -277,20 +277,20 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                 onClick={() => setHedef({ classId: h.classId, tarih: gun, sira: h.sira })}
                 className="w-full grid grid-cols-[36px_1fr_auto] gap-3 items-center px-5 py-2.5 border-t border-line first:border-t-0 text-left hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
-                <span className="w-9 h-9 rounded-lg bg-surface-3 text-fg-2 text-[11px] font-bold flex items-center justify-center">{basHarf(h.teacherAdlari[0] || '?')}</span>
+                <span className="w-9 h-9 rounded-lg bg-surface-3 text-fg-2 text-xs font-bold flex items-center justify-center">{basHarf(h.teacherAdlari[0] || '?')}</span>
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-semibold truncate">{h.teacherAdlari.join(', ') || 'Öğretmen'}</span>
+                  <span className="block text-sm font-semibold truncate">{h.teacherAdlari.join(', ') || 'Öğretmen'}</span>
                   <span className="block text-xs text-muted truncate">
                     {h.classAd} · {h.sira}. ders {h.ders}
                   </span>
                 </span>
-                <span className="rounded-md bg-danger-soft text-danger-fg px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">{gecikmeYazi(h)}</span>
+                <span className="rounded-lg bg-danger-soft text-danger-fg px-2 py-0.5 text-xs font-bold whitespace-nowrap">{gecikmeYazi(h)}</span>
               </button>
             ))}
             </div>
           )}
           <div className="px-5 py-4 border-y border-line">
-            <h3 className="text-[15px] font-bold">Gün Boyu İzinler</h3>
+            <h3 className="text-base font-bold">Gün Boyu İzinler</h3>
             <p className="text-xs text-muted">Yoklamaya kendiliğinden yazılır.</p>
           </div>
           {izinler.length === 0 ? (
@@ -302,9 +302,9 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
               const ad = o?.name || 'Öğrenci';
               return (
                 <div key={`${z.studentId}-${z.tarih}`} className="grid grid-cols-[36px_1fr_auto] gap-3 items-center px-5 py-2.5 border-t border-line first:border-t-0">
-                  <span className="w-9 h-9 rounded-lg bg-surface-3 text-fg-2 text-[11px] font-bold flex items-center justify-center">{basHarf(ad)}</span>
+                  <span className="w-9 h-9 rounded-lg bg-surface-3 text-fg-2 text-xs font-bold flex items-center justify-center">{basHarf(ad)}</span>
                   <span className="min-w-0">
-                    <span className="block text-[13px] font-semibold truncate">{ad}</span>
+                    <span className="block text-sm font-semibold truncate">{ad}</span>
                     <span className="block text-xs text-muted truncate">
                       {(o?.classId && sinifAd.get(o.classId)) || ''}
                       {z.aciklama ? ` · ${z.aciklama}` : ''}
@@ -312,7 +312,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                   </span>
                   <span
                     className={cx(
-                      'w-16 text-center rounded-md px-2 py-0.5 text-[11px] font-bold',
+                      'w-16 text-center rounded-lg px-2 py-0.5 text-xs font-bold',
                       z.tur === 'raporlu' ? 'bg-warning-soft text-warning-fg' : 'bg-brand-soft text-brand-fg'
                     )}
                   >

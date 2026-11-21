@@ -286,7 +286,7 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
                     <tr key={c.student.id} className="bg-surface/60">
                       <td className="px-3 py-2.5">
                         <div className="font-bold text-fg">{c.student.name}</div>
-                        <div className="text-[11px] text-muted">{c.student.className || 'Sınıf atanmadı'}</div>
+                        <div className="text-xs text-muted">{c.student.className || 'Sınıf atanmadı'}</div>
                       </td>
                       <td className="px-3 py-2.5 font-mono font-bold text-brand-fg select-all">
                         {c.student.studentNumber}

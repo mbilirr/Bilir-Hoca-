@@ -97,12 +97,12 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
       <div
-        className="relative w-full max-w-lg bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
+        className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -113,7 +113,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-fg">Öğrenci Bilgilerini Güncelle</h3>
-              <p className="text-[11px] sm:text-xs text-muted">
+              <p className="text-xs sm:text-xs text-muted">
                 {student.className} • No: #{student.studentNumber || student.id}
               </p>
             </div>
@@ -175,7 +175,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
                   className="ui-field w-full pl-10 pr-3 bg-surface-2 text-muted cursor-not-allowed"
                 />
               </div>
-              <p className="text-[10px] text-muted">Numaranızı yalnızca öğretmeniniz değiştirebilir.</p>
+              <p className="text-2xs text-muted">Numaranızı yalnızca öğretmeniniz değiştirebilir.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -188,7 +188,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
                   className="ui-field w-full bg-surface-2 text-muted cursor-not-allowed"
                 />
               </div>
-              <p className="text-[10px] text-muted">Sınıfınızı öğretmeniniz belirler.</p>
+              <p className="text-2xs text-muted">Sınıfınızı öğretmeniniz belirler.</p>
             </div>
           </div>
 
@@ -332,12 +332,12 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={isMandatory ? undefined : onClose}
     >
       <OverlayLayer onClose={isMandatory ? undefined : onClose} />
       <div
-        className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
+        className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -350,7 +350,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
               <h3 className="text-sm sm:text-base font-bold text-fg">
                 {isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Öğrenci Şifresi Değiştir'}
               </h3>
-              <p className="text-[11px] sm:text-xs text-muted">
+              <p className="text-xs sm:text-xs text-muted">
                 {isMandatory
                   ? dataService.basitSifreVarMi(student.id) // Aşama 145
                     ? 'Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirlemeniz zorunludur'
@@ -451,7 +451,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             </div>
           </div>
 
-          <div className="p-3 bg-canvas/60 rounded-xl border border-line flex items-start space-x-2 text-[11px] text-muted">
+          <div className="p-3 bg-canvas/60 rounded-xl border border-line flex items-start space-x-2 text-xs text-muted">
             <ShieldCheck className="w-4 h-4 text-brand-fg shrink-0 mt-0.5" />
             <span>Şifreniz güvenli bir şekilde sunucuda güncellenir. Unuttuğunuzda öğretmeninizden veya yöneticinizden şifrenizi sıfırlamasını isteyebilirsiniz.</span>
           </div>

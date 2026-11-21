@@ -243,7 +243,7 @@ export const StudyPlanBooksModal: React.FC<{
           </div>
         )}
         {subject && totalCount > entryCount && (
-          <p className="text-[11px] text-muted" id="plan-books-filter-note">
+          <p className="text-xs text-muted" id="plan-books-filter-note">
             Yalnızca <strong>{subject}</strong> kitapları gösteriliyor. Başka dersin kitapları için yukarıdaki <strong>Ders</strong> kutusundan
             {restrictToSubjects ? ' o dersi seçin.' : ` o dersi ya da “${ALL_SUBJECTS}” seçeneğini seçin.`}
           </p>
@@ -256,7 +256,7 @@ export const StudyPlanBooksModal: React.FC<{
           <div className="space-y-3" id="plan-books-list">
             {shownGroups.map(([group, list]) => (
               <div key={group}>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-subtle mb-1">{group}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-subtle mb-1">{group}</p>
                 <ul className="divide-y divide-line rounded-xl border border-line overflow-hidden">
                   {list.map((entry) => {
                     const editing = editKey === entry.key;
@@ -348,7 +348,7 @@ export const StudyPlanBooksModal: React.FC<{
                             {multi && (
                               <span
                                 className={cx(
-                                  'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold border',
+                                  'shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold border',
                                   count === ids.length ? 'bg-success-soft text-success-fg border-success/30' : 'bg-surface-2 text-muted border-line'
                                 )}
                                 title={`${ids.length} öğrenciden ${count} öğrencinin listesinde`}

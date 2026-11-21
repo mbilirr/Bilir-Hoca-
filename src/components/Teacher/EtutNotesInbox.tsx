@@ -205,7 +205,7 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
                       {x.className && <span className="text-xs text-muted">{x.className}</span>}
                       <span className="ui-chip ui-chip-neutral">{STATUS_TEXT[x.status] || x.status}</span>
                     </span>
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       <span className="inline-flex items-center gap-1">
                         <CalendarDays className="w-3 h-3" /> {x.etut.subject}
                         {x.etut.topic ? ` – ${x.etut.topic}` : ''} · {whenText(x.etut.date)}
@@ -234,7 +234,7 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
                       </span>
                     )}
                   </span>
-                  <span className="text-[11px] text-subtle shrink-0 whitespace-nowrap">{whenText(x.at)}</span>
+                  <span className="text-xs text-subtle shrink-0 whitespace-nowrap">{whenText(x.at)}</span>
                 </button>
               </li>
             );

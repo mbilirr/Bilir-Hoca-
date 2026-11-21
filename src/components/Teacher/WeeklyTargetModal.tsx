@@ -747,7 +747,7 @@ const TargetFormContent: React.FC<Props> = ({
                   <Trash2 className="w-4 h-4" /> Sil
                 </button>
               )}
-              <span className="text-[11px] text-muted truncate" id="qt-form-summary">
+              <span className="text-xs text-muted truncate" id="qt-form-summary">
                 {who} · {days >= 1 ? `${shortTrDate(start)} – ${shortTrDate(end)} (${days} gün)` : 'tarih seçilmedi'}
               </span>
             </span>
@@ -824,12 +824,12 @@ const TargetFormContent: React.FC<Props> = ({
             )}
           </div>
           {(qKapali.cls.size > 0 || qKapali.stu.size > 0) && (
-            <p className="text-[11px] text-muted" id="qt-ogr-kapali-not">
+            <p className="text-xs text-muted" id="qt-ogr-kapali-not">
               Soru Takibi {OGR_KAPALI_ETIKET} olan sınıf ve öğrencilere hedef verilemez{kind === 'student' ? '; bu öğrenciler listede yok' : ''}.
             </p>
           )}
           {kind === 'class' && classId && (
-            <p className="text-[11px] text-muted">Sınıf hedefi sınıftaki tüm öğrencilere görünür; sınıfa sonradan katılan öğrenciler de görür.</p>
+            <p className="text-xs text-muted">Sınıf hedefi sınıftaki tüm öğrencilere görünür; sınıfa sonradan katılan öğrenciler de görür.</p>
           )}
         </FormSection>
 
@@ -841,7 +841,7 @@ const TargetFormContent: React.FC<Props> = ({
           ) : (
             <SubjectMultiSelect id="qt-subject" options={subjectOptions} value={selectedSubjects} onChange={setSubjectsSel} allowAll={allowGeneral} />
           )}
-          <p className="text-[11px] text-muted" id="qt-subject-hint">
+          <p className="text-xs text-muted" id="qt-subject-hint">
             {effectiveSubject
               ? `Yalnızca ${effectiveSubject} soruları bu hedefe sayılır.`
               : 'Öğrencinin tüm derslerde çözdüğü sorular bu hedefe sayılır.'}
@@ -913,7 +913,7 @@ const TargetFormContent: React.FC<Props> = ({
               />
             </div>
           </div>
-          <p className="text-[11px] text-muted" id="qt-days">
+          <p className="text-xs text-muted" id="qt-days">
             {daysDraft !== null && !(toInt(daysDraft) >= 1 && toInt(daysDraft) <= 366)
               ? 'Gün sayısı 1 ile 366 arasında olmalı.'
               : days >= 1
@@ -967,22 +967,22 @@ const TargetFormContent: React.FC<Props> = ({
                       className={`min-w-0 rounded-lg border px-1 py-1 text-center ${list.length ? 'border-brand/30 bg-surface' : 'border-line bg-surface-2/40'}`}
                       title={list.length ? `${shortTrDate(d)}: ${list.map(([s, n]) => `${s} ${n}`).join(', ')}` : `${shortTrDate(d)}: planda soru yok`}
                     >
-                      <span className="block text-[10px] font-bold text-fg leading-tight">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
-                      <span className="block text-[9px] text-muted leading-tight">{shortTrDate(d)}</span>
+                      <span className="block text-2xs font-bold text-fg leading-tight">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
+                      <span className="block text-3xs text-muted leading-tight">{shortTrDate(d)}</span>
                       {list.length ? (
                         list.map(([s, n]) => (
-                          <span key={s} className="block text-[10px] leading-tight font-semibold text-brand-fg break-words">
+                          <span key={s} className="block text-2xs leading-tight font-semibold text-brand-fg break-words">
                             {shortSubjectName(s)}:{n}
                           </span>
                         ))
                       ) : (
-                        <span className="block text-[10px] text-subtle">—</span>
+                        <span className="block text-2xs text-subtle">—</span>
                       )}
                     </div>
                   );
                 })}
               </div>
-              <span className="block text-[11px] text-muted mt-1">
+              <span className="block text-xs text-muted mt-1">
                 {kind === 'class' && planGhostInfo
                   ? `${planGhostInfo.total} öğrencinin ${planGhostInfo.withPlan} tanesinin planında soru var. `
                   : ''}
@@ -1076,7 +1076,7 @@ const TargetFormContent: React.FC<Props> = ({
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             {isCustom
               ? 'Gün gün modunda toplam, aşağıdaki günlerin toplamıdır; günlük kutusu ortalamayı gösterir.'
               : 'Birini değiştirince diğeri gün sayısına göre otomatik hesaplanır.'}
@@ -1099,13 +1099,13 @@ const TargetFormContent: React.FC<Props> = ({
                   <Divide className="w-3.5 h-3.5" /> Eşit dağıt
                 </button>
               </div>
-              <p className="text-[11px] text-muted">Her güne istediğiniz sayıyı yazın. 0 yazılan gün dinlenme günü sayılır.</p>
+              <p className="text-xs text-muted">Her güne istediğiniz sayıyı yazın. 0 yazılan gün dinlenme günü sayılır.</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
                 {rangeDates.map((d) => {
                   const dt = parseYmd(d);
                   return (
                     <label key={d} className="flex items-center gap-2 rounded-lg bg-surface border border-line px-2 py-1.5" data-testid="qt-day-row">
-                      <span className="text-[11px] font-semibold text-fg w-14 shrink-0 leading-tight">
+                      <span className="text-xs font-semibold text-fg w-14 shrink-0 leading-tight">
                         {shortTrDate(d)}
                         <span className="block text-muted font-normal">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
                       </span>
@@ -1119,12 +1119,12 @@ const TargetFormContent: React.FC<Props> = ({
                           className={`${inputCls} text-center px-1 ${planTopics[d] && !(dayRows[d] ?? '').trim() ? 'ring-2 ring-warning/50' : ''}`}
                         />
                         {planTopics[d] && (
-                          <span className="block mt-1 text-[10px] leading-tight text-muted break-words" title={planTopics[d]} data-testid="qt-day-topic">
+                          <span className="block mt-1 text-2xs leading-tight text-muted break-words" title={planTopics[d]} data-testid="qt-day-topic">
                             {planTopics[d]}
                           </span>
                         )}
                         {planCounts?.byDay[d] && (
-                          <span className="block mt-1 text-[10px] leading-tight font-semibold text-brand-fg/80" data-testid="qt-day-plan-count" title="Haftalık plandaki soru sayıları">
+                          <span className="block mt-1 text-2xs leading-tight font-semibold text-brand-fg/80" data-testid="qt-day-plan-count" title="Haftalık plandaki soru sayıları">
                             Plan: {ghostText(planCounts.byDay[d])}
                           </span>
                         )}
@@ -1133,7 +1133,7 @@ const TargetFormContent: React.FC<Props> = ({
                   );
                 })}
               </div>
-              <p className="text-[11px] font-semibold text-fg" id="qt-day-sum">
+              <p className="text-xs font-semibold text-fg" id="qt-day-sum">
                 Toplam: {customTotal} soru · ortalama günde {days >= 1 ? Math.round(customTotal / days) : 0}
               </p>
             </div>

@@ -563,7 +563,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               })}
           </div>
           {planKapali.size > 0 && (
-            <p className="flex items-center gap-1.5 text-[11px] text-muted mt-1" id="plan-task-ogr-kapali">
+            <p className="flex items-center gap-1.5 text-xs text-muted mt-1" id="plan-task-ogr-kapali">
               <Lock className="w-3 h-3 shrink-0" />
               Haftalık plan {planKapali.size} öğrenciye kapalı; onlar listede yok.
             </p>
@@ -582,7 +582,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
             searchable
             emptyText="Önce sınıf seçin."
           />
-          <p className="text-[11px] text-muted mt-1" id="plan-task-target-count">
+          <p className="text-xs text-muted mt-1" id="plan-task-target-count">
             {editGroup
               ? taskTargets.length
                 ? `Görev ${targetLabel(taskTargets)} için kaydedilecek.`
@@ -594,7 +594,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           </p>
         </div>
         {editGroup && (editRemoved.length > 0 || editAdded > 0) && (
-          <div role="status" id="plan-task-target-change" className={cx('rounded-lg px-3 py-2 text-[11px] font-semibold', editRemoved.length ? 'bg-warning-soft text-warning-fg' : 'bg-info-soft text-info-fg')}>
+          <div role="status" id="plan-task-target-change" className={cx('rounded-lg px-3 py-2 text-xs font-semibold', editRemoved.length ? 'bg-warning-soft text-warning-fg' : 'bg-info-soft text-info-fg')}>
             {editAdded > 0 && <span className="block">{editAdded} öğrenciye bu görev eklenecek.</span>}
             {editRemoved.length > 0 && (
               <span className="block">
@@ -846,7 +846,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                 onClick={() => setBooksOpen(true)}
               >
                 <Library className="text-brand-fg" /> Kitaplar
-                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-[10px] leading-4">{bookCount}</span>
+                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-2xs leading-4">{bookCount}</span>
               </button>
             </>
           ),
@@ -918,9 +918,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-fg leading-tight">
                       {planDayName(weekStart, d)}
-                      {isToday && <span className="ml-1.5 text-[10px] font-bold text-brand-fg uppercase">bugün</span>}
+                      {isToday && <span className="ml-1.5 text-2xs font-bold text-brand-fg uppercase">bugün</span>}
                     </p>
-                    <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
+                    <p className="text-xs text-muted">{shortDayLabel(date)}</p>
                   </div>
                   {!planHepsiKapali && (
                   <button
@@ -944,13 +944,13 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                     return (
                       <article key={g.key} data-plan-group={g.key} data-subject={g.subject} data-count={g.items.length} className="rounded-xl border border-line bg-surface p-2.5 space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
-                          <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-bold', subjectTone(g.subject))}>{g.subject}</span>
+                          <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold', subjectTone(g.subject))}>{g.subject}</span>
                           {editable && (
                             <span className="flex items-center gap-0.5 shrink-0">
-                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => openEdit(g)}>
+                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => openEdit(g)}>
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-md text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteGroup(g)}>
+                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-lg text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteGroup(g)}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </span>
@@ -964,7 +964,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                         )}
                         {g.note && <p className="text-xs text-fg-2 whitespace-pre-wrap break-words">{g.note}</p>}
                         {g.questionCount > 0 && (
-                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-[11px] font-bold" data-plan-qcount>
+                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-xs font-bold" data-plan-qcount>
                             {g.questionCount} soru
                           </p>
                         )}
@@ -975,17 +975,17 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                           className="w-full flex items-center justify-between gap-2 text-left rounded-lg bg-surface-2/70 hover:bg-surface-2 px-2 py-1 cursor-pointer"
                           title="Öğrencileri gör"
                         >
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-fg-2 min-w-0">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-fg-2 min-w-0">
                             <Users className="w-3 h-3 shrink-0" />
                             <span className="truncate">{targetLabel(g.items.map((i) => i.studentId))}</span>
                           </span>
                           {sentItems.length > 0 && (
-                            <span className={cx('shrink-0 text-[10px] font-bold', done === g.items.length ? 'text-success-fg' : 'text-muted')} data-done-count>
+                            <span className={cx('shrink-0 text-2xs font-bold', done === g.items.length ? 'text-success-fg' : 'text-muted')} data-done-count>
                               Yaptı {done}/{g.items.length}
                             </span>
                           )}
                         </button>
-                        {g.createdByName && <p className="text-[10px] text-subtle">{g.createdByName}</p>}
+                        {g.createdByName && <p className="text-2xs text-subtle">{g.createdByName}</p>}
                       </article>
                     );
                   })}
@@ -1058,13 +1058,13 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                       {s?.classId && <span className="text-xs text-muted"> · {className(s.classId)}</span>}
                     </span>
                     {!sent ? (
-                      <span className="text-[11px] text-muted">Gönderilmedi</span>
+                      <span className="text-xs text-muted">Gönderilmedi</span>
                     ) : i.doneAt ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-fg">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-success-fg">
                         <Check className="w-3.5 h-3.5" /> Yaptı
                       </span>
                     ) : (
-                      <span className="text-[11px] text-muted">Bekliyor</span>
+                      <span className="text-xs text-muted">Bekliyor</span>
                     )}
                   </li>
                 );

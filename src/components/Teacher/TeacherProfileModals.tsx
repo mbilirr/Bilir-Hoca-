@@ -167,7 +167,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -232,7 +232,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-fg mb-0.5">Profil Resmi</p>
-                  <p className="text-[11px] text-muted mb-2">
+                  <p className="text-xs text-muted mb-2">
                     Fotoğrafınızı yükleyin ya da aşağıdaki çizimlerden birini seçin:
                   </p>
 
@@ -269,7 +269,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
             {/* Aşama 171: emojiler yerine çizimler (cinsiyete göre; yalnız kendi unvanının rozetli çizimi) */}
             <div className="pt-2.5 border-t border-line space-y-1.5">
-              <span className="text-[11px] font-bold text-fg-2">Çizimler</span>
+              <span className="text-xs font-bold text-fg-2">Çizimler</span>
               <div className="grid grid-cols-6 gap-1.5" id="ogretmen-profil-cizimler">
                 {cizimSecenekleri('teacher', ogretmenProfilRol({ ...teacher, branch }), teacher.gender || 'all')
                   .slice(0, 12)
@@ -315,7 +315,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
               <label className="block text-xs font-semibold text-fg-2">
                 Kullanıcı Adı <span className="text-danger-fg">*</span>
               </label>
-              <span className="text-[10px] text-brand-fg font-medium">Giriş yaparken kullanılır</span>
+              <span className="text-2xs text-brand-fg font-medium">Giriş yaparken kullanılır</span>
             </div>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted font-bold text-xs">@</span>
@@ -331,7 +331,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 required
               />
             </div>
-            <p className="text-[11px] text-muted mt-1">
+            <p className="text-xs text-muted mt-1">
               {canEditUsername
                 ? 'Giriş ekranında bu kullanıcı adı kullanılır.'
                 : 'Giriş adınızdır; değiştirilmesi için yöneticinize başvurunuz.'}
@@ -354,7 +354,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 required
               />
             </div>
-            <p className="text-[11px] text-muted mt-1">
+            <p className="text-xs text-muted mt-1">
               Örnek gösterim: <span className="text-muted">{branch ? (branch.includes('Öğretmen') ? branch : `${branch} Öğretmeni`) : 'Fen Bilgisi Öğretmeni'}</span>
             </p>
           </div>
@@ -394,7 +394,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           </div>
 
           {/* Şifre bu ekrandan değiştirilmez: profil menüsündeki "Şifre Değiştir" ekranı kullanılır */}
-          <p className="pt-2 border-t border-line text-[11px] text-muted">
+          <p className="pt-2 border-t border-line text-xs text-muted">
             Şifrenizi değiştirmek için profil menüsündeki <strong className="text-fg">"Şifre Değiştir"</strong> seçeneğini kullanınız.
           </p>
 
@@ -503,7 +503,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
       onClick={isMandatory ? undefined : onClose}
     >
       <OverlayLayer onClose={isMandatory ? undefined : onClose} />
@@ -521,7 +521,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-fg">{isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Şifre Değiştir'}</h3>
                 {isMandatory && (
-                  <p className="text-[11px] text-muted">Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirleyiniz.</p>
+                  <p className="text-xs text-muted">Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirleyiniz.</p>
                 )}
               </div>
             </div>

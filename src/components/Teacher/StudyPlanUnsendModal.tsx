@@ -147,7 +147,7 @@ export const StudyPlanUnsendModal: React.FC<StudyPlanUnsendModalProps> = ({ week
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-muted">"Planın tamamı" başka öğretmenlerin görevlerini de öğrencilerden kaldırır (yalnız yöneticilerde görünür).</p>
+              <p className="text-xs text-muted">"Planın tamamı" başka öğretmenlerin görevlerini de öğrencilerden kaldırır (yalnız yöneticilerde görünür).</p>
             </div>
           )}
           {askTarget &&
@@ -166,7 +166,7 @@ export const StudyPlanUnsendModal: React.FC<StudyPlanUnsendModalProps> = ({ week
               {all ? 'Bu haftada gönderilmiş görev yok.' : 'Bu haftada sizin gönderdiğiniz görev yok.'}
             </p>
           ) : (
-            <p className="text-[11px] text-muted" id="plan-unsend-note">
+            <p className="text-xs text-muted" id="plan-unsend-note">
               {all
                 ? 'Seçilen öğrencilerden bu haftanın bütün görevleri geri çekilir.'
                 : 'Yalnız sizin gönderdiğiniz görevler geri çekilir; diğer öğretmenlerin görevleri öğrencide kalır.'}{' '}
@@ -184,7 +184,7 @@ export const StudyPlanUnsendModal: React.FC<StudyPlanUnsendModalProps> = ({ week
                   <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                     <div className="h-full bg-brand transition-[width] duration-200" style={{ width: `${Math.round((bar.done / bar.total) * 100)}%` }} />
                   </div>
-                  <p className="text-[11px] text-muted">
+                  <p className="text-xs text-muted">
                     {bar.done} / {bar.total} öğrenci işlendi…
                   </p>
                 </>

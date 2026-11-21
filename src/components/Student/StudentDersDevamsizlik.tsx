@@ -70,14 +70,14 @@ export const StudentDersDevamsizlik: React.FC = () => {
         <h3 className="text-sm font-bold text-fg flex items-center gap-2">
           <UserX className="w-4 h-4 text-danger-fg" /> Ders Devamsızlığım
         </h3>
-        <span className="text-[11px] text-muted">
+        <span className="text-xs text-muted">
           {tarihUzun(v.bas)} – {tarihUzun(v.bit)} · {toplam} ders saati yoklaması
         </span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {kutular.map((k) => (
           <div key={k.label} className="rounded-xl border border-line bg-surface-2/60 px-3 py-2">
-            <span className="block text-[11px] text-muted">{k.label}</span>
+            <span className="block text-xs text-muted">{k.label}</span>
             <span className={cx('block text-xl font-bold tabular-nums', k.cls)}>{k.value}</span>
           </div>
         ))}
@@ -102,7 +102,7 @@ export const StudentDersDevamsizlik: React.FC = () => {
             ))}
           </ul>
           {v.kayitlar.length > ROWS && (
-            <button type="button" onClick={() => setTumu((x) => !x)} className="text-[11px] font-semibold text-brand-fg hover:underline cursor-pointer">
+            <button type="button" onClick={() => setTumu((x) => !x)} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
               {tumu ? 'Daralt' : `+${v.kayitlar.length - ROWS} kayıt daha`}
             </button>
           )}

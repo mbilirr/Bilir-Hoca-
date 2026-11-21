@@ -135,11 +135,11 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                   <span className="block text-2xl font-bold tabular-nums" id="plan-mark-count">
                     {done}/{total}
                   </span>
-                  <span className="text-[11px] text-muted">görev</span>
+                  <span className="text-xs text-muted">görev</span>
                 </p>
               </div>
               <div className="h-2 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
-                <div className={cx('h-full rounded-full transition-all', pct === 100 ? 'bg-success' : 'bg-brand')} style={{ width: `${pct}%` }} />
+                <div className={cx('h-full rounded-full transition-[width]', pct === 100 ? 'bg-success' : 'bg-brand')} style={{ width: `${pct}%` }} />
               </div>
               {pct === 100 && (
                 <p className="text-sm font-bold text-success-fg flex items-center gap-1.5" id="plan-mark-alldone">
@@ -161,7 +161,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                   <div className={cx('flex items-center justify-between px-4 py-2.5 border-b border-line', isToday ? 'bg-brand-soft/60' : 'bg-surface-2/60')}>
                     <p className="text-sm font-bold text-fg">
                       {x.name} <span className="font-medium text-muted">· {shortDate(date)}</span>
-                      {isToday && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-brand-fg">Bugün</span>}
+                      {isToday && <span className="ml-2 text-2xs font-bold uppercase tracking-wide text-brand-fg">Bugün</span>}
                     </p>
                     <span className="text-xs font-semibold text-muted tabular-nums">
                       {dDone}/{x.list.length}
@@ -180,7 +180,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                             disabled={pending.current.has(i.id)}
                             onClick={() => toggle(i.id)}
                             className={cx(
-                              'mt-0.5 w-9 h-9 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all active:scale-90',
+                              'mt-0.5 w-9 h-9 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition active:scale-90',
                               isDone ? 'bg-success border-success text-white' : 'border-line-strong text-transparent hover:border-success'
                             )}
                           >
@@ -202,7 +202,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                 </section>
               );
             })}
-            <p className="text-[11px] text-muted text-center">Bu bağlantı sana özeldir; başkasıyla paylaşma. Uygulamaya girerek de işaretleyebilirsin.</p>
+            <p className="text-xs text-muted text-center">Bu bağlantı sana özeldir; başkasıyla paylaşma. Uygulamaya girerek de işaretleyebilirsin.</p>
           </>
         )}
       </main>

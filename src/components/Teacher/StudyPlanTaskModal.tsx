@@ -118,7 +118,7 @@ export const BookPicker: React.FC<{
                 className={cx(inputCls, 'pl-8 py-1.5')}
               />
             </div>
-            <p className="text-[11px] text-muted mt-1">
+            <p className="text-xs text-muted mt-1">
               {showAll ? (
                 <>
                   Önce <strong>{subject || 'seçilen ders'}</strong> kitapları, sonra diğerleri listelenir (yönetici görünümü).
@@ -144,7 +144,7 @@ export const BookPicker: React.FC<{
               </button>
             )}
             {mine.length > 0 && (
-              <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle" id="plan-book-subject-head">
+              <p className="px-3 pt-2 pb-1 text-2xs font-bold uppercase tracking-wide text-subtle" id="plan-book-subject-head">
                 {subject} kitapları
               </p>
             )}
@@ -153,7 +153,7 @@ export const BookPicker: React.FC<{
             ))}
             {general.length > 0 && (
               <>
-                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle">Her derste kullanılan kitaplar</p>
+                <p className="px-3 pt-2 pb-1 text-2xs font-bold uppercase tracking-wide text-subtle">Her derste kullanılan kitaplar</p>
                 {general.map((b) => (
                   <BookRow key={b.id} book={b} active={b.title === value} onPick={() => pick(b.title)} />
                 ))}
@@ -161,7 +161,7 @@ export const BookPicker: React.FC<{
             )}
             {others.length > 0 && (
               <>
-                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle" id="plan-book-others-head">
+                <p className="px-3 pt-2 pb-1 text-2xs font-bold uppercase tracking-wide text-subtle" id="plan-book-others-head">
                   Diğer derslerin kitapları
                 </p>
                 {others.map((b) => (
@@ -196,7 +196,7 @@ const BookRow: React.FC<{ book: StudentBook; active: boolean; onPick: () => void
     className={cx('w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 cursor-pointer', active && 'bg-brand-soft/60 font-semibold')}
   >
     <span className="truncate">{book.title}</span>
-    {book.subject && <span className="shrink-0 text-[10px] font-semibold text-muted">{book.subject}</span>}
+    {book.subject && <span className="shrink-0 text-2xs font-semibold text-muted">{book.subject}</span>}
   </button>
 );
 
@@ -340,7 +340,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
                 </option>
               ))}
             </select>
-            {subjectOptions.length === 1 && <p className="text-[11px] text-muted mt-1">Öğretmenler yalnızca kendi branşından görev verebilir.</p>}
+            {subjectOptions.length === 1 && <p className="text-xs text-muted mt-1">Öğretmenler yalnızca kendi branşından görev verebilir.</p>}
           </div>
         </div>
         <div>
@@ -378,7 +378,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru</span>
             </div>
           </div>
-          <p className="text-[11px] text-muted pb-2">Yazarsanız öğrencinin o günkü soru hedefine eklenir.</p>
+          <p className="text-xs text-muted pb-2">Yazarsanız öğrencinin o günkü soru hedefine eklenir.</p>
         </div>
         {error && (
           <div role="alert" id="plan-task-error" className="rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">

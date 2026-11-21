@@ -164,13 +164,13 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative bg-surface border border-line w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          className="relative bg-surface border border-line w-full max-w-4xl rounded-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* MODAL HEADER */}
@@ -182,11 +182,11 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 {homework.schoolLevel && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-soft text-brand-fg border border-brand/30">
+                  <span className="px-2 py-0.5 rounded text-2xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
                     {homework.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
                   </span>
                 )}
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-info/10 text-info-fg border border-info/30">
+                <span className="px-2 py-0.5 rounded text-2xs font-bold bg-info/10 text-info-fg border border-info/30">
                   {homework.subject}
                 </span>
                 <span className="text-xs text-muted">2026-2027 Akademik Yılı</span>
@@ -225,7 +225,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
           <div className="bg-canvas/90 border border-line rounded-2xl p-6 sm:p-8 space-y-6 shadow-inner">
             {/* Ministry Header Simulation */}
             <div className="text-center border-b border-line pb-5 space-y-1">
-              <p className="text-[11px] font-bold tracking-widest text-brand-fg uppercase">
+              <p className="text-xs font-bold tracking-widest text-brand-fg uppercase">
                 T.C. MİLLÎ EĞİTİM BAKANLIĞI
               </p>
               <h3 className="text-base sm:text-lg font-extrabold text-fg tracking-tight">
@@ -239,27 +239,27 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             {/* Quick Summary Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-surface/80 border border-line p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                <span className="text-xs font-medium text-muted flex items-center space-x-1 mb-1">
                   <Calendar className="w-3 h-3 text-brand-fg" />
                   <span>Son Teslim Tarihi</span>
                 </span>
                 <p className="text-xs font-bold text-fg">{dueDateFormatted}</p>
-                <p className="text-[10px] text-muted">{dueTimeFormatted}</p>
+                <p className="text-2xs text-muted">{dueTimeFormatted}</p>
               </div>
 
               <div className="bg-surface/80 border border-line p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                <span className="text-xs font-medium text-muted flex items-center space-x-1 mb-1">
                   <Users className="w-3 h-3 text-success-fg" />
                   <span>Hedef Sınıflar</span>
                 </span>
                 <p className="text-xs font-bold text-fg truncate">
                   {targetClassNames.length > 0 ? targetClassNames.join(', ') : 'Tüm Şubeler'}
                 </p>
-                <p className="text-[10px] text-muted">{assignedCount} Öğrenci</p>
+                <p className="text-2xs text-muted">{assignedCount} Öğrenci</p>
               </div>
 
               <div className="bg-surface/80 border border-line p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                <span className="text-xs font-medium text-muted flex items-center space-x-1 mb-1">
                   <Clock className="w-3 h-3 text-warning-fg" />
                   <span>Teslim Durumu</span>
                 </span>
@@ -270,17 +270,17 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
                 >
                   {isOverdue ? 'Süre Doldu' : 'Aktif Ödev'}
                 </p>
-                <p className="text-[10px] text-muted">
+                <p className="text-2xs text-muted">
                   {hwSubmissions.length} Öğrenci İşlendi
                 </p>
               </div>
 
               <div className="bg-surface/80 border border-line p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                <span className="text-xs font-medium text-muted flex items-center space-x-1 mb-1">
                   <Award className="w-3 h-3 text-brand-fg" />
                   <span>Ödev Kontrol Sonucu</span>
                 </span>
-                <div className="flex items-center space-x-2 text-[11px] font-semibold mt-0.5">
+                <div className="flex items-center space-x-2 text-xs font-semibold mt-0.5">
                   <span className="text-success-fg font-bold">✅ {yaptiCount}</span>
                   <span className="text-danger-fg font-bold">❌ {yapmadiCount}</span>
                   <span className="text-warning-fg font-bold">⚠️ {eksikCount}</span>
@@ -315,7 +315,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
                       key={idx}
                       className="p-2.5 bg-surface/60 border border-line rounded-xl text-xs text-fg flex items-start space-x-2"
                     >
-                      <span className="w-5 h-5 rounded-full bg-brand/20 text-brand-fg flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                      <span className="w-5 h-5 rounded-full bg-brand/20 text-brand-fg flex items-center justify-center font-bold text-2xs shrink-0 mt-0.5">
                         {idx + 1}
                       </span>
                       <span className="leading-snug">{outcome}</span>

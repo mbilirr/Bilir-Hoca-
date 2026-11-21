@@ -114,7 +114,7 @@ export const PlanTargetPicker: React.FC<{
             aria-pressed={state.scope === k}
             disabled={disabled}
             onClick={() => setState((cur) => ({ ...cur, scope: k }))}
-            className={cx('ui-btn ui-btn-sm w-full min-w-0 px-1 max-sm:text-[11px]', state.scope === k ? 'ui-btn-primary' : 'ui-btn-secondary')}
+            className={cx('ui-btn ui-btn-sm w-full min-w-0 px-1 max-sm:text-xs', state.scope === k ? 'ui-btn-primary' : 'ui-btn-secondary')}
           >
             <span className="truncate">{label}</span>
           </button>
@@ -142,7 +142,7 @@ export const PlanTargetPicker: React.FC<{
                   >
                     {on && <CheckCircle2 className="w-3.5 h-3.5" />}
                     {g.name}
-                    <span className={cx('text-[10px] font-bold', on ? 'text-white/80' : 'text-muted')}>
+                    <span className={cx('text-2xs font-bold', on ? 'text-white/80' : 'text-muted')}>
                       {g.list.length} öğr.{sentN ? ` · ${sentN} gönderildi` : ''}
                     </span>
                   </button>
@@ -179,7 +179,7 @@ export const PlanTargetPicker: React.FC<{
                 ) : (
                   listRows.map((r) => (
                     <div key={r.cid || 'none'}>
-                      {listRows.length > 1 && <p className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">{r.name}</p>}
+                      {listRows.length > 1 && <p className="px-2.5 pt-1.5 pb-0.5 text-2xs font-bold uppercase tracking-wide text-muted">{r.name}</p>}
                       {r.list.map((s) => (
                         <label key={s.id} className="flex h-7 items-center gap-2 px-2.5 text-xs cursor-pointer hover:bg-surface-2" data-target-student={s.id}>
                           <input
@@ -193,7 +193,7 @@ export const PlanTargetPicker: React.FC<{
                             {s.name}
                             {s.studentNumber ? <span className="text-muted"> · No {s.studentNumber}</span> : null}
                           </span>
-                          {sentSet.has(s.id) && <span className="ml-auto shrink-0 ui-chip ui-chip-success text-[10px] leading-4">gönderildi</span>}
+                          {sentSet.has(s.id) && <span className="ml-auto shrink-0 ui-chip ui-chip-success text-2xs leading-4">gönderildi</span>}
                         </label>
                       ))}
                     </div>

@@ -124,11 +124,11 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
   return (
     <div
       id="document-viewer-modal"
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
     >
       <OverlayLayer onClose={onClose} />
       <div
-        className={`relative my-auto bg-surface border border-line rounded-2xl flex flex-col shadow-2xl transition-all duration-300 ${
+        className={`relative my-auto bg-surface border border-line rounded-2xl flex flex-col shadow-2xl transition duration-300 ${
           isFullScreen
             ? 'w-full h-full rounded-none'
             : 'w-full max-w-6xl max-h-[92vh] h-[90vh]'
@@ -142,7 +142,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             </div>
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${formatConfig.badgeColor}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${formatConfig.badgeColor}`}>
                   {document.fileFormat.toUpperCase()}
                 </span>
                 <span className="text-xs text-muted">
@@ -237,7 +237,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               </span>
             </span>
             {document.gradeLevel && (
-              <span className="bg-surface-2 text-fg-2 px-2 py-0.5 rounded text-[11px]">
+              <span className="bg-surface-2 text-fg-2 px-2 py-0.5 rounded text-xs">
                 {document.gradeLevel}
               </span>
             )}
@@ -249,7 +249,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               {document.tags.map((tag, i) => (
                 <span
                   key={i}
-                  className="bg-surface-2/80 text-fg-2 px-2 py-0.5 rounded text-[10px] border border-line"
+                  className="bg-surface-2/80 text-fg-2 px-2 py-0.5 rounded text-2xs border border-line"
                 >
                   #{tag}
                 </span>
@@ -309,7 +309,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       {/* Column letters row */}
-                      <tr className="bg-canvas/80 sticky top-0 z-20 border-b border-line text-muted font-mono text-[10px]">
+                      <tr className="bg-canvas/80 sticky top-0 z-20 border-b border-line text-muted font-mono text-2xs">
                         <th className="w-12 text-center py-2 px-2 border-r border-line bg-canvas">#</th>
                         {filteredRows[0]?.map((_, colIdx) => (
                           <th
@@ -342,7 +342,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                           key={rIdx}
                           className="hover:bg-brand-soft transition-colors group"
                         >
-                          <td className="py-2 px-2 text-center text-muted border-r border-line font-mono text-[10px] bg-canvas/40 select-none">
+                          <td className="py-2 px-2 text-center text-muted border-r border-line font-mono text-2xs bg-canvas/40 select-none">
                             {rIdx + 2}
                           </td>
                           {row.map((cell, cIdx) => (

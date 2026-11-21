@@ -212,14 +212,14 @@ export const DersProgramim: React.FC = () => {
         )}
       >
         <span className="flex items-center justify-between gap-2 min-w-0">
-          <span className="text-[15px] leading-5 font-bold text-fg truncate">{h.classAd}</span>
-          <span className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold tracking-wide text-fg-2">{kisa(h.ders)}</span>
+          <span className="text-base leading-5 font-bold text-fg truncate">{h.classAd}</span>
+          <span className="shrink-0 rounded-lg bg-surface-2 px-1.5 py-0.5 text-xs font-bold tracking-wide text-fg-2">{kisa(h.ders)}</span>
         </span>
-        <span className="flex items-center gap-1.5 text-[11.5px] min-w-0">
+        <span className="flex items-center gap-1.5 text-xs min-w-0">
           <span className={cx('w-2 h-2 rounded-full shrink-0', NOKTA[d])} aria-hidden="true" />
           <span className={cx('truncate tabular-nums', YAZI[d])}>{durumYazi(h, d)}</span>
           {y && (
-            <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-muted shrink-0">
+            <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-muted shrink-0">
               {!h.benimVekil && !h.vekilAd && <Users className="w-3 h-3" aria-hidden="true" />}
               {y.yazi}
             </span>
@@ -286,7 +286,7 @@ export const DersProgramim: React.FC = () => {
           </svg>
           <span className="absolute inset-0 flex flex-col items-center justify-center leading-none">
             <span className="text-xl font-bold tabular-nums">{halka.ust}</span>
-            <span className="text-[10px] opacity-80 mt-1">{halka.alt}</span>
+            <span className="text-2xs opacity-80 mt-1">{halka.alt}</span>
           </span>
         </div>
       )}
@@ -297,7 +297,7 @@ export const DersProgramim: React.FC = () => {
               {simdiki ? 'Şimdi' : 'Sıradaki'} · {vurgu.sira}. ders · {vurguSaat.bas}–{vurguSaat.bit}
               {kucuk && simdiki ? ` · ${halka.ust} kaldı` : ''}
             </p>
-            <h2 className={cx('font-extrabold tracking-tight truncate', kucuk ? 'text-[22px] mt-0.5' : 'text-[28px] mt-1')}>
+            <h2 className={cx('font-extrabold tracking-tight truncate', kucuk ? 'text-2xl mt-0.5' : 'text-3xl mt-1')}>
               {vurgu.classAd} · {vurgu.ders}
             </h2>
             {!kucuk && (
@@ -329,7 +329,7 @@ export const DersProgramim: React.FC = () => {
           className={cx(
             'shrink-0 rounded-xl bg-white font-bold text-brand-fg transition-[translate,scale,box-shadow] duration-150 hover:-translate-y-px hover:shadow-pop active:scale-[0.97]',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
-            kucuk ? 'h-9 px-4 text-xs' : 'h-10 min-w-[8.5rem] px-5 text-[13px]'
+            kucuk ? 'h-9 px-4 text-xs' : 'h-10 min-w-[8.5rem] px-5 text-sm'
           )}
           id="ders-simdi-yoklama"
         >
@@ -343,7 +343,7 @@ export const DersProgramim: React.FC = () => {
   const sagListe = bekleyenler.length ? bekleyenler.slice(0, 3) : sonrakiler.filter((h) => h !== vurgu).slice(0, 3);
   const sagKart = (
     <section className="rounded-2xl border border-line bg-surface shadow-card px-5 py-4 flex flex-col gap-3 h-full" id="ders-sirada">
-      <p className={cx('text-[11px] font-semibold uppercase tracking-wider', bekleyenler.length ? 'text-warning-fg' : 'text-muted')}>
+      <p className={cx('text-xs font-semibold uppercase tracking-wider', bekleyenler.length ? 'text-warning-fg' : 'text-muted')}>
         {bekleyenler.length ? `Yoklaması bekleyen · ${bekleyenler.length}` : 'Sıradaki dersler'}
       </p>
       {sagListe.length === 0 && <p className="text-xs text-muted">Bu hafta başka ders yok.</p>}
@@ -355,8 +355,8 @@ export const DersProgramim: React.FC = () => {
           className="flex items-center gap-3 text-left rounded-lg -mx-2 px-2 py-1 hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           <span className="w-[4.5rem] shrink-0 border-r border-line pr-3 text-center whitespace-nowrap">
-            <span className="block text-[15px] font-bold tabular-nums">{saatOf(h.sira).bas}</span>
-            <span className="block text-[11px] text-muted">{h.tarih === bugun ? `${h.sira}. ders` : GUN_KISA[isoGun(h.tarih) - 1]}</span>
+            <span className="block text-base font-bold tabular-nums">{saatOf(h.sira).bas}</span>
+            <span className="block text-xs text-muted">{h.tarih === bugun ? `${h.sira}. ders` : GUN_KISA[isoGun(h.tarih) - 1]}</span>
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold truncate">
@@ -376,9 +376,9 @@ export const DersProgramim: React.FC = () => {
   const ozetKart = (
     <section className="rounded-2xl border border-line bg-surface shadow-card grid grid-cols-2 sm:grid-cols-4" id="ders-ozet">
       <div className="px-5 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Bu hafta</p>
-        <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">
-          {ozet.toplam} <span className="text-[13px] font-semibold text-muted">ders</span>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Bu hafta</p>
+        <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">
+          {ozet.toplam} <span className="text-sm font-semibold text-muted">ders</span>
         </p>
         <div className="mt-2 h-1.5 rounded-full bg-surface-2 flex overflow-hidden" aria-hidden="true">
           <span className="bg-success" style={{ width: yuzde(ozet.alindi) }} />
@@ -387,8 +387,8 @@ export const DersProgramim: React.FC = () => {
         </div>
       </div>
       <div className="px-5 py-4 border-l border-line">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-success-fg">Alındı</p>
-        <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.alindi}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-success-fg">Alındı</p>
+        <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.alindi}</p>
         <p className="text-xs text-muted">{ozet.yok ? `${ozet.yok} öğrenci yok yazıldı` : 'Devamsızlık yok'}</p>
       </div>
       <button
@@ -398,13 +398,13 @@ export const DersProgramim: React.FC = () => {
         className="px-5 py-4 border-t sm:border-t-0 sm:border-l border-line text-left enabled:hover:bg-surface-2 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         title={bekleyenler.length ? 'İlk bekleyen yoklamayı aç' : undefined}
       >
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-warning-fg">Bekliyor</p>
-        <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.bekliyor}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-warning-fg">Bekliyor</p>
+        <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.bekliyor}</p>
         <p className="text-xs text-muted">{ozet.bekliyor ? 'Açmak için tıklayın' : 'Bekleyen yok'}</p>
       </button>
       <div className="px-5 py-4 border-t sm:border-t-0 border-l border-line">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Henüz gelmedi</p>
-        <p className="text-[26px] font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.sonra}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Henüz gelmedi</p>
+        <p className="text-3xl font-extrabold tracking-tight tabular-nums mt-0.5">{ozet.sonra}</p>
         <p className="text-xs text-muted">Bu haftanın kalanı</p>
       </div>
     </section>
@@ -417,7 +417,7 @@ export const DersProgramim: React.FC = () => {
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={geri} aria-label={gorunum === 'hafta' ? 'Önceki hafta' : 'Önceki gün'}>
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="text-[13px] font-semibold text-fg min-w-[11rem] text-center tabular-nums">{aralikYazi}</span>
+        <span className="text-sm font-semibold text-fg min-w-[11rem] text-center tabular-nums">{aralikYazi}</span>
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={ileri} aria-label={gorunum === 'hafta' ? 'Sonraki hafta' : 'Sonraki gün'}>
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -440,7 +440,7 @@ export const DersProgramim: React.FC = () => {
   );
 
   const lejant = (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 pb-3 pt-1 text-[11.5px] text-muted">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 pb-3 pt-1 text-xs text-muted">
       <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success" />Yoklama alındı</span>
       <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning" />Bekliyor</span>
       <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-line-strong" />Henüz gelmedi</span>
@@ -480,7 +480,7 @@ export const DersProgramim: React.FC = () => {
                   const bugunMu = t === bugun;
                   return (
                     <div key={t} className={cx('rounded-xl px-2.5 py-2 text-xs', bugunMu ? 'bg-brand-soft text-brand-fg' : 'text-muted')}>
-                      <span className={cx('block text-[13px] font-semibold', bugunMu ? 'text-brand-fg' : 'text-fg')}>
+                      <span className={cx('block text-sm font-semibold', bugunMu ? 'text-brand-fg' : 'text-fg')}>
                         {GUN_KISA[isoGun(t) - 1]} {tarihUzun(t)}
                         {bugunMu ? ' · Bugün' : ''}
                       </span>
@@ -504,7 +504,7 @@ export const DersProgramim: React.FC = () => {
                 {siralar.map((s) => (
                   <React.Fragment key={s}>
                     <div className="h-[62px] flex flex-col justify-center pl-1 text-xs text-muted tabular-nums">
-                      <span className="text-[13px] font-semibold text-fg-2">{s}. ders</span>
+                      <span className="text-sm font-semibold text-fg-2">{s}. ders</span>
                       {saatOf(s).bas}–{saatOf(s).bit}
                     </div>
                     {haftaGunleri.map((t) => {
@@ -535,7 +535,7 @@ export const DersProgramim: React.FC = () => {
                     aria-pressed={on}
                     onClick={() => setGun(t)}
                     className={cx(
-                      'flex-1 h-14 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-[11px] transition-[background-color,border-color,scale] duration-150 active:scale-[0.96]',
+                      'flex-1 h-14 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-xs transition-[background-color,border-color,scale] duration-150 active:scale-[0.96]',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                       on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-muted hover:border-line-strong'
                     )}
@@ -558,14 +558,14 @@ export const DersProgramim: React.FC = () => {
                   return (
                     <React.Fragment key={s}>
                       {cizgi && (
-                        <div className="flex items-center gap-2 text-[11px] font-bold text-danger-fg tabular-nums" aria-label={`Şu an ${saat}`}>
+                        <div className="flex items-center gap-2 text-xs font-bold text-danger-fg tabular-nums" aria-label={`Şu an ${saat}`}>
                           {saat}
                           <span className="flex-1 h-0.5 rounded bg-danger" />
                         </div>
                       )}
                       <div className="grid grid-cols-[52px_1fr] gap-2.5 items-center">
-                        <span className="text-right text-[11px] text-muted tabular-nums leading-tight">
-                          <span className="block text-[13px] font-bold text-fg-2">{saatOf(s).bas}</span>
+                        <span className="text-right text-xs text-muted tabular-nums leading-tight">
+                          <span className="block text-sm font-bold text-fg-2">{saatOf(s).bas}</span>
                           {s}. ders
                         </span>
                         {hs.length ? (

@@ -1037,7 +1037,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   return (
                     <div
                       key={hw.id}
-                      className={`rounded-2xl border bg-surface transition-all scroll-mt-24 ${
+                      className={`rounded-2xl border bg-surface transition scroll-mt-24 ${
                         isOpen
                           ? 'border-brand ring-2 ring-brand/15 shadow-md'
                           : 'border-line hover:border-line-strong shadow-sm'
@@ -1057,17 +1057,17 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-brand-soft text-brand-fg">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-brand-soft text-brand-fg">
                                 {hw.subject}
                               </span>
                               <span
-                                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md inline-flex items-center gap-1 ${due.cls}`}
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-lg inline-flex items-center gap-1 ${due.cls}`}
                               >
                                 <Clock className="w-3 h-3" />
                                 {due.label}
                               </span>
                               {resourceCount > 0 && (
-                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface-2 text-muted inline-flex items-center gap-1">
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-surface-2 text-muted inline-flex items-center gap-1">
                                   <Paperclip className="w-3 h-3" />
                                   {resourceCount} kaynak
                                 </span>
@@ -1083,7 +1083,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                         <div className="flex items-center gap-3 md:w-[24rem] shrink-0">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <div className="flex items-center justify-between text-xs font-semibold">
                               <span className="text-muted">Kontrol</span>
                               <span className="text-fg">
                                 {checked}/{total}
@@ -1092,11 +1092,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             </div>
                             <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden mt-1">
                               <div
-                                className={`h-full rounded-full transition-all ${checked === total && total > 0 ? 'bg-success' : 'bg-brand'}`}
+                                className={`h-full rounded-full transition-[width] ${checked === total && total > 0 ? 'bg-success' : 'bg-brand'}`}
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-1.5 text-[11px] font-semibold">
+                            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-1.5 text-xs font-semibold">
                               <span className="text-success-fg">Yaptı {tally.yapti}</span>
                               <span className="text-danger-fg">Yapmadı {tally.yapmadi}</span>
                               <span className="text-warning-fg">Eksik {tally.eksik}</span>
@@ -1142,27 +1142,27 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           {/* Sayaçlar */}
                           <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                             <div className="p-2.5 rounded-xl bg-surface-2 border border-line text-center">
-                              <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
+                              <span className="text-2xs uppercase font-bold text-muted block">Toplam</span>
                               <span className="text-base font-bold text-fg">{classStudents.length}</span>
                             </div>
                             <div className="p-2.5 rounded-xl bg-success-soft border border-success/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-success-fg block">Yaptı</span>
+                              <span className="text-2xs uppercase font-bold text-success-fg block">Yaptı</span>
                               <span className="text-base font-bold text-success-fg">{countYapti}</span>
                             </div>
                             <div className="p-2.5 rounded-xl bg-danger-soft border border-danger/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-danger-fg block">Yapmadı</span>
+                              <span className="text-2xs uppercase font-bold text-danger-fg block">Yapmadı</span>
                               <span className="text-base font-bold text-danger-fg">{countYapmadi}</span>
                             </div>
                             <div className="p-2.5 rounded-xl bg-warning-soft border border-warning/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-warning-fg block">Eksik</span>
+                              <span className="text-2xs uppercase font-bold text-warning-fg block">Eksik</span>
                               <span className="text-base font-bold text-warning-fg">{countEksik}</span>
                             </div>
                             <div className="p-2.5 rounded-xl bg-info-soft border border-info/30 text-center">
-                              <span className="text-[10px] uppercase font-bold text-info-fg block">İzinli</span>
+                              <span className="text-2xs uppercase font-bold text-info-fg block">İzinli</span>
                               <span className="text-base font-bold text-info-fg">{countIzinli}</span>
                             </div>
                             <div className="p-2.5 rounded-xl bg-surface-2 border border-line-strong text-center">
-                              <span className="text-[10px] uppercase font-bold text-fg-2 block">Gelmedi</span>
+                              <span className="text-2xs uppercase font-bold text-fg-2 block">Gelmedi</span>
                               <span className="text-base font-bold text-fg-2">{countGelmedi}</span>
                             </div>
                           </div>
@@ -1252,7 +1252,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                             <button
                                               type="button"
                                               onClick={() => setViewingSubmissionKey({ homeworkId: currentHw.id, studentId: std.id })}
-                                              className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-fg hover:text-brand-fg hover:underline cursor-pointer"
+                                              className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:text-brand-fg hover:underline cursor-pointer"
                                             >
                                               <Paperclip className="w-3 h-3" />
                                               <span>
@@ -1535,11 +1535,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       accent={isOverdue ? 'border-l-slate-300 dark:border-l-slate-600' : 'border-l-brand'}
                       badges={
                         <>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-soft text-brand-fg">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand-fg">
                             {hw.subject}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 ${
+                            className={`px-2 py-0.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1 ${
                               isOverdue
                                 ? 'bg-danger-soft text-danger-fg'
                                 : 'bg-warning-soft text-warning-fg'
@@ -1549,7 +1549,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             {new Date(hw.dueDate).toLocaleDateString('tr-TR')}
                           </span>
                           {resourceCount > 0 && (
-                            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-surface-2 text-muted inline-flex items-center gap-1">
+                            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-surface-2 text-muted inline-flex items-center gap-1">
                               <Paperclip className="w-3 h-3" />
                               {resourceCount}
                             </span>
@@ -1591,7 +1591,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       <div className="grid gap-4 lg:grid-cols-2" data-hw-detail>
                         <div className="space-y-3 min-w-0">
                           <div>
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Açıklama</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-muted">Açıklama</p>
                             <p className="text-sm text-fg-2 whitespace-pre-wrap break-words mt-1">
                               {hw.description || 'Ödev açıklaması bulunmuyor.'}
                             </p>
@@ -1606,7 +1606,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           </div>
                           {allOutcomes.length > 0 && (
                             <div>
-                              <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Kazanımlar</p>
+                              <p className="text-xs font-bold uppercase tracking-wide text-muted">Kazanımlar</p>
                               <ul className="mt-1 space-y-0.5 text-xs text-fg-2 list-disc pl-4">
                                 {allOutcomes.map((o, i) => (
                                   <li key={i}>{o}</li>
@@ -1646,7 +1646,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         </div>
 
                         <div className="min-w-0">
-                          <h4 className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">
+                          <h4 className="text-xs font-bold uppercase tracking-wide text-muted mb-1.5">
                             Öğrenci Teslim Listesi ({hwSubmissions.length}/{assignedCount})
                           </h4>
                           <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
@@ -1664,7 +1664,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                 >
                                   <span className="font-semibold truncate">{student.name}</span>
                                   <span className="flex items-center gap-2 shrink-0">
-                                    <span className="text-[11px] font-bold">
+                                    <span className="text-xs font-bold">
                                       {sub
                                         ? sub.status === 'late'
                                           ? '⚠️ Geç Teslim'
@@ -1677,7 +1677,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
-                                        className="px-2 py-0.5 rounded-lg bg-surface border border-brand/30 text-brand-fg hover:bg-brand-soft text-[11px] font-bold cursor-pointer"
+                                        className="px-2 py-0.5 rounded-lg bg-surface border border-brand/30 text-brand-fg hover:bg-brand-soft text-xs font-bold cursor-pointer"
                                       >
                                         Gör
                                       </button>
@@ -1711,7 +1711,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
         <div
-          className="fixed inset-0 z-[80] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
           onClick={closeEditResourcesModal}
         >
           <OverlayLayer onClose={closeEditResourcesModal} />

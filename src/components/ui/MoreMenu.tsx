@@ -206,7 +206,7 @@ export const MoreMenu: React.FC<{
       {open &&
         createPortal(
           phone ? (
-            <div className="fixed inset-0 z-[10050]" role="presentation">
+            <div className="fixed inset-0 z-(--z-acilir)" role="presentation">
               <div className="absolute inset-0 bg-black/40 ui-menu-fade" onClick={() => close(true)} />
               <div
                 ref={menuRef}
@@ -230,7 +230,7 @@ export const MoreMenu: React.FC<{
               onKeyDown={onMenuKey}
               style={pos ? { top: pos.top, left: pos.left, right: pos.right } : { visibility: 'hidden' }}
               className={cx(
-                'ui-menu-in fixed z-[10050] min-w-48 max-w-72 rounded-xl border border-line bg-surface p-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.14),0_2px_6px_rgba(15,23,42,0.06)]',
+                'ui-menu-in fixed z-(--z-acilir) min-w-48 max-w-72 rounded-xl border border-line bg-surface p-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.14),0_2px_6px_rgba(15,23,42,0.06)]',
                 align === 'end' ? 'origin-top-right' : 'origin-top-left'
               )}
             >

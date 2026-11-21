@@ -328,8 +328,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-1.5">
                         <span className={cx('text-xs text-fg truncate', msg.read ? 'font-semibold' : 'font-bold')}>{msg.studentName}</span>
-                        {msg.studentClass && <span className="text-[11px] text-muted shrink-0">{msg.studentClass}</span>}
-                        <span className="ml-auto text-[11px] text-muted shrink-0">
+                        {msg.studentClass && <span className="text-xs text-muted shrink-0">{msg.studentClass}</span>}
+                        <span className="ml-auto text-xs text-muted shrink-0">
                           {new Date(msg.createdAt).toLocaleDateString('tr-TR', {
                             day: 'numeric',
                             month: 'short',
@@ -339,7 +339,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                       <p className="text-xs text-fg-2 truncate mt-0.5" title={msg.text}>
                         {msg.toTeacherId && (
-                          <span className="mr-1 rounded bg-brand-soft px-1 py-px text-[9px] font-bold text-brand-fg" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
+                          <span className="mr-1 rounded bg-brand-soft px-1 py-px text-3xs font-bold text-brand-fg" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
                             Özel{msg.toTeacherName ? ` → ${msg.toTeacherName}` : ''}
                           </span>
                         )}
@@ -395,7 +395,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                       <h3 className="text-sm font-bold text-fg">
                         {activeMessage.studentName}
                       </h3>
-                      {activeMessage.studentClass && <p className="text-[11px] text-muted">{activeMessage.studentClass}</p>}
+                      {activeMessage.studentClass && <p className="text-xs text-muted">{activeMessage.studentClass}</p>}
                     </div>
                   </div>
 

@@ -103,7 +103,7 @@ export const ProfilResmiSecModal: React.FC<{
       icon={Sparkles}
       tone="brand"
       size="md"
-      layerClass="z-[10000]"
+      layerClass="z-(--z-pencere-ust)"
       title="Profil resmi"
       description="Size uygun bir çizim seçin ya da kendi fotoğrafınızı yükleyin."
       footer={
@@ -135,7 +135,7 @@ export const ProfilResmiSecModal: React.FC<{
           />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-bold text-fg truncate">{person.name}</div>
-            <div className="text-[11px] text-muted">{durum}</div>
+            <div className="text-xs text-muted">{durum}</div>
           </div>
           {secili && (
             <button
@@ -233,10 +233,10 @@ export const ProfilResmiSecModal: React.FC<{
             >
               <ImageUp className="w-7 h-7 text-brand-fg" />
               <span className="text-sm font-bold text-fg">{isleniyor ? 'Fotoğraf hazırlanıyor…' : 'Fotoğraf seç'}</span>
-              <span className="text-[11px] text-muted">Telefonunuzdan ya da bilgisayarınızdan · PNG, JPG, WebP · otomatik küçültülür</span>
+              <span className="text-xs text-muted">Telefonunuzdan ya da bilgisayarınızdan · PNG, JPG, WebP · otomatik küçültülür</span>
             </button>
             {fotoMu && (
-              <p className="text-[11px] font-semibold text-success-fg flex items-center gap-1">
+              <p className="text-xs font-semibold text-success-fg flex items-center gap-1">
                 <Check className="w-3.5 h-3.5" /> Fotoğraf hazır. Kaydet'e basın.
               </p>
             )}

@@ -69,12 +69,12 @@ export const EtutTeacherSelect: React.FC<{
 
   const badges = (o: EtutTeacherOption) => (
     <span className="flex flex-wrap gap-1">
-      {o.kind === 'external' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">Dış öğretmen</span>}
+      {o.kind === 'external' && <span className="text-2xs font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">Dış öğretmen</span>}
       {o.subjects.length > 0 && !o.subjects.includes(currentSubject) && (
-        <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">{o.subjects.slice(0, 2).join(', ')}</span>
+        <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">{o.subjects.slice(0, 2).join(', ')}</span>
       )}
       {!o.hasEmail && !o.isMe && (
-        <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg inline-flex items-center gap-0.5">
+        <span className="text-2xs font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg inline-flex items-center gap-0.5">
           <MailWarning className="w-3 h-3" />
           e-posta yok
         </span>
@@ -118,7 +118,7 @@ export const EtutTeacherSelect: React.FC<{
           {selected.length === 1 && badges(selected[0])}
         </span>
         {selected.length > 1 && (
-          <span className="text-[11px] font-semibold px-1.5 py-px rounded-full bg-info-soft text-info-fg shrink-0">{selected.length} öğretmen</span>
+          <span className="text-xs font-semibold px-1.5 py-px rounded-full bg-info-soft text-info-fg shrink-0">{selected.length} öğretmen</span>
         )}
         <ChevronDown className={cx('w-3.5 h-3.5 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
@@ -176,7 +176,7 @@ export const EtutTeacherSelect: React.FC<{
                       onChange={() => setMany(allIds, allState !== 'all')}
                     />
                     <span className="text-sm font-semibold text-fg flex-1">{allLabel}</span>
-                    <span className="text-[11px] text-muted">{all.length} öğretmen</span>
+                    <span className="text-xs text-muted">{all.length} öğretmen</span>
                   </label>
                 )}
                 {filtered.map((g) => {
@@ -195,7 +195,7 @@ export const EtutTeacherSelect: React.FC<{
                           }}
                           onChange={() => setMany(ids, st !== 'all')}
                         />
-                        <span className="text-[11px] font-semibold text-muted flex-1">
+                        <span className="text-xs font-semibold text-muted flex-1">
                           {g.title} ({g.options.length})
                         </span>
                       </label>
@@ -216,7 +216,7 @@ export const EtutTeacherSelect: React.FC<{
                             <span className="min-w-0 flex-1">
                               <span className="block text-sm font-semibold text-fg truncate">
                                 {o.name}
-                                {o.isMe && <span className="ml-1 text-[11px] font-medium text-muted">(ben)</span>}
+                                {o.isMe && <span className="ml-1 text-xs font-medium text-muted">(ben)</span>}
                               </span>
                               {badges(o)}
                             </span>
@@ -230,7 +230,7 @@ export const EtutTeacherSelect: React.FC<{
             )}
           </div>
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-line bg-surface-2/60">
-            <span className="text-[11px] text-muted" id="etut-teacher-count">
+            <span className="text-xs text-muted" id="etut-teacher-count">
               {value.length ? `${value.length} öğretmen seçili` : 'Öğretmen seçilmedi'}
             </span>
             <span className="flex gap-1.5">

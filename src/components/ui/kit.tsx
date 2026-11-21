@@ -137,7 +137,7 @@ export const StatCard: React.FC<{
         id={id}
         onClick={onClick}
         className={cx(
-          'ui-card ui-card-pad text-left w-full transition-all hover:border-line-strong hover:-translate-y-0.5 cursor-pointer',
+          'ui-card ui-card-pad text-left w-full transition hover:border-line-strong hover:-translate-y-0.5 cursor-pointer',
           className
         )}
       >
@@ -221,23 +221,79 @@ export function Segmented<T extends string>({
 const modalStack: number[] = [];
 let modalSeq = 0;
 
+// Aşama 347: klavye odağı. Tab ile ulaşılabilen öğeler (gizli ve kapalı olanlar hariç).
+const ODAKLANIR =
+  'a[href],area[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),iframe,summary,[contenteditable="true"],[tabindex]:not([tabindex="-1"])';
+function odaklanirlar(kap: HTMLElement): HTMLElement[] {
+  return Array.from(kap.querySelectorAll<HTMLElement>(ODAKLANIR)).filter(
+    (el) => el.tabIndex >= 0 && !el.hasAttribute('inert') && el.getClientRects().length > 0
+  );
+}
+/** Aşama 347: pencere dışına taşan açılır listeler (portal) bu işareti taşır; odak oradayken tuzak karışmaz. */
+export const ACILIR_ISARET = 'data-acilir';
+
 /**
  * Aşama 191: ortak pencere katmanı. Modal ve eski usul (fixed inset-0) pencereler aynı yığını kullanır:
  * Esc yalnız en üstteki pencereyi kapatır, pencere açıkken arka plan kaymaz.
  * onClose verilmezse (zorunlu pencere) Esc hiçbir şeyi kapatmaz ama alttaki pencerelere de geçmez.
+ * Aşama 347: kap (pencere kutusu) verilirse odak tuzağı: Tab / Shift+Tab pencerenin içinde döner, açılınca odak
+ * pencereye gelir. Her durumda pencere kapanınca odak, pencereyi açan düğmeye geri döner.
  */
-export function useOverlayLayer(open: boolean, onClose?: (() => void) | null, opts?: { lockScroll?: boolean }) {
+export function useOverlayLayer(
+  open: boolean,
+  onClose?: (() => void) | null,
+  opts?: { lockScroll?: boolean; kap?: () => HTMLElement | null }
+) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const kapRef = useRef(opts?.kap);
+  kapRef.current = opts?.kap;
   const lockScroll = opts?.lockScroll !== false;
   useEffect(() => {
     if (!open) return;
     const token = ++modalSeq;
     modalStack.push(token);
+    const geri = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    const ustte = () => modalStack[modalStack.length - 1] === token;
+    const kap = () => kapRef.current?.() || null;
+
+    // Açılışta odak pencereye (içinde zaten odaklı bir öğe yoksa)
+    const k0 = kap();
+    if (k0 && !k0.contains(document.activeElement)) {
+      if (!k0.hasAttribute('tabindex')) k0.setAttribute('tabindex', '-1');
+      k0.focus({ preventScroll: true });
+    }
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token) return;
-      const fn = onCloseRef.current;
-      if (fn) fn();
+      if (!ustte()) return;
+      if (e.key === 'Escape') {
+        const fn = onCloseRef.current;
+        if (fn) fn();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const k = kap();
+      if (!k) return;
+      const aktif = document.activeElement as HTMLElement | null;
+      if (aktif?.closest(`[${ACILIR_ISARET}]`)) return;
+      const liste = odaklanirlar(k);
+      if (!liste.length) {
+        e.preventDefault();
+        k.focus({ preventScroll: true });
+        return;
+      }
+      const ilk = liste[0];
+      const son = liste[liste.length - 1];
+      const icerde = !!aktif && k.contains(aktif);
+      if (e.shiftKey) {
+        if (!icerde || aktif === ilk || aktif === k) {
+          e.preventDefault();
+          son.focus();
+        }
+      } else if (!icerde || aktif === son) {
+        e.preventDefault();
+        ilk.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -247,14 +303,54 @@ export function useOverlayLayer(open: boolean, onClose?: (() => void) | null, op
       const i = modalStack.indexOf(token);
       if (i >= 0) modalStack.splice(i, 1);
       if (lockScroll) document.body.style.overflow = modalStack.length ? 'hidden' : prev;
+      // Odak geri: yalnız odak boşta (pencereyle gitti) ya da hâlâ kapanan pencerenin içindeyse
+      if (geri && geri.isConnected) {
+        const k = kap();
+        const a = document.activeElement;
+        if (!a || a === document.body || (k && k.contains(a))) {
+          try {
+            geri.focus({ preventScroll: true });
+          } catch {
+            /* odaklanamıyorsa geç */
+          }
+        }
+      }
     };
   }, [open, lockScroll]);
 }
 
-/** Aşama 191: eski usul pencerelerin içine konur; pencere açıkken (bu parça görünürken) katmana katılır. */
-export const OverlayLayer: React.FC<{ onClose?: (() => void) | null; lockScroll?: boolean }> = ({ onClose, lockScroll }) => {
-  useOverlayLayer(true, onClose, { lockScroll });
+/** Aşama 191: eski usul pencerelerin içine konur; pencere açıkken (bu parça görünürken) katmana katılır.
+ *  Aşama 347: kendini saran sabit (fixed) kutuyu pencere sayar: odak tuzağı, odak geri dönüşü ve
+ *  ekran okuyucu için role="dialog" ona da uygulanır. */
+function sabitAta(el: HTMLElement | null): HTMLElement | null {
+  let n = el?.parentElement || null;
+  while (n && n !== document.body) {
+    if (getComputedStyle(n).position === 'fixed') return n;
+    n = n.parentElement;
+  }
   return null;
+}
+export const OverlayLayer: React.FC<{ onClose?: (() => void) | null; lockScroll?: boolean }> = ({ onClose, lockScroll }) => {
+  const isaret = useRef<HTMLSpanElement | null>(null);
+  const kap = useRef<HTMLElement | null>(null);
+  const bul = () => {
+    if (!kap.current || !kap.current.isConnected) {
+      const k = sabitAta(isaret.current);
+      if (k) {
+        // İçerideki asıl pencere kutusu role="dialog" taşıyorsa ona dokunma
+        if (!k.querySelector('[role="dialog"]') && !k.hasAttribute('role')) {
+          k.setAttribute('role', 'dialog');
+          k.setAttribute('aria-modal', 'true');
+        }
+        if (!k.hasAttribute('tabindex')) k.setAttribute('tabindex', '-1');
+        k.style.outline = 'none';
+      }
+      kap.current = k;
+    }
+    return kap.current;
+  };
+  useOverlayLayer(true, onClose, { lockScroll, kap: bul });
+  return <span ref={isaret} hidden aria-hidden="true" />;
 };
 
 // Açılır pencere (Esc ile kapanır, arka plan kaydırılmaz)
@@ -270,20 +366,15 @@ export const Modal: React.FC<{
   children?: React.ReactNode;
   id?: string;
   closeOnBackdrop?: boolean;
-  /** Aşama 146: katman sınıfı; z-[9999] düz pencerelerin (ör. Kullanıcı Bilgileri) üstünde açılacak pencereler için */
+  /** Aşama 146/347: katman sınıfı; varsayılan z-(--z-pencere). Pencerenin üstündeki onay vb. için z-(--z-pencere-ust) */
   layerClass?: string;
-}> = ({ open, onClose, title, description, icon, tone = 'brand', size = 'md', footer, children, id, closeOnBackdrop = true, layerClass = 'z-[80]' }) => {
+}> = ({ open, onClose, title, description, icon, tone = 'brand', size = 'md', footer, children, id, closeOnBackdrop = true, layerClass = 'z-(--z-pencere)' }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   // Aşama 191: Esc ve kaydırma kilidi ortak katmandan (useOverlayLayer); onClose her çizimde yeni olabilir, katman onu ref ile tutar
-  useOverlayLayer(open, onClose);
-
-  useEffect(() => {
-    if (!open) return;
-    // Odağı yalnızca pencere ilk açıldığında ve içinde henüz bir şey odaklı değilse pencereye ver
-    if (panelRef.current && !panelRef.current.contains(document.activeElement)) panelRef.current.focus();
-  }, [open]);
+  // Aşama 347: odak tuzağı + kapanınca açan düğmeye dönüş de katmanda (kap = pencere kutusu)
+  useOverlayLayer(open, onClose, { kap: () => panelRef.current });
 
   if (!open) return null;
   const width =

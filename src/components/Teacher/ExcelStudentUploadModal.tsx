@@ -614,7 +614,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             className={cx(
-              'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all',
+              'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition',
               isDragOver ? 'border-brand bg-brand-soft' : 'border-line-strong hover:border-brand bg-surface-2/40'
             )}
           >
@@ -737,7 +737,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               <span className="text-xs font-semibold text-muted uppercase tracking-wider">
                 Yüklenecek Öğrenci Listesi ({validCount} Geçerli)
               </span>
-              <span className="text-[11px] text-muted">Hücreye tıklayıp düzenleyebilirsiniz.</span>
+              <span className="text-xs text-muted">Hücreye tıklayıp düzenleyebilirsiniz.</span>
             </div>
 
             <div className="border border-line rounded-xl overflow-auto max-h-80">
@@ -762,7 +762,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     return (
                       <tr key={row.id} className={cx('transition-colors', !row.isValid ? 'bg-danger-soft/40' : 'hover:bg-surface-2/40')}>
                         <td className="px-3 py-2.5 font-mono text-muted whitespace-nowrap" title={row.sheet ? `${row.sheet} sayfası, ${row.rowNumber}. satır` : undefined}>
-                          {row.sheet && <span className="block font-sans text-[10px] text-subtle max-w-24 truncate">{row.sheet}</span>}
+                          {row.sheet && <span className="block font-sans text-2xs text-subtle max-w-24 truncate">{row.sheet}</span>}
                           {row.rowNumber}
                         </td>
                         <td className="px-3 py-2.5 min-w-[110px]">
@@ -792,7 +792,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             aria-label={`${row.rowNumber}. satır sınıf`}
                             className={cx(cellCls, row.classError ? 'border-danger' : row.isNewClass ? 'border-warning text-warning-fg' : 'border-line')}
                           />
-                          {row.isNewClass && <span className="text-[10px] text-warning-fg block mt-0.5">Yeni sınıf</span>}
+                          {row.isNewClass && <span className="text-2xs text-warning-fg block mt-0.5">Yeni sınıf</span>}
                         </td>
                         <td className="px-3 py-2.5">
                           <input autoComplete="off"
@@ -833,7 +833,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             placeholder="Telefon"
                             aria-label={`${row.rowNumber}. satır telefon`}
                             aria-invalid={phoneBad}
-                            className={cx(cellCls, 'text-[11px]', phoneBad ? 'border-danger' : 'border-line')}
+                            className={cx(cellCls, 'text-xs', phoneBad ? 'border-danger' : 'border-line')}
                           />
                           <input autoComplete="off"
                             type="email"
@@ -842,11 +842,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             placeholder="E-Posta"
                             aria-label={`${row.rowNumber}. satır e-posta`}
                             aria-invalid={mailBad}
-                            className={cx(cellCls, 'text-[11px]', mailBad ? 'border-danger' : 'border-line')}
+                            className={cx(cellCls, 'text-xs', mailBad ? 'border-danger' : 'border-line')}
                           />
                           {/* Aşama 323: Excel'den okunan veliler (kayıtta öğrenciyle birlikte yazılır) */}
                           {!!row.parents?.length && (
-                            <p className="mt-1 text-[10px] text-muted truncate max-w-56" title={parentsSummary(row.parents)}>
+                            <p className="mt-1 text-2xs text-muted truncate max-w-56" title={parentsSummary(row.parents)}>
                               {row.parents.length} veli: {row.parents.map((p) => p.relation || p.name || 'Veli').join(', ')}
                             </p>
                           )}
@@ -855,7 +855,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           {row.isValid ? (
                             <span className="ui-chip ui-chip-success">Hazır</span>
                           ) : (
-                            <span className="inline-block text-left text-[11px] font-semibold text-danger-fg" title={row.validationError}>
+                            <span className="inline-block text-left text-xs font-semibold text-danger-fg" title={row.validationError}>
                               {row.validationError || 'Hatalı'}
                             </span>
                           )}

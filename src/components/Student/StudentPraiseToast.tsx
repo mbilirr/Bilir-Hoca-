@@ -42,7 +42,7 @@ export const StudentPraiseToast: React.FC<{
       role="status"
       aria-live="polite"
       id="student-praise-toast"
-      className="fixed z-[90] top-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-[22rem] rounded-2xl border border-warning/30 bg-surface shadow-pop overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300"
+      className="fixed z-(--z-bildirim) top-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-[22rem] rounded-2xl border border-warning/30 bg-surface shadow-pop overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300"
     >
       <div className="flex items-start gap-3 p-3.5">
         <span className="w-9 h-9 rounded-xl bg-warning-soft text-warning-fg flex items-center justify-center shrink-0 text-lg shadow-sm" aria-hidden>
@@ -54,7 +54,7 @@ export const StudentPraiseToast: React.FC<{
           </p>
           {top.message && <p className="mt-0.5 text-xs text-fg-2 leading-relaxed line-clamp-3 break-words">{top.message}</p>}
           {(top.sourceTitle || more > 0) && (
-            <p className="mt-1 text-[11px] text-muted truncate">
+            <p className="mt-1 text-xs text-muted truncate">
               {top.sourceTitle || ''}
               {top.sourceTitle && more > 0 ? ' · ' : ''}
               {more > 0 ? `+${more} tebrik daha (bildirimlerde)` : ''}

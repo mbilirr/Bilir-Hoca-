@@ -37,7 +37,7 @@ export const ownerText = (t: WeeklyQuestionTarget) =>
 export const ProgressBar: React.FC<{ percent: number; done?: boolean }> = ({ percent, done }) => (
   <div className="w-full h-2 rounded-full bg-surface-3 overflow-hidden">
     <div
-      className={cx('h-full rounded-full transition-all', done ? 'bg-success' : percent >= 60 ? 'bg-warning' : 'bg-brand')}
+      className={cx('h-full rounded-full transition-[width]', done ? 'bg-success' : percent >= 60 ? 'bg-warning' : 'bg-brand')}
       style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
     />
   </div>
@@ -57,7 +57,7 @@ export const TargetRowActions: React.FC<{
   if (confirming) {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] font-semibold text-danger-fg">Silinsin mi?</span>
+        <span className="text-xs font-semibold text-danger-fg">Silinsin mi?</span>
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => onConfirmChange(false)}>
           Hayır
         </button>

@@ -73,7 +73,7 @@ export const TargetDailyBreakdown: React.FC<{
                       )}
                       style={{ height: h }}
                     />
-                    <span className={cx('mt-1 text-[10px] leading-none', r.ymd === today ? 'text-fg font-bold' : 'text-subtle')}>
+                    <span className={cx('mt-1 text-2xs leading-none', r.ymd === today ? 'text-fg font-bold' : 'text-subtle')}>
                       {rows.length > 14 ? r.label.split(' ')[0] : r.weekday}
                     </span>
                   </div>
@@ -123,8 +123,8 @@ export const TargetDailyBreakdown: React.FC<{
               </tbody>
             </table>
           </div>
-          {res.flexible && <p className="text-[11px] text-muted">Öğretmen soruları günlere farklı sayılarla dağıttı; kesikli çizgi günlük ortalamadır.</p>}
-          {subj && <p className="text-[11px] text-muted">Yalnızca {subj} soruları sayılır.</p>}
+          {res.flexible && <p className="text-xs text-muted">Öğretmen soruları günlere farklı sayılarla dağıttı; kesikli çizgi günlük ortalamadır.</p>}
+          {subj && <p className="text-xs text-muted">Yalnızca {subj} soruları sayılır.</p>}
         </div>
       )}
     </div>

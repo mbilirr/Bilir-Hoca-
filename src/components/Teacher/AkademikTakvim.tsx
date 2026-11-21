@@ -75,8 +75,8 @@ const DtKutu: React.FC<{ tarih: string; bitis?: string; ayIcinde?: boolean; vurg
         className={cx('w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none border border-dashed', vurgu ? 'bg-brand-soft text-brand-fg border-brand' : 'bg-surface-2 text-fg border-line-strong')}
         title={`${AY_ADLARI[d.getMonth()]} içinde (günü belli değil)`}
       >
-        <b className="text-[13px] font-bold uppercase tracking-wide">{AY_KISA[d.getMonth()]}</b>
-        <span className="text-[10px] font-semibold uppercase tracking-wide mt-0.5 text-muted">ay içi</span>
+        <b className="text-sm font-bold uppercase tracking-wide">{AY_KISA[d.getMonth()]}</b>
+        <span className="text-2xs font-semibold uppercase tracking-wide mt-0.5 text-muted">ay içi</span>
       </span>
     );
   }
@@ -87,8 +87,8 @@ const DtKutu: React.FC<{ tarih: string; bitis?: string; ayIcinde?: boolean; vurg
       className={cx('w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none', vurgu ? 'bg-brand text-white' : 'bg-surface-2 text-fg')}
       title={e ? gunAraligiYazi({ tarih, bitis: bitis || '' }) : undefined}
     >
-      <b className={cx('font-bold tabular-nums', e ? 'text-[13px] tracking-tight' : 'text-lg')}>{e ? `${d.getDate()}–${e.getDate()}` : d.getDate()}</b>
-      <span className={cx('text-[10px] font-semibold uppercase tracking-wide mt-0.5', vurgu ? 'text-white/80' : 'text-muted')}>
+      <b className={cx('font-bold tabular-nums', e ? 'text-sm tracking-tight' : 'text-lg')}>{e ? `${d.getDate()}–${e.getDate()}` : d.getDate()}</b>
+      <span className={cx('text-2xs font-semibold uppercase tracking-wide mt-0.5', vurgu ? 'text-white/80' : 'text-muted')}>
         {e ? (e.getMonth() !== d.getMonth() ? AY_KISA[d.getMonth()] : `${gun} gün`) : GUN_KISA_PAZAR[d.getDay()]}
       </span>
     </span>
@@ -130,12 +130,12 @@ const SecKutusu: React.FC<{ durum: boolean | 'mixed'; onClick: () => void; etike
 type KutuTon = 'warn' | 'ok' | 'bad';
 const Kutu: React.FC<{ baslik: string; ek?: string; not?: string; children: React.ReactNode }> = ({ baslik, ek, not, children }) => (
   <section className="rounded-2xl bg-surface border border-line shadow-card p-3 flex flex-col gap-1.5 min-w-0" aria-label={baslik}>
-    <h2 className="flex items-baseline justify-between gap-2 px-0.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted">
+    <h2 className="flex items-baseline justify-between gap-2 px-0.5 pb-1 text-xs font-bold uppercase tracking-wider text-muted">
       {baslik}
-      {ek && <span className="text-[11px] font-semibold normal-case tracking-normal text-subtle truncate">{ek}</span>}
+      {ek && <span className="text-xs font-semibold normal-case tracking-normal text-subtle truncate">{ek}</span>}
     </h2>
     {children}
-    {not && <p className="mt-auto pt-1 px-0.5 text-[11px] leading-snug text-subtle">{not}</p>}
+    {not && <p className="mt-auto pt-1 px-0.5 text-xs leading-snug text-subtle">{not}</p>}
   </section>
 );
 const KutuSecenek: React.FC<{ id: string; etiket: string; alt?: string; n: number; ton?: KutuTon; secili: boolean; onClick: () => void }> = ({ id, etiket, alt, n, ton, secili, onClick }) => (
@@ -155,7 +155,7 @@ const KutuSecenek: React.FC<{ id: string; etiket: string; alt?: string; n: numbe
     </span>
     <span
       className={cx(
-        'min-w-7 h-[22px] px-1.5 rounded-md grid place-items-center text-[11px] tabular-nums',
+        'min-w-7 h-[22px] px-1.5 rounded-lg grid place-items-center text-xs tabular-nums',
         secili
           ? 'bg-canvas/15'
           : !n
@@ -462,7 +462,7 @@ export const AkademikTakvim: React.FC = () => {
                     {m ? AY_KISA[m - 1] : 'Tümü'}
                     {simdi && <span className="w-1 h-1 rounded-full bg-brand" aria-label="bu ay" />}
                   </span>
-                  <span className={cx('text-[10px] tabular-nums', aktif ? 'text-brand-fg' : 'text-subtle')}>{n || '–'}</span>
+                  <span className={cx('text-2xs tabular-nums', aktif ? 'text-brand-fg' : 'text-subtle')}>{n || '–'}</span>
                 </button>
               );
             })}
@@ -623,7 +623,7 @@ export const AkademikTakvim: React.FC = () => {
                     return (
                       <React.Fragment key={g.key}>
                       {gunBasi && (
-                        <li className="pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-warning-fg" aria-hidden>
+                        <li className="pt-3 pb-1 text-xs font-bold uppercase tracking-wider text-warning-fg" aria-hidden>
                           {tarihCoz(g.tarih).getDate()} {AY_ADLARI[m - 1]} · çakışma
                         </li>
                       )}
@@ -807,7 +807,7 @@ const EtkinlikPenceresi: React.FC<{
         <div>
           <label htmlFor="akt-ad" className="ui-label">Etkinlik adı</label>
           <input id="akt-ad" className={hataCls(!okAd)} maxLength={200} value={ad} onChange={(e) => setAd(e.target.value)} placeholder="Örn. Bilim Merkezi gezisi" />
-          {denendi && !okAd && <p className="text-[11px] font-semibold text-danger-fg mt-1">Etkinlik adını yazın.</p>}
+          {denendi && !okAd && <p className="text-xs font-semibold text-danger-fg mt-1">Etkinlik adını yazın.</p>}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {ayIcinde ? (
@@ -822,23 +822,23 @@ const EtkinlikPenceresi: React.FC<{
                   </option>
                 ))}
               </SelectBox>
-              {denendi && !okTarih && <p className="text-[11px] font-semibold text-danger-fg mt-1">Ayı seçin.</p>}
+              {denendi && !okTarih && <p className="text-xs font-semibold text-danger-fg mt-1">Ayı seçin.</p>}
             </div>
           ) : (
           <>
           <div>
             <label htmlFor="akt-tarih" className="ui-label">{bitis ? 'Başlangıç' : 'Tarih'}</label>
             <input id="akt-tarih" type="date" className={hataCls(!okTarih)} min={bas} max={bit} value={tarih} onChange={(e) => setTarih(e.target.value)} />
-            {denendi && !okTarih && <p className="text-[11px] font-semibold text-danger-fg mt-1">{yilAdi(yil)} yılı içinde bir tarih seçin.</p>}
+            {denendi && !okTarih && <p className="text-xs font-semibold text-danger-fg mt-1">{yilAdi(yil)} yılı içinde bir tarih seçin.</p>}
           </div>
           {/* Aşama 327: birkaç gün süren etkinlik (boş = tek gün) */}
           <div>
             <label htmlFor="akt-bitis" className="ui-label flex items-center justify-between gap-1">
-              Bitiş <span className="text-[10px] font-normal text-subtle">isteğe bağlı</span>
+              Bitiş <span className="text-2xs font-normal text-subtle">isteğe bağlı</span>
             </label>
             <input id="akt-bitis" type="date" className={hataCls(!okBitis)} min={tarih || bas} max={bit} value={bitis} onChange={(e) => setBitis(e.target.value)} />
             {denendi && !okBitis && (
-              <p className="text-[11px] font-semibold text-danger-fg mt-1">{bitisGun < 0 ? 'Bitiş, başlangıçtan önce olamaz.' : 'En çok 60 gün, yıl içinde.'}</p>
+              <p className="text-xs font-semibold text-danger-fg mt-1">{bitisGun < 0 ? 'Bitiş, başlangıçtan önce olamaz.' : 'En çok 60 gün, yıl içinde.'}</p>
             )}
           </div>
           </>
@@ -869,7 +869,7 @@ const EtkinlikPenceresi: React.FC<{
         </div>
         <div>
           <span className="ui-label flex items-center justify-between">
-            Sınıf <span className="text-[10px] font-normal text-subtle">birden çok seçilebilir</span>
+            Sınıf <span className="text-2xs font-normal text-subtle">birden çok seçilebilir</span>
           </span>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5" role="group" aria-label="Sınıf">
             {SINIFLAR.map((s) => {
@@ -890,7 +890,7 @@ const EtkinlikPenceresi: React.FC<{
               );
             })}
           </div>
-          {denendi && !okSinif && <p className="text-[11px] font-semibold text-danger-fg mt-1">En az bir sınıf seçin.</p>}
+          {denendi && !okSinif && <p className="text-xs font-semibold text-danger-fg mt-1">En az bir sınıf seçin.</p>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -907,7 +907,7 @@ const EtkinlikPenceresi: React.FC<{
           </div>
           <div>
             <label htmlFor="akt-zumre" className="ui-label flex items-center justify-between">
-              Zümre <span className="text-[10px] font-normal text-subtle">isteğe bağlı</span>
+              Zümre <span className="text-2xs font-normal text-subtle">isteğe bağlı</span>
             </label>
             <SelectBox id="akt-zumre" className="ui-field w-full cursor-pointer" value={zumre} onChange={(e) => setZumre(e.target.value)}>
               <option value="">Seçilmedi</option>
@@ -1044,8 +1044,8 @@ const ZumrelerPenceresi: React.FC<{
         <div className="grid grid-cols-3 gap-2" aria-label="Hatırlatma zamanı">
           {KURALLAR.map((k) => (
             <div key={k.ust} className="rounded-xl bg-surface-2 border border-line px-3 py-2.5 min-h-[56px] flex flex-col justify-center">
-              <span className="text-[11px] font-semibold text-muted leading-tight">{k.ust}</span>
-              <b className="text-xs sm:text-[13px] font-bold text-fg leading-snug">{k.alt}</b>
+              <span className="text-xs font-semibold text-muted leading-tight">{k.ust}</span>
+              <b className="text-xs sm:text-sm font-bold text-fg leading-snug">{k.alt}</b>
             </div>
           ))}
         </div>
@@ -1081,7 +1081,7 @@ const ZumrelerPenceresi: React.FC<{
               placeholder="Öğretmen ya da branş ara"
               className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-subtle outline-none"
             />
-            <span className="text-[11px] font-semibold text-muted tabular-nums shrink-0">
+            <span className="text-xs font-semibold text-muted tabular-nums shrink-0">
               {secili.length} üye{baskanSay ? ` · ${baskanSay} başkan` : ''}
             </span>
           </div>
@@ -1100,7 +1100,7 @@ const ZumrelerPenceresi: React.FC<{
                 return (
                   <li key={t.id} className={cx('flex items-center gap-3 px-3 h-14 transition-colors', on ? 'bg-brand-soft/40' : 'hover:bg-surface-2')}>
                     <button type="button" role="checkbox" aria-checked={on} onClick={() => degistir(t.id)} className="flex-1 min-w-0 flex items-center gap-3 h-full text-left cursor-pointer">
-                      <span className={cx('w-5 h-5 shrink-0 rounded-md border grid place-items-center transition-colors', on ? 'bg-brand border-brand text-white' : 'bg-surface border-line-strong')}>
+                      <span className={cx('w-5 h-5 shrink-0 rounded-lg border grid place-items-center transition-colors', on ? 'bg-brand border-brand text-white' : 'bg-surface border-line-strong')}>
                         {on && <Check className="w-3.5 h-3.5" />}
                       </span>
                       <span className="min-w-0">
@@ -1118,7 +1118,7 @@ const ZumrelerPenceresi: React.FC<{
                         aria-pressed={baskan}
                         onClick={() => baskanYap(t.id)}
                         className={cx(
-                          'h-7 w-20 shrink-0 rounded-full border text-[11px] font-semibold transition-colors cursor-pointer',
+                          'h-7 w-20 shrink-0 rounded-full border text-xs font-semibold transition-colors cursor-pointer',
                           baskan ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:border-line-strong'
                         )}
                       >
@@ -1131,7 +1131,7 @@ const ZumrelerPenceresi: React.FC<{
             </ul>
           )}
         </div>
-        <p className="flex gap-2 text-[11px] leading-relaxed text-muted">
+        <p className="flex gap-2 text-xs leading-relaxed text-muted">
           <BellRing className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />
           <span>
             Etkinlik belli sınıflar içinse yalnız o sınıf düzeyinde derse giren üyelere gider; başkana her zaman gider. SMS, sistem sahibi Yönetim › Bildirim ve SMS › Akademik takvim satırından açınca gider.
@@ -1385,7 +1385,7 @@ const ExcelPenceresi: React.FC<{
             {kutular.map(([k, v, c]) => (
               <div key={k} className="rounded-xl bg-surface-2 border border-line px-3 py-2.5">
                 <b className={cx('block text-xl font-bold tabular-nums', v ? c : 'text-subtle')}>{v}</b>
-                <span className="text-[11px] font-medium text-muted">{k} etkinlik</span>
+                <span className="text-xs font-medium text-muted">{k} etkinlik</span>
               </div>
             ))}
           </div>
@@ -1432,7 +1432,7 @@ const ExcelPenceresi: React.FC<{
                   {s.tarih ? <DtKutu tarih={s.tarih} bitis={s.bitis} ayIcinde={s.ayIcinde} /> : <span className="w-12 h-12 rounded-xl bg-surface-2 grid place-items-center text-muted shrink-0">?</span>}
                   <span className="min-w-0 flex-1">
                     <b className="block text-xs font-semibold text-fg truncate">{s.ad ? baslik(s.ad) : '(adsız)'}</b>
-                    <span className="block text-[11px] text-muted truncate">
+                    <span className="block text-xs text-muted truncate">
                       {siniflar.length ? siniflarYazi(siniflar) : 'Sınıf yok'}
                       {s.zumre && ` · ${baslik(s.zumre)}`} · {s.sayfa}
                       {satir > 1 ? ` · ${satir} satır` : ` · satır ${s.satirNo}`}

@@ -119,7 +119,7 @@ export function shortTurkishDate(iso: string): string {
  */
 // Aşama 65: günlük tablo telefonda (768 px altı) kart görünümüne geçer; her hücre solda başlığıyla (data-label) yazılır
 const CELL_LABEL =
-  'max-md:flex max-md:items-start max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-1 max-md:text-right max-md:before:content-[attr(data-label)] max-md:before:shrink-0 max-md:before:text-[11px] max-md:before:font-semibold max-md:before:text-muted max-md:before:text-left';
+  'max-md:flex max-md:items-start max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-1 max-md:text-right max-md:before:content-[attr(data-label)] max-md:before:shrink-0 max-md:before:text-xs max-md:before:font-semibold max-md:before:text-muted max-md:before:text-left';
 
 export function generalDailyTarget(targets: WeeklyQuestionTarget[]): number {
   const general = targets.find((t) => !t.subject && !isPlanMirrorTarget(t, targets));
@@ -335,7 +335,7 @@ export const MonthlyBucketTooltip: React.FC<{ active?: boolean; payload?: any[];
           <strong className="text-fg">{w.topSubject}</strong>
         </div>
       )}
-      <div className="pt-1 border-t border-line text-[11px] text-muted">
+      <div className="pt-1 border-t border-line text-xs text-muted">
         Bu {dayCount} günün hedefi: <strong className="text-fg">{bucketTarget} soru</strong> (%{pct})
       </div>
     </div>
@@ -1452,7 +1452,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <span className="font-bold text-fg text-xs">
               {data.dayName ? `${data.dayName} (${formatTurkishDate(data.dateStr)})` : data.weekLabel}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand-fg border border-brand/30">
+            <span className="px-2 py-0.5 rounded-full text-2xs font-semibold bg-brand-soft text-brand-fg border border-brand/30">
               {data.totalQuestions > 0 ? `${data.totalQuestions} Soru` : '0 Soru'}
             </span>
           </div>
@@ -1482,7 +1482,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             )}
 
             {data.totalQuestions >= goal ? (
-              <div className="text-[11px] text-success-fg font-semibold flex items-center gap-1 pt-1 border-t border-line">
+              <div className="text-xs text-success-fg font-semibold flex items-center gap-1 pt-1 border-t border-line">
                 <CheckCircle2 className="w-3 h-3 text-success-fg" />
                 <span>
                   {goal > 0
@@ -1491,18 +1491,18 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </span>
               </div>
             ) : data.totalQuestions > 0 ? (
-              <div className="text-[11px] text-brand-fg font-medium pt-1 border-t border-line">
+              <div className="text-xs text-brand-fg font-medium pt-1 border-t border-line">
                 Hedefe {goal - data.totalQuestions} soru kaldı (günün hedefi {goal})
               </div>
             ) : (
-              <div className="text-[11px] text-danger-fg font-medium flex items-center gap-1 pt-1 border-t border-line">
+              <div className="text-xs text-danger-fg font-medium flex items-center gap-1 pt-1 border-t border-line">
                 <AlertCircle className="w-3 h-3 text-danger-fg" />
                 <span>Bu gün soru çözülmedi</span>
               </div>
             )}
 
             {data.subjectsText && (
-              <div className="pt-1 border-t border-line text-[10px] text-muted truncate max-w-[200px]">
+              <div className="pt-1 border-t border-line text-2xs text-muted truncate max-w-[200px]">
                 {data.subjectsText}
               </div>
             )}
@@ -1560,7 +1560,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
         <div className="pt-4">
           {/* Görünüm Modu / Sekme Seçimi */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line w-full">
-            <label className="block text-[11px] font-bold text-fg-2 mb-1 flex items-center gap-1.5">
+            <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-fg" />
               Çalışma Modülü & Analiz Boyutu
             </label>
@@ -1646,7 +1646,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 id="btn-student-open-week-picker"
                 type="button"
                 onClick={() => setIsWeekModalOpen(true)}
-                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left"
+                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition shadow-xs cursor-pointer text-left"
                 title="Geçmiş haftaları görüntülemek için tıklayın"
               >
                 <div className="w-8 h-8 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
@@ -1654,15 +1654,15 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block">
+                    <span className="text-2xs font-bold text-brand-fg uppercase tracking-wider block">
                       {weekOffset === 0 ? 'Güncel Hafta' : weekOffset === -1 ? 'Geçen Hafta' : `${Math.abs(weekOffset)} Hafta Önce`}
                     </span>
                     {weekOffset !== 0 ? (
-                      <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-3xs font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-lg">
                         Geçmiş Hafta
                       </span>
                     ) : (
-                      <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-3xs font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-lg">
                         Aktif Hafta
                       </span>
                     )}
@@ -1741,7 +1741,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setChartVisualType('bar')}
-                    className={`px-3 py-1 rounded-md font-bold transition-all ${
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
                       chartVisualType === 'bar'
                         ? 'bg-surface text-fg shadow-xs'
                         : 'text-muted hover:text-fg'
@@ -1752,7 +1752,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setChartVisualType('area')}
-                    className={`px-3 py-1 rounded-md font-bold transition-all ${
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
                       chartVisualType === 'area'
                         ? 'bg-surface text-fg shadow-xs'
                         : 'text-muted hover:text-fg'
@@ -1909,7 +1909,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="min-w-0 bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm">
               {/* Birleşik tablo: eski "Günlük Soru Çözüm ve Başarı Tablosu" + soru hedefi kartlarındaki "Gün gün durum" tablosu */}
               <h4 className="text-sm font-bold text-fg mb-1">Günlük Soru Çözüm, Hedef ve Başarı Tablosu</h4>
-              <p className="text-[11px] text-muted mb-4 pb-2 border-b border-line" id="merged-daily-table-summary">
+              <p className="text-xs text-muted mb-4 pb-2 border-b border-line" id="merged-daily-table-summary">
                 {generalTargetRes
                   ? `${generalTargetRes.elapsedDays ? `${generalTargetRes.metDays}/${generalTargetRes.elapsedDays} günde genel hedef tuttu` : 'Henüz geçen gün yok'}${
                       generalTargetRes.flexible ? ' · Öğretmen soruları günlere farklı dağıttı' : ''
@@ -1985,7 +1985,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         >
                           <td className="px-2 lg:px-3 py-2.5 whitespace-nowrap max-md:block max-md:px-0 max-md:pt-0 max-md:pb-1.5 max-md:mb-1 max-md:border-b max-md:border-line">
                             <span className="font-bold text-fg">{d.dayName}</span>
-                            <span className="block text-[11px] text-muted">
+                            <span className="block text-xs text-muted">
                               {shortTurkishDate(d.dateStr)}
                               {isToday ? ' · bugün' : ''}
                             </span>
@@ -2010,11 +2010,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           <td data-label="Günlük hedef" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
                             <div>
                             <span className="font-extrabold text-fg">{goal > 0 ? goal : '—'}</span>
-                            {goal <= 0 && <span className="block text-[10px] text-muted">hedef yok</span>}
+                            {goal <= 0 && <span className="block text-2xs text-muted">hedef yok</span>}
                             {subjectLines.map(({ label, r }) => (
                               <span
                                 key={label}
-                                className={`block text-[10px] font-semibold leading-snug ${
+                                className={`block text-2xs font-semibold leading-snug ${
                                   r.status === 'met' ? 'text-success-fg' : r.status === 'future' ? 'text-muted' : 'text-brand-fg'
                                 }`}
                                 title={`${label} hedefi`}
@@ -2033,11 +2033,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                                   style={{ width: `${isFuture && !d.hasSolved ? 0 : completionRate}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] font-bold text-muted">{hasGoal ? `%${isFuture && !d.hasSolved ? 0 : completionRate}` : '—'}</span>
+                              <span className="text-2xs font-bold text-muted">{hasGoal ? `%${isFuture && !d.hasSolved ? 0 : completionRate}` : '—'}</span>
                             </div>
                           </td>
                           <td data-label="Durum" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold leading-tight border ${statusCls}`}>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-2xs font-bold leading-tight border ${statusCls}`}>
                               {statusText}
                             </span>
                           </td>
@@ -2130,7 +2130,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 id="btn-student-open-month-picker"
                 type="button"
                 onClick={() => setIsMonthModalOpen(true)}
-                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition-all shadow-xs cursor-pointer text-left"
+                className="group flex items-center gap-3 px-3.5 py-2 bg-surface-2 hover:bg-brand-soft/60 border border-line-strong hover:border-brand rounded-2xl transition shadow-xs cursor-pointer text-left"
                 title="Geçmiş ayları görüntülemek için tıklayın"
               >
                 <div className="w-8 h-8 rounded-xl bg-brand-soft/80 group-hover:bg-brand-hover text-brand-fg group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
@@ -2138,17 +2138,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block">
+                    <span className="text-2xs font-bold text-brand-fg uppercase tracking-wider block">
                       {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth()
                         ? 'Güncel Ay'
                         : 'Geçmiş Dönem'}
                     </span>
                     {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth() ? (
-                      <span className="text-[9px] font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-3xs font-bold bg-success-soft text-success-fg border border-success/30 px-1.5 py-0.2 rounded-lg">
                         Aktif Ay
                       </span>
                     ) : (
-                      <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
+                      <span className="text-3xs font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-lg">
                         Geçmiş Ay
                       </span>
                     )}
@@ -2203,7 +2203,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span className="text-3xl font-bold text-fg">{monthlyAnalytics.totalQuestions}</span>
                 <span className="text-xs font-semibold text-muted">Soru</span>
               </div>
-              <div className="mt-3 text-[11px] text-muted">
+              <div className="mt-3 text-xs text-muted">
                 Haftalık Ortalama: <strong className="text-fg">{monthlyAnalytics.weeklyAverage} soru</strong>
               </div>
             </div>
@@ -2220,9 +2220,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   style={{ width: `${Math.min(100, monthlyTargetCompletionRate)}%` }}
                 />
               </div>
-              <div className="mt-2 text-[11px] text-muted">
+              <div className="mt-2 text-xs text-muted">
                 Aylık Hedef: <strong>{monthlyTargetTotal} Soru</strong>
-                <span className="block text-[10px] text-subtle">
+                <span className="block text-2xs text-subtle">
                   {monthlyPlan.hasGeneralTarget ? 'Genel hedeflerin günlük sayısı × ayın günleri' : `Genel hedef yok: günde ${DEFAULT_DAILY_QUESTION_TARGET} × ${monthlyPlan.days} gün`}
                 </span>
               </div>
@@ -2234,7 +2234,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span className="text-3xl font-bold text-fg">{monthlyAnalytics.activeDaysCount}</span>
                 <span className="text-xs font-semibold text-muted">Gün</span>
               </div>
-              <div className="mt-3 text-[11px] text-muted">
+              <div className="mt-3 text-xs text-muted">
                 Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / monthlyPlan.days) * 100)}</strong>
               </div>
             </div>
@@ -2248,7 +2248,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <span className="text-2xl font-bold text-danger-fg">{monthlyAnalytics.monthlyDifference} Soru</span>
                 )}
               </div>
-              <div className="mt-3 text-[11px] text-muted">
+              <div className="mt-3 text-xs text-muted">
                 Önceki Ay: <strong className="text-fg">{monthlyAnalytics.previousMonthTotal} soru</strong>
               </div>
             </div>
@@ -2303,7 +2303,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   type="button"
                   id="qe-mode-list"
                   onClick={() => switchInputMode('list')}
-                  className={`px-3 py-1 rounded-md font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg font-bold transition ${
                     inputMode === 'list'
                       ? 'bg-surface text-fg shadow-xs'
                       : 'text-muted hover:text-fg'
@@ -2315,7 +2315,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   type="button"
                   id="qe-mode-single"
                   onClick={() => switchInputMode('single')}
-                  className={`px-3 py-1 rounded-md font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg font-bold transition ${
                     inputMode === 'single'
                       ? 'bg-surface text-fg shadow-xs'
                       : 'text-muted hover:text-fg'
@@ -2363,11 +2363,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 }`}
               />
               {dateError ? (
-                <p id="qe-date-error" className="mt-1.5 text-[11px] font-semibold text-danger-fg">
+                <p id="qe-date-error" className="mt-1.5 text-xs font-semibold text-danger-fg">
                   {dateError}
                 </p>
               ) : (
-                <p className="mt-1.5 text-[11px] text-muted">
+                <p className="mt-1.5 text-xs text-muted">
                   Bugün veya son {QUESTION_ENTRY_MAX_PAST_DAYS} gün içinden bir tarih seçebilirsin.
                 </p>
               )}
@@ -2434,7 +2434,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       disabled={!text}
                       onClick={() => transferPlanTasks(it.subject, [it])}
                       title={text ? 'Konu / Test kutusuna aktar' : 'Bu görevde aktarılacak yazı yok'}
-                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-brand/30 text-[11px] text-fg hover:border-brand cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-brand/30 text-xs text-fg hover:border-brand cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="font-bold text-brand-fg shrink-0">{it.subject}</span>
                       <span className="truncate">{text || '—'}</span>
@@ -2446,7 +2446,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 })}
               </div>
               {planInfo && (
-                <p className="text-[11px] font-semibold text-brand-fg" role="status">
+                <p className="text-xs font-semibold text-brand-fg" role="status">
                   {planInfo}
                 </p>
               )}
@@ -2477,22 +2477,22 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       className={`min-w-0 rounded-lg border px-1 py-1 text-center ${empty ? 'border-line bg-surface-2/40' : 'border-brand/30 bg-surface'}`}
                       title={d.topics.map((x) => `${x.subject}: ${x.topic}`).join('\n') || undefined}
                     >
-                      <span className="block text-[10px] font-bold text-fg leading-tight">
+                      <span className="block text-2xs font-bold text-fg leading-tight">
                         {dt ? ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][dt.getDay()] : ''}
                       </span>
-                      <span className="block text-[9px] text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
-                      {d.general > 0 && <span className="block text-[10px] font-semibold text-brand-fg">Toplam:{d.general}</span>}
+                      <span className="block text-3xs text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
+                      {d.general > 0 && <span className="block text-2xs font-semibold text-brand-fg">Toplam:{d.general}</span>}
                       {d.subjects.map(([s, n]) => (
-                        <span key={s} className="block text-[10px] leading-tight font-semibold text-brand-fg break-words">
+                        <span key={s} className="block text-2xs leading-tight font-semibold text-brand-fg break-words">
                           {shortSubjectName(s)}:{n}
                         </span>
                       ))}
-                      {empty && <span className="block text-[10px] text-subtle">—</span>}
+                      {empty && <span className="block text-2xs text-subtle">—</span>}
                     </div>
                   );
                 })}
               </div>
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 Öğretmenin planından oluşturuldu.
                 <InfoTip text="O gün geldiğinde dersin konusu ve hedefi bu formda ilgili dersin satırına kendiliğinden yazılır." />
               </p>
@@ -2559,7 +2559,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     >
                       <div className="col-span-2 sm:col-span-1 font-bold text-fg text-xs">{row.subject}</div>
                       <label className="block">
-                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Soru</span>
+                        <span className="sm:hidden block text-xs font-semibold text-muted mb-1">Soru</span>
                         <input
                           type="number"
                           inputMode="numeric"
@@ -2578,7 +2578,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         />
                       </label>
                       <label className="block">
-                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Doğru</span>
+                        <span className="sm:hidden block text-xs font-semibold text-muted mb-1">Doğru</span>
                         <input
                           type="number"
                           inputMode="numeric"
@@ -2597,7 +2597,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         />
                       </label>
                       <label className="block">
-                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Yanlış</span>
+                        <span className="sm:hidden block text-xs font-semibold text-muted mb-1">Yanlış</span>
                         <input
                           type="number"
                           inputMode="numeric"
@@ -2616,7 +2616,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         />
                       </label>
                       <div>
-                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Boş (otomatik)</span>
+                        <span className="sm:hidden block text-xs font-semibold text-muted mb-1">Boş (otomatik)</span>
                         <div
                           data-testid="qe-empty"
                           title="Boş = soru − doğru − yanlış"
@@ -2626,7 +2626,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                       </div>
                       <div className="block col-span-2 sm:col-span-1">
-                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Konu / Test</span>
+                        <span className="sm:hidden block text-xs font-semibold text-muted mb-1">Konu / Test</span>
                         <div className="flex items-center gap-1">
                           <input
                             type="text"
@@ -2645,7 +2645,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               onClick={() => transferPlanTasks(row.subject, rowPlanTasks)}
                               title={`Günlük plandaki görevi aktar: ${rowPlanTasks.map(planTaskText).join(', ')}`}
                               aria-label={`${row.subject} için günlük plandaki görevi konu kutusuna aktar`}
-                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md border border-brand/30 bg-brand-soft text-brand-fg text-[10px] font-bold hover:bg-brand-soft cursor-pointer"
+                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-lg border border-brand/30 bg-brand-soft text-brand-fg text-2xs font-bold hover:bg-brand-soft cursor-pointer"
                             >
                               <ClipboardList className="w-3 h-3" />
                               Plan
@@ -2654,7 +2654,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                       </div>
                       {rowTarget !== null && (
-                        <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap items-center gap-2 text-[11px]" data-testid="qe-row-target">
+                        <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap items-center gap-2 text-xs" data-testid="qe-row-target">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft border border-brand/30 text-brand-fg font-bold">
                             <Target className="w-3 h-3" /> Bugün girmen gereken: {rowTarget} soru
                           </span>
@@ -2678,7 +2678,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <p
                           data-testid="qe-row-error"
                           role="alert"
-                          className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-danger-fg"
+                          className="col-span-2 sm:col-span-6 text-xs font-semibold text-danger-fg"
                         >
                           {check.errors.join(' ')}
                         </p>
@@ -2699,7 +2699,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 className="grid grid-cols-2 sm:grid-cols-6 gap-3 bg-surface-2 p-4 rounded-xl border border-line"
               >
                 <div className="col-span-2 sm:col-span-1">
-                  <label htmlFor="qe-single-subject" className="block text-[11px] font-bold text-fg-2 mb-1">Ders</label>
+                  <label htmlFor="qe-single-subject" className="block text-xs font-bold text-fg-2 mb-1">Ders</label>
                   <select
                     id="qe-single-subject"
                     value={singleSubject}
@@ -2713,7 +2713,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="qe-single-count" className="block text-[11px] font-bold text-fg-2 mb-1">Soru Sayısı</label>
+                  <label htmlFor="qe-single-count" className="block text-xs font-bold text-fg-2 mb-1">Soru Sayısı</label>
                   <input
                     id="qe-single-count"
                     type="number"
@@ -2732,14 +2732,14 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     className="ui-field w-full font-bold"
                   />
                   {subjectDayTarget(singleSubject) !== null && (
-                    <span className="block mt-1 text-[10px] font-bold text-brand-fg" id="qe-single-target-hint">
+                    <span className="block mt-1 text-2xs font-bold text-brand-fg" id="qe-single-target-hint">
                       Hedef: {subjectDayTarget(singleSubject)} soru
                     </span>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="qe-single-correct" className="block text-[11px] font-bold text-fg-2 mb-1">Doğru</label>
+                  <label htmlFor="qe-single-correct" className="block text-xs font-bold text-fg-2 mb-1">Doğru</label>
                   <input
                     id="qe-single-correct"
                     type="number"
@@ -2760,7 +2760,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="qe-single-wrong" className="block text-[11px] font-bold text-fg-2 mb-1">Yanlış</label>
+                  <label htmlFor="qe-single-wrong" className="block text-xs font-bold text-fg-2 mb-1">Yanlış</label>
                   <input
                     id="qe-single-wrong"
                     type="number"
@@ -2781,7 +2781,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <label htmlFor="qe-single-topic" className="block text-[11px] font-bold text-fg-2 mb-1">Konu / Test</label>
+                  <label htmlFor="qe-single-topic" className="block text-xs font-bold text-fg-2 mb-1">Konu / Test</label>
                   <div className="flex items-center gap-1">
                     <input
                       id="qe-single-topic"
@@ -2819,12 +2819,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
 
                 {singleError && (
-                  <p id="qe-single-error" role="alert" className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-danger-fg">
+                  <p id="qe-single-error" role="alert" className="col-span-2 sm:col-span-6 text-xs font-semibold text-danger-fg">
                     {singleError}
                   </p>
                 )}
                 {singleInfo && !singleError && (
-                  <p id="qe-single-info" className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-muted">
+                  <p id="qe-single-info" className="col-span-2 sm:col-span-6 text-xs font-semibold text-muted">
                     {singleInfo}
                   </p>
                 )}
@@ -2846,21 +2846,21 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             D {c} · Y {w} · B {Math.max(0, item.questionCount - c - w)}
                           </span>
                           {tgt !== null && (
-                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft border border-brand/30 text-brand-fg font-bold text-[11px]" data-testid="qe-single-row-target">
+                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft border border-brand/30 text-brand-fg font-bold text-xs" data-testid="qe-single-row-target">
                               <Target className="w-3 h-3" /> Girmen gereken: {tgt}
                             </span>
                           )}
                           {below && (
-                            <span role="alert" className="qe-blink ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger text-white font-bold text-[11px]" data-testid="qe-single-row-below">
+                            <span role="alert" className="qe-blink ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger text-white font-bold text-xs" data-testid="qe-single-row-below">
                               <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({(tgt as number) - item.questionCount} eksik)
                             </span>
                           )}
                           {tgt !== null && !below && (
-                            <span className="ml-2 inline-flex items-center gap-1 text-success-fg font-bold text-[11px]">
+                            <span className="ml-2 inline-flex items-center gap-1 text-success-fg font-bold text-xs">
                               <CheckCircle2 className="w-3 h-3" /> Hedef tamam
                             </span>
                           )}
-                          {item.topic && <span className="block text-[11px] text-muted truncate">Konu: {item.topic}</span>}
+                          {item.topic && <span className="block text-xs text-muted truncate">Konu: {item.topic}</span>}
                         </div>
                         <button
                           type="button"
@@ -2949,7 +2949,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <span className="font-extrabold text-fg text-sm" data-testid="qh-total">
                           {log.totalQuestions} Soru
                         </span>
-                        <span className="text-[11px] text-muted" data-testid="qh-dyb">
+                        <span className="text-xs text-muted" data-testid="qh-dyb">
                           D {log.totalCorrect || 0} · Y {log.totalWrong || 0} · B {log.totalEmpty || 0}
                         </span>
                       </div>
@@ -3008,7 +3008,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         );
                       })}
                     </ul>
-                    {log.notes && <p className="mt-1.5 text-[11px] text-muted italic">Not: {log.notes}</p>}
+                    {log.notes && <p className="mt-1.5 text-xs text-muted italic">Not: {log.notes}</p>}
                   </div>
                 );
               })}
@@ -3021,9 +3021,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* MODAL 1: GEÇMİŞ HAFTALAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)       */}
       {/* ========================================================================= */}
       {isWeekModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
           <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
-          <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-3">
@@ -3088,7 +3088,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         setWeekOffset(item.offset);
                         setIsWeekModalOpen(false);
                       }}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
                           : 'border-line hover:border-brand/30 hover:bg-surface-2'
@@ -3112,17 +3112,17 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               {item.relativeLabel}
                             </span>
                             {item.offset === 0 && (
-                              <span className="text-[9px] font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
+                              <span className="text-3xs font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
                                 Güncel
                               </span>
                             )}
                             {item.hasActivity && (
-                              <span className="text-[9px] font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-md">
+                              <span className="text-3xs font-bold bg-warning-soft text-warning-fg border border-warning/30 px-1.5 py-0.2 rounded-lg">
                                 {item.activeDaysCount} Gün Çözüm
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-muted mt-0.5 font-medium">
+                          <p className="text-xs text-muted mt-0.5 font-medium">
                             {item.weekLabel}
                           </p>
                         </div>
@@ -3133,7 +3133,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           <span className="text-sm font-bold text-fg block">
                             {item.totalQuestions} Soru
                           </span>
-                          <span className="text-[10px] text-muted block">
+                          <span className="text-2xs text-muted block">
                             {item.totalCorrect} D / {item.totalWrong} Y
                           </span>
                         </div>
@@ -3173,9 +3173,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* MODAL 2: GEÇMİŞ AYLAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)          */}
       {/* ========================================================================= */}
       {isMonthModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
           <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
-          <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-3">
@@ -3242,7 +3242,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         setMonthDate({ year: item.year, month: item.month });
                         setIsMonthModalOpen(false);
                       }}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-brand bg-brand-soft/70 shadow-xs ring-1 ring-brand/40'
                           : 'border-line hover:border-brand/30 hover:bg-surface-2'
@@ -3266,16 +3266,16 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               {item.monthLabel}
                             </span>
                             {isCurrent && (
-                              <span className="text-[9px] font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
+                              <span className="text-3xs font-extrabold bg-success text-white px-1.5 py-0.2 rounded-full">
                                 Güncel Ay
                               </span>
                             )}
-                            <span className="text-[9px] font-semibold text-muted bg-surface-2 px-1.5 py-0.2 rounded-md">
+                            <span className="text-3xs font-semibold text-muted bg-surface-2 px-1.5 py-0.2 rounded-lg">
                               {item.relativeLabel}
                             </span>
                           </div>
                           {item.hasActivity && (
-                            <p className="text-[11px] text-success-fg font-semibold mt-0.5">
+                            <p className="text-xs text-success-fg font-semibold mt-0.5">
                               {item.activeDaysCount} Gün Çözüm Kaydı
                             </p>
                           )}
@@ -3287,7 +3287,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           <span className="text-sm font-bold text-fg block">
                             {item.totalQuestions} Soru
                           </span>
-                          <span className="text-[10px] text-muted block">
+                          <span className="text-2xs text-muted block">
                             {item.totalCorrect} D / {item.totalWrong} Y
                           </span>
                         </div>

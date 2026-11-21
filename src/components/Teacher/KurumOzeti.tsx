@@ -169,13 +169,13 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
                   )}
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold text-muted truncate">{t.label}</span>
-                    <span className={cx('w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0', t.tone)}>
+                    <span className="text-xs font-semibold text-muted truncate">{t.label}</span>
+                    <span className={cx('w-6 h-6 rounded-lg inline-flex items-center justify-center shrink-0', t.tone)}>
                       <Icon className="w-3.5 h-3.5" />
                     </span>
                   </span>
                   <span className="block mt-1 text-xl font-bold text-fg tabular-nums">{t.value}</span>
-                  <span className="block text-[11px] text-muted truncate">{t.hint}</span>
+                  <span className="block text-xs text-muted truncate">{t.hint}</span>
                 </button>
               );
             })}
@@ -224,12 +224,12 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
               })}
             </ul>
             {sonYazi && (
-              <p className="text-[11px] text-muted" aria-live="polite">
+              <p className="text-xs text-muted" aria-live="polite">
                 {sonYazi}
               </p>
             )}
             {gecikenDers.length > 6 && (
-              <button type="button" onClick={() => setRapor('yoklama')} className="text-[11px] font-semibold text-danger-fg hover:underline cursor-pointer">
+              <button type="button" onClick={() => setRapor('yoklama')} className="text-xs font-semibold text-danger-fg hover:underline cursor-pointer">
                 +{gecikenDers.length - 6} ders daha
               </button>
             )}
@@ -251,19 +251,19 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
                     <button
                       type="button"
                       onClick={() => onGo('etuts')}
-                      className="w-full flex items-center gap-2 py-1.5 text-left text-xs cursor-pointer hover:bg-surface-2 rounded-md px-1 min-w-0"
+                      className="w-full flex items-center gap-2 py-1.5 text-left text-xs cursor-pointer hover:bg-surface-2 rounded-lg px-1 min-w-0"
                     >
                       <span className="w-11 shrink-0 tabular-nums text-fg-2">{e.time || '—'}</span>
                       <span className="font-semibold text-fg truncate">{e.subject}</span>
                       <span className="text-muted truncate">{teacherShort(etutTeacherNames(e))}</span>
-                      <span className={cx('ml-auto shrink-0 text-[11px]', chip.cls)}>{chip.label}</span>
+                      <span className={cx('ml-auto shrink-0 text-xs', chip.cls)}>{chip.label}</span>
                     </button>
                   </li>
                 );
               })}
             </ul>
             {bugunEtut.length > ETUT_ROWS && (
-              <button type="button" onClick={() => setTumEtut((v) => !v)} className="text-[11px] font-semibold text-brand-fg hover:underline cursor-pointer" id="kurum-ozeti-tumu">
+              <button type="button" onClick={() => setTumEtut((v) => !v)} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" id="kurum-ozeti-tumu">
                 {tumEtut ? 'Daralt' : `+${bugunEtut.length - ETUT_ROWS} etüt daha`}
               </button>
             )}

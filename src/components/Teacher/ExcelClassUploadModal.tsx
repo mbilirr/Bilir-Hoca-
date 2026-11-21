@@ -300,7 +300,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
         row.result.status === 'created' ? 'text-success-fg' : row.result.status === 'skipped' ? 'text-warning-fg' : 'text-danger-fg';
       const Icon = row.result.status === 'created' ? CheckCircle2 : row.result.status === 'skipped' ? Info : AlertCircle;
       return (
-        <span className={cx('flex items-start gap-1 text-[11px]', tone)}>
+        <span className={cx('flex items-start gap-1 text-xs', tone)}>
           <Icon className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{row.result.message}</span>
         </span>
@@ -308,7 +308,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
     }
     if (!row.isValid) {
       return (
-        <span className="flex items-start gap-1 text-danger-fg text-[11px]">
+        <span className="flex items-start gap-1 text-danger-fg text-xs">
           <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{row.validationError || 'Hatalı'}</span>
         </span>
@@ -316,14 +316,14 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
     }
     if (row.existingName) {
       return (
-        <span className="flex items-start gap-1 text-warning-fg text-[11px]">
+        <span className="flex items-start gap-1 text-warning-fg text-xs">
           <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>Zaten kayıtlı ({row.existingName}), atlanacak</span>
         </span>
       );
     }
     return (
-      <span className="flex items-center gap-1 text-success-fg text-[11px]">
+      <span className="flex items-center gap-1 text-success-fg text-xs">
         <CheckCircle2 className="w-3.5 h-3.5" />
         <span>Hazır</span>
       </span>
@@ -387,7 +387,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
               }
             }}
             className={cx(
-              'border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer',
+              'border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer',
               isDragOver ? 'border-success bg-success-soft' : 'border-line-strong hover:border-success bg-surface-2/40'
             )}
             onClick={() => fileInputRef.current?.click()}
@@ -413,7 +413,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
             <p className="text-xs text-muted">
               veya bilgisayarınızdan seçmek için <span className="text-success-fg underline">tıklayın</span>
             </p>
-            <p className="mt-3 text-[11px] text-muted">
+            <p className="mt-3 text-xs text-muted">
               Sütunlar: Okul, Sınıf, Şube, Sınıf Adı, Eğitim Yılı, Açıklama.
             </p>
           </div>
@@ -504,7 +504,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
                       <td className="p-2.5 font-semibold text-fg">{row.gradeLevel || '-'}</td>
                       <td className="p-2.5 font-semibold text-fg-2">{row.branch || '-'}</td>
                       <td className="p-2.5 text-brand-fg font-medium">{row.name}</td>
-                      <td className="p-2.5 text-muted font-mono text-[11px]">{row.academicYear || '-'}</td>
+                      <td className="p-2.5 text-muted font-mono text-xs">{row.academicYear || '-'}</td>
                       <td className="p-2.5 text-muted max-w-[180px] truncate" title={row.description}>
                         {row.description || '-'}
                       </td>

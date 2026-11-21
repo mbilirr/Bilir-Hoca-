@@ -140,7 +140,7 @@ export const MultiCheckSelect: React.FC<{
                 <Box on={allVisibleOn} partial={!allVisibleOn && visibleIds.some((x) => sel.has(x))} />
                 {allVisibleOn ? 'Hepsini kaldır' : 'Hepsini seç'}
               </button>
-              <span className="text-[11px] text-muted">
+              <span className="text-xs text-muted">
                 {chosen.length} / {options.length} seçili
               </span>
             </div>
@@ -157,7 +157,7 @@ export const MultiCheckSelect: React.FC<{
                       type="button"
                       data-group-toggle={g}
                       onClick={() => toggleGroup(list)}
-                      className="w-full flex items-center gap-2 px-3 pt-2 pb-1 text-left text-[11px] font-bold uppercase tracking-wide text-subtle hover:text-fg cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 pt-2 pb-1 text-left text-xs font-bold uppercase tracking-wide text-subtle hover:text-fg cursor-pointer"
                     >
                       <Box on={gOn} partial={!gOn && gSome} small />
                       {g}
@@ -177,7 +177,7 @@ export const MultiCheckSelect: React.FC<{
                       >
                         <Box on={on} />
                         <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                        {o.sub && <span className="shrink-0 text-[11px] text-muted">{o.sub}</span>}
+                        {o.sub && <span className="shrink-0 text-xs text-muted">{o.sub}</span>}
                       </button>
                     );
                   })}

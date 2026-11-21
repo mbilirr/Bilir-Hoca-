@@ -68,7 +68,7 @@ export const StudyPlanWeekBar: React.FC<
             <span aria-hidden className="pointer-events-none absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg bg-brand-soft text-brand-fg">
               <CalendarRange className="h-4 w-4" />
             </span>
-            <label id="plan-week-start-day-label" htmlFor="plan-week-start-day" className="pointer-events-none absolute left-12 top-1.5 text-[11px] font-medium text-muted">
+            <label id="plan-week-start-day-label" htmlFor="plan-week-start-day" className="pointer-events-none absolute left-12 top-1.5 text-xs font-medium text-muted">
               Hafta başlangıç günü
             </label>
             <select
@@ -101,10 +101,10 @@ export const StudyPlanWeekBar: React.FC<
             </button>
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-2 text-center" aria-live="polite">
               <div className="flex min-w-0 max-w-full items-center gap-1.5">
-                <span id="plan-week-status" className={cx('ui-chip shrink-0 px-1.5 py-0 text-[10px] leading-4', weekState.cls)}>
+                <span id="plan-week-status" className={cx('ui-chip shrink-0 px-1.5 py-0 text-2xs leading-4', weekState.cls)}>
                   {weekState.text}
                 </span>
-                <span id="plan-week-days" className="truncate text-[11px] text-muted" title={`${firstDay} – ${lastDay}`}>
+                <span id="plan-week-days" className="truncate text-xs text-muted" title={`${firstDay} – ${lastDay}`}>
                   <span className="sm:hidden">
                     {SHORT_DAY[firstDay] || firstDay} – {SHORT_DAY[lastDay] || lastDay}
                   </span>

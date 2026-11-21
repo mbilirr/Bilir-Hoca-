@@ -154,7 +154,7 @@ export const TeacherAnnouncements: React.FC = () => {
               <o.icon className="w-5 h-5 shrink-0 text-fg-2" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-fg">{o.label}</span>
-                <span className="block text-[11px] text-muted truncate">{o.hint}</span>
+                <span className="block text-xs text-muted truncate">{o.hint}</span>
               </span>
             </button>
           ))}
@@ -180,7 +180,7 @@ export const TeacherAnnouncements: React.FC = () => {
               <label htmlFor="ann-text" className="block text-xs font-semibold text-fg-2">
                 Mesaj
               </label>
-              <span className="text-[10px] text-muted tabular-nums">
+              <span className="text-2xs text-muted tabular-nums">
                 {text.length}/{TEXT_MAX}
               </span>
             </div>
@@ -351,17 +351,17 @@ export const TeacherAnnouncements: React.FC = () => {
               <li key={g.groupId} className="p-3 rounded-xl border border-line bg-surface-2/50 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    className={`text-2xs font-bold px-1.5 py-0.5 rounded ${
                       g.kind === 'announcement' ? 'bg-warning/15 text-warning-fg' : 'bg-brand/15 text-brand-fg'
                     }`}
                   >
                     {g.kind === 'announcement' ? 'Duyuru' : 'Not'}
                   </span>
-                  <span className="text-[10px] text-muted font-mono">{fmtDate(g.createdAt)}</span>
+                  <span className="text-2xs text-muted font-mono">{fmtDate(g.createdAt)}</span>
                 </div>
                 <p className="text-sm font-bold text-fg leading-snug">{g.title}</p>
                 <p className="text-xs text-fg-2 line-clamp-3 whitespace-pre-wrap">{g.text}</p>
-                <p className="text-[11px] text-muted">
+                <p className="text-xs text-muted">
                   {g.studentIds.length === 1 ? g.studentNames[0] : `${g.studentIds.length} öğrenci`}
                   {g.classNames.length > 0 && g.classNames.length <= 3 ? ` · ${g.classNames.join(', ')}` : g.classNames.length > 3 ? ` · ${g.classNames.length} sınıf` : ''}
                 </p>

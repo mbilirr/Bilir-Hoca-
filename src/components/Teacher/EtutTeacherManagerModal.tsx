@@ -61,7 +61,7 @@ const Group: React.FC<{ id: string; title: string; count: number; open: boolean;
       className={cx('w-full flex items-center gap-2 px-3 py-2 text-left cursor-pointer', open ? 'bg-surface-2' : 'bg-surface hover:bg-surface-2')}
     >
       <span className="flex-1 text-sm font-semibold text-fg">{title}</span>
-      <span className="text-[11px] font-semibold px-1.5 py-px rounded-full bg-surface-3 text-muted">{count}</span>
+      <span className="text-xs font-semibold px-1.5 py-px rounded-full bg-surface-3 text-muted">{count}</span>
       <ChevronDown className={cx('w-4 h-4 text-muted transition-transform', open && 'rotate-180')} />
     </button>
     {open && <ul className="divide-y divide-line border-t border-line">{children}</ul>}
@@ -237,7 +237,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
           })}
         </div>
         {draft.subjects.length > 0 && (
-          <p className="text-[11px] text-muted" id="et-selected-subjects">
+          <p className="text-xs text-muted" id="et-selected-subjects">
             Seçili dersler: <strong className="text-fg-2">{draft.subjects.join(', ')}</strong>
             {otherLevelSelected.length > 0 && ` (${level === 'Ortaokul' ? 'Lise' : 'Ortaokul'} kademesinden: ${otherLevelSelected.join(', ')})`}
           </p>
@@ -294,7 +294,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
 
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-semibold text-fg">Dış Öğretmenler (Hesabı Olmayan) · {external.length}</h3>
+            <h3 className="text-sm font-semibold text-fg">Dış Öğretmenler (Hesabı Olmayan) · {external.length}</h3>
             {!draft && (
               <button type="button" id="et-add" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => startDraft({ ...EMPTY })}>
                 <UserPlus className="w-3.5 h-3.5" />
@@ -317,14 +317,14 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
                     <li key={`${subject}-${r.id}`} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid="et-external-row">
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-fg">{r.name}</span>
-                        {r.subjects.length > 1 && <span className="block text-[11px] text-muted">{r.subjects.join(', ')}</span>}
+                        {r.subjects.length > 1 && <span className="block text-xs text-muted">{r.subjects.join(', ')}</span>}
                       </span>
-                      <span className={cx('text-[11px] flex items-center gap-1', r.email ? 'text-muted' : 'text-warning-fg')}>
+                      <span className={cx('text-xs flex items-center gap-1', r.email ? 'text-muted' : 'text-warning-fg')}>
                         <Mail className="w-3.5 h-3.5" />
                         {r.email || 'e-posta yok'}
                       </span>
                       {r.phone && (
-                        <span className="text-[11px] text-muted flex items-center gap-1">
+                        <span className="text-xs text-muted flex items-center gap-1">
                           <Phone className="w-3.5 h-3.5" />
                           {r.phone}
                         </span>
@@ -349,7 +349,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[13px] font-semibold text-fg">Sistemde Kayıtlı Öğretmenler · {teachers.length}</h3>
+          <h3 className="text-sm font-semibold text-fg">Sistemde Kayıtlı Öğretmenler · {teachers.length}</h3>
           {draft && draft.teacherId && editor}
           {systemList.length === 0 ? (
             <p className="text-xs text-muted">{q ? 'Aramaya uyan kayıtlı öğretmen yok.' : 'Kayıtlı öğretmen yok.'}</p>
@@ -368,14 +368,14 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-semibold text-fg">
                             {t.name}
-                            {hidden && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">listede gizli</span>}
+                            {hidden && <span className="ml-1.5 text-2xs font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">listede gizli</span>}
                           </span>
-                          <span className="block text-[11px] text-muted">
+                          <span className="block text-xs text-muted">
                             {base.join(', ') || 'Branş yok'}
                             {extra.length ? ` + ${extra.join(', ')}` : ''}
                           </span>
                         </span>
-                        <span className={cx('text-[11px] flex items-center gap-1', email ? 'text-muted' : 'text-warning-fg')}>
+                        <span className={cx('text-xs flex items-center gap-1', email ? 'text-muted' : 'text-warning-fg')}>
                           <Mail className="w-3.5 h-3.5" />
                           {email || 'e-posta yok'}
                         </span>
@@ -421,7 +421,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
             </div>
           )}
           {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
-          <p className="text-[11px] text-muted flex items-center gap-1">
+          <p className="text-xs text-muted flex items-center gap-1">
             Çöp simgesi yalnız etüt listesinden çıkarır, hesap silinmez.
             <InfoTip text="Kayıtlı öğretmenin dersi, profilindeki branştan otomatik gelir. Kalem simgesiyle ek ders ya da (profilinde yoksa) e-posta ekleyebilirsiniz. Listeden çıkarılan öğretmen göz simgesiyle geri eklenir." />
           </p>

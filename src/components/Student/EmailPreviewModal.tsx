@@ -64,7 +64,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[10000] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
+      className="fixed inset-0 z-(--z-pencere-ust) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
       onClick={onClose}
     >
       <OverlayLayer onClose={onClose} />
@@ -83,7 +83,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
               <span className="text-xs font-bold text-fg tracking-wide">
                 E-Posta Önizlemesi & İletim Kaydı
               </span>
-              <div className="flex items-center space-x-1.5 text-[11px] text-success-fg">
+              <div className="flex items-center space-x-1.5 text-xs text-success-fg">
                 <CheckCircle2 className="w-3 h-3" />
                 <span>Otomatik Olarak İletildi</span>
               </div>
@@ -96,7 +96,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMode('html')}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
                   viewMode === 'html'
                     ? 'bg-brand text-white shadow-sm'
                     : 'text-muted hover:text-fg'
@@ -107,7 +107,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMode('text')}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
                   viewMode === 'text'
                     ? 'bg-brand text-white shadow-sm'
                     : 'text-muted hover:text-fg'
@@ -134,7 +134,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             <span className="font-bold text-fg text-sm truncate">{email.subject}</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <div className="flex items-center space-x-2 text-fg-2">
               <User className="w-3.5 h-3.5 text-brand-fg shrink-0" />
               <span className="text-muted">Gönderen:</span>
@@ -165,7 +165,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
 
             <div className="flex items-center space-x-2">
               <span className="text-muted">Durum:</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/15 text-success-fg border border-success/30">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-bold bg-success/15 text-success-fg border border-success/30">
                 ✓ Başarıyla Teslim Edildi
               </span>
             </div>

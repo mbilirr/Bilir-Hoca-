@@ -103,16 +103,16 @@ export const ClassTargetsModal: React.FC<Props> = ({ isOpen, onClose, classes, s
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-sm font-semibold text-fg">{name}</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{members} öğrenci</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
+                    <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{members} öğrenci</span>
+                    <span className="text-2xs font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
                   </div>
-                  <div className="text-[11px] text-muted mt-0.5">
+                  <div className="text-xs text-muted mt-0.5">
                     {targetPeriodText(t)} · öğrenci başı {t.targetQuestions} soru ({t.dailyTarget}/gün) · Veren: {ownerText(t)}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:shrink-0">
                   <div className="w-36">
-                    <div className="flex justify-between text-[11px] mb-1">
+                    <div className="flex justify-between text-xs mb-1">
                       <span className="text-muted">Ort. %{avg}</span>
                       <span className="font-semibold text-fg">
                         {doneCount}/{members} tamamladı

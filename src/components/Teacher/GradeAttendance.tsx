@@ -259,7 +259,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <h2 className="text-lg font-bold text-fg tracking-tight flex items-center space-x-2">
                 <span>Ders Notları</span>
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
+                  className={`text-xs px-2 py-0.5 rounded-lg font-semibold ${
                     activeClass && selectedSubject
                       ? 'bg-brand/10 text-brand-fg border border-brand/20'
                       : 'bg-warning/10 text-warning-fg border border-warning/20'
@@ -432,7 +432,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3.5 bg-surface border border-line rounded-2xl flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-semibold text-muted">Sınıf Başarı Ortalaması</span>
+                <span className="text-xs font-semibold text-muted">Sınıf Başarı Ortalaması</span>
                 <div className="text-xl font-extrabold text-fg mt-0.5 flex items-baseline space-x-1">
                   <span className={averageScore >= 70 ? 'text-success-fg' : averageScore >= 50 ? 'text-warning-fg' : 'text-danger-fg'}>
                     {averageScore > 0 ? averageScore : '-'}
@@ -445,7 +445,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
             <div className="p-3.5 bg-surface border border-line rounded-2xl flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-semibold text-muted">Toplam Not Kaydı</span>
+                <span className="text-xs font-semibold text-muted">Toplam Not Kaydı</span>
                 <div className="text-xl font-extrabold text-fg mt-0.5">{classGrades.length} Giriş</div>
               </div>
               <FileSpreadsheet className="w-6 h-6 text-info-fg" />
@@ -453,7 +453,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
             <div className="p-3.5 bg-surface border border-line rounded-2xl flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-semibold text-muted">Kayıtlı Öğrenci Sayısı</span>
+                <span className="text-xs font-semibold text-muted">Kayıtlı Öğrenci Sayısı</span>
                 <div className="text-xl font-extrabold text-brand-fg mt-0.5">{classStudents.length} Öğrenci</div>
               </div>
               <Users className="w-6 h-6 text-brand-fg" />
@@ -499,11 +499,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                         </div>
                         <div className="flex items-center space-x-2">
                           <h3 className="text-xs sm:text-sm font-bold text-fg">{type}</h3>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-brand/10 text-brand-fg border border-brand/20">
+                          <span className="px-2 py-0.5 rounded-lg text-2xs font-bold bg-brand/10 text-brand-fg border border-brand/20">
                             {groupGrades.length} Not
                           </span>
                           {groupAvg > 0 && (
-                            <span className="text-[11px] text-muted hidden sm:inline">
+                            <span className="text-xs text-muted hidden sm:inline">
                               • Grup Ortalaması: <strong className="text-success-fg">{groupAvg}</strong>
                             </span>
                           )}
@@ -511,7 +511,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       </div>
 
                       <div className="flex items-center space-x-2 text-muted text-xs shrink-0">
-                        <span className="text-[11px] text-subtle hidden sm:inline">
+                        <span className="text-xs text-subtle hidden sm:inline">
                           {isExpanded ? 'Gizle' : 'Genişlet'}
                         </span>
                         <ChevronDown
@@ -533,7 +533,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                 className="p-3 sm:px-4 flex items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
                               >
                                 <div className="flex items-center space-x-3 min-w-0">
-                                  <div className="w-6 h-6 rounded-md bg-surface-2 flex items-center justify-center text-[10px] font-bold text-muted shrink-0">
+                                  <div className="w-6 h-6 rounded-lg bg-surface-2 flex items-center justify-center text-2xs font-bold text-muted shrink-0">
                                     #{g.studentId.slice(-3)}
                                   </div>
                                   <div className="min-w-0">
@@ -541,12 +541,12 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                       <span className="text-xs font-bold text-fg truncate">
                                         {g.studentName || 'Öğrenci'}
                                       </span>
-                                      <span className="text-[11px] text-subtle hidden sm:inline">
+                                      <span className="text-xs text-subtle hidden sm:inline">
                                         • {g.date}
                                       </span>
                                     </div>
                                     {g.remarks && (
-                                      <p className="text-[11px] text-muted italic truncate max-w-sm">
+                                      <p className="text-xs text-muted italic truncate max-w-sm">
                                         {g.remarks}
                                       </p>
                                     )}
@@ -567,7 +567,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                       }`}
                                     >
                                       {g.score}
-                                      <span className="text-[10px] text-subtle font-normal"> / {g.maxScore}</span>
+                                      <span className="text-2xs text-subtle font-normal"> / {g.maxScore}</span>
                                     </span>
                                   </div>
 
@@ -621,7 +621,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                         <tr key={g.id} className="hover:bg-surface-2/30 transition-colors">
                           <td className="px-4 py-3 font-bold text-fg">{g.studentName}</td>
                           <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-brand/10 text-brand-fg border border-brand/20">
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-brand/10 text-brand-fg border border-brand/20">
                               {g.examType}
                             </span>
                           </td>
@@ -639,7 +639,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                             >
                               {g.score}
                             </span>
-                            <span className="text-subtle font-normal text-[10px]"> / {g.maxScore}</span>
+                            <span className="text-subtle font-normal text-2xs"> / {g.maxScore}</span>
                           </td>
                           <td className="px-4 py-3 text-muted">{g.date}</td>
                           <td className="px-4 py-3 text-muted italic">{g.remarks || '-'}</td>
@@ -739,11 +739,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                           </td>
                           <td className="px-4 py-3 text-right">
                             {hasEntered ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-warning/20 text-warning-fg border border-warning/30">
+                              <span className="px-2 py-0.5 rounded text-2xs font-bold bg-warning/20 text-warning-fg border border-warning/30">
                                 Kaydedilmedi
                               </span>
                             ) : (
-                              <span className="text-subtle text-[11px]">-</span>
+                              <span className="text-subtle text-xs">-</span>
                             )}
                           </td>
                         </tr>
@@ -805,7 +805,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
       {/* ADD GRADE MODAL */}
       {isAddGradeOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setIsAddGradeOpen(false)} />
           <div className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-line mb-4">

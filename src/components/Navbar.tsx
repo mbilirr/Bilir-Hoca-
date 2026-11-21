@@ -207,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
       <span className="hidden sm:block text-left leading-tight min-w-0">
         <span className="block text-sm font-bold text-fg tracking-tight truncate max-w-[14rem]">{brandName}</span>
-        <span className="block text-[11px] text-muted">{isStudentSession ? 'Öğrenci Portalı' : 'Öğretmen Paneli'}</span>
+        <span className="block text-xs text-muted">{isStudentSession ? 'Öğrenci Portalı' : 'Öğretmen Paneli'}</span>
       </span>
     </button>
   );
@@ -240,7 +240,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Search className="w-3.5 h-3.5 shrink-0" />
                   <span className="flex-1 text-left truncate">Öğrenci, ödev, sayfa ara…</span>
-                  <kbd className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-line bg-surface text-muted font-sans">Ctrl K</kbd>
+                  <kbd className="text-2xs font-semibold px-1.5 py-0.5 rounded-lg border border-line bg-surface text-muted font-sans">Ctrl K</kbd>
                 </button>
               </>
             )}
@@ -291,7 +291,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="block text-sm font-semibold text-fg truncate">
                       {isTeacherSession ? currentTeacher?.name : activeStudent?.name}
                     </span>
-                    <span className="block text-[11px] text-muted truncate">
+                    <span className="block text-xs text-muted truncate">
                       {isTeacherSession ? currentTeacher?.branch || 'Öğretmen' : activeStudent?.className || 'Öğrenci'}
                     </span>
                   </span>
@@ -348,7 +348,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </MenuItem>
                         {/* Aşama 316: klavyesi olan ekranda kısayol listesi */}
                         <div className="hidden md:block">
-                          <MenuItem icon={Keyboard} onClick={closeAnd(kisayollariAc)} trailing={<kbd className="px-1.5 py-0.5 rounded border border-line bg-surface-2 text-[11px] font-sans text-muted">?</kbd>}>
+                          <MenuItem icon={Keyboard} onClick={closeAnd(kisayollariAc)} trailing={<kbd className="px-1.5 py-0.5 rounded border border-line bg-surface-2 text-xs font-sans text-muted">?</kbd>}>
                             Klavye kısayolları
                           </MenuItem>
                         </div>
@@ -469,14 +469,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => goTab(item.id)}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
-                      'relative flex items-center gap-1.5 lg:gap-2 px-2 lg:px-3 py-2 text-[13px] lg:text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer',
+                      'relative flex items-center gap-1.5 lg:gap-2 px-2 lg:px-3 py-2 text-sm lg:text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer',
                       active ? 'border-brand text-fg' : 'border-transparent text-muted hover:text-fg hover:border-line-strong'
                     )}
                   >
                     <Icon className={cx('w-4 h-4', active ? 'text-brand-fg' : '')} />
                     {item.title}
                     {item.id === 'messages' && unreadMessagesCount > 0 && (
-                      <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+                      <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-2xs font-bold flex items-center justify-center">
                         {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
                       </span>
                     )}

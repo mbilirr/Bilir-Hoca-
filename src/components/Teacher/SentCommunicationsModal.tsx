@@ -150,18 +150,18 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-sm font-semibold text-fg truncate">{r.recipient_name || r.recipient}</span>
-                    <span className="text-[11px] text-muted truncate">{r.recipient}</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-2 text-fg-2">{EVENT_LABEL[r.event] || r.event}</span>
-                    {r.recipient_role === 'ogretmen' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">öğretmen</span>}
+                    <span className="text-xs text-muted truncate">{r.recipient}</span>
+                    <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-2 text-fg-2">{EVENT_LABEL[r.event] || r.event}</span>
+                    {r.recipient_role === 'ogretmen' && <span className="text-2xs font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">öğretmen</span>}
                   </div>
                   <p className="text-xs text-fg-2 truncate">{r.subject}</p>
-                  {r.status === 'failed' && r.error && <p className="text-[11px] text-danger-fg mt-0.5">{r.error}</p>}
+                  {r.status === 'failed' && r.error && <p className="text-xs text-danger-fg mt-0.5">{r.error}</p>}
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-[11px] text-muted">
+                  <div className="text-xs text-muted">
                     {new Date(r.created_at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </div>
-                  <div className={cx('text-[10px]', r.via === 'ogretmen' ? 'text-brand-fg' : 'text-subtle')}>
+                  <div className={cx('text-2xs', r.via === 'ogretmen' ? 'text-brand-fg' : 'text-subtle')}>
                     {r.via === 'ogretmen' ? 'kendi Gmail' : r.via === 'okul' ? 'okul hesabı' : ''}
                     {r.sender_name ? ` · ${r.sender_name}` : ''}
                   </div>

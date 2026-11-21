@@ -64,7 +64,7 @@ export const SubjectMultiSelect: React.FC<{
           {label}
         </span>
         {value.length > 1 && (
-          <span className="text-[11px] font-semibold px-1.5 py-px rounded-full bg-warning-soft text-warning-fg shrink-0">{value.length} ders</span>
+          <span className="text-xs font-semibold px-1.5 py-px rounded-full bg-warning-soft text-warning-fg shrink-0">{value.length} ders</span>
         )}
         <ChevronDown className={cx('w-3.5 h-3.5 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
@@ -113,7 +113,7 @@ export const SubjectMultiSelect: React.FC<{
             })}
           </div>
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-line bg-surface-2/60">
-            <span className="text-[11px] text-muted">
+            <span className="text-xs text-muted">
               {value.length === 0 ? (allowAll ? 'Tüm derslerin soruları sayılır' : 'En az bir ders seçin') : `${value.length} ders seçili`}
             </span>
             <button type="button" id={`${id}-done`} className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setOpen(false)}>

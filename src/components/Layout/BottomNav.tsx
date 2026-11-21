@@ -50,7 +50,7 @@ export const TeacherBottomNav: React.FC<{
                 onClick={() => pick(item.id)}
                 aria-current={active ? 'page' : undefined}
                 className={cx(
-                  'flex flex-col items-center justify-center gap-1 text-[11px] font-semibold cursor-pointer transition-colors',
+                  'flex flex-col items-center justify-center gap-1 text-xs font-semibold cursor-pointer transition-colors',
                   active ? 'text-brand-fg' : 'text-muted hover:text-fg'
                 )}
               >
@@ -67,14 +67,14 @@ export const TeacherBottomNav: React.FC<{
             onClick={() => setMoreOpen(true)}
             aria-expanded={moreOpen}
             className={cx(
-              'relative flex flex-col items-center justify-center gap-1 text-[11px] font-semibold cursor-pointer transition-colors',
+              'relative flex flex-col items-center justify-center gap-1 text-xs font-semibold cursor-pointer transition-colors',
               moreActive ? 'text-brand-fg' : 'text-muted hover:text-fg'
             )}
           >
             <span className={cx('relative flex items-center justify-center w-12 h-7 rounded-full', moreActive && 'bg-brand-soft')}>
               <MoreHorizontal className="w-5 h-5" />
               {unreadMessages > 0 && (
-                <span className="absolute -top-1 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-2xs font-bold flex items-center justify-center">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}
@@ -87,7 +87,7 @@ export const TeacherBottomNav: React.FC<{
       {moreOpen &&
         createPortal(
           <div
-            className="md:hidden fixed inset-0 z-[70] bg-slate-950/50 backdrop-blur-[2px] flex items-end"
+            className="md:hidden fixed inset-0 z-(--z-cekmece) bg-slate-950/50 backdrop-blur-[2px] flex items-end"
             onMouseDown={(e) => e.target === e.currentTarget && setMoreOpen(false)}
           >
             <OverlayLayer onClose={() => setMoreOpen(false)} lockScroll={false} />
@@ -96,7 +96,7 @@ export const TeacherBottomNav: React.FC<{
               role="dialog"
               aria-modal="true"
               aria-label="Diğer bölümler"
-              className="w-full bg-surface border-t border-line rounded-t-3xl shadow-pop p-3"
+              className="w-full bg-surface border-t border-line rounded-t-2xl shadow-pop p-3"
               style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
             >
               <div className="flex items-center justify-between px-2 pt-1 pb-2">
@@ -200,14 +200,14 @@ export const StudentBottomNav: React.FC<{
             }}
             aria-current={active ? 'page' : undefined}
             className={cx(
-              'flex flex-col items-center justify-center gap-1 text-[11px] font-semibold cursor-pointer transition-colors',
+              'flex flex-col items-center justify-center gap-1 text-xs font-semibold cursor-pointer transition-colors',
               active ? 'text-brand-fg' : 'text-muted hover:text-fg'
             )}
           >
             <span className={cx('relative flex items-center justify-center w-12 h-7 rounded-full transition-colors', active && 'bg-brand-soft')}>
               <Icon className="w-5 h-5" />
               {badge > 0 && (
-                <span className="absolute -top-1 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-2xs font-bold flex items-center justify-center">
                   {badge > 99 ? '99+' : badge}
                 </span>
               )}

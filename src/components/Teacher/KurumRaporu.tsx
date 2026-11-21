@@ -374,7 +374,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
         {/* ---------------- Yoklama */}
         {bolum === 'yoklama' && gt && (
           <>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
               <span className="font-semibold text-fg">
                 {GUN_ADLARI[isoGun(gun) - 1]} {tarihUzun(gun)} · {gt.hucreler.length} ders
               </span>
@@ -419,10 +419,10 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
                                   type="button"
                                   onClick={() => setHedef({ classId: h.classId, tarih: gun, sira: h.sira })}
                                   title={`${h.ders} · ${h.teacherAdlari.join(', ')}${h.oturum ? ` · ${h.oturum.alanAd}` : ''}`}
-                                  className={cx('w-full rounded-md px-1.5 py-1 text-left leading-tight hover:ring-1 hover:ring-line-strong', DURUM_RENK[h.durum])}
+                                  className={cx('w-full rounded-lg px-1.5 py-1 text-left leading-tight hover:ring-1 hover:ring-line-strong', DURUM_RENK[h.durum])}
                                 >
                                   <span className="block truncate font-semibold">{h.ders}</span>
-                                  <span className="block truncate text-[10px]">{hucreYazi(h)}</span>
+                                  <span className="block truncate text-2xs">{hucreYazi(h)}</span>
                                 </button>
                               ) : null}
                             </td>
@@ -440,7 +440,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
         {/* ---------------- Devamsızlık */}
         {bolum === 'devamsizlik' && dv && (
           <>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-fg-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-fg-2">
               <select className="ui-field w-36" value={dvSinif} onChange={(e) => setDvSinif(e.target.value)} aria-label="Sınıf">
                 <option value="">Bütün sınıflar</option>
                 {dvSiniflar.map((c) => (
@@ -468,7 +468,7 @@ export const KurumRaporu: React.FC<Props> = ({ open, onClose, ilkBolum = 'yoklam
         {/* ---------------- Öğretmenler */}
         {bolum === 'ogretmen' && oy && (
           <>
-            <p className="text-[11px] text-muted">Ders: başlamış ders saati. Alınmayan: gecikme süresi dolmuş, yoklaması yok. Ödev: verilen; Etüt / Not: aralıktaki kayıtlar.</p>
+            <p className="text-xs text-muted">Ders: başlamış ders saati. Alınmayan: gecikme süresi dolmuş, yoklaması yok. Ödev: verilen; Etüt / Not: aralıktaki kayıtlar.</p>
             <RaporTablo
               head={['Öğretmen', 'Ders', 'Alınan', 'Alınmayan', 'Geç alınan', 'Ödev', 'Etüt', 'Etüt yoklaması yok', 'Not']}
               sayiDan={1}

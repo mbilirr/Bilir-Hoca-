@@ -69,7 +69,7 @@ const ManualTargetCards: React.FC<{
             <div className="w-full h-2 rounded-full bg-surface overflow-hidden">
               <div className={`h-full rounded-full ${p.done ? 'bg-success' : 'bg-warning'}`} style={{ width: `${p.percent}%` }} />
             </div>
-            <div className="text-[11px] text-muted">
+            <div className="text-xs text-muted">
               Çözülen: <strong className="text-fg">{p.solved}</strong> / {p.total}
               {t.subject ? ` (yalnızca ${t.subject} soruları sayılır)` : ''}
             </div>
@@ -351,11 +351,11 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
                   >
                     <div className="flex items-start justify-between gap-1">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1 text-[11px] font-bold text-fg leading-tight">
+                        <div className="flex items-center gap-1 text-xs font-bold text-fg leading-tight">
                           <CalendarDays className="w-3 h-3 text-warning-fg shrink-0" />
                           <span className="truncate">{w.dayName}</span>
                         </div>
-                        <div className="text-[10px] text-muted leading-tight">
+                        <div className="text-2xs text-muted leading-tight">
                           {w.dateText}
                           {isToday ? ' · Bugün' : ''}
                         </div>
@@ -364,7 +364,7 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
                         <GhostTip
                           label={`${w.dateText} özeti: ${w.target} soru`}
                           content={() => <DayGhost wall={w} />}
-                          className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight cursor-help outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                          className={`shrink-0 px-1.5 py-px rounded-full text-2xs font-bold leading-tight cursor-help outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                             done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
                           }`}
                         >
@@ -372,7 +372,7 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
                         </GhostTip>
                       ) : (
                         <span
-                          className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight ${
+                          className={`shrink-0 px-1.5 py-px rounded-full text-2xs font-bold leading-tight ${
                             done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
                           }`}
                         >
@@ -385,7 +385,7 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
                       {w.subjects.map((s) => {
                         const ok = s.solved >= s.target;
                         return (
-                          <li key={s.subject} className="text-[10px] min-w-0 leading-tight">
+                          <li key={s.subject} className="text-2xs min-w-0 leading-tight">
                             <div className="flex items-center justify-between gap-1">
                               <span className="font-semibold text-fg truncate" title={s.subject}>
                                 {s.subject}
@@ -398,7 +398,7 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
                             {s.topics.length > 0 && (
                               <ul className="mt-0.5 space-y-px">
                                 {s.topics.map((tp, i) => (
-                                  <li key={i} className="flex items-start gap-1 text-[9.5px] text-muted leading-snug">
+                                  <li key={i} className="flex items-start gap-1 text-3xs text-muted leading-snug">
                                     <span className={`mt-[0.28rem] w-1 h-1 rounded-full shrink-0 ${tp.done ? 'bg-success' : 'bg-subtle'}`} />
                                     <span className={`min-w-0 break-words ${tp.done ? 'line-through decoration-success/60' : ''}`}>{tp.text}</span>
                                   </li>
@@ -412,9 +412,9 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
 
                     <div className="space-y-0.5">
                       <div className="w-full h-1.5 rounded-full bg-surface-2 overflow-hidden border border-line/60">
-                        <div className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-warning'}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full rounded-full transition-[width] ${done ? 'bg-success' : 'bg-warning'}`} style={{ width: `${pct}%` }} />
                       </div>
-                      <div className="flex items-center justify-between gap-1 text-[10px] text-muted leading-tight">
+                      <div className="flex items-center justify-between gap-1 text-2xs text-muted leading-tight">
                         <span className="tabular-nums">
                           <strong className="text-fg">{w.solved}</strong>/{w.target}
                         </span>
@@ -439,7 +439,7 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: b
  */
 const DayGhost: React.FC<{ wall: DayWall }> = ({ wall }) => (
   <div className="space-y-1">
-    <div className="text-[11px] font-semibold text-muted pb-1 border-b border-line">
+    <div className="text-xs font-semibold text-muted pb-1 border-b border-line">
       {wall.dayName} {wall.dateText}
     </div>
     <ul className="space-y-0.5 leading-snug">

@@ -261,7 +261,7 @@ export const EtutTakipView: React.FC<{
       <span className={cx('w-8 h-8 rounded-lg grid place-items-center shrink-0', tone)}>{icon}</span>
       <span className="min-w-0">
         <span className="block text-lg font-bold text-fg tabular-nums leading-tight">{value}</span>
-        <span className="block text-[11px] text-muted truncate">{label}</span>
+        <span className="block text-xs text-muted truncate">{label}</span>
       </span>
     </button>
   );
@@ -306,7 +306,7 @@ export const EtutTakipView: React.FC<{
       {/* Süzgeçler: eşit kutular, yazıyla aynı yükseklik */}
       <div className="ui-card p-3 space-y-2" id="etut-takip-filters">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Dönem
             <select id="etut-takip-period" className={SELECT} value={preset} onChange={(e) => setPreset(e.target.value as DatePreset)}>
               {DATE_PRESETS.map((p) => (
@@ -314,7 +314,7 @@ export const EtutTakipView: React.FC<{
               ))}
             </select>
           </label>
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Öğretmen
             <select id="etut-takip-teacher" className={SELECT} value={effTeacher} onChange={(e) => setTeacher(e.target.value)}>
               <option value="all">Tümü ({inPeriod.length})</option>
@@ -323,7 +323,7 @@ export const EtutTakipView: React.FC<{
               ))}
             </select>
           </label>
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Ders
             <select id="etut-takip-subject" className={SELECT} value={effSubject} onChange={(e) => setSubject(e.target.value)}>
               <option value="all">Tümü</option>
@@ -332,7 +332,7 @@ export const EtutTakipView: React.FC<{
               ))}
             </select>
           </label>
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Sınıf
             <select id="etut-takip-class" className={SELECT} value={effClass} onChange={(e) => setClassId(e.target.value)}>
               <option value="all">Tümü</option>
@@ -341,7 +341,7 @@ export const EtutTakipView: React.FC<{
               ))}
             </select>
           </label>
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Durum
             <select id="etut-takip-status" className={SELECT} value={status} onChange={(e) => setStatus(e.target.value as Status)}>
               <option value="all">Tümü</option>
@@ -350,7 +350,7 @@ export const EtutTakipView: React.FC<{
               <option value="comment">Yorumlu</option>
             </select>
           </label>
-          <label className="min-w-0 text-[11px] font-semibold text-muted">
+          <label className="min-w-0 text-xs font-semibold text-muted">
             Öğrenci ara
             <span className="relative block">
               <Search className="w-3.5 h-3.5 text-subtle absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -370,18 +370,18 @@ export const EtutTakipView: React.FC<{
         </div>
         {preset === 'custom' && (
           <div className="flex flex-wrap items-end gap-2" id="etut-takip-range">
-            <label className="text-[11px] font-semibold text-muted">
+            <label className="text-xs font-semibold text-muted">
               Başlangıç
               <input type="date" className={cx(SELECT, 'w-40')} value={from} onChange={(e) => setFrom(e.target.value)} />
             </label>
-            <label className="text-[11px] font-semibold text-muted">
+            <label className="text-xs font-semibold text-muted">
               Bitiş
               <input type="date" className={cx(SELECT, 'w-40')} value={to} onChange={(e) => setTo(e.target.value)} />
             </label>
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] text-muted" id="etut-takip-range-label">{rangeLabel(range)} · {shown.length} etüt</span>
+          <span className="text-xs text-muted" id="etut-takip-range-label">{rangeLabel(range)} · {shown.length} etüt</span>
           <div className="flex items-center gap-2">
             {filtersOn && (
               <button type="button" id="etut-takip-clear" className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-28" onClick={clear}>
@@ -480,7 +480,7 @@ export const EtutTakipView: React.FC<{
                     >
                       <span className="flex-1 min-w-0">
                         <span className="block font-semibold text-sm text-fg truncate">{r.info.student.name}</span>
-                        <span className="block text-[11px] text-muted truncate">{r.info.classLabel}</span>
+                        <span className="block text-xs text-muted truncate">{r.info.classLabel}</span>
                       </span>
                       <span className="text-xs tabular-nums text-fg-2 w-16 text-right">{r.etuts.length} etüt</span>
                       <span className={cx('ui-chip w-24 justify-center', r.absent ? 'ui-chip-danger' : 'ui-chip-neutral')}>{r.absent} gelmedi</span>
@@ -568,14 +568,14 @@ export const EtutDetayModal: React.FC<{
           </p>
         )}
         {f.missing && <p className="ui-chip ui-chip-danger">Yoklama alınmadı</p>}
-        {!canEdit && <p className="text-[11px] text-muted">Salt okunur: yoklamayı etüdün öğretmeni ve idare değiştirebilir.</p>}
+        {!canEdit && <p className="text-xs text-muted">Salt okunur: yoklamayı etüdün öğretmeni ve idare değiştirebilir.</p>}
         <ul className="divide-y divide-line border border-line rounded-lg max-h-[50vh] overflow-y-auto" id="etut-detay-list">
           {rows.length === 0 && <li className="px-3 py-3 text-muted">Öğrenci listesi yok.</li>}
           {rows.map((r) => (
             <li key={r.id} className="px-3 py-2 space-y-0.5" data-etut-detay-student={r.id}>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-fg flex-1 min-w-0 truncate">{r.info?.student.name || r.a?.studentName || 'Öğrenci'}</span>
-                <span className="text-[11px] text-muted">{r.info?.classLabel || ''}</span>
+                <span className="text-xs text-muted">{r.info?.classLabel || ''}</span>
                 <span className={cx('ui-chip', STATUS_TONE[r.st])}>{STATUS_LABEL[r.st]}</span>
               </div>
               {r.a?.topic && <p className="text-fg-2"><span className="font-semibold">Anlatılan konu:</span> {r.a.topic}</p>}

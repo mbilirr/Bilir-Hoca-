@@ -261,7 +261,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                 setState={target.setState}
                 sentSet={sentSet}
               />
-              <p className="text-[11px] text-muted" id="plan-send-mine-note">
+              <p className="text-xs text-muted" id="plan-send-mine-note">
                 {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
                 {students.length ? `Seçilen ${students.length} öğrenciye` : 'Seçtiğiniz öğrencilere'} yalnız sizin görevleriniz gider.{' '}
                 <InfoTip className="align-middle" text="Diğer öğretmenlerin görevleri onların gönderimine bağlıdır. Seçilmeyenlerde görevleriniz taslak kalır; sonra gönderebilirsiniz." />
@@ -272,7 +272,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
             <input type="checkbox" checked disabled className="mt-0.5 w-4 h-4" />
             <span className="text-sm">
               <span className="font-semibold text-fg">Öğrencinin uygulamasında göster ve Soru Kaydet'e aktar</span>
-              <span className="flex items-center gap-1 text-[11px] text-muted">
+              <span className="flex items-center gap-1 text-xs text-muted">
                 Öğrenci her gün ana sayfasında görür ve işaretler.
                 <InfoTip text='Ana sayfada "Bugün yapılması gerekenler" olarak çıkar. Görevler Soru Kaydet bölümünde ilgili günün ders satırına kendiliğinden yazılır; soru sayıları gün gün soru hedefine eklenir.' />
               </span>
@@ -284,11 +284,11 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
               <span className="font-semibold text-fg inline-flex items-center gap-1.5">
                 <Mail className="w-4 h-4" /> E-posta ile de gönder (PDF ekli)
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-muted">
+              <span className="flex items-center gap-1 text-xs text-muted">
                 Sizin görevleriniz e-postada ve PDF ekinde gider.
                 <InfoTip text='Öğrenci e-postadaki kişisel bağlantıdan görevlerini "yaptım" diye işaretleyebilir; işaretler sisteme kaydedilir.' />
               </span>
-              <span className="block text-[11px] text-muted mt-1" id="plan-send-email-count">
+              <span className="block text-xs text-muted mt-1" id="plan-send-email-count">
                 {withEmail === students.length
                   ? single
                     ? 'Öğrencinin e-posta adresi kayıtlı.'
@@ -296,7 +296,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                   : `${withEmail} / ${students.length} öğrencinin e-posta adresi kayıtlı${withEmail === 0 ? ' (e-posta gidemez)' : '; diğerleri yalnız uygulamada görür'}.`}
               </span>
               {mail && (
-                <span className="mt-2 flex items-start gap-1.5 rounded-lg bg-info-soft text-info-fg px-2.5 py-1.5 text-[11px] font-semibold" id="plan-send-report-note">
+                <span className="mt-2 flex items-start gap-1.5 rounded-lg bg-info-soft text-info-fg px-2.5 py-1.5 text-xs font-semibold" id="plan-send-report-note">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   Planın son görev günü saat 20:00'de size {groupLabel} e-postayla gelir.
                 </span>
@@ -309,13 +309,13 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
               <span className="font-semibold text-fg inline-flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4" /> WhatsApp mesajı hazırla
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-muted">
+              <span className="flex items-center gap-1 text-xs text-muted">
                 Her öğrenci için hazır mesaj düğmesi çıkar.
                 <InfoTip text="Gönderdikten sonra her öğrenci için bir WhatsApp düğmesi çıkar; tıklayınca görevlerinizin özeti ve işaretleme bağlantısı hazır mesaj olarak açılır, siz gönderirsiniz. Telefonu kayıtlı değilse kişiyi WhatsApp'ta siz seçersiniz." />
               </span>
             </span>
           </label>
-          {!mail && <p className="text-[11px] text-muted">E-posta seçilmezse öğretmene otomatik rapor gönderilmez.</p>}
+          {!mail && <p className="text-xs text-muted">E-posta seçilmezse öğretmene otomatik rapor gönderilmez.</p>}
         </div>
       ) : (
         <div className="space-y-3" id="plan-send-result">
@@ -327,7 +327,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                   <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                     <div className="h-full bg-brand transition-[width] duration-200" style={{ width: `${Math.round((bar.done / bar.total) * 100)}%` }} />
                   </div>
-                  <p className="text-[11px] text-muted">
+                  <p className="text-xs text-muted">
                     {bar.done} / {bar.total} öğrenci işlendi…
                   </p>
                 </>
@@ -352,15 +352,15 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
             {rows.map((r) => (
               <li key={r.student.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-send-row={r.student.id} data-mail={r.mail}>
                 <span className="text-sm font-semibold text-fg min-w-0 flex-1 truncate">{r.student.name}</span>
-                {r.mail === 'sending' && <span className="text-[11px] text-muted">E-posta gönderiliyor…</span>}
+                {r.mail === 'sending' && <span className="text-xs text-muted">E-posta gönderiliyor…</span>}
                 {r.mail === 'sent' && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success-fg">
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-success-fg">
                     <CheckCircle2 className="w-3.5 h-3.5" /> E-posta gitti
                   </span>
                 )}
-                {r.mail === 'no-email' && <span className="text-[11px] font-semibold text-warning-fg">E-posta adresi yok</span>}
+                {r.mail === 'no-email' && <span className="text-xs font-semibold text-warning-fg">E-posta adresi yok</span>}
                 {r.mail === 'error' && (
-                  <span className="text-[11px] font-semibold text-danger-fg" title={r.mailError}>
+                  <span className="text-xs font-semibold text-danger-fg" title={r.mailError}>
                     E-posta gitmedi{r.mailError ? `: ${r.mailError}` : ''}
                   </span>
                 )}

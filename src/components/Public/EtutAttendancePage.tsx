@@ -229,7 +229,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                         <span className="block text-sm font-semibold text-fg">{s.name}</span>
                         {s.className && <span className="block text-xs text-muted">{s.className}</span>}
                         {openNote !== s.id && (notes[s.id]?.topic || notes[s.id]?.note) && (
-                          <span className="block text-[11px] text-info-fg mt-0.5 truncate max-w-[16rem]" data-note-preview>
+                          <span className="block text-xs text-info-fg mt-0.5 truncate max-w-[16rem]" data-note-preview>
                             {notes[s.id]?.topic ? `Konu: ${notes[s.id].topic}` : ''}
                             {notes[s.id]?.topic && notes[s.id]?.note ? ' · ' : ''}
                             {notes[s.id]?.note ? `Not: ${notes[s.id].note}` : ''}
@@ -309,7 +309,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                             className="ui-field w-full resize-y"
                           />
                         </label>
-                        <p className="text-[11px] text-muted">Bu notu yalnızca öğretmenler görür; öğrenci görmez. Kaydetmek için alttaki "Yoklamayı Kaydet"e basın.</p>
+                        <p className="text-xs text-muted">Bu notu yalnızca öğretmenler görür; öğrenci görmez. Kaydetmek için alttaki "Yoklamayı Kaydet"e basın.</p>
                       </div>
                     )}
                   </li>

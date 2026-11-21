@@ -323,7 +323,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
           />
         ) : (
           <div className="w-full flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] text-muted truncate max-w-full sm:max-w-[55%]" id="hw-form-summary">
+            <span className="text-xs text-muted truncate max-w-full sm:max-w-[55%]" id="hw-form-summary">
               {classIds.length ? `${classLabel} · ${chosen.length} öğrenci` : 'Sınıf seçilmedi'}
               {dueDate ? ` · Son: ${shortTrDate(dueDate)} ${dueTime}` : ''}
             </span>
@@ -437,7 +437,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
             </div>
           </div>
           {dueDate && (
-            <p className="text-[11px] text-muted flex items-center gap-1">
+            <p className="text-xs text-muted flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               Son teslim: {shortTrDate(dueDate)}, {dueTime}
             </p>
@@ -446,7 +446,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
 
         <FormSection title="5. Materyaller" hint="isteğe bağlı">
           {droppedFiles > 0 && (
-            <p className="text-[11px] text-info-fg bg-info-soft rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+            <p className="text-xs text-info-fg bg-info-soft rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
               <Info className="w-3.5 h-3.5" />
               Kopyada bağlantılar korunur; yüklenmiş {droppedFiles} dosya kopyalanmaz (gerekirse yeniden ekleyin).
             </p>
@@ -459,7 +459,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
             onBusyChange={setIsUploadBusy}
           />
           {pendingResource && (
-            <p className="text-[11px] text-brand-fg">Yazdığınız bağlantı ("{pendingResource.title}") kaydederken eklenecek.</p>
+            <p className="text-xs text-brand-fg">Yazdığınız bağlantı ("{pendingResource.title}") kaydederken eklenecek.</p>
           )}
         </FormSection>
 

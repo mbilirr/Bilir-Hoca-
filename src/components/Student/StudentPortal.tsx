@@ -473,7 +473,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
       {/* Aşama 253: ana sayfada bölümler soldaki menüde (telefonda alt menüde); bu üst duvar yalnız diğer bölümlerde görünür */}
       {activeTab !== 'home' && (
-      <div id="student-top-navigation-wall" className="@container min-[901px]:hidden static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-2 md:p-3.5 shadow-sm md:space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="@container min-[901px]:hidden static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-2 md:p-3.5 shadow-sm md:space-y-3 transition">
         {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
         <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
           {tiles.map((t) => {
@@ -489,7 +489,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   on ? 'bg-brand-soft border-brand ring-1 ring-brand/30' : 'bg-surface border-line hover:bg-surface-2'
                 }`}
               >
-                <IconBox icon={t.icon} tone={t.tone} size="sm" className="!w-6 !h-6 !rounded-md [&>svg]:!w-3.5 [&>svg]:!h-3.5" />
+                <IconBox icon={t.icon} tone={t.tone} size="sm" className="!w-6 !h-6 !rounded-lg [&>svg]:!w-3.5 [&>svg]:!h-3.5" />
                 <span className={`flex-1 truncate ${on ? 'text-brand-fg' : 'text-fg'}`}>
                   {t.tab === 'messages' ? `${t.label} (${myMessages.length})` : t.label}
                 </span>
@@ -523,7 +523,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <div className="relative">
                 <Bell className="w-3.5 h-3.5" />
                 {unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 bg-danger text-white rounded-full text-[8px] font-bold flex items-center justify-center ring-1 ring-surface">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 bg-danger text-white rounded-full text-3xs font-bold flex items-center justify-center ring-1 ring-surface">
                     {unreadNotifsCount}
                   </span>
                 )}
@@ -629,12 +629,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               return (
                 <div
                   key={hw.id}
-                  className="bg-surface border border-line rounded-2xl p-5 hover:border-line transition-all flex flex-col justify-between shadow-lg relative"
+                  className="bg-surface border border-line rounded-2xl p-5 hover:border-line transition flex flex-col justify-between shadow-lg relative"
                 >
                   <div>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-brand/20 text-brand-fg border border-brand/30">
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand/20 text-brand-fg border border-brand/30">
                         {hw.subject}
                       </span>
 
@@ -655,7 +655,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Resources (Video, Link, PDF) from Teacher */}
                     {((hw.resources && hw.resources.length > 0) || hw.attachmentUrl) && (
                       <div className="mb-4 p-3 bg-canvas/60 rounded-xl border border-line">
-                        <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
+                        <span className="text-2xs font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
                           📎 Ödev Materyalleri & Kaynaklar
                         </span>
                         <HomeworkResourceViewer
@@ -668,7 +668,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Learning Outcomes (Kazanımlar) */}
                     {outcomes.length > 0 && (
                       <div className="mb-4 bg-canvas/40 p-3 rounded-xl border border-line">
-                        <span className="text-[10px] font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
+                        <span className="text-2xs font-bold text-brand-fg uppercase tracking-wider block mb-1.5">
                           🎯 İlgili Kazanımlar
                         </span>
                         <ul className="space-y-1">
@@ -698,7 +698,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </div>
 
                       {mySubmission?.submittedAt && (
-                        <div className="text-right text-[11px] text-muted">
+                        <div className="text-right text-xs text-muted">
                           Teslim: {new Date(mySubmission.submittedAt).toLocaleDateString('tr-TR')}
                         </div>
                       )}
@@ -707,7 +707,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Student's own submitted resources */}
                     {mySubmission?.resources && mySubmission.resources.length > 0 && (
                       <div className="p-3 bg-canvas/50 border border-line rounded-xl mb-4 text-xs">
-                        <span className="text-[10px] font-bold text-brand-fg uppercase block mb-1">
+                        <span className="text-2xs font-bold text-brand-fg uppercase block mb-1">
                           📤 Gönderdiğiniz Çözüm Materyalleri:
                         </span>
                         <HomeworkResourceViewer resources={mySubmission.resources} isCompact />
@@ -747,7 +747,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       href={createGoogleCalendarUrlForHomework(hw)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-info/10 hover:bg-info/20 text-info-fg border border-info/30 rounded-xl text-xs transition-all"
+                      className="p-2 bg-info/10 hover:bg-info/20 text-info-fg border border-info/30 rounded-xl text-xs transition"
                       title="Google Takvime Ekle"
                     >
                       <CalendarCheck className="w-3.5 h-3.5" />
@@ -795,7 +795,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setEtutViewMode('calendar')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                   etutViewMode === 'calendar'
                     ? 'bg-brand text-white font-bold shadow'
                     : 'text-muted hover:text-fg'
@@ -806,7 +806,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setEtutViewMode('cards')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                   etutViewMode === 'cards'
                     ? 'bg-brand text-white font-bold shadow'
                     : 'text-muted hover:text-fg'
@@ -834,17 +834,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 myEtuts.map((etut) => (
                   <div
                     key={etut.id}
-                    className="bg-surface border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xl transition-all flex flex-col justify-between shadow-md text-fg"
+                    className="bg-surface border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xl transition flex flex-col justify-between shadow-md text-fg"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand-fg border border-brand/30">
                           {etut.subject}
                         </span>
                         <span className="flex items-center gap-2">
                           {(() => {
                             const d = ogrenciEtutDurum(etut, currentStudent.id); // Aşama 214: yoklama durumu
-                            return d ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span> : null;
+                            return d ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span> : null;
                           })()}
                           <span className="text-xs text-muted font-medium">
                             {etut.duration} Dakika
@@ -866,13 +866,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           <span className="text-fg-2 font-medium">{etut.location}</span>
                         </div>
                         {etut.notes && (
-                          <p className="text-[11px] text-muted italic pt-1 border-t border-line">
+                          <p className="text-xs text-muted italic pt-1 border-t border-line">
                             {etut.notes}
                           </p>
                         )}
                         {etut.teacherFeedback && (
                           <div className="mt-2 p-2.5 rounded-lg bg-warning-soft border border-warning/30 text-xs text-warning-fg">
-                            <strong className="text-warning-fg font-semibold block text-[11px]">💬 Öğretmen notu:</strong>
+                            <strong className="text-warning-fg font-semibold block text-xs">💬 Öğretmen notu:</strong>
                             <p className="italic text-fg-2 mt-0.5">"{etut.teacherFeedback}"</p>
                           </div>
                         )}
@@ -884,7 +884,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         href={createGoogleCalendarUrlForEtut(etut)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-brand-soft hover:bg-brand-soft text-brand-fg border border-brand/30 rounded-xl text-xs font-semibold transition-all"
+                        className="inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-brand-soft hover:bg-brand-soft text-brand-fg border border-brand/30 rounded-xl text-xs font-semibold transition"
                       >
                         <CalendarCheck className="w-3.5 h-3.5 text-brand-fg" />
                         <span>Google Takvime Ekle</span>
@@ -1074,7 +1074,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[10px] text-muted">
+                  <p className="mt-1 text-2xs text-muted">
                     {messageTo ? 'Mesajını yalnızca seçtiğin öğretmen görür.' : 'Bir öğretmen cevapladığında soru yalnızca o öğretmende kalır.'}
                   </p>
                 </div>
@@ -1154,9 +1154,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-fg">
                         {msg.subject}
-                        {msg.toTeacherName && <span className="ml-1.5 font-normal text-[10px] text-muted">→ {msg.toTeacherName}</span>}
+                        {msg.toTeacherName && <span className="ml-1.5 font-normal text-2xs text-muted">→ {msg.toTeacherName}</span>}
                       </span>
-                      <span className="text-[10px] text-muted font-mono">
+                      <span className="text-2xs text-muted font-mono">
                         {new Date(msg.createdAt).toLocaleDateString('tr-TR')}
                       </span>
                     </div>
@@ -1178,13 +1178,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {/* Teacher Reply */}
                     {msg.teacherReply ? (
                       <div className="p-3 bg-success-soft border border-success/30 rounded-xl space-y-1">
-                        <span className="text-[10px] font-bold text-success-fg block">
+                        <span className="text-2xs font-bold text-success-fg block">
                           ✓ {msg.repliedByName ? `${msg.repliedByName} yanıtladı:` : 'Öğretmeninizin Yanıtı:'}
                         </span>
                         <p className="text-xs text-fg">{msg.teacherReply}</p>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-warning-fg/80 flex items-center space-x-1">
+                      <div className="text-xs text-warning-fg/80 flex items-center space-x-1">
                         <Clock className="w-3 h-3" />
                         <span>Öğretmenin yanıtı bekleniyor...</span>
                       </div>
@@ -1219,7 +1219,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       {/* SUBMISSION MODAL */}
       {submittingHw && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <OverlayLayer onClose={cancelSubmittingHw} />
           <div className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-fg mb-2">Ödevi Teslim Et</h3>
@@ -1238,7 +1238,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 onBusyChange={setIsSubmissionUploadBusy}
               />
               {pendingSubmissionResource && (
-                <p className="text-[11px] text-brand-fg -mt-2">
+                <p className="text-xs text-brand-fg -mt-2">
                   Yazdığınız bağlantı ("{pendingSubmissionResource.title}") teslim ederken otomatik olarak eklenecek.
                 </p>
               )}
