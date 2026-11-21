@@ -23,6 +23,7 @@ import { trBugun } from '../../lib/trSaat';
 import { AnaSayfaKabuk, AkSheet, akSelam, akTarih } from './AnaSayfaKabuk';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331
 import { AkTatilSheet } from './AkTatilSheet';
+import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 
 // ============================================================================
 // Aşama 245: KURUM YÖNETİCİSİ ANA SAYFASI (taslak: "diğer kurum yöneticileri.html", koyu panel + kâğıt)
@@ -167,12 +168,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
   }, [rolAcik]);
 
   // ---- yardımcılar
-  const [mesaj, setMesaj] = useState<{ ton: 'ok' | 'hata'; text: string } | null>(null);
-  useEffect(() => {
-    if (!mesaj) return;
-    const t = setTimeout(() => setMesaj(null), 4000);
-    return () => clearTimeout(t);
-  }, [mesaj]);
+  const setMesaj = akMesaj; // Aşama 348: ortak bildirim katmanı
   const yonetim = (h: YonetimHedef, adim?: DersAdim) => {
     yonetimHedefle(h, adim);
     onNavigateTab('user_management');
@@ -426,11 +422,6 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
         <>
           <SinifSheet open={sheet === 'sinif'} onClose={() => setSheet(null)} ogrenciler={sinifsiz} siniflar={siniflar} onMesaj={setMesaj} />
           <AkTatilSheet open={sheet === 'tatil'} onClose={() => setSheet(null)} tatiller={ders?.tatil || []} bugun={ders?.ayar?.bugun || bugun} onKayit={() => void dersOku()} onMesaj={setMesaj} />
-          {mesaj && (
-            <div className={'ak-toast' + (mesaj.ton === 'hata' ? ' bad' : '')} role="status" aria-live="polite">
-              {mesaj.text}
-            </div>
-          )}
         </>
       }
     >

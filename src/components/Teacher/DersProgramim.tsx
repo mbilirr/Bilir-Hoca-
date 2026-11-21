@@ -231,7 +231,7 @@ export const DersProgramim: React.FC = () => {
 
   // ---------------------------------------------------------------- durumlar
   if (hata && !veri) return <YuklemeHatasi mesaj={hata} onTekrar={yukle} />;
-  if (!veri) return <Yukleniyor metin="Program yükleniyor…" />;
+  if (!veri) return <Yukleniyor metin="Program yükleniyor…" sayfa />;
   if (!ayar?.kayitli) {
     return (
       <EmptyState

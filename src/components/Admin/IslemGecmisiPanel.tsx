@@ -164,7 +164,7 @@ export const IslemGecmisiPanel: React.FC<{ students: Student[] }> = ({ students 
       {hata && <YuklemeHatasi mesaj={hata} onTekrar={oku} />}
 
       {rows === null ? (
-        <Yukleniyor metin="Okunuyor…" className="py-4" />
+        <Yukleniyor metin="Okunuyor…" satir={6} />
       ) : rows.length === 0 ? (
         !hata && (
           <EmptyState

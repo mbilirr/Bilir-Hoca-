@@ -121,7 +121,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
   };
 
   if (hata && !gt) return <YuklemeHatasi mesaj={hata} onTekrar={yukle} />;
-  if (!gt) return <Yukleniyor metin="Okul geneli yükleniyor…" />;
+  if (!gt) return <Yukleniyor metin="Okul geneli yükleniyor…" sayfa />;
   if (!ayar?.kayitli) return <p className="text-xs text-muted">Ders saatleri kaydedilmemiş (Yönetim › Ders programı).</p>;
 
   const baslik = `${GUN_ADLARI[isoGun(gun) - 1]} ${tarihUzun(gun)}${gun === bugun ? ' · Bugün' : ''}`;

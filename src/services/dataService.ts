@@ -174,6 +174,7 @@ import {
   questionTargetOwnerKey,
 } from './kayitKurallari'; // Aşama 319
 import { agHatasiMi, baglantiNedeni } from '../lib/baglanti';
+import { bildir, hataBildir, hataMetniniBol } from '../lib/bildirim'; // Aşama 348
 import { taslaklariSil } from '../lib/taslak'; // Aşama 344
 // Aşama 302: kurum bölümleri ve portal tanımları ayrı dosyada (ekranlar için buradan da dışa verilir; davranış aynı)
 import {
@@ -3034,7 +3035,11 @@ class DataService {
           : error?.message || 'Bağlantı sorunu';
     console.warn(`[CloudWrite] ${userMessage}:`, error);
     if (options?.silent) return false;
-    this.showFloatingErrorToast(`Hata: ${userMessage} (${reason}). Değişiklikler geri alındı.`);
+    // Aşama 348: ne olduğu + ne yapılacağı (K4)
+    this.showFloatingErrorToast(
+      `${userMessage}.`,
+      `${reason}. Ekrandaki değişiklik eski hâline döndü; ${agHatasiMi(error) ? 'bağlantı gelince' : 'biraz sonra'} bir daha deneyin.`
+    );
     throw new Error(`${userMessage}: ${reason}`);
   }
 
@@ -3120,7 +3125,7 @@ class DataService {
           this.notify();
           const reason = error?.code === '42501' ? 'Bu işlem için yetkiniz yok' : error?.message || 'Sunucu kaydı kabul etmedi';
           console.warn(`[GidenKutusu] ${is.userMessage}:`, error);
-          this.showFloatingErrorToast(`Hata: ${is.userMessage} (${reason}). Bu değişiklik geri alındı.`);
+          this.showFloatingErrorToast(`${is.userMessage}.`, `${reason}. Bekleyen bu kayıt eski hâline döndü; bir daha girin.`);
         }
         this.gidenBildir();
       }
@@ -6714,22 +6719,10 @@ class DataService {
   }
 
   // Aşama 17: tarayıcının alert() penceresi yerine uygulama içi kısa bildirim
-  public showToast(message: string, tone: 'error' | 'success' = 'success'): void {
+  // Aşama 348: ortak bildirim katmanına gider (lib/bildirim.ts; her sayfada aynı yer ve biçim)
+  public showToast(message: string, tone: 'error' | 'success' | 'info' = 'success'): void {
     if (tone === 'error') return this.showFloatingErrorToast(message);
-    if (typeof document === 'undefined') return;
-    try {
-      document.getElementById('dataservice-error-toast')?.remove();
-      const toast = document.createElement('div');
-      toast.id = 'dataservice-error-toast';
-      toast.setAttribute('role', 'status');
-      toast.className =
-        'fixed top-5 right-5 z-(--z-bildirim) max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500 text-xs font-semibold';
-      toast.textContent = message;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 15_000); // Aşama 32: genel bildirimler 15 sn görünür
-    } catch {
-      // bildirim gösterilemezse işlem yine de tamamdır
-    }
+    bildir({ tur: tone === 'info' ? 'bilgi' : 'basari', baslik: message });
   }
 
   // ===========================================================================
@@ -6754,42 +6747,11 @@ class DataService {
     throw new Error(msg);
   }
 
-  private showFloatingErrorToast(message: string): void {
-    if (typeof document === 'undefined') return;
-    try {
-      const existing = document.getElementById('dataservice-error-toast');
-      if (existing) existing.remove();
-
-      const toast = document.createElement('div');
-      toast.id = 'dataservice-error-toast';
-      toast.className =
-        // Aşama 305: sitenin hata rengi (tema jetonu); eski sabit gül kırmızısı yerine
-        'fixed top-5 right-5 z-(--z-bildirim) max-w-md bg-danger text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs font-semibold';
-      // GÜVENLİK: mesaj (sunucudan gelen hata metnini içerebilir) HTML olarak değil düz metin olarak eklenir
-      const svgNs = 'http://www.w3.org/2000/svg';
-      const icon = document.createElementNS(svgNs, 'svg');
-      icon.setAttribute('class', 'w-4 h-4 shrink-0');
-      icon.setAttribute('fill', 'none');
-      icon.setAttribute('stroke', 'currentColor');
-      icon.setAttribute('viewBox', '0 0 24 24');
-      const path = document.createElementNS(svgNs, 'path');
-      path.setAttribute('stroke-linecap', 'round');
-      path.setAttribute('stroke-linejoin', 'round');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute(
-        'd',
-        'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
-      );
-      icon.appendChild(path);
-      const text = document.createElement('span');
-      text.textContent = message;
-      toast.appendChild(icon);
-      toast.appendChild(text);
-      document.body.appendChild(toast);
-      setTimeout(() => {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 15_000); // Aşama 32: genel bildirimler 15 sn görünür
-    } catch {}
+  // Aşama 348: hata bildirimi ortak katmanda. Eski tek satırlık "Hata: X (neden). …" yazısı başlık + ayrıntıya bölünür.
+  // GÜVENLİK: metin (sunucu hata yazısı içerebilir) React ile düz yazı olarak çizilir, HTML olarak değil.
+  private showFloatingErrorToast(message: string, ayrinti?: string): void {
+    const p = ayrinti ? { baslik: String(message).replace(/^\s*Hata:\s*/i, ''), ayrinti } : hataMetniniBol(message);
+    hataBildir(p.baslik, p.ayrinti);
   }
 
   // --- CLASSES ---

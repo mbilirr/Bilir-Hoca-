@@ -35,6 +35,7 @@ import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek dü
 import { araliktaMi, baslik, etkinlikler, gundeMi, type AktEtkinlik } from '../../services/akademikTakvimService'; // Aşama 337
 import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
 import { AktEtkinlikPencere, takvimdeGoster } from './AktEtkinlikPencere';
+import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 
 // ============================================================================
 // Aşama 247: MÜDÜR YARDIMCISI ANA SAYFASI (taslak: mudur-yardimcisi-v3.html, Odak renkleri)
@@ -231,12 +232,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
   // ---- hatırlatma
   const [hatirlanan, setHatirlanan] = useState<Set<string>>(() => hatirlatOku(trBugun()));
   useEffect(() => setHatirlanan(hatirlatOku(bugun)), [bugun]);
-  const [mesaj, setMesaj] = useState<{ ton: 'ok' | 'hata'; text: string } | null>(null);
-  useEffect(() => {
-    if (!mesaj) return;
-    const t = setTimeout(() => setMesaj(null), 3200);
-    return () => clearTimeout(t);
-  }, [mesaj]);
+  const setMesaj = akMesaj; // Aşama 348: ortak bildirim katmanı
 
   // ---- harita hücreleri
   const vekilBugun = useMemo(
@@ -494,11 +490,6 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
               : ''}
             {ipucu.x.st === 'late' ? ' · tıklayın, hatırlatın' : ''}
           </span>
-        </div>
-      )}
-      {mesaj && (
-        <div className={'ak-toast' + (mesaj.ton === 'hata' ? ' bad' : '')} role="status">
-          {mesaj.text}
         </div>
       )}
       <Suspense fallback={null}>

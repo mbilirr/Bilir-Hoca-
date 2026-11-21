@@ -304,7 +304,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
           </div>
           {draft && !draft.teacherId && editor}
           {rows === null ? (
-            <Yukleniyor />
+            <Yukleniyor satir={4} />
           ) : external.length === 0 ? (
             <p className="text-xs text-muted">Henüz dış öğretmen eklenmedi.</p>
           ) : externalGroups.length === 0 ? (

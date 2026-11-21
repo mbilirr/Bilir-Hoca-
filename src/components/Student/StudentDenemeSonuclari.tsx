@@ -108,7 +108,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
         }
       />
       {loading ? (
-        <Yukleniyor />
+        <Yukleniyor satir={4} />
       ) : error ? (
         <YuklemeHatasi
           mesaj={error}

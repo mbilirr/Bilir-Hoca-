@@ -566,7 +566,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
       )}
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
       {loading ? (
-        <Yukleniyor />
+        <Yukleniyor satir={4} />
       ) : !scoped.length ? (
         <p className="text-sm text-muted">Kapsamda deneme yok.</p>
       ) : groups.length === 0 ? (

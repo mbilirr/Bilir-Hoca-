@@ -446,7 +446,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
         )}
 
         {liste === null && !hata ? (
-          <Yukleniyor />
+          <Yukleniyor satir={5} />
         ) : siniflar.length === 0 ? (
           <p className="text-xs text-muted">Kurumda sınıf yok. Önce Öğrenciler sayfasından sınıf açın.</p>
         ) : dersler.length === 0 ? (

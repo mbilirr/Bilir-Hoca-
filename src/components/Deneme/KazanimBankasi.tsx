@@ -995,7 +995,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
       >
         {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2 mb-3">{error}</p>}
         {loading ? (
-          <Yukleniyor />
+          <Yukleniyor satir={6} />
         ) : rows.length === 0 ? (
           <EmptyState icon={BookOpen} title="Banka boş" description="Yukarıdan öğretim programı PDF'lerini seçip kazanımları yapay zekâyla çıkarın." />
         ) : (

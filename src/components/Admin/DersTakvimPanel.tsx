@@ -226,7 +226,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
           </div>
 
           {liste === null ? (
-            <Yukleniyor />
+            <Yukleniyor satir={4} />
           ) : gorunen.length === 0 ? (
             <p className="text-xs text-muted">Yaklaşan tatil yok.</p>
           ) : (

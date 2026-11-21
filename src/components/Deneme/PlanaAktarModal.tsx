@@ -240,7 +240,7 @@ export const PlanaAktarModal: React.FC<{
         </div>
 
         {loading ? (
-          <Yukleniyor metin="Plan okunuyor…" />
+          <Yukleniyor metin="Plan okunuyor…" satir={4} />
         ) : (
           <div className="space-y-2">
             {rows.map((r, i) => {

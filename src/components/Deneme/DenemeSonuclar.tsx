@@ -104,7 +104,7 @@ export const DenemeSonuclar: React.FC<{
   const bCheck = useMemo(() => (exam && results.length ? bookletConsistency(exam, results) : null), [exam, results]);
   const [bOpen, setBOpen] = useState(false);
 
-  if (loading) return <Yukleniyor />;
+  if (loading) return <Yukleniyor satir={6} />;
   if (error || !exam)
     return (
       <div className="space-y-3">

@@ -43,6 +43,7 @@ import { trBugun } from '../../lib/trSaat';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import { AkTatilSheet } from './AkTatilSheet';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
+import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 
 // ============================================================================
 // Aşama 246: MÜDÜR ANA SAYFASI (taslak: mudur-akademik-takvim.html, Odak renkleri)
@@ -426,15 +427,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
   // ================================================================ YARDIMCILAR
   const [rapor, setRapor] = useState<Rapor | null>(null);
   const [tatilAcik, setTatilAcik] = useState(false);
-  const [mesaj, setMesaj] = useState<{
-    ton: 'ok' | 'hata';
-    text: string;
-  } | null>(null);
-  useEffect(() => {
-    if (!mesaj) return;
-    const t = setTimeout(() => setMesaj(null), 4000);
-    return () => clearTimeout(t);
-  }, [mesaj]);
+  const setMesaj = akMesaj; // Aşama 348: ortak bildirim katmanı
 
   const aralikYaz = (a: Date, b: Date) =>
     a.getMonth() === b.getMonth()
@@ -692,11 +685,6 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
           onKayit={() => void dersOku()}
           onMesaj={setMesaj}
         />
-      )}
-      {mesaj && (
-        <div className={'ak-toast' + (mesaj.ton === 'hata' ? ' bad' : '')} role="status">
-          {mesaj.text}
-        </div>
       )}
       <Suspense fallback={null}>
         {rapor && (

@@ -286,7 +286,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
 
       <Panel title="Yazılı izinler" icon={UserX} id="ders-izin-liste" description="Son 14 gün ve sonrası.">
         {liste === null ? (
-          <Yukleniyor />
+          <Yukleniyor satir={4} />
         ) : gruplar.length === 0 ? (
           <p className="text-xs text-muted">Yazılı izin yok.</p>
         ) : (

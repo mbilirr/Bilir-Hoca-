@@ -1,4 +1,5 @@
 import React, { lazy, useState } from 'react';
+import { IskeletSayfa } from '../components/ui/Durum'; // Aşama 348
 
 // ============================================================================
 // HIZ (Aşama 15): Sayfalar ihtiyaç olunca yüklenir.
@@ -78,10 +79,10 @@ export function useEverTrue(v: boolean): boolean {
   return ever || v;
 }
 
-// Sayfa parçası yüklenirken gösterilen sade gösterge
+// Sayfa parçası yüklenirken gösterilen yer tutucu. Aşama 348: dönen halka yerine sayfa iskeleti (başlık, kartlar,
+// liste); parça gelince sayfa zıplamaz. Kısa yüklemede hiç görünmez (250 ms sonra belirir).
 export const PageLoading: React.FC<{ label?: string }> = ({ label = 'Yükleniyor…' }) => (
-  <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted" role="status" aria-live="polite" data-testid="page-loading">
-    <span className="w-4 h-4 rounded-full border-2 border-line-strong border-t-brand animate-spin" />
-    {label}
+  <div data-testid="page-loading" className="py-2">
+    <IskeletSayfa metin={label} />
   </div>
 );

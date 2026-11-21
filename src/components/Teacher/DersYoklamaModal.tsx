@@ -209,7 +209,7 @@ export const DersYoklamaModal: React.FC<{
         </div>
       }
     >
-      {!veri && !hata && <Yukleniyor />}
+      {!veri && !hata && <Yukleniyor satir={6} />}
       {!veri && hata && <YuklemeHatasi mesaj={hata} onTekrar={yukle} />}
       {veri && (
         <div className="space-y-3">

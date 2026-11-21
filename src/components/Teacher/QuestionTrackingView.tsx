@@ -94,6 +94,7 @@ import { useHistoryState } from '../../lib/useHistoryState';
 import { OverlayLayer } from '../ui/kit'; // Aşama 191
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging'; // Aşama 225
+import { basariBildir } from '../../lib/bildirim'; // Aşama 348
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -190,7 +191,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     subjectsText?: string;
   } | null>(null);
   const [praiseCustomMessage, setPraiseCustomMessage] = useState<string>('');
-  const [praiseSuccessToast, setPraiseSuccessToast] = useState<string | null>(null);
 
   // Dışa tıklandığında öğrenci arama menüsünü kapat
   useEffect(() => {
@@ -351,12 +351,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
     const targetStudentName = activeStudent.name;
     setPraiseTargetDay(null);
-    setPraiseSuccessToast(
-      `🎉 ${targetStudentName} öğrencisine tebrik bildirimi başarıyla gönderildi!`
-    );
-    setTimeout(() => {
-      setPraiseSuccessToast(null);
-    }, 4000);
+    basariBildir(`${targetStudentName} öğrencisine tebrik gönderildi.`); // Aşama 348: ortak bildirim
   };
 
   // Aşama 43: öğrencinin haftası, öğretmenin haftalık planının başladığı günden başlar (plan yoksa Pazartesi)
@@ -3584,14 +3579,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Başarı Toast Bildirimi */}
-      {praiseSuccessToast && (
-        <div className="fixed bottom-6 right-6 z-(--z-bildirim) bg-surface text-fg px-4 py-3 rounded-xl shadow-2xl border border-success/40 flex items-center space-x-2.5 animate-in slide-in-from-bottom-5 duration-200">
-          <CheckCircle2 className="w-5 h-5 text-success-fg shrink-0" />
-          <span className="text-xs font-bold">{praiseSuccessToast}</span>
         </div>
       )}
     </div>

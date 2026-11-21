@@ -238,7 +238,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
       </div>
 
       {error && <YuklemeHatasi mesaj={error} onTekrar={load} />}
-      {!error && kurumlar === null && <Yukleniyor metin="Kurumlar yükleniyor…" />}
+      {!error && kurumlar === null && <Yukleniyor metin="Kurumlar yükleniyor…" satir={4} />}
       {!error && kurumlar && kurumlar.length === 0 && (
         <p className="text-sm text-muted" id="kurum-empty">
           Henüz kurum yok. "Yeni kurum" düğmesiyle ilk kurumu açın.

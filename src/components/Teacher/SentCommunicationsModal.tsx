@@ -133,8 +133,8 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
         </div>
         {error && <div className="p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold">{error}</div>}
         {rows === null ? (
-          <div className="py-6 text-center">
-            <Yukleniyor />
+          <div>
+            <Yukleniyor satir={4} />
           </div>
         ) : list.length === 0 ? (
           <p className="text-xs text-muted py-8 text-center">Henüz gönderilmiş e-posta yok.</p>

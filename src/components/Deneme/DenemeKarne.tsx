@@ -518,7 +518,7 @@ const TopluKarneGonder: React.FC<{
       {open && (
         <div className="rounded-xl border border-line bg-surface">
           {loading ? (
-            <Yukleniyor metin="Sonuçlar yükleniyor…" className="px-3 py-3" />
+            <Yukleniyor metin="Sonuçlar yükleniyor…" className="p-3" satir={3} />
           ) : !withResults.length ? (
             <p className="px-3 py-3 text-xs text-muted">Seçilen denemelerde sonucu olan öğrenci yok.</p>
           ) : (
@@ -1104,7 +1104,7 @@ export const DenemeKarne: React.FC<{
       ) : scoped.length === 0 ? (
         <p className="text-sm text-muted">Kapsamda deneme yok. {scope === 'custom' ? 'Yukarıdan deneme seçin.' : ''}</p>
       ) : loading ? (
-        <Yukleniyor />
+        <Yukleniyor satir={4} />
       ) : !hasData ? (
         <p className="text-sm text-muted">Seçilen denemelerde sonuç bulunamadı.</p>
       ) : isTek ? (

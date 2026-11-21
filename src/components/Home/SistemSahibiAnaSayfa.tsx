@@ -9,6 +9,7 @@ import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek dü
 import { AnaSayfaKabuk, AkSheet, akBasHarf, akSelam, akTarih } from './AnaSayfaKabuk';
 import { GozuyleBakSheet } from './GozuyleBakSheet';
 import { yedekParolaHatasi, YEDEK_PAROLA_EN_AZ } from '../../lib/yedekSifre'; // Aşama 345
+import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 
 // ============================================================================
 // Aşama 244: SİSTEM SAHİBİ ANA SAYFASI (yalnız genel yönetici, kendi panelinde; kuruma geçince kurumun sayfası açılır)
@@ -154,12 +155,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
   const [yeniOpen, setYeniOpen] = useState(false);
   const [yedekOpen, setYedekOpen] = useState(false);
   const [gozuOpen, setGozuOpen] = useState(false); // Aşama 252
-  const [mesaj, setMesaj] = useState<{ ton: 'ok' | 'hata'; text: string } | null>(null);
-  useEffect(() => {
-    if (!mesaj) return;
-    const t = setTimeout(() => setMesaj(null), 4000);
-    return () => clearTimeout(t);
-  }, [mesaj]);
+  const setMesaj = akMesaj; // Aşama 348: ortak bildirim katmanı
 
   const yonetimAc = (ust: YonetimUst) => {
     onNavigateTab('user_management');
@@ -296,11 +292,6 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
             onClose={() => setGozuOpen(false)}
             kurumlar={kurumlar.s === 'tamam' ? [...kurumlar.v].sort((a, b) => a.name.localeCompare(b.name, 'tr')) : []}
           />
-          {mesaj && (
-            <div className={'ak-toast on' + (mesaj.ton === 'hata' ? ' bad' : '')} role="status" aria-live="polite">
-              {mesaj.text}
-            </div>
-          )}
         </>
       }
     >

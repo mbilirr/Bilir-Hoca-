@@ -84,7 +84,7 @@ export const HataKayitlariPanel: React.FC = () => {
       {hata && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{hata}</p>}
 
       {rows === null ? (
-        <Yukleniyor metin="Okunuyor…" className="py-4" />
+        <Yukleniyor metin="Okunuyor…" satir={5} />
       ) : rows.length === 0 ? (
         !hata && <p className="text-sm text-muted py-4 text-center">Bu sürede kayıtlı hata yok.</p>
       ) : (

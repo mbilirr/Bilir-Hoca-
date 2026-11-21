@@ -16,6 +16,7 @@ import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { GeriAlCubugu } from './components/Common/GeriAlCubugu'; // Aşama 306
+import { BildirimKatmani } from './components/Common/BildirimKatmani'; // Aşama 348
 import { OturumUyarisi } from './components/Common/OturumUyarisi'; // Aşama 344
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
@@ -612,6 +613,7 @@ export default function App() {
         <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+      <BildirimKatmani /> {/* Aşama 348 */}
         <PasswordRecoveryModal />
         <AuthPortal
           onAuthSuccess={handleAuthSuccess}
@@ -629,6 +631,7 @@ export default function App() {
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+      <BildirimKatmani /> {/* Aşama 348 */}
         <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         <IkiAdimGirisi ad={authSession.role === 'teacher' ? (authSession.user as Teacher).name : undefined} onCikis={handleLogout} />
       </div>
@@ -641,6 +644,7 @@ export default function App() {
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+      <BildirimKatmani /> {/* Aşama 348 */}
         <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         {hesapListe ? (
           <HesapSecimi
@@ -668,6 +672,7 @@ export default function App() {
         <KullaniciGozuSeridi />
         <NetworkSyncStatusBanner />
         <GeriAlCubugu /> {/* Aşama 306 */}
+      <BildirimKatmani /> {/* Aşama 348 */}
         <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
         <PortalSecimi
           ad={(authSession.user as Teacher).name}
@@ -710,6 +715,7 @@ export default function App() {
       <KullaniciGozuSeridi />
       <NetworkSyncStatusBanner />
       <GeriAlCubugu /> {/* Aşama 306 */}
+      <BildirimKatmani /> {/* Aşama 348 */}
       <OturumUyarisi bitis={oturumBitis} onDevam={() => devamRef.current()} onCikis={handleLogout} onSure={() => oturumDenetleRef.current()} />
       {/* Top Main Navbar */}
       <Navbar

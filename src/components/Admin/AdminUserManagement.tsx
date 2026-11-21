@@ -23,7 +23,6 @@ import {
   EyeOff,
   UserCheck,
   UserX,
-  Sparkles,
   Phone,
   Mail,
   School,
@@ -67,10 +66,11 @@ const StudentWelcomeCredentialsModal = lazyNamed(() => import('../Teacher/Studen
 // Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
 const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
 const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_CODE[r as TeacherRole]?.label || r).join(' / ');
-import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { Modal, OverlayLayer } from '../ui/kit'; // Aşama 191 · Aşama 236: Modal
+import { bildir, hataBildir } from '../../lib/bildirim'; // Aşama 348
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -110,7 +110,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [users, setUsers] = useState<UnifiedUser[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Search & Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -192,11 +191,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   }, [users, roleLock]);
   const [notifyTeacher, setNotifyTeacher] = useState(true);
 
+  // Aşama 348: ortak bildirim katmanı (her sayfada aynı yer ve biçim)
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToastMsg({ text, type });
-    setTimeout(() => {
-      setToastMsg((prev) => (prev?.text === text ? null : prev));
-    }, NOTICE_HIDE_MS); // Aşama 32: 15 sn
+    if (type === 'error') hataBildir(text);
+    else bildir({ tur: type === 'info' ? 'bilgi' : 'basari', baslik: text });
   };
 
   const sendTeacherMail = async (teacherId: string, kind: TeacherMailKind, extra?: Parameters<typeof notifyTeacherByMail>[2]) => {
@@ -665,25 +663,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           onClose={() => setYetkiTeacherId(null)}
           onSaved={(m) => showToast(m, 'success')}
         />
-      )}
-      {/* Toast Notification */}
-      {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-(--z-bildirim) max-w-md animate-in slide-in-from-bottom-3 duration-200">
-          <div
-            className={`px-4 py-3 rounded-2xl shadow-2xl border text-xs sm:text-sm font-bold flex items-center space-x-2.5 backdrop-blur-xl ${
-              toastMsg.type === 'success'
-                ? 'bg-success-soft border-success/40 text-success-fg'
-                : toastMsg.type === 'error'
-                ? 'bg-danger-soft border-danger/40 text-danger-fg'
-                : 'bg-brand-soft border-brand/40 text-brand-fg'
-            }`}
-          >
-            {toastMsg.type === 'success' && <CheckCircle2 className="w-5 h-5 text-success-fg shrink-0" />}
-            {toastMsg.type === 'error' && <AlertTriangle className="w-5 h-5 text-danger-fg shrink-0" />}
-            {toastMsg.type === 'info' && <Sparkles className="w-5 h-5 text-brand-fg shrink-0" />}
-            <span>{toastMsg.text}</span>
-          </div>
-        </div>
       )}
 
       {!embedded && (

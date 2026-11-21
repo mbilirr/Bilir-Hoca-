@@ -129,7 +129,7 @@ export const GirisGuvenligiPanel: React.FC = () => {
         <div className="space-y-2">
           <p className="ui-eyebrow">Son 7 gün</p>
           {rows === null ? (
-            <Yukleniyor metin="Okunuyor…" className="py-4" />
+            <Yukleniyor metin="Okunuyor…" satir={3} />
           ) : rows.length === 0 ? (
             <p className="text-xs text-muted py-6 text-center border border-dashed border-line rounded-xl">Son 7 günde hatalı giriş yok.</p>
           ) : (
