@@ -40,6 +40,9 @@ jobs:
       - name: Sunucu dosyaları (api) söz dizimi
         run: for f in api/*.js; do node --check "$f" || exit 1; done
 
+      - name: Tasarım denetimi (punto, katman, köşe, geçiş, düğme boyu)
+        run: npm run denetim:tasarim
+
       - name: Birim testleri
         run: npm test
 
