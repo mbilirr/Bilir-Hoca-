@@ -8,7 +8,7 @@
 import { supabase } from '../lib/supabase';
 import { robotJetonu, robotKorumaAcik } from '../lib/robotKoruma'; // Aşama 309, 339
 import { appStorage } from './depo';
-import { loginErrorMessage } from './hataMetinleri';
+import { loginErrorMessage, kilitMesaji } from './hataMetinleri';
 
 // dataService.ts'teki gibi: "localStorage" adı uygulama deposunu gösterir (çıkışta kilitlenen, oturuma göre seçilen depo)
 const localStorage = appStorage;
@@ -133,8 +133,8 @@ export interface GirisKilit {
 }
 const KILIT_YOK: GirisKilit = { kilitli: false, dakika: 0 };
 
-export const kilitMesaji = (dakika: number): string =>
-  `Bu hesapta çok fazla hatalı giriş yapıldı. Güvenlik için hesap kilitlendi; ${Math.max(1, dakika || 15)} dakika sonra tekrar deneyin.`;
+// Aşama 342: metin hataMetinleri.ts'te (veritabanı kancasının hatası da aynı yazıyla gösterilir)
+export { kilitMesaji };
 
 async function girisApi(govde: Record<string, unknown>, token?: string): Promise<GirisKilit> {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;

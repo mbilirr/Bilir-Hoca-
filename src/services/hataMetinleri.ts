@@ -9,10 +9,18 @@ import type { ClassGroup } from '../types';
 // Supabase Auth'taki en kısa şifre (DataService.MIN_PASSWORD_LENGTH bunu gösterir)
 export const MIN_PASSWORD_LENGTH = 6;
 
+// Aşama 339/342: hesap kilidi metni (giriş ekranı ve veritabanı kancası aynı yazıyı kullanır)
+export const kilitMesaji = (dakika: number): string =>
+  `Bu hesapta çok fazla hatalı giriş yapıldı. Güvenlik için hesap kilitlendi; ${Math.max(1, dakika || 15)} dakika sonra tekrar deneyin.`;
+
 // Supabase giriş hatalarını kullanıcıya anlaşılır mesaja çevirir.
 // null: kullanıcı adı/şifre hatalı (çağıran genel mesaj gösterir)
 export function loginErrorMessage(err: any, role: 'teacher' | 'student'): string | null {
   const m = `${err?.code || ''} ${err?.message || ''}`.toLowerCase();
+  // Aşama 342: hesap kilitliyken veritabanı kancası (giris_anahtar_kancasi) şifre doğru olsa bile anahtar vermez.
+  // Bu bir "şifre yanlış" değildir: hatalı giriş olarak sayılmaz, diğer adaylar denenmez.
+  const kilit = /biliredu_kilit:(\d+)/.exec(m);
+  if (kilit) return kilitMesaji(Number(kilit[1]));
   if (m.includes('banned')) {
     return role === 'student'
       ? 'Hesabınız şu anda kapalı: kayıt başvurunuz henüz onaylanmamış olabilir veya hesabınız askıya alınmıştır. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.'
