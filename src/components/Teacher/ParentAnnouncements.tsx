@@ -54,7 +54,7 @@ const studentMailKey = (raw?: string) => {
 
 export const ParentAnnouncements: React.FC = () => {
   const [tick, setTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1), []), []) // Aşama 349b: yalnız okuduğu veriler;
 
   const students = useMemo(() => dataService.getStudents(), [tick]);
   const classes = useMemo(() => dataService.getClasses(), [tick]);

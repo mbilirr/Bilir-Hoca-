@@ -202,7 +202,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       dataService.subscribe(() => {
         setTick((t) => t + 1);
         setSoruKayit(dataService.getQuestionLogs());
-      }),
+      }, ['soru']), // Aşama 349b: yalnız okuduğu veriler (diğerleri sayfaya ana kabuktan gelir)
     [],
   );
   const can = useMemo(

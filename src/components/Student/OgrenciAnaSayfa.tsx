@@ -127,7 +127,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   };
   const odevler = can.odev ? tumOdevler : [];
   const etutler = can.etut ? tumEtutler : [];
-  const dataVersion = useDataVersion();
+  const dataVersion = useDataVersion(['hedef', 'soru', 'teslim']); // Aşama 349b
 
   const [simdi, setSimdi] = useState(() => new Date());
   useEffect(() => {
@@ -156,7 +156,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
 
   // ================================================================ SORU: bugün ve bu hafta
   const [logs, setLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
-  useEffect(() => dataService.subscribe(() => startTransition(() => setLogs(dataService.getQuestionLogs()))), []);
+  useEffect(() => dataService.subscribe(() => startTransition(() => setLogs(dataService.getQuestionLogs())), ['hedef', 'soru', 'teslim']), []) // Aşama 349b;
   const q = useMemo(
     () => (can.soru ? buildStudentQuestionSummary(student.id, simdi, logs) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps

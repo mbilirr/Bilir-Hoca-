@@ -610,7 +610,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       setAllLogs(dataService.getQuestionLogs());
-    });
+    }, ['hedef', 'soru']); // Aşama 349b
     return unsub;
   }, []);
 

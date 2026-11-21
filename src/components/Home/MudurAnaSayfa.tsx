@@ -141,7 +141,7 @@ interface Props {
 export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classes, etuts, homeworks, submissions, unreadMessages, onNavigateTab }) => {
   // ---- kurum ve açık bölümler (dataService değişince yeniden hesaplanır)
   const [tick, setTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1), ['not']), []) // Aşama 349b: yalnız okuduğu veriler;
   const kurumId = dataService.getMyKurum().kurumId || '';
   const can = useMemo(
     () => ({

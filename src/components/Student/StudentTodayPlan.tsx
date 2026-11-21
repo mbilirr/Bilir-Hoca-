@@ -45,7 +45,7 @@ export const StudentTodayPlan: React.FC<{
   const [editSaving, setEditSaving] = useState(false);
   const [, setLogsTick] = useState(0);
   // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
-  useEffect(() => dataService.subscribe(() => startTransition(() => setLogsTick((n) => n + 1))), []);
+  useEffect(() => dataService.subscribe(() => startTransition(() => setLogsTick((n) => n + 1)), ['soru']), []) // Aşama 349b;
   useEffect(
     () => () => {
       if (infoTimer.current) window.clearTimeout(infoTimer.current);

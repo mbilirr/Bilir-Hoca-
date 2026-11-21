@@ -120,7 +120,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
   onNavigateTab,
 }) => {
   const [tick, setTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1), ['not']), []) // Aşama 349b: yalnız okuduğu veriler;
   const kurumId = dataService.getMyKurum().kurumId || '';
   const can = useMemo(
     () => ({ ders: dataService.canUseTab('grades'), etut: dataService.canUseTab('etuts'), deneme: dataService.canUseTab('deneme'), takvim: dataService.akademikTakvimAcik() }),

@@ -10,7 +10,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "denetim:tasarim": "node scripts/tasarim-denetimi.mjs"
+    "denetim:tasarim": "node scripts/tasarim-denetimi.mjs",
+    "denetim:konu": "node scripts/sayfa-konulari.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition } from 'react';
+import React, { useState, useEffect, useRef, Suspense, startTransition } from 'react';
 import { GraduationCap, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
@@ -18,8 +18,10 @@ import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBa
 import { GeriAlCubugu } from './components/Common/GeriAlCubugu'; // Aşama 306
 import { BildirimKatmani } from './components/Common/BildirimKatmani'; // Aşama 348
 import { OturumUyarisi } from './components/Common/OturumUyarisi'; // Aşama 344
-import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
-import { dataService } from './services/dataService';
+import { useGorulmemisEtutNotu } from './components/Teacher/EtutNotesInbox';
+import { useVeriSecici } from './lib/useDataVersion'; // Aşama 349b
+import { sayfaKonulari } from './lib/sayfaKonulari'; // Aşama 349b
+import { dataService, type VeriKonusu } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 import { appConfirm } from './lib/appDialog'; // Aşama 343
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
@@ -163,6 +165,10 @@ export default function App() {
   // Aşama 125: bildirimde oturumun değişip değişmediğini anlamak için son çizilen oturum
   const authSessionRef = useRef<AuthSession | null>(authSession);
   authSessionRef.current = authSession;
+  // Aşama 349b: açık sayfanın okuduğu veri konuları (null = bilinmiyor, her değişiklikte çizilir) ve
+  // açık sayfaya değmediği için henüz çizilmemiş değişikliklerin konuları
+  const sayfaKonuRef = useRef<ReadonlySet<VeriKonusu> | null>(null);
+  const bekleyenKonuRef = useRef<Set<VeriKonusu>>(new Set());
 
   // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
@@ -177,6 +183,7 @@ export default function App() {
     // sekmeye dönülünce tek seferde en güncel hâliyle çizilir (telefon pili ve işlemci için).
     let pendingWhileHidden = false;
     const applyData = () => {
+      bekleyenKonuRef.current.clear();
       const activeSession = dataService.getAuthSession();
       setAuthSession(activeSession);
       if (activeSession?.role === 'student') {
@@ -199,11 +206,19 @@ export default function App() {
         setQuestionLogs(dataService.getQuestionLogs());
       });
     };
-    const unsubscribe = dataService.subscribe(() => {
+    const unsubscribe = dataService.subscribe((degisen) => {
       // Oturum kapandıysa / açıldıysa sekme gizli olsa bile hemen uygulanır
       const sessionChanged = dataService.getAuthSession() !== authSessionRef.current;
       if (!sessionChanged && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         pendingWhileHidden = true;
+        return;
+      }
+      // Aşama 349b: değişiklik açık sayfanın okumadığı bir veriyse (ör. Ödevler açıkken soru kaydı) ekran yeniden
+      // çizilmez; konusu not edilir, o veriyi okuyan sayfaya geçilince en güncel hâli çizilir. Kendi aboneliği olan
+      // bileşenler (sayaçlar, bant uyarıları) kendileri yenilenir.
+      const ilgili = sayfaKonuRef.current;
+      if (!sessionChanged && degisen && ilgili && ![...degisen].some((k) => ilgili.has(k))) {
+        degisen.forEach((k) => bekleyenKonuRef.current.add(k));
         return;
       }
       pendingWhileHidden = false;
@@ -507,11 +522,36 @@ export default function App() {
   };
 
   // Aşama 32: Mesajlar sayacına görülmemiş etüt notları (yoklamada yazılan farklı konu / öğrenci notu) da eklenir
-  const { unseen: etutNoteUnseen } = useEtutNotes();
+  // Aşama 349b: sayaçlar yalnız sayı değişince ekranı yeniden çizer (seçici abonelik)
+  const etutNoteUnseen = useGorulmemisEtutNotu();
   // Aşama 113: yalnız bana gelen ve genel okunmamış mesajlar (idarenin gördüğü başka öğretmene gelen sorular sayılmaz)
-  const unreadMessagesCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages, authSession]) + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
+  const okunmamisMesaj = useVeriSecici(['mesaj'], () => dataService.getMessages().filter((m) => !m.read && dataService.isMessageForMe(m)).length);
+  const unreadMessagesCount = okunmamisMesaj + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
+  const belgeSayisi = useVeriSecici(['belge'], () => dataService.getTeacherDocuments().length);
   // Aşama 244: yeni tasarımlı (kabuklu) ana sayfa: menü solda, üst menünün bölüm satırı gizli
   const kabukluAnaSayfa = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' ? anaSayfaTuru() : null;
+  // Aşama 349b: açık sayfa (sayfaKonulari.ts'teki adla). Sayfa değişince, beklerken çizilmemiş değişiklik varsa
+  // listeler ilk çizimden ÖNCE yenilenir (React'in "önceki çizimden bilgi" kalıbı: yeni sayfa bayat veriyle hiç çizilmez).
+  const sayfaAnahtari = !authSession ? 'giris' : role === 'student' ? 'ogrenci' : kabukluAnaSayfa ? `ana:${kabukluAnaSayfa}` : `sekme:${teacherTab}`;
+  sayfaKonuRef.current = sayfaKonulari(sayfaAnahtari);
+  const [cizilenSayfa, setCizilenSayfa] = useState(sayfaAnahtari);
+  if (cizilenSayfa !== sayfaAnahtari) {
+    setCizilenSayfa(sayfaAnahtari);
+    if (bekleyenKonuRef.current.size) {
+      bekleyenKonuRef.current.clear();
+      setDataRev((n) => n + 1);
+      setStudents(dataService.getStudents());
+      setClasses(dataService.getClasses());
+      setHomeworks(dataService.getHomeworks());
+      setSubmissions(dataService.getSubmissions());
+      setEtuts(dataService.getVisibleEtuts());
+      setGrades(dataService.getGrades());
+      setAttendance(dataService.getAttendance());
+      setMessages(dataService.getMessages());
+      setDocuments(dataService.getTeacherDocuments());
+      setQuestionLogs(dataService.getQuestionLogs());
+    }
+  }
   // Aşama 250 / 255: kurum bilgisi (rol, bölümler) gelmeden hangi ana sayfanın açılacağı bilinmez. Eski ana sayfa (TeacherHome)
   // kaldırıldı: bilgi gelene kadar sade bekleme ekranı görünür; 8 saniyede gelmezse "Yeniden dene" çıkar (eski sayfaya düşülmez).
   const anaSayfaBekliyor = authSession?.role === 'teacher' && role === 'teacher' && teacherTab === 'home' && !kabukluAnaSayfa;
@@ -728,7 +768,7 @@ export default function App() {
         activeTeacherTab={role === 'teacher' ? teacherTab : undefined}
         onSelectTeacherTab={selectTeacherTab}
         unreadMessagesCount={unreadMessagesCount}
-        documentsCount={documents.length}
+        documentsCount={belgeSayisi}
       />
 
       {/* Teacher Viewing Student Portal Notice Banner */}
@@ -1069,8 +1109,6 @@ export default function App() {
           isAdmin={isAdminTeacher}
           students={students}
           classes={classes}
-          homeworks={homeworks}
-          etuts={etuts}
           onNavigate={selectTeacherTab}
         />
       )}

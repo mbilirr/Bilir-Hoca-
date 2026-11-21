@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, User, School, BookOpen, CalendarDays, CornerDownLeft, X } from 'lucide-react';
-import type { Student, ClassGroup, Homework, Etut, TeacherTabType } from '../../types';
+import type { Student, ClassGroup, TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useDataVersion } from '../../lib/useDataVersion';
 import { teacherNavFor } from './navItems';
 import { IconBox, OverlayLayer, cx, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { setQuickFocus, type QuickFocusType } from '../../lib/quickFocus';
@@ -54,11 +55,16 @@ export const CommandPalette: React.FC<{
   isAdmin: boolean;
   students: Student[];
   classes: ClassGroup[];
-  homeworks: Homework[];
-  etuts: Etut[];
   onNavigate: (tab: TeacherTabType) => void;
-}> = ({ isAdmin, students, classes, homeworks, etuts, onNavigate }) => {
+}> = ({ isAdmin, students, classes, onNavigate }) => {
   const [open, setOpen] = useState(false);
+  // Aşama 349b: ödev ve etütler kendi aboneliğiyle (ana kabuk bu değişikliklerde her sayfayı yeniden çizmez);
+  // pencere kapalıyken liste okunmaz
+  const surum = useDataVersion(['etut', 'odev']);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const homeworks = useMemo(() => (open ? dataService.getHomeworks() : []), [open, surum]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const etuts = useMemo(() => (open ? dataService.getVisibleEtuts() : []), [open, surum]);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);

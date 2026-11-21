@@ -212,9 +212,10 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   // Bildirim güncellemelerini dinle
   useEffect(() => {
+    // Aşama 349b: öğrenci bildirimleri konusuz (genel) değişiklikle gelir; liste yine de kapsayıcı yazılır
     const unsub = dataService.subscribe(() => {
       setStudentNotifications(dataService.getStudentNotifications());
-    });
+    }, ['hedef', 'soru']);
     return unsub;
   }, []);
 
@@ -261,7 +262,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       setAllLogs(dataService.getQuestionLogs());
-    });
+    }, ['hedef', 'soru']); // Aşama 349b
     return unsub;
   }, []);
 

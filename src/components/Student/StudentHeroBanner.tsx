@@ -101,7 +101,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
   // Canlı tarih: gece yarısı geçince / sekmeye dönünce "bugün" kendiliğinden güncellenir.
   const today = useLiveNow();
   // Veri (soru kaydı, ödev, etüt, mesaj...) değişince bu duvar da anında yenilenir.
-  const dataVersion = useDataVersion();
+  const dataVersion = useDataVersion(['hedef', 'soru', 'teslim']); // Aşama 349b
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth(); // 0-11
   const todayStr = useMemo(() => ymdOf(today), [today]);

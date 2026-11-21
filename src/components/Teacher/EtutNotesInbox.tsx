@@ -1,8 +1,8 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { BookOpenCheck, StickyNote, Search, CalendarDays, User, CheckCheck } from 'lucide-react';
 import type { Etut, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
-import { useDataVersion } from '../../lib/useDataVersion';
+import { useDataVersion, useVeriSecici } from '../../lib/useDataVersion';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { cx } from '../ui/kit';
@@ -85,20 +85,39 @@ const weekStartStr = () => {
   return localDateStr(addDays(now, -((now.getDay() + 6) % 7)));
 };
 
-/** Mesajlar sekmesindeki sayaç için: görülmemiş etüt notu sayısı */
-export function useEtutNotes() {
-  const version = useDataVersion();
-  const me = dataService.getCurrentTeacher();
-  const [seen, markSeen] = useSeenIds(`tchr_etutnote_seen_${me?.id || 'x'}`);
-  const items = useMemo(() => {
-    const info = new Map(dataService.getStudents().map((s) => [s.id, { name: s.name, className: s.className || '' }] as const));
-    return collectEtutNotes(dataService.getVisibleEtuts(), info);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version]);
-  // Aşama 113: sayaç, listenin açılıştaki dönemiyle aynı aralığı sayar (tüm kurumu gören: bu hafta, diğerleri: son 30 gün)
+const etutNotlariniTopla = (): EtutNoteItem[] => {
+  const info = new Map(dataService.getStudents().map((s) => [s.id, { name: s.name, className: s.className || '' }] as const));
+  return collectEtutNotes(dataService.getVisibleEtuts(), info);
+};
+// Aşama 113: sayaç, listenin açılıştaki dönemiyle aynı aralığı sayar (tüm kurumu gören: bu hafta, diğerleri: son 30 gün)
+const gorulmemisSay = (items: EtutNoteItem[], seen: Set<string>): number => {
   const since = dataService.seesAllEtuts() ? weekStartStr() : '';
-  const unseen = items.filter((x) => !seen.has(x.id) && (!since || (x.etut.date || '').slice(0, 10) >= since)).length;
+  return items.filter((x) => !seen.has(x.id) && (!since || (x.etut.date || '').slice(0, 10) >= since)).length;
+};
+const gorulduAnahtari = () => `tchr_etutnote_seen_${dataService.getCurrentTeacher()?.id || 'x'}`;
+
+/** Mesajlar sekmesi: etüt notları listesi ve görülmemiş sayısı */
+export function useEtutNotes() {
+  const version = useDataVersion(['etut']);
+  const [seen, markSeen] = useSeenIds(gorulduAnahtari());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = useMemo(etutNotlariniTopla, [version]);
+  const unseen = gorulmemisSay(items, seen);
   return { items, seen, markSeen, unseen };
+}
+
+/**
+ * Aşama 349b: üst menüdeki Mesajlar sayacı için yalnız sayı. Ana kabuk (App) bunu kullanır: etüt değiştiğinde
+ * sayı aynı kaldıkça bütün ekran yeniden çizilmez.
+ */
+export function useGorulmemisEtutNotu(): number {
+  const [seen] = useSeenIds(gorulduAnahtari());
+  const onbellek = useRef<{ v: number; items: EtutNoteItem[] } | null>(null);
+  return useVeriSecici(['etut'], () => {
+    const v = dataService.veriSurumu;
+    if (!onbellek.current || onbellek.current.v !== v) onbellek.current = { v, items: etutNotlariniTopla() };
+    return gorulmemisSay(onbellek.current.items, seen);
+  });
 }
 
 export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }> = ({ notes }) => {

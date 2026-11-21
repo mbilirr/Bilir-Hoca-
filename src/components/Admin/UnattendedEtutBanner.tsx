@@ -56,7 +56,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
 
   useEffect(() => {
     // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
-    const unsubscribe = dataService.subscribe(() => startTransition(() => setEtuts(dataService.getVisibleEtuts())));
+    const unsubscribe = dataService.subscribe(() => startTransition(() => setEtuts(dataService.getVisibleEtuts())), ['etut']); // Aşama 349b
     // Etüt saatleri geçtikçe listenin güncellenmesi için dakikada bir yeniden hesaplanır
     const timer = window.setInterval(() => setTick((t) => t + 1), 60000);
     return () => {

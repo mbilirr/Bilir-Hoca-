@@ -76,7 +76,7 @@ interface Props {
 export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classes, etuts, homeworks, submissions, unreadMessages, onNavigateTab }) => {
   // ---- kurum ve izinler (dataService değişince yeniden hesaplanır)
   const [tick, setTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1), ['not']), []) // Aşama 349b: yalnız okuduğu veriler;
   const my = dataService.getMyKurum();
   const kurumId = my.kurumId || '';
   const can = useMemo(

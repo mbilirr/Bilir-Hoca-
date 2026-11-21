@@ -79,7 +79,7 @@ interface DenemeDusus {
 export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classes, etuts, unreadMessages, onNavigateTab }) => {
   // ---- izinler (bölüm açılıp kapanınca yeniden hesaplanır)
   const [tick, setTick] = useState(0);
-  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => dataService.subscribe(() => setTick((t) => t + 1), []), []) // Aşama 349b: yalnız okuduğu veriler;
   const can = useMemo(
     () => ({
       ders: dataService.canUseTab('grades'),

@@ -324,6 +324,19 @@ type RawTable = 'students' | 'student_contacts' | 'teachers' | 'classes' | 'dele
 /** Aşama 261: haftalık planda bütün dersleri gören roller (sql/261 plan_subject_ok ile aynı) */
 const PLAN_GENIS_ROLLER = ['rehberlik', 'olcme_degerlendirme', 'mudur', 'mudur_yardimcisi'];
 
+/**
+ * Aşama 349b: değişiklik bildiriminin konusu. Sık değişen listeler ayrı konudur; böylece örneğin bir öğrencinin soru
+ * kaydı, soru kaydı göstermeyen açık sayfaları yeniden çizdirmez. Öğrenci, sınıf, öğretmen, kurum ve yetki
+ * değişiklikleri konusuz bildirilir (seyrek; her şey yenilenir).
+ */
+export type VeriKonusu = 'soru' | 'teslim' | 'mesaj' | 'not' | 'yoklama' | 'etut' | 'odev' | 'belge' | 'hedef';
+/** Dinleyiciye değişen konular verilir; null = konusu belirsiz genel değişiklik. */
+export type VeriDinleyici = (degisen: ReadonlySet<VeriKonusu> | null) => void;
+const konuKesisir = (a: ReadonlySet<VeriKonusu>, b: ReadonlySet<VeriKonusu>): boolean => {
+  for (const k of a) if (b.has(k)) return true;
+  return false;
+};
+
 class DataService {
   private static instance: DataService;
 
@@ -360,7 +373,7 @@ class DataService {
   private syncPollInterval: number | null = null;
   private classSyncInterval: number | null = null;
 
-  private listeners: (() => void)[] = [];
+  private listeners: { dinle: VeriDinleyici; konular: ReadonlySet<VeriKonusu> | null }[] = [];
   private lastSyncTimestamp: number = Date.now();
   private sessionDeviceId: string = '';
 
@@ -1343,7 +1356,7 @@ class DataService {
           saveData(STORAGE_KEYS.DELETED_ETUTS, Array.from(this.deletedEtutIds));
           this.etuts = this.etuts.filter((e) => e.id !== oldRow.id);
           saveData(STORAGE_KEYS.ETUTS, this.etuts);
-          this.notify();
+          this.notify('etut');
         }
         return;
       }
@@ -1370,7 +1383,7 @@ class DataService {
       }
 
       saveData(STORAGE_KEYS.ETUTS, this.etuts);
-      this.notify();
+      this.notify('etut');
     } catch (err) {
       console.warn('[EtutRealtime] Error handling realtime etut payload:', err);
     }
@@ -1407,7 +1420,7 @@ class DataService {
         this.questionLogs = this.questionLogs.filter((l) => l.id !== id);
         if (this.questionLogs.length !== before) {
           this.persistQuestionLogsLocal();
-          this.notify();
+          this.notify('soru');
         }
         return;
       }
@@ -1422,7 +1435,7 @@ class DataService {
       }
       this.mergeQuestionLogs([incoming], null);
       this.persistQuestionLogsLocal();
-      this.notify();
+      this.notify('soru');
     } catch {
       this.scheduleTableRefetch('question_logs');
     }
@@ -1464,13 +1477,13 @@ class DataService {
     this.rtFlushTimer = null;
     const q = this.rtQueue;
     this.rtQueue = { messages: [], grades: [], attendance: [] };
-    let changed = false;
+    const konular: VeriKonusu[] = [];
     if (q.messages.length) {
       const next = applyRealtimeBatch(this.messages, q.messages, (row) => rowToMessage(row), (m) => m.createdAt, 'MessageRealtime');
       if (next) {
         this.messages = next;
         saveData(STORAGE_KEYS.MESSAGES, this.messages);
-        changed = true;
+        konular.push('mesaj');
       }
     }
     if (q.grades.length) {
@@ -1478,7 +1491,7 @@ class DataService {
       if (next) {
         this.grades = next;
         saveData(STORAGE_KEYS.GRADES, this.grades);
-        changed = true;
+        konular.push('not');
       }
     }
     if (q.attendance.length) {
@@ -1499,10 +1512,10 @@ class DataService {
       if (next) {
         this.attendance = next;
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-        changed = true;
+        konular.push('yoklama');
       }
     }
-    if (changed) this.notify();
+    if (konular.length) this.notify(...konular);
   }
 
   // --- ATTENDANCE REALTIME EVENT HANDLER ---
@@ -1860,7 +1873,7 @@ class DataService {
       if (etutsChanged) {
         this.etuts = kept;
         saveData(STORAGE_KEYS.ETUTS, this.etuts);
-        this.notify();
+        this.notify('etut');
       }
     } catch (err) {
       if (!isBackground) console.warn('[EtutSync] Sync error:', err);
@@ -1943,10 +1956,16 @@ class DataService {
     };
   }
 
-  public subscribe(listener: () => void): () => void {
-    this.listeners.push(listener);
+  /**
+   * Aşama 349b: veri değişince haber ver. `konular` verilirse dinleyici yalnız o konulardan biri değişince
+   * (ya da konusu belirsiz, genel bir değişiklikte) çağrılır; verilmezse her değişiklikte (eskisi gibi).
+   * Konu listesi bileşenin gerçekten okuduğu verileri kapsamalı: scripts/sayfa-konulari.mjs bunu denetler.
+   */
+  public subscribe(listener: VeriDinleyici, konular?: readonly VeriKonusu[]): () => void {
+    const kayit = { dinle: listener, konular: konular ? new Set(konular) : null };
+    this.listeners.push(kayit);
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
+      this.listeners = this.listeners.filter((l) => l !== kayit);
     };
   }
 
@@ -1958,7 +1977,19 @@ class DataService {
   public bumpDataVersion(): void {
     this.dataVersion++;
   }
-  private notify() {
+  // Aşama 349b: bu yenilemede değişen veri konuları (null = konusu belirsiz, her şey yenilenir)
+  private bekleyenKonular: Set<VeriKonusu> | null = new Set();
+  /** Veri sürümü: her değişiklikte artar (seçici kancaların önbelleği için). */
+  public get veriSurumu(): number {
+    return this.dataVersion;
+  }
+  /**
+   * Konu verilmeden çağrılırsa "her şey değişmiş olabilir" sayılır (eskisi gibi bütün ekran yenilenir).
+   * Konu yalnız o listeden başka hiçbir şeye dokunmayan eşitleme / anlık olay yerlerinde verilir.
+   */
+  private notify(...konular: VeriKonusu[]) {
+    if (!konular.length) this.bekleyenKonular = null;
+    else if (this.bekleyenKonular) for (const k of konular) this.bekleyenKonular.add(k);
     this.lastSyncTimestamp = Date.now();
     this.dataVersion++;
     if (this.secureSaveRefs) this.scheduleSecureSave();
@@ -1969,9 +2000,13 @@ class DataService {
     const delay = now - this.notifyFirstAt >= 250 ? 0 : 40;
     this.notifyTimer = setTimeout(() => {
       this.notifyTimer = null;
+      const degisen = this.bekleyenKonular;
+      this.bekleyenKonular = new Set();
+      if (degisen && !degisen.size) return;
       this.listeners.slice().forEach((l) => {
+        if (degisen && l.konular && !konuKesisir(degisen, l.konular)) return;
         try {
-          l();
+          l.dinle(degisen);
         } catch (e) {
           console.warn('[notify] dinleyici hatası:', e);
         }
@@ -2444,7 +2479,7 @@ class DataService {
           if (nextSubs !== this.submissions) saveData(STORAGE_KEYS.SUBMISSIONS, nextSubs);
           this.homeworks = nextHws;
           this.submissions = nextSubs;
-          this.notify();
+          this.notify('odev', 'teslim');
         }
       }
 
@@ -2481,7 +2516,7 @@ class DataService {
             if (nextSubs !== this.submissions) {
               this.submissions = nextSubs;
               saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-              this.notify();
+              this.notify('teslim');
             }
           }
         } else {
@@ -2490,7 +2525,7 @@ class DataService {
           if (nextSubs !== this.submissions) {
             this.submissions = nextSubs;
             saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-            this.notify();
+            this.notify('teslim');
           }
         }
         // işaret, sunucunun saatine göre (cihaz saati yanlış olabilir): en son değişen teslimin zamanı
@@ -2514,7 +2549,7 @@ class DataService {
         ...this.submissions.filter((s) => s.homeworkId !== homeworkId),
       ];
       saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-      this.notify();
+      this.notify('teslim');
     } catch {
       // bir sonraki eşitlemede düzelir
     }
@@ -2830,7 +2865,7 @@ class DataService {
         if (merged) {
           this.attendance = merged.sort(byDateDesc);
           saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-          this.notify();
+          this.notify('yoklama');
         }
         return this.attendance;
       }
@@ -2843,7 +2878,7 @@ class DataService {
         if (adopted !== this.attendance) {
           this.attendance = adopted;
           saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-          this.notify();
+          this.notify('yoklama');
         }
       }
 
@@ -2877,7 +2912,7 @@ class DataService {
         if (merged) {
           this.grades = merged.sort(byDateDesc);
           saveData(STORAGE_KEYS.GRADES, this.grades);
-          this.notify();
+          this.notify('not');
         }
         return this.grades;
       }
@@ -2890,7 +2925,7 @@ class DataService {
         if (adopted !== this.grades) {
           this.grades = adopted;
           saveData(STORAGE_KEYS.GRADES, this.grades);
-          this.notify();
+          this.notify('not');
         }
       }
 
@@ -2925,7 +2960,7 @@ class DataService {
           // tam okumadaki sıralamayla aynı (en yeni üstte); aynı zamanlıların mevcut sırası korunur
           this.messages = sortByTimeDesc(merged, (m) => m.createdAt);
           saveData(STORAGE_KEYS.MESSAGES, this.messages);
-          this.notify();
+          this.notify('mesaj');
         }
         return this.messages;
       }
@@ -2938,7 +2973,7 @@ class DataService {
         if (adopted !== this.messages) {
           this.messages = adopted;
           saveData(STORAGE_KEYS.MESSAGES, this.messages);
-          this.notify();
+          this.notify('mesaj');
         }
       }
 
@@ -3007,7 +3042,7 @@ class DataService {
         if (error || !data || this.deletedQuestionLogIds?.has(id)) return;
         this.mergeQuestionLogs([questionLogFromRow(data)], null);
         this.persistQuestionLogsLocal();
-        this.notify();
+        this.notify('soru');
       } catch {
         /* sonraki eşitlemede düzelir */
       }
@@ -3043,7 +3078,7 @@ class DataService {
         }
         if (changed) {
           this.persistQuestionLogsLocal();
-          this.notify();
+          this.notify('soru');
         }
       }
       return this.questionLogs;
@@ -3125,7 +3160,7 @@ class DataService {
         if (next !== this.weeklyQuestionTargets) {
           this.weeklyQuestionTargets = next;
           saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-          this.notify();
+          this.notify('hedef');
         }
       }
       return this.weeklyQuestionTargets;
@@ -3167,7 +3202,7 @@ class DataService {
       if (nextDocs === this.documents) return this.documents; // Aşama 84: değişiklik yok
       this.documents = nextDocs;
       this.persistDocumentsLocal();
-      this.notify();
+      this.notify('belge');
       return this.documents;
     } catch (e) {
       if (!isBackground) console.warn('[DocumentsSync] Exception:', e);
@@ -3530,7 +3565,7 @@ class DataService {
       if (JSON.stringify(att) === JSON.stringify(e.studentAttendance || {})) return;
       this.etuts[idx] = { ...e, studentAttendance: att };
       saveData(STORAGE_KEYS.ETUTS, this.etuts);
-      this.notify();
+      this.notify('etut');
     } catch (err) {
       console.warn('[EtutYoklama] Anlık yoklama olayı işlenemedi:', err);
     }
