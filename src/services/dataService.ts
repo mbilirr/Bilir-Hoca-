@@ -673,6 +673,167 @@ class DataService {
   }
 
   // ===========================================================================
+  // Aşama 349a: KİŞİ BAŞINA TEK CANLI KANAL (sql/349a)
+  //  Eskiden her tablo ayrı kanaldan, kurum süzgeci olmadan dinleniyordu. Artık veritabanı tetikleri içeriksiz bir
+  //  sinyal yazar (canli_sinyal: kanal, tablo, değişen kimlikler); ekran yalnız KENDİ kanallarını (kurumu, kendisi;
+  //  öğrencide yalnız kendisi) tek kanaldan dinler. Sinyal gelince değişen kayıtlar kişinin kendi yetkisiyle okunur ve
+  //  eskisiyle aynı işleyicilere verilir; böylece ekranlar aynen çalışır. sql/349a kurulu değilse ya da kanal
+  //  açılamazsa her şey eski yolla (tablo başına kanal) sürer.
+  // ===========================================================================
+  private static readonly CANLI = 'canli_sinyal';
+  /** Tetiği olan tablolar (bunlar tek kanaldan gelir) */
+  private static readonly CANLI_TABLOLARI = new Set<string>([
+    'students', 'classes', 'teachers', 'grades', 'question_logs', 'attendance', 'question_targets', 'messages',
+    'homework_submissions', 'etut_yoklama', 'homeworks', 'etuts', 'teacher_documents',
+    'teacher_roles', 'teacher_section_access', 'teacher_class_access', 'teacher_student_access',
+  ]);
+  /** İşleyicisi satırın kendisini kullanan tablolar: değişen satırlar kimlikle okunup işleyiciye verilir */
+  private static readonly CANLI_SATIR = new Set<string>(['messages', 'grades', 'attendance', 'etuts', 'question_logs', 'etut_yoklama']);
+  /** null: henüz sorulmadı; []: eski yol (SQL yok / kanal açılamadı) */
+  private canliKanallar: string[] | null = null;
+  private canliBekleyen = new Map<string, Set<string>>();
+  private canliZaman = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Kişinin canlı kanalları (veritabanındaki kuralla aynı işlev). Ağ hatasında null: kanal kurulumu sonra denenir. */
+  private async canliKanallariOku(): Promise<string[] | null> {
+    if (this.canliKanallar) return this.canliKanallar;
+    try {
+      const { data, error } = await supabase.rpc('canli_kanallarim');
+      if (error) {
+        if (agHatasiMi(error)) return null;
+        this.canliKanallar = []; // işlev yok (SQL kurulmadı) ya da izin yok: eski yol
+        return [];
+      }
+      const list = Array.isArray(data) ? data.filter((x: unknown): x is string => typeof x === 'string' && /^[kop]:.+/.test(x)) : [];
+      this.canliKanallar = list;
+      return list;
+    } catch (e) {
+      if (agHatasiMi(e)) return null;
+      this.canliKanallar = [];
+      return [];
+    }
+  }
+
+  /** Açılacak kanallar: tek kanal kuruluysa tetikli tablolar onun içinden gelir, kalanlar (isteğe bağlı sinyaller) ayrı */
+  private aktifKanallar(): Array<RealtimeTableCfg> {
+    const tum = this.realtimeTableConfig();
+    const kanallar = this.canliKanallar;
+    if (!kanallar || !kanallar.length) return tum;
+    const kapsanan = tum.filter((c) => DataService.CANLI_TABLOLARI.has(c.table));
+    const kalan = tum.filter((c) => !DataService.CANLI_TABLOLARI.has(c.table));
+    return [
+      {
+        table: DataService.CANLI,
+        filter: `kanal=in.(${kanallar.join(',')})`,
+        onEvent: (p) => this.canliSinyalGeldi(p),
+        // kopup geri gelince arada kaçan değişiklikler için bu kanalın kapsadığı tablolar (artımlı) yeniden okunur
+        resync: () => Promise.allSettled(kapsanan.filter((c) => !DataService.ACCESS_TABLES.includes(c.table)).map((c) => c.resync())),
+      },
+      ...kalan,
+    ];
+  }
+
+  private canliSinyalGeldi(payload: any): void {
+    const row = payload?.new;
+    const tablo = typeof row?.tablo === 'string' ? row.tablo : '';
+    if (!tablo) return;
+    const cfg = this.realtimeTableConfig().find((c) => c.table === tablo);
+    if (!cfg) return; // bu rolün dinlemediği tablo
+    if (DataService.ACCESS_TABLES.includes(tablo)) return cfg.onEvent({});
+    const ids: string[] = Array.isArray(row.ids) ? row.ids.filter((x: unknown) => typeof x === 'string' && x) : [];
+    const silme = row.islem === 'DELETE';
+    // 200'den çok kayıt (toplu iş) ya da kimlik yok: tablo bir kez (artımlı) yeniden okunur
+    if (!ids.length) return this.canliTabloYenile(tablo, cfg);
+    if (silme) {
+      // silinen kayıt artık okunamaz: işleyiciye eskisi gibi "silindi" verilir (yalnız kimlik)
+      for (const id of ids) {
+        const old: Record<string, string> = { id };
+        if (tablo === 'etut_yoklama') {
+          const i = id.indexOf('|');
+          if (i > 0) Object.assign(old, { etut_id: id.slice(0, i), student_id: id.slice(i + 1) });
+        }
+        try {
+          cfg.onEvent({ eventType: 'DELETE', old, new: {}, table: tablo });
+        } catch (e) {
+          console.warn(`[Canlı] ${tablo} silme işlenemedi:`, e);
+        }
+      }
+      return;
+    }
+    if (tablo === 'homeworks') {
+      // ödev işleyicisi listeyi zaten artımlı yeniler; yalnız sistem satırları (silinen kayıt listesi) içeriğiyle okunur
+      const sistem = ids.filter((id) => id.startsWith('__'));
+      if (sistem.length) this.canliSatirBiriktir(tablo, sistem);
+      if (sistem.length < ids.length) cfg.onEvent({ eventType: 'UPDATE', new: {}, table: tablo });
+      return;
+    }
+    if (DataService.CANLI_SATIR.has(tablo)) return this.canliSatirBiriktir(tablo, ids);
+    // öğrenci / sınıf / öğretmen satırının bazı sütunları korumalı: liste kendi yoluyla (artımlı) okunur
+    if (tablo === 'students' || tablo === 'classes' || tablo === 'teachers') return this.canliTabloYenile(tablo, cfg);
+    cfg.onEvent({ eventType: 'UPDATE', new: {}, table: tablo }); // ödev teslimi, soru hedefi, belge: işleyici tabloyu yeniler
+  }
+
+  private canliTabloYenile(tablo: string, cfg: RealtimeTableCfg): void {
+    const k = 't:' + tablo;
+    const eski = this.canliZaman.get(k);
+    if (eski) clearTimeout(eski);
+    this.canliZaman.set(
+      k,
+      setTimeout(() => {
+        this.canliZaman.delete(k);
+        try {
+          void cfg.resync();
+        } catch {
+          /* bir sonraki eşitlemede */
+        }
+      }, DataService.SIGNAL_DEBOUNCE_MS)
+    );
+  }
+
+  /** Kısa sürede gelen kimlikler biriktirilir, tek istekte okunur */
+  private canliSatirBiriktir(tablo: string, ids: string[]): void {
+    let set = this.canliBekleyen.get(tablo);
+    if (!set) this.canliBekleyen.set(tablo, (set = new Set()));
+    for (const id of ids) set.add(id);
+    const k = 's:' + tablo;
+    if (this.canliZaman.has(k)) return;
+    this.canliZaman.set(
+      k,
+      setTimeout(() => {
+        this.canliZaman.delete(k);
+        void this.canliSatirOku(tablo);
+      }, 250)
+    );
+  }
+
+  private async canliSatirOku(tablo: string): Promise<void> {
+    const set = this.canliBekleyen.get(tablo);
+    this.canliBekleyen.delete(tablo);
+    const cfg = this.realtimeTableConfig().find((c) => c.table === tablo);
+    if (!set || !set.size || !cfg) return;
+    const ids = Array.from(set);
+    for (let i = 0; i < ids.length; i += 150) {
+      const parca = ids.slice(i, i + 150);
+      let data: any[] | null = null;
+      try {
+        const res = await supabase.from(tablo).select('*').in('id', parca);
+        if (!res.error && Array.isArray(res.data)) data = res.data;
+      } catch {
+        data = null;
+      }
+      if (!data) return this.canliTabloYenile(tablo, cfg); // okunamadı: tablo bir kez yeniden okunur
+      // Görünmeyen (yetkisi olmayan) kayıt gelmez; eski kanalda da olay gelmiyordu
+      for (const r of data) {
+        try {
+          cfg.onEvent({ eventType: 'UPDATE', new: r, old: { id: r?.id }, table: tablo });
+        } catch (e) {
+          console.warn(`[Canlı] ${tablo} kaydı işlenemedi:`, e);
+        }
+      }
+    }
+  }
+
+  // ===========================================================================
   // Aşama 114: ANLIK YETKİ VE ÖĞRENCİ SİNYALİ
   //  - Bu kanallar "isteğe bağlı"dır: veritabanı betiği kurulmadıysa ya da kanal kurulamazsa genel eşitleme
   //    durumu bozulmaz, dakikalık küçük yoklama (Aşama 113) aynen devam eder.
@@ -722,8 +883,12 @@ class DataService {
 
   // İsteğe bağlı kanalların hepsi çalışıyorsa dakikalık yoklamaya gerek kalmaz
   private optionalChannelsLive(): boolean {
-    const opt = this.realtimeTableConfig().filter((c) => c.optional);
-    return opt.length > 0 && opt.every((c) => this.realtimeChannels[c.table]?.healthy);
+    // Aşama 349a: tek kanal açıkken rol/yetki ve öğrenci sinyalleri de ondan gelir
+    const canli = !!this.canliKanallar?.length;
+    if (canli && !this.realtimeChannels[DataService.CANLI]?.healthy) return false;
+    const opt = this.aktifKanallar().filter((c) => c.optional);
+    if (!opt.length) return canli;
+    return opt.every((c) => this.realtimeChannels[c.table]?.healthy);
   }
 
   // Eksik ya da kopmuş kanalları kurar; çalışan kanallara dokunmaz (tekrar tekrar çağrılması güvenlidir)
@@ -734,7 +899,17 @@ class DataService {
     try {
       if (!(await hasCloudSession())) return; // giriş yapılmadan kanal açılmaz (RLS zaten boş döndürür)
       this.realtimeClosing = false;
-      for (const cfg of this.realtimeTableConfig()) {
+      // Aşama 349a: tek kanal mı eski yol mu (ağ yoksa kurulum sonraki denemeye kalır)
+      if ((await this.canliKanallariOku()) === null) return;
+      const cfgs = this.aktifKanallar();
+      const istenen = new Set(cfgs.map((c) => c.table));
+      for (const [t, e] of Object.entries(this.realtimeChannels)) {
+        if (istenen.has(t)) continue;
+        if (e.checkTimer) clearTimeout(e.checkTimer);
+        try { if (e.channel) supabase.removeChannel(e.channel); } catch {}
+        delete this.realtimeChannels[t];
+      }
+      for (const cfg of cfgs) {
         const entry = this.realtimeChannels[cfg.table];
         const state = entry?.channel?.state;
         if (entry && (state === 'joined' || state === 'joining')) continue;
@@ -780,6 +955,14 @@ class DataService {
       }
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       entry.healthy = false;
+      // Aşama 349a: tek kanal hiç açılamadıysa (yayına eklenmemiş vb.) bu oturumda eski yola dönülür
+      if (table === DataService.CANLI && !entry.everSubscribed && status === 'CHANNEL_ERROR' && !this.realtimeClosing) {
+        console.warn('[Canlı] tek kanal açılamadı; tablo başına kanallara dönülüyor');
+        this.canliKanallar = [];
+        setTimeout(() => void this.ensureRealtime(), 0);
+        this.updateRealtimeHealth();
+        return;
+      }
       // Aşama 114: isteğe bağlı kanal hiç kurulamadıysa (betik kurulu değil) tekrar denenmez; dakikalık yoklama devrede
       if (optional && !entry.everSubscribed) {
         this.updateRealtimeHealth();
@@ -827,6 +1010,11 @@ class DataService {
       try { if (entry.channel) supabase.removeChannel(entry.channel); } catch {}
     });
     this.realtimeChannels = {};
+    // Aşama 349a: kanal listesi kişiye bağlı; yeni oturumda yeniden sorulur
+    this.canliKanallar = null;
+    this.canliBekleyen.clear();
+    for (const t of this.canliZaman.values()) clearTimeout(t);
+    this.canliZaman.clear();
     this.updateRealtimeHealth();
   }
 
