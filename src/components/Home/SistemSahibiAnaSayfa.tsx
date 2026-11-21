@@ -8,6 +8,7 @@ import type { KurumInfo, Teacher, TeacherTabType } from '../../types';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 import { AnaSayfaKabuk, AkSheet, akBasHarf, akSelam, akTarih } from './AnaSayfaKabuk';
 import { GozuyleBakSheet } from './GozuyleBakSheet';
+import { yedekParolaHatasi, YEDEK_PAROLA_EN_AZ } from '../../lib/yedekSifre'; // Aşama 345
 
 // ============================================================================
 // Aşama 244: SİSTEM SAHİBİ ANA SAYFASI (yalnız genel yönetici, kendi panelinde; kuruma geçince kurumun sayfası açılır)
@@ -510,23 +511,36 @@ const YedekSheet: React.FC<{ open: boolean; onClose: () => void; sonYedek: Date 
   const [busy, setBusy] = useState(false);
   const [ilerleme, setIlerleme] = useState<{ done: number; total: number; label: string } | null>(null);
   const [sonuc, setSonuc] = useState<{ ton: 'ok' | 'bad'; text: string } | null>(null);
+  // Aşama 345: yedek parolayla şifreli iner; parola saklanmaz
+  const [parola, setParola] = useState('');
+  const [parola2, setParola2] = useState('');
   useEffect(() => {
     if (open) {
       setSonuc(null);
       setIlerleme(null);
+    } else {
+      setParola('');
+      setParola2('');
     }
   }, [open]);
   const al = async () => {
     if (busy) return;
+    const ph = yedekParolaHatasi(parola, parola2);
+    if (ph) {
+      setSonuc({ ton: 'bad', text: ph });
+      return;
+    }
     setBusy(true);
     setSonuc(null);
     try {
-      const res = await createFullBackup(adminName, (done, total, label) => setIlerleme({ done, total, label }));
+      const res = await createFullBackup(adminName, (done, total, label) => setIlerleme({ done, total, label }), parola);
       const toplam = Object.values(res.counts).reduce((a, b) => a + b, 0);
+      setParola('');
+      setParola2('');
       setSonuc({
         ton: res.failedTables.length ? 'bad' : 'ok',
         text:
-          `Yedek indirildi: ${res.fileBaseName}.xlsx ve .json (${toplam} kayıt).` +
+          `Şifreli yedek indirildi: ${res.fileName} (${toplam} kayıt).` +
           (res.failedTables.length ? ` Okunamayan tablolar: ${res.failedTables.map((f) => f.table).join(', ')}.` : ''),
       });
       window.dispatchEvent(new Event('app-backup-done'));
@@ -550,7 +564,7 @@ const YedekSheet: React.FC<{ open: boolean; onClose: () => void; sonYedek: Date 
       locked={busy}
       kicker="Yedek ve bakım"
       title="Tüm verileri yedekle"
-      desc="Öğrenciler, notlar, yoklama, ödevler, denemeler, haftalık planlar, ders programı, yetkiler ve kurum ayarları. Şifreler girmez."
+      desc="Öğrenciler, notlar, yoklama, ödevler, denemeler, haftalık planlar, ders programı, yetkiler ve kurum ayarları. Giriş şifreleri girmez. Dosya verdiğiniz parolayla şifrelenir."
       footer={
         <>
           <span className="cnt">{busy ? 'Yedek alınırken pencereyi kapatmayın.' : ''}</span>
@@ -563,6 +577,36 @@ const YedekSheet: React.FC<{ open: boolean; onClose: () => void; sonYedek: Date 
         </>
       }
     >
+      <div className="ak-fgrid">
+        <label className="ak-fld">
+          Yedek parolası
+          <input
+            className="ak-inp"
+            type="password"
+            id="ak-yedek-parola"
+            autoComplete="new-password"
+            value={parola}
+            onChange={(e) => setParola(e.target.value)}
+            placeholder={`En az ${YEDEK_PAROLA_EN_AZ} karakter`}
+            disabled={busy}
+          />
+        </label>
+        <label className="ak-fld">
+          Parola tekrar
+          <input
+            className="ak-inp"
+            type="password"
+            id="ak-yedek-parola-2"
+            autoComplete="new-password"
+            value={parola2}
+            onChange={(e) => setParola2(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void al();
+            }}
+            disabled={busy}
+          />
+        </label>
+      </div>
       <div className="ak-bk">
         <span className="big tnum">%{yuzde}</span>
         <div className="bar" aria-hidden="true">
@@ -578,7 +622,10 @@ const YedekSheet: React.FC<{ open: boolean; onClose: () => void; sonYedek: Date 
               : 'Hazır. Yedek dosyası bilgisayarınıza iner.'}
         </span>
       </div>
-      <p className="ak-hint">{sonYazi} Yedek yalnız sizin bilgisayarınıza kaydedilir.</p>
+      <p className="ak-hint">
+        {sonYazi} Yedek yalnız sizin bilgisayarınıza, şifreli (.biliryedek) kaydedilir. Parola hiçbir yerde saklanmaz; unutulursa yedek
+        açılamaz. Açmak için: Yönetim › Yedek ve bakım › Şifreli yedeği aç.
+      </p>
     </AkSheet>
   );
 };

@@ -8,9 +8,11 @@ import { dataService } from '../../services/dataService';
 // Yöneticinin verdiği son şifre (initial_credentials) noktalı görünür; göz ile açılır, kopyalanır.
 // Yalnız yöneticiler görür (veritabanı kuralıyla aynı). Kişi şifresini kendisi değiştirdiyse gerçek şifre
 // Supabase'de yalnız özet (hash) olarak durur: kimse göremez; o zaman "Yeni şifre" verilir.
+// Aşama 345: şifre veritabanında şifreli durur. Açılışta yalnız "şifre var mı" sorulur; şifre ancak göz ya da
+// kopyala düğmesine basınca açılır ve İşlem geçmişine "kim, kimin şifresini gördü" yazılır.
 // ============================================================================
 
-type Durum = { durum: 'yukleniyor' } | { durum: 'var'; sifre: string } | { durum: 'degisti' } | { durum: 'yok' } | null;
+type Durum = { durum: 'yukleniyor' } | { durum: 'var'; sifre: string | null } | { durum: 'degisti' } | { durum: 'yok' } | null;
 
 export function kayitliSifreGorebilir(): boolean {
   return dataService.isHeadAdmin() || dataService.isKurumAdmin();
@@ -21,11 +23,14 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
   const [d, setD] = useState<Durum>(gorebilir ? { durum: 'yukleniyor' } : null);
   const [acik, setAcik] = useState(false);
   const [kopyalandi, setKopyalandi] = useState(false);
+  const [aciliyor, setAciliyor] = useState(false);
+  const [hata, setHata] = useState(false);
   const istek = useRef(0);
 
   useEffect(() => {
     setAcik(false);
     setKopyalandi(false);
+    setHata(false);
     if (!gorebilir || !kayitId) {
       setD(null);
       return;
@@ -35,7 +40,11 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
     dataService
       .getInitialCredential(tur, kayitId)
       .then((c) => {
-        if (n === istek.current) setD(!c ? { durum: 'yok' } : c.password ? { durum: 'var', sifre: c.password } : { durum: 'degisti' });
+        if (n !== istek.current) return;
+        if (!c) setD({ durum: 'yok' });
+        else if (c.password) setD({ durum: 'var', sifre: c.password });
+        else if (c.sifreVar) setD({ durum: 'var', sifre: null });
+        else setD(c.changedAt ? { durum: 'degisti' } : { durum: 'yok' });
       })
       .catch(() => {
         if (n === istek.current) setD(null);
@@ -54,8 +63,37 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
       </p>
     );
   }
-  const kopyala = () => {
-    void navigator.clipboard?.writeText(d.sifre).then(
+  // Aşama 345: şifre yalnız istenince açılır (bir kez; sonra bellekte kalır, sayfa değişince silinir)
+  const sifreAl = async (): Promise<string | null> => {
+    if (d.sifre) return d.sifre;
+    if (aciliyor) return null;
+    const n = istek.current;
+    setAciliyor(true);
+    setHata(false);
+    try {
+      const c = await dataService.getInitialCredential(tur, kayitId, true);
+      if (n !== istek.current) return null;
+      if (c?.password) {
+        setD({ durum: 'var', sifre: c.password });
+        return c.password;
+      }
+      setD(c?.changedAt ? { durum: 'degisti' } : { durum: 'yok' });
+      return null;
+    } catch {
+      if (n === istek.current) setHata(true);
+      return null;
+    } finally {
+      if (n === istek.current) setAciliyor(false);
+    }
+  };
+  const goster = async () => {
+    if (acik) return setAcik(false);
+    if (await sifreAl()) setAcik(true);
+  };
+  const kopyala = async () => {
+    const sifre = await sifreAl();
+    if (!sifre) return;
+    void navigator.clipboard?.writeText(sifre).then(
       () => {
         setKopyalandi(true);
         window.setTimeout(() => setKopyalandi(false), 1600);
@@ -71,12 +109,14 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
           acik ? 'tracking-wider' : 'tracking-[0.2em]'
         )}
         aria-label={acik ? 'Giriş şifresi' : 'Giriş şifresi gizli'}
+        aria-busy={aciliyor}
       >
-        {acik ? d.sifre : '•'.repeat(Math.max(6, Math.min(d.sifre.length, 12)))}
+        {hata ? <span className="font-sans text-[12px] font-semibold text-danger-fg tracking-normal">Açılamadı, tekrar deneyin</span> : acik && d.sifre ? d.sifre : '•'.repeat(d.sifre ? Math.max(6, Math.min(d.sifre.length, 12)) : 8)}
       </span>
       <button
         type="button"
-        onClick={() => setAcik((v) => !v)}
+        onClick={() => void goster()}
+        disabled={aciliyor}
         className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
         title={acik ? 'Gizle' : 'Göster'}
         aria-label={acik ? 'Şifreyi gizle' : 'Şifreyi göster'}
@@ -85,7 +125,8 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
       </button>
       <button
         type="button"
-        onClick={kopyala}
+        onClick={() => void kopyala()}
+        disabled={aciliyor}
         className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
         title={kopyalandi ? 'Kopyalandı' : 'Kopyala'}
         aria-label="Şifreyi kopyala"

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, ClipboardCheck, History, PenLine, RefreshCw, UserRound } from 'lucide-react';
+import { CalendarCheck, ClipboardCheck, History, KeyRound, PenLine, RefreshCw, UserRound } from 'lucide-react';
 import type { Student } from '../../types';
 import { EmptyState, IconBox, Segmented, cx, type Tone } from '../ui/kit';
 import { Yukleniyor, YuklemeHatasi } from '../ui/Durum';
@@ -20,6 +20,7 @@ const TURLER: Array<{ value: TurSecim; label: string; id: string }> = [
   { value: 'yoklama', label: 'Yoklama', id: 'gecmis-tur-yoklama' },
   { value: 'ders_yoklama', label: 'Ders yoklaması', id: 'gecmis-tur-ders' },
   { value: 'ogrenci', label: 'Öğrenci bilgisi', id: 'gecmis-tur-ogrenci' },
+  { value: 'sifre', label: 'Şifre', id: 'gecmis-tur-sifre' }, // Aşama 345
 ];
 const SURELER = [
   { value: '7', label: '7 gün', id: 'gecmis-sure-7' },
@@ -33,6 +34,7 @@ const IKON: Record<GecmisTur, { icon: React.ComponentType<{ className?: string }
   yoklama: { icon: ClipboardCheck, tone: 'info', ad: 'Yoklama' },
   ders_yoklama: { icon: CalendarCheck, tone: 'warning', ad: 'Ders yoklaması' },
   ogrenci: { icon: UserRound, tone: 'success', ad: 'Öğrenci bilgisi' },
+  sifre: { icon: KeyRound, tone: 'danger', ad: 'Şifre görme' }, // Aşama 345
 };
 
 const gunAnahtari = (iso: string) => {
@@ -125,7 +127,7 @@ export const IslemGecmisiPanel: React.FC<{ students: Student[] }> = ({ students 
             İşlem Geçmişi
           </h2>
           <p className="text-xs text-muted">
-            Not, yoklama ve öğrenci bilgisinde kim neyi ne zaman değiştirdi. Telefon, e-posta, veli ve TC'nin kendisi yazılmaz; kayıtlar 2 yıl saklanır.
+            Not, yoklama ve öğrenci bilgisinde kim neyi ne zaman değiştirdi; ilk giriş şifresini kim gördü. Telefon, e-posta, veli, TC ve şifrenin kendisi yazılmaz; kayıtlar 2 yıl saklanır.
           </p>
         </div>
       </div>

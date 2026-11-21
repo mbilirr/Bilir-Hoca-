@@ -265,7 +265,9 @@ export interface InitialCredentialInfo {
   type: 'student' | 'teacher';
   recordId: string;
   loginId: string;
-  password: string; // kullanıcı şifresini değiştirdiyse boş
+  password: string; // kullanıcı şifresini değiştirdiyse boş; Aşama 345: tek kişide yalnız "göz"e basınca dolar
+  /** Aşama 345: saklı (şifreli) ilk şifre var ve kişi henüz değiştirmedi */
+  sifreVar?: boolean;
   mustChange: boolean;
   setAt: string;
   changedAt: string | null;
@@ -5706,6 +5708,33 @@ class DataService {
     }
     const map = new Map<string, InitialCredentialInfo>();
     const PAGE = 1000;
+    // Aşama 345: şifreler veritabanında şifreli; liste sunucu işleviyle açılır (kim indirdi: İşlem geçmişi).
+    // İşlev kurulu değilse (345 SQL'i henüz çalıştırılmadı) eski yol.
+    let eskiYol = false;
+    for (let from = 0; from < 100000; from += PAGE) {
+      const { data, error } = await supabase.rpc('ilk_sifre_listesi', { p_from: from, p_limit: PAGE });
+      if (error) {
+        if (from === 0 && (error.code === 'PGRST202' || error.code === '42883')) {
+          eskiYol = true;
+          break;
+        }
+        throw new Error(error.message);
+      }
+      ((data as any[]) || []).forEach((r: any) => {
+        map.set(`${r.account_type}:${r.record_id}`, {
+          type: r.account_type,
+          recordId: String(r.record_id),
+          loginId: r.login_id || '',
+          password: r.password || '',
+          sifreVar: !!r.password,
+          mustChange: r.must_change !== false,
+          setAt: r.set_at || '',
+          changedAt: r.changed_at || null,
+        });
+      });
+      if (!data || (data as any[]).length < PAGE) break;
+    }
+    if (!eskiYol) return map;
     for (let from = 0; from < 100000; from += PAGE) {
       const { data, error } = await supabase
         .from('initial_credentials')
@@ -5736,8 +5765,26 @@ class DataService {
   // Aşama 254: tek kişinin yöneticinin verdiği ilk şifresi (öğrenci bilgi ekranında noktalı gösterilir).
   // Yalnız yöneticiler (RLS ile aynı); kişi şifresini değiştirdiyse password boş, changedAt dolu gelir.
   // Kayıt yoksa null. Gerçek (değiştirilmiş) şifre Supabase Auth'ta yalnız özet olarak durur, gösterilemez.
-  public async getInitialCredential(type: 'student' | 'teacher', recordId: string): Promise<InitialCredentialInfo | null> {
+  // Aşama 345: coz = false yalnız durumu getirir (şifre var mı); true şifreyi açar ve İşlem geçmişine "gördü" yazılır.
+  public async getInitialCredential(type: 'student' | 'teacher', recordId: string, coz = false): Promise<InitialCredentialInfo | null> {
     if (!this.isHeadAdmin() && !this.isKurumAdmin()) return null;
+    const yeni = await supabase.rpc('ilk_sifre_getir', { p_tur: type, p_kayit: recordId, p_coz: coz });
+    if (!yeni.error) {
+      const r: any = Array.isArray(yeni.data) ? yeni.data[0] : yeni.data;
+      if (!r) return null;
+      return {
+        type: r.account_type,
+        recordId: String(r.record_id),
+        loginId: r.login_id || '',
+        password: r.password || '',
+        sifreVar: !!r.sifre_var,
+        mustChange: r.must_change !== false,
+        setAt: r.set_at || '',
+        changedAt: r.changed_at || null,
+      };
+    }
+    if (yeni.error.code !== 'PGRST202' && yeni.error.code !== '42883') throw new Error(yeni.error.message);
+    // 345 SQL'i kurulmadıysa eski yol (şifre tabloda düz yazı)
     const { data, error } = await supabase
       .from('initial_credentials')
       .select('account_type,record_id,login_id,password,must_change,set_at,changed_at')
@@ -5752,6 +5799,7 @@ class DataService {
       recordId: String(r.record_id),
       loginId: r.login_id || '',
       password: r.password || '',
+      sifreVar: !!r.password,
       mustChange: r.must_change !== false,
       setAt: r.set_at || '',
       changedAt: r.changed_at || null,

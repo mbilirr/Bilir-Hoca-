@@ -5,6 +5,7 @@
 import { supabase } from '../lib/supabase';
 import { uploadFile, removeStoredFiles, dataUrlToFile } from '../lib/fileStorage';
 import { newId } from '../lib/ids';
+import { sifreliAc, sifreliPaketle } from '../lib/yedekSifre'; // Aşama 345
 
 // ---------------------------------------------------------------------------
 // ORTAK: tablodan tüm satırları sayfa sayfa okur (sunucu tek seferde en fazla 1000 satır verir)
@@ -142,6 +143,8 @@ function toCell(value: any): string | number | boolean | null {
 
 export interface BackupResult {
   fileBaseName: string;
+  /** Aşama 345: inen tek dosya (şifreli) */
+  fileName: string;
   counts: Record<string, number>;
   failedTables: Array<{ table: string; error: string }>;
   missingTables: string[]; // Aşama 312: bu kurulumda olmayan tablolar (atlandı, hata değil)
@@ -164,10 +167,14 @@ function downloadBlob(blob: Blob, fileName: string) {
 // Yedek hatırlatması kaç günde bir gösterilir
 export const BACKUP_REMINDER_DAYS = 7;
 
+// Aşama 345: yedek yalnız ŞİFRELİ iner (Excel + JSON tek .biliryedek dosyasında, verilen parolayla).
+// Açmak için: Yönetim › Yedek ve bakım › Şifreli yedeği aç (openEncryptedBackup).
 export async function createFullBackup(
   adminName: string,
-  onProgress?: (done: number, total: number, label: string) => void
+  onProgress: ((done: number, total: number, label: string) => void) | undefined,
+  parola: string
 ): Promise<BackupResult> {
+  if (!parola || parola.length < 10) throw new Error('Yedek parolası en az 10 karakter olmalı.');
   const XLSX = await import('xlsx');
   const now = new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
@@ -236,19 +243,31 @@ export async function createFullBackup(
   });
 
   const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  downloadBlob(new Blob([xlsxData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${fileBaseName}.xlsx`);
-  const jsonBlob = new Blob(
-    [JSON.stringify({ format: 'okul-yedek', version: 2, createdAt: now.toISOString(), createdBy: adminName, counts, tables: json }, null, 1)],
-    { type: 'application/json' }
+  const jsonText = JSON.stringify({ format: 'okul-yedek', version: 2, createdAt: now.toISOString(), createdBy: adminName, counts, tables: json }, null, 1);
+  onProgress?.(BACKUP_TABLES.length, BACKUP_TABLES.length, 'Şifreleniyor');
+  const paket = await sifreliPaketle(
+    [
+      { ad: `${fileBaseName}.xlsx`, tur: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', veri: new Uint8Array(xlsxData as ArrayBuffer) },
+      { ad: `${fileBaseName}.json`, tur: 'application/json', veri: new TextEncoder().encode(jsonText) },
+    ],
+    parola
   );
-  downloadBlob(jsonBlob, `${fileBaseName}.json`);
+  const fileName = `${fileBaseName}.biliryedek`;
+  downloadBlob(paket, fileName);
 
   // Yedek kaydı (hatırlatma için). Tablo henüz kurulmadıysa sessizce geçilir.
   try {
     await supabase.from('backup_log').insert({ created_by_name: adminName, table_counts: counts });
   } catch {}
 
-  return { fileBaseName, counts, failedTables, missingTables };
+  return { fileBaseName, fileName, counts, failedTables, missingTables };
+}
+
+// Aşama 345: şifreli yedeği açar ve içindeki Excel ve JSON dosyalarını indirir (yalnız bu bilgisayara).
+export async function openEncryptedBackup(file: Blob, parola: string): Promise<{ tarih: string; dosyalar: string[] }> {
+  const { tarih, dosyalar } = await sifreliAc(file, parola);
+  dosyalar.forEach((d) => downloadBlob(new Blob([d.veri as BlobPart], { type: d.tur }), d.ad));
+  return { tarih, dosyalar: dosyalar.map((d) => d.ad) };
 }
 
 // Son yedeğin tarihi (yoksa null). Tablo yoksa 'unavailable'.

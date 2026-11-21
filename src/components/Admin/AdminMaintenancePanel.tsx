@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { DatabaseBackup, Download, FolderSync, Loader2, CheckCircle2, AlertTriangle, Search, Info } from 'lucide-react';
+import { DatabaseBackup, Download, FolderSync, Loader2, CheckCircle2, AlertTriangle, Search, Info, LockKeyhole, FileLock2 } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { supabase } from '../../lib/supabase';
 import {
   createFullBackup,
+  openEncryptedBackup,
   getLastBackupDate,
   scanLegacyInlineFiles,
   migrateLegacyInlineFiles,
@@ -14,6 +15,7 @@ import {
 
 import { BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { yedekParolaHatasi, YEDEK_PAROLA_EN_AZ } from '../../lib/yedekSifre'; // Aşama 345
 import { HataKayitlariPanel } from './HataKayitlariPanel'; // Aşama 293
 import { IkiAdimPanel } from './IkiAdimPanel'; // Aşama 294
 export { BACKUP_REMINDER_DAYS };
@@ -38,19 +40,31 @@ export const AdminMaintenancePanel: React.FC = () => {
     getLastBackupDate().then(setLastBackup).catch(() => setLastBackup('unavailable'));
   }, []);
 
+  // Aşama 345: yedek parolayla şifreli iner; parola saklanmaz
+  const [parola, setParola] = useState('');
+  const [parola2, setParola2] = useState('');
   const handleBackup = async () => {
     if (backupBusy) return;
+    const ph = yedekParolaHatasi(parola, parola2);
+    if (ph) {
+      setBackupMsg({ type: 'err', text: ph });
+      return;
+    }
     setBackupBusy(true);
     setBackupMsg(null);
     try {
-      const res = await createFullBackup(adminName, (done, total, label) =>
-        setBackupProgress(done < total ? `${label} okunuyor (${done + 1}/${total})` : label)
+      const res = await createFullBackup(
+        adminName,
+        (done, total, label) => setBackupProgress(done < total ? `${label} okunuyor (${done + 1}/${total})` : label),
+        parola
       );
       const total = Object.values(res.counts).reduce((a, b) => a + b, 0);
+      setParola('');
+      setParola2('');
       setBackupMsg({
         type: res.failedTables.length ? 'err' : 'ok',
         text:
-          `Yedek indirildi: ${res.fileBaseName}.xlsx ve .json (${total} kayıt).` +
+          `Şifreli yedek indirildi: ${res.fileName} (${total} kayıt). Parolayı unutmayın; parolasız açılamaz.` +
           (res.failedTables.length ? ` Okunamayan tablolar: ${res.failedTables.map((f) => f.table).join(', ')}.` : ''),
       });
       setLastBackup(new Date());
@@ -60,6 +74,27 @@ export const AdminMaintenancePanel: React.FC = () => {
     } finally {
       setBackupBusy(false);
       setBackupProgress('');
+    }
+  };
+
+  // Aşama 345: şifreli yedeği aç (içindeki Excel ve JSON bu bilgisayara iner)
+  const [acDosya, setAcDosya] = useState<File | null>(null);
+  const [acParola, setAcParola] = useState('');
+  const [acBusy, setAcBusy] = useState(false);
+  const [acMsg, setAcMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  useAutoDismiss(acMsg, () => setAcMsg(null));
+  const handleOpen = async () => {
+    if (acBusy || !acDosya || !acParola) return;
+    setAcBusy(true);
+    setAcMsg(null);
+    try {
+      const r = await openEncryptedBackup(acDosya, acParola);
+      setAcParola('');
+      setAcMsg({ type: 'ok', text: `Açıldı (${new Date(r.tarih).toLocaleString('tr-TR')} yedeği): ${r.dosyalar.join(', ')} indirildi.` });
+    } catch (e: any) {
+      setAcMsg({ type: 'err', text: e?.message || 'Yedek açılamadı.' });
+    } finally {
+      setAcBusy(false);
     }
   };
 
@@ -134,17 +169,44 @@ export const AdminMaintenancePanel: React.FC = () => {
         {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
         <p className="text-[11px] text-muted flex items-center gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0" />
-          <span>Excel ve JSON iner. Haftada bir yedek alın.</span>
-          <InfoTip text="Excel okumak içindir. JSON bütün tabloların tam kopyasıdır (şifreler girmez). Sistem bozulursa asıl geri dönüş Supabase'in kendi yedeğidir. Dosyaları bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
+          <span>Excel ve JSON tek şifreli dosyada iner. Haftada bir yedek alın.</span>
+          <InfoTip text="Dosyada bütün öğrenci bilgileri olduğu için yedek, verdiğiniz parolayla şifrelenir (.biliryedek). Parola hiçbir yerde saklanmaz; unutulursa yedek açılamaz. Açmak için aşağıdaki 'Şifreli yedeği aç'. Excel okumak içindir, JSON bütün tabloların tam kopyasıdır (giriş şifreleri girmez). Sistem bozulursa asıl geri dönüş Supabase'in kendi yedeğidir. Dosyayı bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
         </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input
+            type="password"
+            id="yedek-parola"
+            autoComplete="new-password"
+            value={parola}
+            onChange={(e) => setParola(e.target.value)}
+            placeholder={`Yedek parolası (en az ${YEDEK_PAROLA_EN_AZ})`}
+            aria-label="Yedek parolası"
+            className="ui-field w-full"
+            disabled={backupBusy}
+          />
+          <input
+            type="password"
+            id="yedek-parola-2"
+            autoComplete="new-password"
+            value={parola2}
+            onChange={(e) => setParola2(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleBackup();
+            }}
+            placeholder="Parolayı tekrar yazın"
+            aria-label="Yedek parolası tekrar"
+            className="ui-field w-full"
+            disabled={backupBusy}
+          />
+        </div>
         <button
           type="button"
           onClick={handleBackup}
           disabled={backupBusy}
           className="w-full sm:w-auto px-4 py-1.5 bg-success hover:bg-success disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center justify-center gap-2 cursor-pointer"
         >
-          {backupBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {backupBusy ? backupProgress || 'Hazırlanıyor…' : 'Yedeği İndir (Excel + JSON)'}
+          {backupBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LockKeyhole className="w-4 h-4" />}
+          {backupBusy ? backupProgress || 'Hazırlanıyor…' : 'Şifreli Yedeği İndir'}
         </button>
         {backupMsg && (
           <div
@@ -159,6 +221,63 @@ export const AdminMaintenancePanel: React.FC = () => {
             <span>{backupMsg.text}</span>
           </div>
         )}
+
+        {/* Aşama 345: şifreli yedeği aç */}
+        <div className="pt-3 mt-1 border-t border-line space-y-2" id="yedek-ac">
+          <p className="text-xs font-bold text-fg flex items-center gap-1.5">
+            <FileLock2 className="w-4 h-4 text-muted" />
+            Şifreli Yedeği Aç
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            <label className="ui-field w-full h-8 flex items-center cursor-pointer min-w-0" title={acDosya?.name || 'Yedek dosyası seçin'}>
+              <input
+                type="file"
+                accept=".biliryedek"
+                className="sr-only"
+                id="yedek-ac-dosya"
+                onChange={(e) => {
+                  setAcDosya(e.target.files?.[0] || null);
+                  setAcMsg(null);
+                }}
+              />
+              <span className={`truncate text-xs ${acDosya ? 'text-fg' : 'text-muted'}`}>{acDosya ? acDosya.name : '.biliryedek dosyası seçin'}</span>
+            </label>
+            <input
+              type="password"
+              id="yedek-ac-parola"
+              autoComplete="off"
+              value={acParola}
+              onChange={(e) => setAcParola(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleOpen();
+              }}
+              placeholder="Yedeğin parolası"
+              aria-label="Yedeğin parolası"
+              className="ui-field w-full"
+            />
+            <button
+              type="button"
+              id="yedek-ac-dugme"
+              onClick={() => void handleOpen()}
+              disabled={acBusy || !acDosya || !acParola}
+              className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+            >
+              {acBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Aç
+            </button>
+          </div>
+          {acMsg && (
+            <div
+              role={acMsg.type === 'err' ? 'alert' : 'status'}
+              className={`p-3 rounded-xl text-xs border flex gap-2 ${
+                acMsg.type === 'ok' ? 'bg-success-soft border-success/30 text-success-fg' : 'bg-danger-soft border-danger/30 text-danger-fg'
+              }`}
+            >
+              {acMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+              <span>{acMsg.text}</span>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ESKİ DOSYALAR */}

@@ -6,8 +6,9 @@
 import { supabase } from '../lib/supabase';
 import { agHatasiMi, baglantiNedeni } from '../lib/baglanti';
 
-export type GecmisTur = 'not' | 'yoklama' | 'ders_yoklama' | 'ogrenci';
-export type GecmisIslem = 'ekle' | 'degistir' | 'sil';
+// Aşama 345: 'sifre' = ilk giriş şifresi görüntülendi (islem 'gor'); kaydı sql/345 işlevleri yazar
+export type GecmisTur = 'not' | 'yoklama' | 'ders_yoklama' | 'ogrenci' | 'sifre';
+export type GecmisIslem = 'ekle' | 'degistir' | 'sil' | 'gor';
 
 export interface GecmisSatir {
   zaman: string;
@@ -107,6 +108,10 @@ export function gecmisMetni(s: GecmisSatir): string {
     if (!a.eski) return `Yoklamaya eklendi: ${durum(a.yeni)} (${ne})`;
     if (!a.yeni) return `Yoklamadan çıkarıldı: ${durum(a.eski)} idi (${ne})`;
     return `Yoklama değişti: ${ok(durum(a.eski), durum(a.yeni))} (${ne})`;
+  }
+  if (s.tur === 'sifre') {
+    if (a.ne === 'liste') return `Giriş bilgileri listesi açıldı (${sayi(a.sayi)} kişinin ilk şifresi)`;
+    return a.hesap === 'teacher' ? 'Öğretmenin ilk giriş şifresi görüntülendi' : 'İlk giriş şifresi görüntülendi';
   }
   if (s.tur === 'ders_yoklama') {
     const ne = [a.ders, a.sira ? `${a.sira}. ders` : '', kisaTarih(a.tarih)].filter(Boolean).join(' · ');

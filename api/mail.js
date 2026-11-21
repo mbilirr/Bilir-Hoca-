@@ -144,6 +144,27 @@ async function rest(path, { token, method = 'GET', body, prefer } = {}) {
   return data;
 }
 const inList = (ids) => `(${ids.map((x) => `"${encodeURIComponent(String(x).replace(/["\\]/g, ''))}"`).join(',')})`;
+
+// Aşama 345: kayıtlı (henüz değiştirilmemiş) ilk şifreler. Veritabanında şifreli durur; yalnız sunucu anahtarıyla
+// (service_role) ilk_sifreler_servis işlevi açar. 345 SQL'i kurulmadıysa eski yol (tablodaki düz şifre).
+async function kayitliIlkSifreler(tur, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  let rows = null;
+  try {
+    rows = await rest('rpc/ilk_sifreler_servis', { token: 'service', method: 'POST', body: { p_tur: tur, p_ids: ids } });
+  } catch (err) {
+    const yok = err && (err.code === 'PGRST202' || err.code === '42883' || err.status === 404);
+    if (!yok) throw err;
+    const ic = (await rest(`initial_credentials?select=record_id,password,changed_at&account_type=eq.${tur}&record_id=in.${inList(ids)}`, { token: 'service' })) || [];
+    rows = ic.filter((r) => !r.changed_at).map((r) => ({ record_id: r.record_id, password: r.password }));
+  }
+  for (const r of rows || []) {
+    const pw = String((r && r.password) || '').trim();
+    if (pw) out.set(String(r.record_id), pw);
+  }
+  return out;
+}
 const arr = (v) => {
   if (Array.isArray(v)) return v.filter((x) => typeof x === 'string' && x);
   if (typeof v === 'string' && v.startsWith('[')) {
@@ -1746,14 +1767,10 @@ async function actionCredentialsSend(caller, body, req, deadline) {
 
   // Kayıtlı ilk şifreler (yalnız istekte şifresi olmayanlar için; kullanıcı değiştirdiyse kullanılmaz)
   const need = targets.filter((t) => !t.password && byId.has(t.id)).map((t) => t.id);
-  const stored = new Map();
+  let stored = new Map();
   if (need.length) {
     try {
-      const ic = (await rest(`initial_credentials?select=record_id,password,changed_at&account_type=eq.student&record_id=in.${inList(need)}`, { token: 'service' })) || [];
-      for (const r of ic) {
-        const pw = String(r.password || '').trim();
-        if (!r.changed_at && pw) stored.set(String(r.record_id), pw);
-      }
+      stored = await kayitliIlkSifreler('student', need); // Aşama 345
     } catch (err) {
       console.error('[giris-bilgisi] ilk şifreler okunamadı', err && err.message);
     }
@@ -1930,14 +1947,10 @@ async function actionTeacherCredentialsSend(caller, body, raw, sendId, req, dead
   const notAllowed = ids.filter((id) => !byId.has(id)).length;
 
   const need = targets.filter((t) => !t.password && byId.has(t.id)).map((t) => t.id);
-  const stored = new Map();
+  let stored = new Map();
   if (need.length) {
     try {
-      const ic = (await rest(`initial_credentials?select=record_id,password,changed_at&account_type=eq.teacher&record_id=in.${inList(need)}`, { token: 'service' })) || [];
-      for (const r of ic) {
-        const pw = String(r.password || '').trim();
-        if (!r.changed_at && pw) stored.set(String(r.record_id), pw);
-      }
+      stored = await kayitliIlkSifreler('teacher', need); // Aşama 345
     } catch (err) {
       console.error('[giris-bilgisi] öğretmen ilk şifreleri okunamadı', err && err.message);
     }
