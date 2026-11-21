@@ -3,6 +3,7 @@ import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { createPortal } from 'react-dom';
 import { ArrowRight, Phone, Plus } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import type { ClassGroup, Etut, Student, TeacherTabType } from '../../types';
 import type { Teacher } from '../../types';
 import {
@@ -200,6 +201,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
   // ================================================================ DENEME (Deneme bölümü açıksa)
   const [denemeler, setDenemeler] = useState<DenemeOzet[]>([]);
   const [netler, setNetler] = useState<Map<string, Array<{ examId: string; tarih: string; net: number; dersler: Record<string, number> }>>>(new Map());
+  const denemeSurum = useDenemeSurumu(!!can.deneme); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     if (!can.deneme || !kurumId) {
       setDenemeler([]);
@@ -239,7 +241,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
       iptal = true;
       document.removeEventListener('visibilitychange', yenile);
     };
-  }, [can.deneme, kurumId]);
+  }, [can.deneme, kurumId, denemeSurum]);
   const dersAdi = useMemo(() => {
     const m = new Map<string, string>();
     for (const e of denemeler) for (const s of e.subjects || []) if (s?.key && !m.has(s.key)) m.set(s.key, s.name);

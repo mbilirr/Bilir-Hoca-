@@ -4,6 +4,7 @@ import type { Etut, Homework, HomeworkSubmission, Student, StudentMessage, Stude
 import type { StudentTabType } from './StudentHeroBanner';
 import type { OgrBolum } from '../../lib/ogrenciBolum';
 import { dataService } from '../../services/dataService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import { homeworkStateFor } from './StudentHomeUtils';
 import { bildirimAcik } from './StudentNotificationCenterModal';
 import { buildStudentQuestionSummary } from '../../utils/studentQuestionSummary';
@@ -465,6 +466,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
 
   // ================================================================ SON DENEME (Deneme bölümü açıksa)
   const [deneme, setDeneme] = useState<DenemeOzet | null | undefined>(undefined);
+  const denemeSurum = useDenemeSurumu(!!can.deneme); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     let alive = true;
     if (!can.deneme) {
@@ -507,7 +509,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     return () => {
       alive = false;
     };
-  }, [student.id, can.deneme]);
+  }, [student.id, can.deneme, denemeSurum]);
 
   // ================================================================ MENÜ (sol şerit)
   const menu: AkMenuOge[] = [

@@ -6,6 +6,7 @@
 // ============================================================================
 import { supabase } from '../lib/supabase';
 import { UZUN_AYRILIK_MS, donusteCalistir } from '../lib/donus';
+import { dataService } from './dataService'; // Aşama 349c: ortak canlı kanal
 export { trBugun, trSaat } from '../lib/trSaat'; // Aşama 234: Türkiye günü / saati (sunucuya göre)
 
 export const DERS_MAX = 10;
@@ -467,44 +468,19 @@ export function dersCanliDinle(kurumId: string | null | undefined, tablolar: Der
       onChange();
     }, 300);
   };
+  // Aşama 349c: kanal artık ortak. Tek kanal kuruluysa (sql/349a + 349c) sinyal kişinin kanalından gelir; kurulmadıysa
+  // tablo başına tek ortak kanal açılır (eskiden her bileşen kendi kanalını açıyordu). Kanal kopup geri gelince arada
+  // kaçan için dinleyiciler bir kez çağrılır (dataService). Kendi kurumunu dinler.
+  const birak = dataService.tabloDinle(tablolar, tetik);
   // Aşama 303: kanal açıkken kısa ayrılıklarda değişiklik zaten kanaldan gelir; sekmeye dönüşte yalnız kanal kapalıysa
-  // ya da uzun ayrılıktan (kanal kopmuş olabilir) sonra okunur. Kanal kopup yeniden bağlanınca arada kaçan için bir kez okunur.
-  let canli = false;
-  let koptu = false;
-  const durum = (s: string) => {
-    if (s === 'SUBSCRIBED') {
-      if (koptu) tetik();
-      canli = true;
-      koptu = false;
-    } else if (canli) {
-      canli = false;
-      koptu = true;
-    }
-  };
-  let kanal: ReturnType<typeof supabase.channel> | null = null;
-  try {
-    const ch = supabase.channel(`ders-${tablolar.join('-')}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
-    for (const t of tablolar) {
-      ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `kurum_id=eq.${kurumId}` }, () => tetik());
-    }
-    ch.subscribe(durum);
-    kanal = ch;
-  } catch {
-    kanal = null;
-  }
+  // ya da uzun ayrılıktan (kanal kopmuş olabilir) sonra okunur.
   const donusBirak = donusteCalistir((uzakta) => {
-    if (!canli || uzakta >= UZUN_AYRILIK_MS) tetik();
+    if (!dataService.tablolarCanli(tablolar) || uzakta >= UZUN_AYRILIK_MS) tetik();
   });
   return () => {
     donusBirak();
+    birak();
     if (zaman) clearTimeout(zaman);
-    if (kanal) {
-      try {
-        supabase.removeChannel(kanal);
-      } catch {
-        /* kapanırken hata önemsiz */
-      }
-    }
   };
 }
 

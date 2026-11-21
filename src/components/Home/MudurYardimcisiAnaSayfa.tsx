@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, Teacher, TeacherTabType } from '../../types';
 import {
   DersAyar,
@@ -195,6 +196,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
 
   // denemeler (yalnız Deneme bölümü açıksa)
   const [denemeler, setDenemeler] = useState<Array<{ id: string; name: string; examDate: string }>>([]);
+  const denemeSurum = useDenemeSurumu(!!can.deneme); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     if (!can.deneme) {
       setDenemeler([]);
@@ -205,7 +207,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
     return () => {
       iptal = true;
     };
-  }, [can.deneme, pzt, paz]);
+  }, [can.deneme, pzt, paz, denemeSurum]);
 
   const ayar = veri?.ayar || null;
   const dersHazir = can.ders && !!ayar?.kayitli;

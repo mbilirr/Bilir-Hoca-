@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, BarChart3, Bell, BookOpen, CalendarDays, Check, Eye, HelpCircle, MessageSquare, MoreHorizontal, Plus, UserPlus } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, StudentMessage, StudentQuestionLog, TeacherTabType } from '../../types';
 import type { Teacher } from '../../types';
 import {
@@ -416,6 +417,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
   // Deneme (yalnız Deneme bölümü açıksa): son deneme ve bu haftanın denemeleri
   const [sonDeneme, setSonDeneme] = useState<{ id: string; name: string; examDate: string } | null>(null);
   const [denemeler, setDenemeler] = useState<Array<{ id: string; name: string; examDate: string }>>([]);
+  const denemeSurum = useDenemeSurumu(!!can.deneme); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     if (!can.deneme) {
       setSonDeneme(null);
@@ -434,7 +436,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       iptal = true;
       document.removeEventListener('visibilitychange', yenile);
     };
-  }, [can.deneme, pzt, paz]);
+  }, [can.deneme, pzt, paz, denemeSurum]);
 
   // Akademik takvim (yalnız bölüm açık kurumda)
   const takvimKayit = useAkademikKayitlar(can.takvim);

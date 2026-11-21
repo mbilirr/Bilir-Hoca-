@@ -702,6 +702,83 @@ class DataService {
   ]);
   /** İşleyicisi satırın kendisini kullanan tablolar: değişen satırlar kimlikle okunup işleyiciye verilir */
   private static readonly CANLI_SATIR = new Set<string>(['messages', 'grades', 'attendance', 'etuts', 'question_logs', 'etut_yoklama']);
+  /**
+   * Aşama 349c: ekranların kendi dinlediği tablolar (ders programı / ders yoklaması, deneme). Tek kanal kuruluysa
+   * sinyalleri oradan gelir (ayrı kanal açılmaz). Eski yolda yalnız ders tabloları için tablo başına TEK ortak kanal
+   * açılır (eskiden her bileşen kendi kanalını açıyordu); deneme eski yolda yalnız ekranın kendi yenilemesiyle güncellenir.
+   */
+  private static readonly EK_TABLOLAR = new Set<string>([
+    'kurum_ders_ayar', 'kurum_ders_tatil', 'sinif_ders_ogretmen', 'ders_programi', 'ders_vekil', 'ders_gun_izin',
+    'ders_yoklama_oturum', 'deneme_exams', 'deneme_results',
+  ]);
+  private static readonly EK_ESKI_YOL = new Set<string>([
+    'kurum_ders_ayar', 'kurum_ders_tatil', 'sinif_ders_ogretmen', 'ders_programi', 'ders_vekil', 'ders_gun_izin', 'ders_yoklama_oturum',
+  ]);
+  private ekDinleyiciler = new Map<string, Set<() => void>>();
+  private ekYeniden = false;
+  private ekKapatZaman: ReturnType<typeof setTimeout> | null = null;
+
+  /** Tablolardan biri değişince `degisti` çağrılır (kısa sürede gelenleri toplamak çağıranın işidir). Dönüş: bırak. */
+  public tabloDinle(tablolar: readonly string[], degisti: () => void): () => void {
+    let eklendi = false;
+    for (const t of tablolar) {
+      if (!DataService.EK_TABLOLAR.has(t)) continue;
+      let set = this.ekDinleyiciler.get(t);
+      if (!set) {
+        this.ekDinleyiciler.set(t, (set = new Set()));
+        eklendi = true;
+      }
+      set.add(degisti);
+    }
+    if (eklendi) this.ekKanallariGuncelle();
+    return () => {
+      let bosaldi = false;
+      for (const t of tablolar) {
+        const set = this.ekDinleyiciler.get(t);
+        if (!set) continue;
+        set.delete(degisti);
+        if (!set.size) {
+          this.ekDinleyiciler.delete(t);
+          bosaldi = true;
+        }
+      }
+      // sayfa değişirken (eski ekran kapanır, yenisi aynı tabloyu dinler) kanal kapatılıp yeniden açılmasın diye biraz beklenir
+      if (bosaldi) {
+        if (this.ekKapatZaman) clearTimeout(this.ekKapatZaman);
+        this.ekKapatZaman = setTimeout(() => {
+          this.ekKapatZaman = null;
+          this.ekKanallariGuncelle();
+        }, 5000);
+      }
+    };
+  }
+
+  /** Bu tabloların değişikliği şu an canlı geliyor mu (gelmiyorsa ekran sekmeye dönüşte kendisi okur) */
+  public tablolarCanli(tablolar: readonly string[]): boolean {
+    if (this.canliKanallar && this.canliKanallar.length) return !!this.realtimeChannels[DataService.CANLI]?.healthy;
+    return tablolar.every((t) => !DataService.EK_ESKI_YOL.has(t) || !!this.realtimeChannels[t]?.healthy);
+  }
+
+  private ekTabloBildir(tablo: string): void {
+    this.ekDinleyiciler.get(tablo)?.forEach((f) => {
+      try {
+        f();
+      } catch (e) {
+        console.warn(`[Canlı] ${tablo} dinleyicisi:`, e);
+      }
+    });
+  }
+
+  /** Eski yolda dinlenen tablo kümesi değişince kanallar yeniden düzenlenir (tek kanalda gerek yok) */
+  private ekKanallariGuncelle(): void {
+    if (this.canliKanallar && this.canliKanallar.length) return;
+    if (this.realtimeEnsureRunning) {
+      this.ekYeniden = true;
+      return;
+    }
+    void this.ensureRealtime();
+  }
+
   /** null: henüz sorulmadı; []: eski yol (SQL yok / kanal açılamadı) */
   private canliKanallar: string[] | null = null;
   private canliBekleyen = new Map<string, Set<string>>();
@@ -731,7 +808,22 @@ class DataService {
   private aktifKanallar(): Array<RealtimeTableCfg> {
     const tum = this.realtimeTableConfig();
     const kanallar = this.canliKanallar;
-    if (!kanallar || !kanallar.length) return tum;
+    if (!kanallar || !kanallar.length) {
+      // Aşama 349c: eski yolda ekranların dinlediği ders tabloları (tablo başına tek ortak kanal, kendi kurumu)
+      const kurum = this.getMyKurumId();
+      const ek: RealtimeTableCfg[] = kurum
+        ? Array.from(this.ekDinleyiciler.keys())
+            .filter((t) => DataService.EK_ESKI_YOL.has(t))
+            .map((t) => ({
+              table: t,
+              optional: true,
+              filter: `kurum_id=eq.${kurum}`,
+              onEvent: () => this.ekTabloBildir(t),
+              resync: () => this.ekTabloBildir(t),
+            }))
+        : [];
+      return [...tum, ...ek];
+    }
     const kapsanan = tum.filter((c) => DataService.CANLI_TABLOLARI.has(c.table));
     const kalan = tum.filter((c) => !DataService.CANLI_TABLOLARI.has(c.table));
     return [
@@ -740,7 +832,11 @@ class DataService {
         filter: `kanal=in.(${kanallar.join(',')})`,
         onEvent: (p) => this.canliSinyalGeldi(p),
         // kopup geri gelince arada kaçan değişiklikler için bu kanalın kapsadığı tablolar (artımlı) yeniden okunur
-        resync: () => Promise.allSettled(kapsanan.filter((c) => !DataService.ACCESS_TABLES.includes(c.table)).map((c) => c.resync())),
+        resync: () => {
+          // Aşama 349c: ekranların dinlediği ders / deneme tabloları da arada kaçanı bir kez okur
+          this.ekDinleyiciler.forEach((_, t) => this.ekTabloBildir(t));
+          return Promise.allSettled(kapsanan.filter((c) => !DataService.ACCESS_TABLES.includes(c.table)).map((c) => c.resync()));
+        },
       },
       ...kalan,
     ];
@@ -750,6 +846,7 @@ class DataService {
     const row = payload?.new;
     const tablo = typeof row?.tablo === 'string' ? row.tablo : '';
     if (!tablo) return;
+    if (DataService.EK_TABLOLAR.has(tablo)) return this.ekTabloBildir(tablo); // Aşama 349c
     const cfg = this.realtimeTableConfig().find((c) => c.table === tablo);
     if (!cfg) return; // bu rolün dinlemediği tablo
     if (DataService.ACCESS_TABLES.includes(tablo)) return cfg.onEvent({});
@@ -948,6 +1045,11 @@ class DataService {
     } finally {
       this.realtimeEnsureRunning = false;
       this.updateRealtimeHealth();
+      // Aşama 349c: kurulum sürerken dinlenen tablo kümesi değiştiyse bir kez daha düzenlenir
+      if (this.ekYeniden) {
+        this.ekYeniden = false;
+        setTimeout(() => void this.ensureRealtime(), 0);
+      }
     }
   }
 
@@ -997,7 +1099,7 @@ class DataService {
   public getRealtimeHealth(): 'live' | 'fallback' | 'offline' {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
     const entries = Object.entries(this.realtimeChannels)
-      .filter(([table]) => table !== 'student_sync_ping' && !DataService.ACCESS_TABLES.includes(table))
+      .filter(([table]) => table !== 'student_sync_ping' && !DataService.ACCESS_TABLES.includes(table) && !DataService.EK_TABLOLAR.has(table))
       .map(([, e]) => e);
     if (entries.length > 0 && entries.every((e) => e.healthy)) return 'live';
     return 'fallback';

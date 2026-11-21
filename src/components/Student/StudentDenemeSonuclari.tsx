@@ -4,6 +4,7 @@ import { EmptyState, PageHeader, Segmented } from '../ui/kit';
 import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import type { Student } from '../../types';
 import { getTarget, isSetupError, listKazanimlar, loadMyDenemeler, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import { SCOPES, kazanimKarneBlocks, oncelikKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, studyPlanKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
 import { priorityKarne } from '../../lib/deneme/veliKurumKarne';
 import { OncelikKarneView } from '../Deneme/VeliKurumKarneleri';
@@ -45,6 +46,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
 
   // Aşama 305: "Tekrar dene" okumayı yeniden başlatır
   const [deneme, setDeneme] = useState(0);
+  const denemeSurum = useDenemeSurumu(true); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -69,7 +71,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aş
     return () => {
       alive = false;
     };
-  }, [currentStudent.id, deneme]);
+  }, [currentStudent.id, deneme, denemeSurum]);
 
   const scoped = useMemo(() => pickScope(exams, scope, (e) => picked.has(e.id)), [exams, scope, picked]);
 

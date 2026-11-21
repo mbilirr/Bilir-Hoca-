@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowRight, Plus, Send } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
 import type { ClassGroup, Student, Teacher, TeacherTabType } from '../../types';
 import { GUN_ADLARI, isoGun, tarihUzun, trBugun } from '../../services/dersService';
 import { getExam, isDraftExam, listExams, listResultsLite, listStudentTcHashes, type DenemeExam } from '../../services/denemeService';
@@ -109,6 +110,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
       setExams((cur) => cur || []);
     }
   }, []);
+  const denemeSurum = useDenemeSurumu(!!can.deneme); // Aşama 349c: deneme değişince yeniden okunur
   useEffect(() => {
     if (!can.deneme) {
       setExams(null);
@@ -122,7 +124,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
       clearInterval(t);
       document.removeEventListener('visibilitychange', yenile);
     };
-  }, [can.deneme, oku]);
+  }, [can.deneme, oku, denemeSurum]);
 
   const sonuclular = useMemo(() => (exams || []).filter(sonuclu), [exams]);
   const son = sonuclular[0] || null;
@@ -160,7 +162,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
     return () => {
       iptal = true;
     };
-  }, [sonId, oncekiId]);
+  }, [sonId, oncekiId, denemeSurum]);
 
   // ---- TC parmak izi eksik öğrenciler (yalnız kurum TC kullanıyorsa: en az bir öğrencide kayıtlı)
   const [tcVar, setTcVar] = useState<Set<string> | null>(null);
