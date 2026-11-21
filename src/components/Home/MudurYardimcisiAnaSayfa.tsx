@@ -32,6 +32,9 @@ import { dersHatirlat } from '../../lib/push';
 import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './mudurYardimcisi.css';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
+import { araliktaMi, baslik, etkinlikler, gundeMi, type AktEtkinlik } from '../../services/akademikTakvimService'; // Aşama 337
+import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
+import { AktEtkinlikPencere, takvimdeGoster } from './AktEtkinlikPencere';
 
 // ============================================================================
 // Aşama 247: MÜDÜR YARDIMCISI ANA SAYFASI (taslak: mudur-yardimcisi-v3.html, Odak renkleri)
@@ -119,7 +122,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const kurumId = dataService.getMyKurum().kurumId || '';
   const can = useMemo(
-    () => ({ ders: dataService.canUseTab('grades'), etut: dataService.canUseTab('etuts'), deneme: dataService.canUseTab('deneme') }),
+    () => ({ ders: dataService.canUseTab('grades'), etut: dataService.canUseTab('etuts'), deneme: dataService.canUseTab('deneme'), takvim: dataService.akademikTakvimAcik() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tick],
   );
@@ -361,6 +364,13 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
   })();
 
   // ---- okulun haftası
+  // Aşama 337: akademik takvim etkinlikleri de haftaya yerleşir (idare bütün zümreleri görür, sql/337)
+  const takvimKayit = useAkademikKayitlar(can.takvim);
+  const takvimHafta = useMemo(() => etkinlikler(takvimKayit || []).filter((g) => !g.ayIcinde && araliktaMi(g, pzt, paz)), [takvimKayit, pzt, paz]);
+  const [aktSecili, setAktSecili] = useState<AktEtkinlik | null>(null);
+  const etkinlikAc = (g: AktEtkinlik) => {
+    if (!takvimdeGoster(g, git)) setAktSecili(g);
+  };
   const hafta = Array.from({ length: 7 }, (_, i) => {
     const g = gunEkle(pzt, i);
     return {
@@ -370,9 +380,10 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
       izin: dersHazir ? (veri?.izin || []).filter((v) => v.tarih === g).length : 0,
       deneme: denemeler.filter((d) => d.examDate === g),
       tatil: dersHazir ? (veri?.tatil || []).find((t) => t.tarih === g) : undefined,
+      akt: takvimHafta.filter((x) => gundeMi(x, g)),
     };
   });
-  const haftaGoster = can.etut || dersHazir || can.deneme;
+  const haftaGoster = can.etut || dersHazir || can.deneme || can.takvim;
 
   // ---- başlık
   const { selam, ad } = akSelam(currentTeacher);
@@ -1012,10 +1023,15 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
             <div>
               <h2 id="my-h-okh">Okulun Haftası</h2>
               <p>
-                Her gün: {[can.etut && 'etüt', dersHazir && 'vekil ders ve izinli öğrenci sayısı'].filter(Boolean).join(', ')}
-                {[can.deneme && 'deneme', dersHazir && 'tatil'].filter(Boolean).length
-                  ? ` · ${[can.deneme && 'deneme', dersHazir && 'tatil'].filter(Boolean).join(' ve ')} günleri`
-                  : ''}
+                {/* Aşama 337: boş parça yazılmaz ("Her gün: · …" olmasın) */}
+                {[
+                  [can.etut && 'etüt', dersHazir && 'vekil ders ve izinli öğrenci sayısı'].filter(Boolean).join(', ').replace(/^(.+)$/, 'Her gün: $1'),
+                  [can.deneme && 'deneme', dersHazir && 'tatil'].filter(Boolean).join(' ve ').replace(/^(.+)$/, '$1 günleri'),
+                  can.takvim ? 'akademik takvim etkinlikleri' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+                  .replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}
               </p>
             </div>
             {can.etut && (
@@ -1026,7 +1042,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
           </div>
           <div className="my-week">
             {hafta.map((d, i) => {
-              const bos = !d.etut && !d.vekil && !d.izin && !d.deneme.length && !d.tatil;
+              const bos = !d.etut && !d.vekil && !d.izin && !d.deneme.length && !d.tatil && !d.akt.length;
               return (
                 <div key={d.g} className={'my-day' + (d.g === bugun ? ' today' : '')}>
                   <div className="dh">
@@ -1034,6 +1050,11 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                     <b className="tnum">{Number(d.g.slice(8, 10))}</b>
                   </div>
                   {d.tatil && <span className="my-ev t">{d.tatil.aciklama || 'Tatil'}</span>}
+                  {d.akt.map((a) => (
+                    <button key={a.key} type="button" className={'my-ev a' + (a.yer === 'dis' ? ' dis' : '')} title={baslik(a.ad)} onClick={() => etkinlikAc(a)}>
+                      {baslik(a.ad)}
+                    </button>
+                  ))}
                   {d.etut > 0 && <span className="my-ev">{d.etut} etüt</span>}
                   {d.vekil > 0 && <span className="my-ev v">{d.vekil} vekil ders</span>}
                   {d.izin > 0 && <span className="my-ev i">{d.izin} izinli öğrenci</span>}
@@ -1049,6 +1070,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
           </div>
         </section>
       )}
+      <AktEtkinlikPencere etkinlik={aktSecili} onClose={() => setAktSecili(null)} />
     </AnaSayfaKabuk>
   );
 };

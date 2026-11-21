@@ -157,6 +157,12 @@
 .og-ev.den { background: var(--brand-soft); color: var(--brand-fg); } .og-ev.akt { background: var(--surface-3); color: var(--fg-2); }
 .og-ev.tatil { background: color-mix(in srgb, var(--warning) 18%, var(--surface)); color: var(--warning-fg); font-weight: 600; }
 .og-day.today .og-ev.akt { background: var(--surface-2); }
+/* Aşama 337: takvim etkinliği basılabilir; okul dışı turuncu çizgi */
+.og-ev.akt { color: var(--fg); border-left: 3px solid var(--brand); border-radius: 0 calc(0.4375 * var(--ak-rem)) calc(0.4375 * var(--ak-rem)) 0; }
+.og-ev.akt.dis { border-left-color: var(--warning); }
+button.og-ev { display: block; width: 100%; border-top: 0; border-right: 0; border-bottom: 0; text-align: left; font-family: inherit; cursor: pointer; transition: transform .15s ease; }
+button.og-ev:hover { transform: translateY(-1px); }
+button.og-ev:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .og-day .none { font-size: calc(0.6875 * var(--ak-rem)); color: var(--subtle); }
 .og-day .plus { font-size: calc(0.6875 * var(--ak-rem)); font-weight: 600; color: var(--muted); }
 @media (hover: hover) and (pointer: fine) { .og-day:hover { transform: translateY(-2px); } }

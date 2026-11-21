@@ -4,6 +4,7 @@ import { EmptyState, Modal, PageHeader, Panel, Segmented, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from './FormParts';
 import { appConfirm } from '../../lib/appDialog';
+import { useQuickFocus } from '../../lib/quickFocus'; // Aşama 337
 import { dataService } from '../../services/dataService';
 import {
   AY_ADLARI,
@@ -203,6 +204,19 @@ export const AkademikTakvim: React.FC = () => {
   const [zumreAcik, setZumreAcik] = useState(false); // Aşama 328
   const [secim, setSecim] = useState<Set<string>>(() => new Set()); // Aşama 329: toplu silme
   const [siliniyor, setSiliniyor] = useState(false);
+  // Aşama 337: ana sayfadan bir etkinliğe basılınca yalnız o etkinlik gösterilir ("Bütün takvim" ile çıkılır)
+  const [tek, setTek] = useState<string | null>(null);
+  useQuickFocus(['takvim'], (f) => {
+    setTek(f.id);
+    setOdak('');
+    setAy(0);
+    setKademe('');
+    setFSinif('');
+    setFZumre('');
+    setFKapsam('');
+    setFYer('');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(f.label)) setYil(egitimYili(tarihCoz(f.label)));
+  });
 
   const yukle = useCallback(async () => {
     if (!kurumId) return;
@@ -278,7 +292,7 @@ export const AkademikTakvim: React.FC = () => {
   }, [hepsi]);
   const ayOf = (g: AktEtkinlik) => tarihCoz(g.tarih).getMonth() + 1;
   const ayda = (g: AktEtkinlik) => !!odak || !ay || ayOf(g) === ay;
-  const gorunen = hepsi.filter((g) => tabanda(g) && kapsamUyar(g) && yerUyar(g) && odakta(g) && ayda(g));
+  const gorunen = tek ? hepsi.filter((g) => g.key === tek) : hepsi.filter((g) => tabanda(g) && kapsamUyar(g) && yerUyar(g) && odakta(g) && ayda(g));
   // Aşama 329: seçim yalnız ekranda görünen etkinliklerde geçerli (süzgeç değişince gizlenen seçili kalmaz)
   const secili = gorunen.filter((g) => secim.has(g.key));
   const hepsiSecili = gorunen.length > 0 && secili.length === gorunen.length;
@@ -499,8 +513,17 @@ export const AkademikTakvim: React.FC = () => {
           </div>
         </div>
 
+        {/* Aşama 337: ana sayfadan gelen tek etkinlik */}
+        {tek && (
+          <div className="flex items-center gap-3 px-4 sm:px-5 h-12 border-b border-line bg-brand-soft/60" role="status" id="akt-tek">
+            <span className="text-xs font-semibold text-brand-fg truncate">Seçilen etkinlik gösteriliyor</span>
+            <button type="button" id="akt-tek-temizle" className={cx(BTN, 'w-28 ui-btn-secondary ml-auto')} onClick={() => setTek(null)}>
+              Bütün takvim
+            </button>
+          </div>
+        )}
         {/* Aşama 330: kutudan seçilen görünüm */}
-        {odak && (
+        {odak && !tek && (
           <div className="flex items-center gap-3 px-4 sm:px-5 h-11 border-b border-line bg-brand-soft/60" role="status">
             <span className="text-xs font-semibold text-brand-fg truncate">
               {odak === 'ay' ? `Bu ay · ${AY_ADLARI[tarihCoz(bugunS).getMonth()]}` : ODAK_ADI[odak]} · {gorunen.length} etkinlik

@@ -4248,6 +4248,7 @@ class DataService {
     if ((sec.allow || []).includes(tab)) return true;
     const roles = this.myKurum.roles || [];
     if (roles.length === 0) return true; // rolü verilmemiş öğretmen: bugünkü gibi
+    if (roles.includes('mudur') || roles.includes('mudur_yardimcisi')) return true; // Aşama 337: idare bütün bölümleri açar (role_section_ok ile aynı)
     const allowed = new Set<TeacherTabType>();
     const add = (...tabs: TeacherTabType[]) => tabs.forEach((t) => allowed.add(t));
     if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim');
@@ -4409,7 +4410,7 @@ class DataService {
     if (tab === 'user_management') return this.canAccessUserManagement();
     if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü
     if (tab === 'deneme') return this.canUseDeneme();
-    if (tab === 'akademik_takvim') return this.akademikTakvimAcik(); // Aşama 242
+    if (tab === 'akademik_takvim') return this.akademikTakvimSayfasi(); // Aşama 242 · 337: ayrı sayfa yalnız idare, Rehberlik, Ölçme
     return mod ? this.canUseModule(mod) : true;
   }
 
@@ -4420,6 +4421,15 @@ class DataService {
    */
   public akademikTakvimAcik(): boolean {
     return this.myKurum.supported && !!this.getMyKurumId() && this.myKurum.modules?.akademik_takvim === true;
+  }
+  /** Aşama 337: takvimin bütününü gören idare (kurum yöneticisi, Müdür, Müdür Yrd.). Veritabanı aynı kuralı uygular (sql/337);
+   *  öğretmen yalnız üyesi olduğu zümrenin ve zümresi yazılmamış okul geneli etkinliklerini okur. */
+  public akademikTakvimIdare(): boolean {
+    return this.akademikTakvimAcik() && (this.isKurumAdmin() || this.hasRole('mudur') || this.hasRole('mudur_yardimcisi'));
+  }
+  /** Aşama 337: ayrı "Akademik takvim" sayfası: idare + Rehberlik / Ölçme. Öğretmen etkinlikleri ana sayfasındaki haftada görür. */
+  public akademikTakvimSayfasi(): boolean {
+    return this.akademikTakvimAcik() && (this.akademikTakvimIdare() || this.roleWideView());
   }
   /** Aşama 242: takvimi yükleyip düzenleyebilir mi (kurum yöneticisi: Müdür, Müdür Yrd.) */
   public canManageAkademikTakvim(): boolean {

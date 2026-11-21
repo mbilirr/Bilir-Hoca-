@@ -36,6 +36,7 @@ import {
   type AktEtkinlik,
 } from '../../services/akademikTakvimService';
 import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
+import { takvimdeGoster } from './AktEtkinlikPencere'; // Aşama 337
 import { etutExpectsAttendance, hasEtutAttendance, isEtutEnded } from '../../lib/etutTiming';
 import { odevTeslimGruplari } from '../../lib/odevTeslim';
 import { trBugun } from '../../lib/trSaat';
@@ -545,7 +546,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
                             type="button"
                             className={'od-ake' + (g.kapsam === 'veli' ? ' veli' : '')}
                             title={baslik(g.ad)}
-                            onClick={() => git('akademik_takvim')}
+                            onClick={() => takvimdeGoster(g, git) || git('akademik_takvim')} // Aşama 337: takvimde yalnız bu etkinlik
                           >
                             <b>{ana}</b>
                             {konu && <small>{konu}</small>}

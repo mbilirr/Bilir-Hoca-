@@ -162,6 +162,12 @@
 .my-ev.v { border-color: var(--warning); } .my-ev.i { border-color: var(--success); } .my-ev.d { border-color: var(--danger); } .my-ev.t { border-color: var(--subtle); }
 .my-day.today .my-ev { color: color-mix(in srgb, var(--canvas) 85%, var(--fg)); }
 .my-day .none { font-size: calc(0.6875 * var(--ak-rem)); color: var(--subtle); }
+/* Aşama 337: akademik takvim etkinliği (basılınca takvimde yalnız o etkinlik); okul dışı turuncu */
+button.my-ev { border-top: 0; border-right: 0; border-bottom: 0; background: none; font-family: inherit; color: inherit; text-align: left; cursor: pointer; }
+.my-ev.a { border-left-width: 3px; padding: calc(0.25 * var(--ak-rem)) calc(0.4375 * var(--ak-rem)); border-radius: 0 calc(0.375 * var(--ak-rem)) calc(0.375 * var(--ak-rem)) 0; background: color-mix(in srgb, var(--brand) 12%, transparent); font-weight: 600; transition: transform .15s ease; }
+.my-ev.a.dis { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.my-ev.a:hover { transform: translateY(-1px); }
+.my-ev.a:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
 @media (max-width: 1180px) {
   .my-mapbody { grid-template-columns: minmax(0, 1fr); }

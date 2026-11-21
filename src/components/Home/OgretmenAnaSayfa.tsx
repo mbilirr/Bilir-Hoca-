@@ -20,8 +20,9 @@ import {
   trSaat,
 } from '../../services/dersService';
 import { denemeTarihleri, lastExamBrief } from '../../services/denemeService';
-import { araliktaMi, baslik, etkinlikler, gundeMi, siniflarYazi } from '../../services/akademikTakvimService';
+import { araliktaMi, baslik, etkinlikler, gundeMi, siniflarYazi, type AktEtkinlik } from '../../services/akademikTakvimService';
 import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
+import { AktEtkinlikPencere, takvimdeGoster } from './AktEtkinlikPencere'; // Aşama 337
 import { dakika, basHarf } from '../../lib/dersKisa';
 import { etutEndTime, isEtutAttendanceMissing } from '../../lib/etutTiming';
 import { enablePush, getPushState, resyncPush, testPush, type PushState } from '../../lib/push';
@@ -212,7 +213,8 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       soru: dataService.canUseTab('question_tracking'),
       mesaj: dataService.canUseTab('messages'),
       deneme: dataService.canUseTab('deneme'),
-      takvim: dataService.canUseTab('akademik_takvim'),
+      takvim: dataService.akademikTakvimAcik(), // Aşama 337: veri (öğretmen yalnız kendi zümresini okur, sql/337)
+      takvimSayfa: dataService.canUseTab('akademik_takvim'), // ayrı sayfa yalnız idare, Rehberlik, Ölçme
       odevVer: dataService.canGiveHomework(),
       etutPlan: dataService.canPlanEtut(),
       ogrEkle: dataService.canUseTab('students') && dataService.canManageStudents(),
@@ -229,6 +231,14 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       if (focus) setTimeout(() => setQuickFocus(...focus), 0);
     },
     [onNavigateTab],
+  );
+  // Aşama 337: takvim etkinliği → idare için takvimde yalnız o etkinlik, öğretmen için ayrıntı penceresi
+  const [aktSecili, setAktSecili] = useState<AktEtkinlik | null>(null);
+  const etkinlikAc = useCallback(
+    (g: AktEtkinlik) => {
+      if (!takvimdeGoster(g, (t) => go(t))) setAktSecili(g);
+    },
+    [go],
   );
 
   // ---- saat (Türkiye saati; dakikada bir ilerler)
@@ -541,7 +551,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
           title: tatilMap.get(bugun) || 'Tatil',
           meta: 'Ders ve yoklama yok · hatırlatma gönderilmez',
           prog: null,
-          btn: can.takvim ? { yazi: 'Takvim', on: () => go('akademik_takvim') } : { yazi: 'Programım', on: () => go('grades') },
+          btn: can.takvimSayfa ? { yazi: 'Takvim', on: () => go('akademik_takvim') } : { yazi: 'Programım', on: () => go('grades') },
           rem: (
             <>
               Okul <b>{gunYazi(d)}</b> açılıyor
@@ -666,7 +676,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
           alt: siniflarYazi(g.siniflar),
           etiket: 'Takvim',
           gecti: false,
-          on: () => go('akademik_takvim'),
+          on: () => etkinlikAc(g),
         });
       }
     }
@@ -704,7 +714,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
       });
     }
     return l.sort((a, b) => (a.saat || '').localeCompare(b.saat || ''));
-  }, [can.takvim, can.deneme, takvim, bugun, denemeler, etutBugun, simdi, students.length, benimOdev, yerelBugun, odevDurum, go]);
+  }, [can.takvim, can.deneme, takvim, bugun, denemeler, etutBugun, simdi, students.length, benimOdev, yerelBugun, odevDurum, go, etkinlikAc]);
   const disKarti = can.etut || can.odev || can.deneme || can.takvim;
   const simdiHm = hhmm(simdi);
   const cizgiOnce = disOlay.findIndex((o) => !!o.saat && o.saat > simdiHm);
@@ -736,13 +746,13 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
   };
 
   // ================================================================ BU HAFTA
-  type HaftaOlay = { k: string; tur: 'etut' | 'odev' | 'den' | 'akt' | 'tatil'; yazi: string };
+  type HaftaOlay = { k: string; tur: 'etut' | 'odev' | 'den' | 'akt' | 'tatil'; yazi: string; akt?: AktEtkinlik };
   const haftaGunleri = useMemo(() => {
     const gunler = Array.from({ length: 7 }, (_, i) => gunEkle(pzt, i));
     return gunler.map((g) => {
       const l: HaftaOlay[] = [];
       if (dersHazir && tatilMap.has(g)) l.push({ k: 't', tur: 'tatil', yazi: tatilMap.get(g) || 'Tatil' });
-      if (can.takvim) for (const a of takvim.filter((x) => gundeMi(x, g))) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad) });
+      if (can.takvim) for (const a of takvim.filter((x) => gundeMi(x, g))) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad), akt: a });
       if (can.deneme) for (const d of denemeler.filter((x) => x.examDate === g)) l.push({ k: `n|${d.id}`, tur: 'den', yazi: d.name });
       for (const e of benimEtut.filter((x) => x.date === g).sort((a, b) => (a.time || '').localeCompare(b.time || '')))
         l.push({ k: `e|${e.id}`, tur: 'etut', yazi: `${e.time ? `${e.time} ` : ''}${e.subject || 'Etüt'}` });
@@ -1320,11 +1330,18 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
                     <b className="tnum">{Number(g.slice(8, 10))}</b>
                   </div>
                   {goster.length ? (
-                    goster.map((o) => (
-                      <span key={o.k} className={`og-ev ${o.tur}`} title={o.yazi}>
-                        {o.yazi}
-                      </span>
-                    ))
+                    goster.map((o) =>
+                      o.akt ? (
+                        // Aşama 337: zümre etkinliği basılabilir (öğretmende ayrıntı, idarede takvimde yalnız o etkinlik)
+                        <button key={o.k} type="button" className={`og-ev akt${o.akt.yer === 'dis' ? ' dis' : ''}`} title={o.yazi} onClick={() => etkinlikAc(o.akt!)}>
+                          {o.yazi}
+                        </button>
+                      ) : (
+                        <span key={o.k} className={`og-ev ${o.tur}`} title={o.yazi}>
+                          {o.yazi}
+                        </span>
+                      ),
+                    )
                   ) : (
                     <span className="none">Boş gün</span>
                   )}
@@ -1335,6 +1352,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = ({
           </div>
         </section>
       )}
+      <AktEtkinlikPencere etkinlik={aktSecili} onClose={() => setAktSecili(null)} />
     </AnaSayfaKabuk>
   );
 };
