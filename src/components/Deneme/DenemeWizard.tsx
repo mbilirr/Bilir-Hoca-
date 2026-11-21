@@ -731,7 +731,7 @@ export const DenemeWizard: React.FC<{
       if (!completeSubjects.length) return setError('En az bir dersin cevap anahtarı eksiksiz olmalı (Excel yükleyin ya da elle yazın).');
       // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı (her B numarası bir kez)
       const bp = keyBProblems(subjects, questions);
-      if (bp.length) return setError(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''} Ders satırındaki "Sorular" bölümünden düzeltin.`);
+      if (bp.length) return setError(`Kitapçık eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''} Ders satırındaki "Sorular" bölümünden düzeltin.`);
       setStep(2);
       if (canDraft) void saveDraft({ silent: true, step: 2 });
       return;

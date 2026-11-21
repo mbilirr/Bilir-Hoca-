@@ -2,11 +2,12 @@
 // DENEME ANALİZİ (Aşama 91) — CEVAP ANAHTARINI GÖSTERME VE İNDİRME (A / B KİTAPÇIĞI)
 // Sistemde anahtar A sırasıyla tutulur; B kitapçığının anahtarı her A sorusunun "B karşılığı"ndan kurulur.
 // İndirilen Excel yayınevi düzenindedir (A ve B alt alta, dersler yan yana); sisteme yeniden yüklenebilir.
+// Aşama 336: 4 kitapçıklı denemede C ve D de (cNo / dNo) aynı düzende eklenir.
 // ============================================================================
-import type { ExamQuestions, ExamSubject } from './lgs';
+import { kitapciklarOf, kitapNo, type ExamQuestions, type ExamSubject, type Kitapcik } from './lgs';
 import { safeFileName } from './karnePdf';
 
-export type Booklet = 'A' | 'B';
+export type Booklet = Kitapcik;
 
 // Excel başlığında kısa ders adları (sütuna sığar; sisteme yeniden yüklenince tanınır)
 const HEAD: Record<string, string> = { tr: 'TÜRKÇE', sos: 'T.C. İNKILAP', din: 'DİN KÜLTÜRÜ', ing: 'YABANCI DİL', mat: 'MATEMATİK', fen: 'FEN BİLİMLERİ' };
@@ -21,7 +22,7 @@ export function bookletKey(subject: ExamSubject, qs: ExamQuestions, booklet: Boo
   const list = qs[subject.key] || [];
   const out: string[] = Array.from({ length: subject.count }, () => '');
   for (const q of list) {
-    const n = booklet === 'B' ? q.bNo || q.no : q.no;
+    const n = kitapNo(q, booklet);
     if (n >= 1 && n <= subject.count && !out[n - 1]) out[n - 1] = (q.answer || '').toUpperCase();
   }
   return out;
@@ -38,7 +39,7 @@ export const hasBMapping = (subjects: ExamSubject[], qs: ExamQuestions) =>
 export function keyGrid(examName: string, subjects: ExamSubject[], qs: ExamQuestions): Array<Array<string | number>> {
   const max = Math.max(0, ...subjects.map((s) => s.count));
   const rows: Array<Array<string | number>> = [];
-  (['A', 'B'] as Booklet[]).forEach((b, bi) => {
+  kitapciklarOf(qs).forEach((b, bi) => {
     if (bi) rows.push([], []);
     rows.push([`${examName.toLocaleUpperCase('tr-TR')} (${b} GRUBU)`]);
     rows.push(subjects.flatMap((s) => [headOf(s), '']));
@@ -50,8 +51,9 @@ export function keyGrid(examName: string, subjects: ExamSubject[], qs: ExamQuest
 
 /** Soru eşleşmesi: her A sorusunun B'deki numarası (soru bazlı analiz için) */
 export function keyPairs(subjects: ExamSubject[], qs: ExamQuestions): Array<Array<string | number>> {
-  const rows: Array<Array<string | number>> = [['Ders', 'A soru no', 'Cevap', 'B soru no']];
-  for (const s of subjects) for (const q of qs[s.key] || []) rows.push([s.name, q.no, showLetter((q.answer || '').toUpperCase()), q.bNo || q.no]);
+  const ek = kitapciklarOf(qs).filter((k) => k !== 'A');
+  const rows: Array<Array<string | number>> = [['Ders', 'A soru no', 'Cevap', ...ek.map((k) => `${k} soru no`)]];
+  for (const s of subjects) for (const q of qs[s.key] || []) rows.push([s.name, q.no, showLetter((q.answer || '').toUpperCase()), ...ek.map((k) => kitapNo(q, k))]);
   return rows;
 }
 
@@ -72,7 +74,7 @@ export async function downloadKeyExcel(examName: string, subjects: ExamSubject[]
   grid['!merges'] = merges;
   XLSX.utils.book_append_sheet(wb, grid, 'Cevap Anahtarı');
   const pairs = XLSX.utils.aoa_to_sheet(keyPairs(subjects, qs));
-  pairs['!cols'] = [{ wch: 34 }, { wch: 10 }, { wch: 8 }, { wch: 10 }];
+  pairs['!cols'] = [{ wch: 34 }, { wch: 10 }, { wch: 8 }, ...kitapciklarOf(qs).slice(1).map(() => ({ wch: 10 }))];
   XLSX.utils.book_append_sheet(wb, pairs, 'Soru Eşleşmesi');
   XLSX.writeFile(wb, `${safeFileName(fileName)}.xlsx`);
 }

@@ -7,29 +7,31 @@
 // Puan yalnızca yeni numaranın B harfi A'daki cevapla uyuşmuyorsa değişir (önizlemede sayısı gösterilir).
 // Aşama 94: sonuçta kâğıttaki sırayla cevaplar (optik.kag) varsa cevaplar doğrudan ondan kurulur; geçmişteki
 // eşleşmeden bağımsız olarak her zaman doğrudur.
+// Aşama 336: aynı işlem C ve D kitapçıkları (cNo / dNo) için de yapılır.
 // ============================================================================
 import type { DenemeResult } from '../../services/denemeService';
-import { recomputeFromAnswers, toAOrder, type ExamQuestion, type ExamQuestions, type ExamSubject, type ScoringSettings } from './lgs';
+import { EK_KITAPCIKLAR, kitapNo, recomputeFromAnswers, toAOrder, type EkKitapcik, type ExamQuestion, type ExamQuestions, type ExamSubject, type ScoringSettings } from './lgs';
 
 export interface BChange {
   subject: ExamSubject;
-  questions: number; // B numarası değişen A soruları
+  questions: number; // B (ya da C / D) numarası değişen A soruları
+  kitapcik: EkKitapcik;
 }
 
 export interface BRemapPlan {
   changes: BChange[];
-  nB: number; // cevapları yeniden düzenlenen B kitapçıklı öğrenci
+  nB: number; // cevapları yeniden düzenlenen B / C / D kitapçıklı öğrenci
   scoreChanged: number; // puanı değişecek öğrenci
   next: DenemeResult[]; // yeni anahtarla yeniden hesaplanmış sonuçlar (hepsi)
 }
 
-const bOf = (q: ExamQuestion | undefined, i: number) => (q && q.bNo ? q.bNo : q ? q.no : i + 1);
+const bOf = (q: ExamQuestion | undefined, i: number, k: EkKitapcik = 'B') => (q ? kitapNo(q, k) : i + 1);
 
 /** Eşleşme geçerli mi: her B numarası bir kez ve 1..n arasında */
-function validMap(list: ExamQuestion[], n: number): boolean {
+function validMap(list: ExamQuestion[], n: number, k: EkKitapcik): boolean {
   const seen = new Set<number>();
   for (let i = 0; i < list.length; i++) {
-    const b = bOf(list[i], i);
+    const b = bOf(list[i], i, k);
     if (b < 1 || b > n || seen.has(b)) return false;
     seen.add(b);
   }
@@ -37,13 +39,13 @@ function validMap(list: ExamQuestion[], n: number): boolean {
 }
 
 /** Bir dersin A sırasındaki cevaplarını eski eşleşmeden yeni eşleşmeye taşır */
-export function remapSubject(aOrder: string, oldList: ExamQuestion[], newList: ExamQuestion[], count: number): string {
+export function remapSubject(aOrder: string, oldList: ExamQuestion[], newList: ExamQuestion[], count: number, k: EkKitapcik = 'B'): string {
   const raw = new Array<string>(count).fill(' ');
   oldList.forEach((q, i) => {
-    const b = bOf(q, i) - 1;
+    const b = bOf(q, i, k) - 1;
     if (b >= 0 && b < count) raw[b] = aOrder[i] || ' ';
   });
-  return newList.map((q, i) => raw[bOf(q, i) - 1] || ' ').join('');
+  return newList.map((q, i) => raw[bOf(q, i, k) - 1] || ' ').join('');
 }
 
 /**
@@ -52,29 +54,32 @@ export function remapSubject(aOrder: string, oldList: ExamQuestion[], newList: E
  */
 export function planBRemap(subjects: ExamSubject[], oldQs: ExamQuestions, newQs: ExamQuestions, results: DenemeResult[], scoring: ScoringSettings): BRemapPlan {
   const changes: BChange[] = [];
-  const movable = new Set<string>();
-  for (const s of subjects) {
-    const o = oldQs[s.key] || [];
-    const n = newQs[s.key] || [];
-    if (!o.length || o.length !== n.length) continue;
-    const diff = n.filter((q, i) => bOf(q, i) !== bOf(o[i], i)).length;
-    if (!diff) continue;
-    changes.push({ subject: s, questions: diff });
-    // Eski ya da yeni eşleşme bozuksa (aynı B numarası iki kez) cevaplar taşınmaz
-    if (validMap(o, s.count) && validMap(n, s.count)) movable.add(s.key);
+  const movable = new Set<string>(); // "B:tr" biçiminde
+  for (const kit of EK_KITAPCIKLAR) {
+    for (const s of subjects) {
+      const o = oldQs[s.key] || [];
+      const n = newQs[s.key] || [];
+      if (!o.length || o.length !== n.length) continue;
+      const diff = n.filter((q, i) => bOf(q, i, kit) !== bOf(o[i], i, kit)).length;
+      if (!diff) continue;
+      changes.push({ subject: s, questions: diff, kitapcik: kit });
+      // Eski ya da yeni eşleşme bozuksa (aynı numara iki kez) cevaplar taşınmaz
+      if (validMap(o, s.count, kit) && validMap(n, s.count, kit)) movable.add(`${kit}:${s.key}`);
+    }
   }
   let nB = 0;
   let scoreChanged = 0;
   const next = results.map((r) => {
     let answers = r.answers;
-    if (r.booklet === 'B' && changes.length) {
+    const mine = changes.filter((c) => c.kitapcik === r.booklet);
+    if (mine.length) {
       const kag = r.optik?.kag || {};
       answers = { ...r.answers };
       let moved = false;
-      for (const c of changes) {
+      for (const c of mine) {
         const k = c.subject.key;
-        if (kag[k]) answers[k] = toAOrder(kag[k], newQs[k] || [], 'B');
-        else if (movable.has(k)) answers[k] = remapSubject(r.answers[k] || '', oldQs[k], newQs[k], c.subject.count);
+        if (kag[k]) answers[k] = toAOrder(kag[k], newQs[k] || [], c.kitapcik);
+        else if (movable.has(`${c.kitapcik}:${k}`)) answers[k] = remapSubject(r.answers[k] || '', oldQs[k], newQs[k], c.subject.count, c.kitapcik);
         else continue;
         moved = true;
       }

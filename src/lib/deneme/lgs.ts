@@ -17,6 +17,8 @@ export interface ExamQuestion {
   no: number; // A kitapçığındaki soru numarası
   answer: string; // A, B, C, D (X = iptal: herkes doğru sayılır)
   bNo?: number | null; // B kitapçığındaki karşılığı
+  cNo?: number | null; // Aşama 336: C kitapçığındaki karşılığı (4 kitapçıklı denemeler)
+  dNo?: number | null; // Aşama 336: D kitapçığındaki karşılığı
   kazanimCode?: string;
   kazanim?: string; // MEB kazanım metni
   konu?: string; // konu (yapay zekâ ya da öğretmen)
@@ -30,6 +32,35 @@ export interface ExamQuestion {
 }
 
 export type ExamQuestions = Record<string, ExamQuestion[]>;
+
+// ----------------------------------------------------------------------------- Aşama 336: A-B-C-D kitapçık
+// Sorular A sırasıyla tutulur; her ek kitapçık için A sorusunun o kitapçıktaki numarası saklanır
+// (B: bNo, C: cNo, D: dNo). Numara yoksa o kitapçık A ile aynı sıradadır.
+export type Kitapcik = 'A' | 'B' | 'C' | 'D';
+export type EkKitapcik = 'B' | 'C' | 'D';
+export const EK_KITAPCIKLAR: EkKitapcik[] = ['B', 'C', 'D'];
+export const NO_ALANI = { B: 'bNo', C: 'cNo', D: 'dNo' } as const;
+
+/** Geçerli kitapçık harfi (A-D) ya da '' */
+export const kitapcikHarfi = (v: string | null | undefined): Kitapcik | '' => {
+  const k = (v || '').trim().toUpperCase();
+  return k === 'A' || k === 'B' || k === 'C' || k === 'D' ? k : '';
+};
+
+/** A sorusunun verilen kitapçıktaki numarası */
+export function kitapNo(q: ExamQuestion, k: string): number {
+  if (k === 'B' || k === 'C' || k === 'D') return q[NO_ALANI[k]] || q.no;
+  return q.no;
+}
+
+/** Denemede C/D eşleşmesi girilmiş mi? (yoksa yalnız A/B) */
+export function kitapciklarOf(qs: ExamQuestions): Kitapcik[] {
+  const all = Object.values(qs || {}).flat();
+  const out: Kitapcik[] = ['A', 'B'];
+  if (all.some((q) => q && q.cNo)) out.push('C');
+  if (all.some((q) => q && q.dNo)) out.push('D');
+  return out;
+}
 
 export interface ScoringSettings {
   base: number; // hiç net yokken puan
@@ -162,7 +193,7 @@ export function normalizeQuestions(subjects: ExamSubject[], qs: ExamQuestions): 
 export function toAOrder(raw: string, qs: ExamQuestion[], booklet: string): string {
   return qs
     .map((q) => {
-      const idx = booklet === 'B' ? (q.bNo || q.no) - 1 : q.no - 1;
+      const idx = kitapNo(q, booklet) - 1;
       const ch = raw[idx];
       return ch && ch !== ' ' ? ch : ' ';
     })
@@ -214,17 +245,19 @@ export function scoreOf(stats: Record<string, SubjectStat>, subjects: ExamSubjec
   return { weighted: round2(weighted), score: Math.round(score * 1000) / 1000, totalNet: round2(totalNet) };
 }
 
-/** Kitapçık türü boşsa: A ve B anahtarına göre hangisiyle daha çok doğru varsa o seçilir */
-export function guessBooklet(raw: Record<string, string>, subjects: ExamSubject[], qs: ExamQuestions): 'A' | 'B' {
-  let a = 0;
-  let b = 0;
-  for (const sub of subjects) {
-    const list = qs[sub.key] || [];
-    const r = raw[sub.key] || '';
-    a += gradeSubject(toAOrder(r, list, 'A'), list).d;
-    b += gradeSubject(toAOrder(r, list, 'B'), list).d;
+/** Kitapçık türü boşsa: denemenin kitapçıklarından hangisinin anahtarıyla en çok doğru varsa o seçilir (eşitlikte A) */
+export function guessBooklet(raw: Record<string, string>, subjects: ExamSubject[], qs: ExamQuestions): Kitapcik {
+  let best: Kitapcik = 'A';
+  let bestD = -1;
+  for (const k of kitapciklarOf(qs)) {
+    let d = 0;
+    for (const sub of subjects) {
+      const list = qs[sub.key] || [];
+      d += gradeSubject(toAOrder(raw[sub.key] || '', list, k), list).d;
+    }
+    if (d > bestD) [best, bestD] = [k, d];
   }
-  return b > a ? 'B' : 'A';
+  return best;
 }
 
 export interface ComputedResult {
@@ -243,7 +276,7 @@ export function computeResult(
   qs: ExamQuestions,
   s: ScoringSettings = LGS_SCORING
 ): ComputedResult {
-  let booklet = bookletIn === 'A' || bookletIn === 'B' ? bookletIn : '';
+  let booklet: string = kitapcikHarfi(bookletIn);
   let bookletGuessed = false;
   if (!booklet) {
     booklet = guessBooklet(raw, subjects, qs);

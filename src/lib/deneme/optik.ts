@@ -29,7 +29,7 @@ export interface OptikRow {
   name: string;
   grade: string;
   section: string;
-  booklet: string; // 'A' | 'B' | ''
+  booklet: string; // 'A' | 'B' | 'C' | 'D' | '' (Aşama 336: 4 kitapçık)
   answers: Record<string, string>; // ders → cevap dizisi (kitapçık sırasıyla; boş = ' ')
   /** Aşama 50: optikteki TC (yalnızca eşleştirme sırasında bellekte; hiçbir yere kaydedilmez) */
   tc?: string;
@@ -305,7 +305,7 @@ export function parseTxt(text: string, fields: OptikField[], fileName: string): 
       }
       answers[f.subject] = (answers[f.subject] || '') + out; // aynı dersin birden fazla alanı uç uca
     }
-    const bk = get(line, one('booklet')).trim().toLocaleUpperCase('tr-TR').replace(/[^AB]/g, '').slice(0, 1);
+    const bk = get(line, one('booklet')).trim().toLocaleUpperCase('tr-TR').replace(/[^ABCD]/g, '').slice(0, 1);
     // Aşama 50: TC (11 haneli olan ilk TC alanı); yalnızca eşleştirmede kullanılır, kaydedilmez
     let tc = '';
     for (const f of fields) {
@@ -419,7 +419,7 @@ function evalFit(lines: string[], fields: OptikField[], shift: number, fixedLen:
   // Satır uzunluğu: dosyadaki satırlar sabit uzunluktaysa format en fazla o kadar olmalı ve satırı boşa düşürmemeli
   const lengthOk = longRatio <= 0.05 && (fixedLen === null || (expected <= fixedLen && expected >= fixedLen - 2));
   const idOk = (!num || (hasNum >= n * 0.5 && badNum <= hasNum * 0.1)) && (!nameF || hasName === 0 || (badName <= hasName * 0.1 && nameOtherLetters >= nameLetters * 0.3));
-  // Aşama 271: sınıf alanında rakam, kitapçık alanında A/B olmalı (kayık format bu alanlara ad harfi düşürür)
+  // Aşama 271: sınıf alanında rakam, kitapçık alanında A-D olmalı (kayık format bu alanlara ad harfi düşürür; Aşama 336: C/D de)
   const gradeF = fields.find((f) => f.role === 'grade');
   const bookF = fields.find((f) => f.role === 'booklet');
   let gradeBad = 0;
@@ -428,7 +428,7 @@ function evalFit(lines: string[], fields: OptikField[], shift: number, fixedLen:
     const g = gradeF ? line.substr(gradeF.start - 1 + shift, gradeF.width).trim() : '';
     if (g && !/^\d+$/.test(g)) gradeBad++;
     const b = bookF ? line.substr(bookF.start - 1 + shift, bookF.width).trim().toLocaleUpperCase('tr-TR') : '';
-    if (b && !/^[AB]$/.test(b)) bookBad++;
+    if (b && !/^[A-D]$/.test(b)) bookBad++;
   }
   const metaOk = gradeBad <= n * 0.1 && bookBad <= n * 0.1;
   return {

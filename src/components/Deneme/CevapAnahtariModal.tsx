@@ -5,6 +5,7 @@ import type { DenemeExam } from '../../services/denemeService';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
 import { bookletKey, downloadKeyExcel, hasBMapping, showLetter, type Booklet } from '../../lib/deneme/anahtarCikti';
+import { kitapciklarOf } from '../../lib/deneme/lgs';
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
@@ -21,6 +22,8 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
   const subs = exam.subjects;
   const qs = exam.questions;
   const mapped = useMemo(() => hasBMapping(subs, qs), [subs, qs]);
+  // Aşama 336: 4 kitapçıklı denemede C ve D sekmeleri de görünür
+  const kitaplar = useMemo(() => kitapciklarOf(qs), [qs]);
   const keys = useMemo(() => subs.map((s) => ({ s, key: bookletKey(s, qs, booklet) })), [subs, qs, booklet]);
   const file = `Cevap-Anahtari-${exam.name}`.replace(/[\\/:*?"<>|]+/g, ' ').trim();
 
@@ -45,13 +48,12 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
         };
         await downloadKarnePdf(
           [
-            { kind: 'title', text: `${exam.name} — Cevap anahtarı`, sub: info },
-            { kind: 'heading', text: 'A kitapçığı' },
-            table('A'),
-            { kind: 'pagebreak' },
-            { kind: 'title', text: `${exam.name} — Cevap anahtarı`, sub: info },
-            { kind: 'heading', text: 'B kitapçığı' },
-            table('B'),
+            ...kitaplar.flatMap((b, i) => [
+              ...(i ? [{ kind: 'pagebreak' as const }] : []),
+              { kind: 'title' as const, text: `${exam.name} — Cevap anahtarı`, sub: info },
+              { kind: 'heading' as const, text: `${b} kitapçığı` },
+              table(b),
+            ]),
             { kind: 'text', text: mapped ? 'İ: iptal edilen soru (herkese doğru sayılır).' : 'Bu denemede B karşılığı girilmemiş; B kitapçığı A ile aynı sırada sayılır. İ: iptal edilen soru.' },
           ],
           `${exam.name} cevap anahtarı`,
@@ -93,10 +95,7 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
           size="sm"
           value={booklet}
           onChange={setBooklet}
-          items={[
-            { value: 'A', label: 'A kitapçığı', id: 'anahtar-a' },
-            { value: 'B', label: 'B kitapçığı', id: 'anahtar-b' },
-          ]}
+          items={kitaplar.map((b) => ({ value: b, label: `${b} kitapçığı`, id: `anahtar-${b.toLowerCase()}` }))}
         />
         {booklet === 'B' && !mapped && (
           <p className="text-[11px] font-semibold text-warning-fg bg-warning-soft rounded-lg px-2.5 py-1.5">

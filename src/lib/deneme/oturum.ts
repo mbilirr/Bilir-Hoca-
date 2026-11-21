@@ -94,7 +94,7 @@ export function checkBlocksWithKey(rows: OptikRow[], subjects: ExamSubject[], qs
     for (const r of rows.slice(0, 400)) {
       const raw = (r.answers[from] || '').slice(0, to.count);
       if (!/[A-E]/.test(raw)) continue;
-      const a = toAOrder(raw, list, r.booklet === 'B' ? 'B' : 'A');
+      const a = toAOrder(raw, list, r.booklet); // Aşama 336: A-B-C-D (bilinmeyen = A)
       list.forEach((q, i) => {
         const ch = a[i];
         if (!ch || ch === ' ' || ch === '*' || q.answer === 'X') return;

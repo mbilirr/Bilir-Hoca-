@@ -22,6 +22,8 @@ export interface ExcelKeyResult {
   // Aşama 89: A / B kitapçıklı anahtarlar
   bKeys?: Record<string, string>; // B kitapçığının cevapları B sırasıyla (kontrol kutusuna da yazılır)
   bModes?: Record<string, BMode>; // B eşleşmesinin nasıl bulunduğu
+  /** Aşama 336: C / D kitapçığının cevapları kendi sırasıyla (4 kitapçıklı denemeler) */
+  ekKeys?: Partial<Record<'C' | 'D', Record<string, string>>>;
   source?: 'excel' | 'pdf';
   table?: boolean; // Aşama 118: dersler "Ders" sütunlu tek tablodan okundu (ızgara okuması bunun yerine geçmez)
   kazanimOnly?: boolean; // Aşama 129b: dosyada cevap yok, yalnız soru → kazanım/konu listesi (ör. Özdebir)
@@ -53,8 +55,8 @@ function toDateStr(v: unknown): string {
 // dosyalar: "A Soru" soru numarası, "Kitapçık" sütununda B yazan satırlar atlanır (B karşılığı "B Soru"dan),
 // "Test" sütunu ders sütunu tanınmazsa yedek olarak kullanılır, "Kazanım-1" boşsa "Kazanım-2" alınır.
 
-type Cols = { no: number; ans: number; b: number; code: number; text: number; konu: number; ders: number; kit: number; test: number; text2: number };
-const NO_COLS: Cols = { no: -1, ans: -1, b: -1, code: -1, text: -1, konu: -1, ders: -1, kit: -1, test: -1, text2: -1 };
+type Cols = { no: number; ans: number; b: number; c: number; d: number; code: number; text: number; konu: number; ders: number; kit: number; test: number; text2: number };
+const NO_COLS: Cols = { no: -1, ans: -1, b: -1, c: -1, d: -1, code: -1, text: -1, konu: -1, ders: -1, kit: -1, test: -1, text2: -1 };
 
 const hdr = (c: string) => foldTr(c).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -82,6 +84,9 @@ function headerOf(cells: string[]): { cols: Cols; subject: string | null; subjec
     else if (/^test( adi)?$|^oturum$/.test(c)) take('test');
     else if (/^cevap|^dogru cevap|^dogru yanit|^yanit|^a kitap|^a kit|^anahtar|^a$|^a cevap|^cvp|^a grub/.test(c)) take('ans');
     else if (/^b karsil|^b kitap|^b kit|^b$|^b no|^b soru|^b grub|^b cevap/.test(c)) take('b');
+    // Aşama 336: 4 kitapçıklı anahtarlarda C ve D sütunları (numara ya da cevap harfi)
+    else if (/^c karsil|^c kitap|^c kit|^c$|^c no|^c soru|^c grub|^c cevap/.test(c)) take('c');
+    else if (/^d karsil|^d kitap|^d kit|^d$|^d no|^d soru|^d grub|^d cevap/.test(c)) take('d');
     else if (/kazanim kod|^kod$|^kod no|^kazanim no|kazanim numara|cikti(si)? kod/.test(c)) take('code');
     else if (/konu/.test(c)) take('konu');
     else if (/^alt ders|^ders$|^ders adi|^brans/.test(c)) take('ders');
@@ -113,6 +118,8 @@ const HINT: Partial<Record<keyof Cols, string>> = {
   ders: 'ders',
   no: 'A kitapçığı soru no',
   b: 'B kitapçığı soru no',
+  c: 'C kitapçığı soru no',
+  d: 'D kitapçığı soru no',
   ans: 'doğru cevap',
   code: 'kazanım kodu',
   text: 'kazanım metni',
@@ -181,6 +188,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
   const seenTwice = new Set<string>();
   // Aşama 89: "Soru | A | B" tablolarında B sütunu numara değil B kitapçığının cevabıysa
   const bLetters = new Map<string, Map<number, string>>();
+  const ekLetters: Record<'C' | 'D', Map<string, Map<number, string>>> = { C: new Map(), D: new Map() };
   // Aşama 118: tablo başlığı (yapay zekâya sütun anlamı olarak verilir), atlanan B satırları, ders sütunlu tablo
   let hint = '';
   let skippedB = 0;
@@ -267,7 +275,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       // Soru satırı
       const c = col || { ...NO_COLS, no: 0, ans: 1, b: 2 };
       // Aşama 118: "Kitapçık" sütununda B yazan satırlar atlanır (A satırlarındaki "B Soru" karşılığı kullanılır)
-      if (c.kit >= 0 && /^b( kitapcigi| kitapcik)?$/.test(hdr(cells[c.kit]))) {
+      if (c.kit >= 0 && /^[bcd]( kitapcigi| kitapcik)?$/.test(hdr(cells[c.kit]))) {
         skippedB++;
         continue;
       }
@@ -282,7 +290,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       }
       if (!subj) continue;
       // Soru no sütunu yoksa: bilinen sütunlar dışındaki ilk tam sayı (ilk hücre "A" gibi kitapçık harfi olabilir)
-      const known = new Set([c.ans, c.b, c.code, c.kit, c.ders, c.test]);
+      const known = new Set([c.ans, c.b, c.c, c.d, c.code, c.kit, c.ders, c.test]);
       const noIdx = c.no >= 0 ? c.no : filled.find((x) => !known.has(x.idx) && intOfCell(row[x.idx]))?.idx ?? filled[0].idx;
       const no = intOfCell(row[noIdx]);
       let ans = c.ans >= 0 ? ansOfCell(row[c.ans]) : '';
@@ -299,6 +307,16 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       else if (c.b >= 0) {
         const bl = ansOfCell(row[c.b]);
         if (bl) bLetters.set(subj, (bLetters.get(subj) || new Map<number, string>()).set(no, bl));
+      }
+      for (const kit of ['C', 'D'] as const) {
+        const ci = kit === 'C' ? c.c : c.d;
+        if (ci < 0) continue;
+        const v = intOfCell(row[ci]);
+        if (v) q[kit === 'C' ? 'cNo' : 'dNo'] = v;
+        else {
+          const l = ansOfCell(row[ci]);
+          if (l) ekLetters[kit].set(subj, (ekLetters[kit].get(subj) || new Map<number, string>()).set(no, l));
+        }
       }
       // Aşama 48d: Excel'deki kazanım doğrudan KULLANILMAZ; yalnızca bankadaki MEB kazanımını bulmak için saklanır
       const tx = (c.text >= 0 ? cells[c.text] : '') || (c.text2 >= 0 ? cells[c.text2] : '');
@@ -321,6 +339,15 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
     if (!questions[k] || questions[k].some((q) => q.bNo)) continue;
     const n = subjects?.find((s) => s.key === k)?.count || Math.max(...m.keys());
     bKeys[k] = Array.from({ length: n }, (_, i) => m.get(i + 1) || ' ').join('');
+  }
+  const ekKeys: NonNullable<ExcelKeyResult['ekKeys']> = {};
+  for (const kit of ['C', 'D'] as const) {
+    const alan = kit === 'C' ? 'cNo' : 'dNo';
+    for (const [k, m] of ekLetters[kit]) {
+      if (!questions[k] || questions[k].some((q) => q[alan])) continue;
+      const n = subjects?.find((s) => s.key === k)?.count || Math.max(...m.keys());
+      ekKeys[kit] = { ...(ekKeys[kit] || {}), [k]: Array.from({ length: n }, (_, i) => m.get(i + 1) || ' ').join('') };
+    }
   }
 
   // Aşama 48e: ders başlığı olmayan dosyalar (ör. "1-20, 1-10, … " diye alt alta sıralanmış cevaplar)
@@ -369,16 +396,28 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
     rawText,
     textCells,
     bKeys: Object.keys(bKeys).length ? bKeys : undefined,
+    ...(ekKeys.C || ekKeys.D ? { ekKeys } : {}),
     table: table && method === 'baslik' && found.length >= 2,
     kazanimOnly,
   };
 }
 
 /** Aşama 89: B kitapçığı cevapları varsa eşleşmeyi kurar (dosyada B numarası yoksa) */
+// Aşama 336: C / D kitapçığı cevapları da aynı yolla eşlenir (cNo / dNo)
 function finishKey(D: Duzen, r: ExcelKeyResult, subjects?: ExamSubject[]): ExcelKeyResult {
-  if (!r.bKeys || !subjects?.length || !r.found.length) return r;
-  const a = D.applyBKeys(subjects, r.questions, r.bKeys);
-  return { ...r, questions: a.questions, bModes: a.modes, warnings: [...r.warnings, ...a.warnings] };
+  if ((!r.bKeys && !r.ekKeys) || !subjects?.length || !r.found.length) return r;
+  let out = r;
+  if (r.bKeys) {
+    const a = D.applyBKeys(subjects, out.questions, r.bKeys);
+    out = { ...out, questions: a.questions, bModes: a.modes, warnings: [...out.warnings, ...a.warnings] };
+  }
+  for (const kit of ['C', 'D'] as const) {
+    const keys = r.ekKeys?.[kit];
+    if (!keys) continue;
+    const a = D.applyEkKeys(subjects, out.questions, keys, kit);
+    out = { ...out, questions: a.questions, warnings: [...out.warnings, ...a.warnings] };
+  }
+  return out;
 }
 
 /** Izgara (A / B yan yana ders sütunları) okuması eski okumadan iyiyse onu kullanır */
@@ -396,6 +435,7 @@ function pickGrid(D: Duzen, base: ExcelKeyResult, layout: LSheet[], subjects?: E
     warnings: g.warnings,
     method: 'baslik',
     bKeys: Object.keys(g.bKeys).length ? g.bKeys : undefined,
+    ekKeys: g.ekKeys,
   };
 }
 

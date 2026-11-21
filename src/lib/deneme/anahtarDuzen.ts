@@ -11,8 +11,9 @@
 //  * Sıra karışıksa her A sorusu, aynı cevaplı bir B sorusuyla eşlenir. Bu durumda B kitapçıklı öğrencilerin
 //    doğru / yanlış sayıları, netleri ve puanları KESİN doğru olur (her öğrenci B anahtarına göre puanlanmış
 //    gibi); yalnızca soru bazlı analizde aynı cevaplı sorular yer değiştirmiş olabilir ("tahmini" işaretlenir).
+// Aşama 336: C ve D kitapçığı (4 kitapçıklı denemeler) B ile aynı yolla okunur ve eşlenir (cNo / dNo).
 // ============================================================================
-import type { ExamQuestion, ExamQuestions, ExamSubject } from './lgs';
+import { NO_ALANI, type EkKitapcik, type ExamQuestion, type ExamQuestions, type ExamSubject, type Kitapcik } from './lgs';
 import { foldTr, guessSubjectKey } from './optik';
 
 /** Konumlu hücre: t = metin, x = yatay orta nokta (Excel: sütun no, PDF: nokta) */
@@ -32,6 +33,8 @@ export interface GridKeyResult {
   examName: string;
   questions: ExamQuestions; // A cevapları (A sırasıyla)
   bKeys: Record<string, string>; // B kitapçığının cevapları B sırasıyla (X = iptal)
+  /** Aşama 336: C / D kitapçığının cevapları kendi sırasıyla (yalnız dosyada varsa) */
+  ekKeys?: Partial<Record<'C' | 'D', Record<string, string>>>;
   found: string[];
   warnings: string[];
 }
@@ -64,26 +67,28 @@ function subjectOfLabel(t: string, subjects: ExamSubject[]): string | null {
   return k && subjects.some((x) => x.key === k) ? k : null;
 }
 
-/** "(A GRUBU)", "A KİTAPÇIĞI", "KİTAPÇIK: B", "B Grubu Cevap Anahtarı" → 'A' | 'B' */
-function bookletOf(t: string): 'A' | 'B' | null {
+/** "(A GRUBU)", "A KİTAPÇIĞI", "KİTAPÇIK: B", "C Grubu Cevap Anahtarı" → 'A' | 'B' | 'C' | 'D' */
+function bookletOf(t: string): Kitapcik | null {
   const f = foldTr(t).replace(/[^a-z0-9]+/g, ' ').trim();
   const m =
-    /(?:^| )([ab]) (?:grubu|grup|kitapcigi|kitapcik|kitapcik turu|kitap|booklet)(?: |$)/.exec(f) ||
-    /(?:grubu|grup|kitapcigi|kitapcik|kitapcik turu|booklet) ([ab])(?: |$)/.exec(f);
-  return m ? (m[1].toUpperCase() as 'A' | 'B') : null;
+    /(?:^| )([abcd]) (?:grubu|grup|kitapcigi|kitapcik|kitapcik turu|kitap|booklet)(?: |$)/.exec(f) ||
+    /(?:grubu|grup|kitapcigi|kitapcik|kitapcik turu|booklet) ([abcd])(?: |$)/.exec(f);
+  return m ? (m[1].toUpperCase() as Kitapcik) : null;
 }
+
+const SIRA: Kitapcik[] = ['A', 'B', 'C', 'D'];
 
 const stripBooklet = (t: string) =>
   clean(
     t
-      .replace(/\(\s*[AB]\s*(GRUBU|GRUP|K[İIi]TAP\S*)[^)]*\)/gi, ' ')
-      .replace(/(^|\s)[AB]\s+(GRUBU|GRUP|K[İIi]TAP\S*)(?=\s|$)/gi, ' ')
+      .replace(/\(\s*[A-D]\s*(GRUBU|GRUP|K[İIi]TAP\S*)[^)]*\)/gi, ' ')
+      .replace(/(^|\s)[A-D]\s+(GRUBU|GRUP|K[İIi]TAP\S*)(?=\s|$)/gi, ' ')
       .replace(/CEVAP\s+ANAHTAR\S*/gi, ' ')
   );
 
 interface Band {
   subject: string;
-  booklet: 'A' | 'B';
+  booklet: Kitapcik;
   x: number;
 }
 
@@ -94,7 +99,7 @@ interface Band {
 export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKeyResult | null {
   const countOf = new Map(subjects.map((s) => [s.key, s.count]));
   // kitapçık → ders → (soru no → harf)
-  const got: Record<'A' | 'B', Map<string, Map<number, string>>> = { A: new Map(), B: new Map() };
+  const got: Record<Kitapcik, Map<string, Map<number, string>>> = { A: new Map(), B: new Map(), C: new Map(), D: new Map() };
   const warnings: string[] = [];
   const nameParts: string[] = [];
   let headers = 0;
@@ -102,7 +107,7 @@ export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKey
   const conflicts = new Set<string>();
 
   for (const sh of sheets) {
-    let titles: Array<{ b: 'A' | 'B'; x: number }> = [];
+    let titles: Array<{ b: Kitapcik; x: number }> = [];
     let titlesUsed = false;
     let bands: Band[] = [];
     for (const row of sh.rows) {
@@ -110,7 +115,7 @@ export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKey
       if (!cells.length) continue;
 
       // 1) Kitapçık başlıkları (aynı hücrede sınav adı da olabilir)
-      const tRow: Array<{ b: 'A' | 'B'; x: number }> = [];
+      const tRow: Array<{ b: Kitapcik; x: number }> = [];
       for (const c of cells) {
         const b = bookletOf(c.t);
         if (b) tRow.push({ b, x: c.x });
@@ -142,19 +147,22 @@ export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKey
         }
         const ts = titles.slice().sort((p, q) => p.x - q.x);
         bands = groups.flatMap((g, gi) => {
-          let booklet: 'A' | 'B';
+          let booklet: Kitapcik;
           if (ts.length === groups.length) booklet = ts[gi].b; // grup sayısı kadar başlık: sırayla
           else if (ts.length) {
             // en yakın kitapçık başlığı (grubun ortasına göre)
             const mid = (g[0].c.x + g[g.length - 1].c.x) / 2;
             booklet = ts.reduce((best, t) => (Math.abs(t.x - mid) < Math.abs(best.x - mid) ? t : best)).b;
-          } else booklet = gi > 0 ? 'B' : 'A';
+          } else booklet = SIRA[Math.min(gi, SIRA.length - 1)];
           return g.map(({ c, k }) => ({ subject: k, booklet, x: c.x }));
         });
-        if (!titles.length && !bands.some((b) => b.booklet === 'B')) {
-          // başlıksız ızgara: ilk A, aynı derslerle gelen sonraki B sayılır
+        if (!titles.length && !bands.some((b) => b.booklet !== 'A')) {
+          // başlıksız ızgara: ilk A, aynı derslerle gelen sonrakiler sırayla B, C, D sayılır
           unnamedGrids++;
-          if (unnamedGrids > 1) bands = bands.map((b) => ({ ...b, booklet: 'B' as const }));
+          if (unnamedGrids > 1) {
+            const k = SIRA[Math.min(unnamedGrids - 1, SIRA.length - 1)];
+            bands = bands.map((b) => ({ ...b, booklet: k }));
+          }
         }
         if (titles.length) titlesUsed = true;
         bands.sort((a, b) => a.x - b.x);
@@ -207,6 +215,7 @@ export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKey
 
   const questions: ExamQuestions = {};
   const bKeys: Record<string, string> = {};
+  const ekKeys: NonNullable<GridKeyResult['ekKeys']> = {};
   const found: string[] = [];
   const nameOf = (k: string) => subjects.find((s) => s.key === k)?.name || k;
   for (const s of subjects) {
@@ -217,16 +226,20 @@ export function parseGridKey(sheets: LSheet[], subjects: ExamSubject[]): GridKey
       .sort((x, y) => x[0] - y[0])
       .map(([no, answer]) => ({ no, answer }) as ExamQuestion);
     if (a.size < s.count) warnings.push(`${s.name} A kitapçığında ${a.size}/${s.count} cevap okundu.`);
-    const b = got.B.get(s.key);
-    if (b && b.size) {
-      bKeys[s.key] = Array.from({ length: s.count }, (_, i) => b.get(i + 1) || ' ').join('');
-      if (b.size < s.count) warnings.push(`${s.name} B kitapçığında ${b.size}/${s.count} cevap okundu.`);
+    for (const kit of ['B', 'C', 'D'] as const) {
+      const b = got[kit].get(s.key);
+      if (!b || !b.size) continue;
+      const key = Array.from({ length: s.count }, (_, i) => b.get(i + 1) || ' ').join('');
+      if (kit === 'B') bKeys[s.key] = key;
+      else ekKeys[kit] = { ...(ekKeys[kit] || {}), [s.key]: key };
+      if (b.size < s.count) warnings.push(`${s.name} ${kit} kitapçığında ${b.size}/${s.count} cevap okundu.`);
     }
   }
-  for (const k of got.B.keys()) if (!got.A.has(k)) warnings.push(`${nameOf(k)} için yalnızca B kitapçığı cevapları bulundu; A cevapları olmadan kullanılamaz.`);
+  for (const kit of ['B', 'C', 'D'] as const)
+    for (const k of got[kit].keys()) if (!got.A.has(k)) warnings.push(`${nameOf(k)} için yalnızca ${kit} kitapçığı cevapları bulundu; A cevapları olmadan kullanılamaz.`);
   if (conflicts.size) warnings.push('Dosyada aynı soru için farklı cevaplar var (ilk okunan kullanıldı); lütfen kontrol edin.');
-  if (unnamedGrids > 1) warnings.push('Kitapçık adı yazmadığı için ilk tablo A, sonraki B kitapçığı sayıldı.');
-  return { examName: nameParts.join(' ').slice(0, 200), questions, bKeys, found, warnings };
+  if (unnamedGrids > 1) warnings.push(`Kitapçık adı yazmadığı için tablolar sırayla ${SIRA.slice(0, Math.min(unnamedGrids, 4)).join(', ')} kitapçığı sayıldı.`);
+  return { examName: nameParts.join(' ').slice(0, 200), questions, bKeys, ...(ekKeys.C || ekKeys.D ? { ekKeys } : {}), found, warnings };
 }
 
 // ----------------------------------------------------------------------------- B eşleşmesini harflerden kurma
@@ -257,6 +270,17 @@ export function inferBMap(aKey: string, bKey: string): { mode: BMode; bNos: numb
 
 /** B cevaplarını sorulara uygular: bNo yazılır; ders başına kullanılan yol döner */
 export function applyBKeys(subjects: ExamSubject[], questions: ExamQuestions, bKeys: Record<string, string>): { questions: ExamQuestions; modes: Record<string, BMode>; warnings: string[] } {
+  return applyEkKeys(subjects, questions, bKeys, 'B');
+}
+
+/** Aşama 336: B / C / D kitapçığının cevaplarını sorulara uygular (bNo / cNo / dNo yazılır) */
+export function applyEkKeys(
+  subjects: ExamSubject[],
+  questions: ExamQuestions,
+  bKeys: Record<string, string>,
+  kit: EkKitapcik
+): { questions: ExamQuestions; modes: Record<string, BMode>; warnings: string[] } {
+  const alan = NO_ALANI[kit];
   const out: ExamQuestions = { ...questions };
   const modes: Record<string, BMode> = {};
   const warnings: string[] = [];
@@ -265,23 +289,23 @@ export function applyBKeys(subjects: ExamSubject[], questions: ExamQuestions, bK
     const bk = bKeys[s.key];
     const list = questions[s.key];
     if (!bk || !list) continue;
-    // B numarası dosyada zaten verildiyse ona dokunulmaz
-    if (list.some((q) => q.bNo)) continue;
+    // Numara dosyada zaten verildiyse ona dokunulmaz
+    if (list.some((q) => q[alan])) continue;
     const aKey = Array.from({ length: s.count }, (_, i) => list.find((q) => q.no === i + 1)?.answer || ' ').join('');
     const r = inferBMap(aKey, bk);
     modes[s.key] = r.mode;
     if (r.mode === 'uyumsuz') {
-      warnings.push(`${s.name}: B kitapçığı eşleştirilemedi (${r.reason}). B sırasını "Sorular" bölümünden girin.`);
+      warnings.push(`${s.name}: ${kit} kitapçığı eşleştirilemedi (${r.reason}). ${kit} sırasını "Sorular" bölümünden girin.`);
       continue;
     }
-    out[s.key] = Array.from({ length: s.count }, (_, i) => ({ ...(list.find((q) => q.no === i + 1) || { no: i + 1, answer: '' }), bNo: r.bNos[i] }));
+    out[s.key] = Array.from({ length: s.count }, (_, i) => ({ ...(list.find((q) => q.no === i + 1) || { no: i + 1, answer: '' }), [alan]: r.bNos[i] }));
     if (r.mode === 'harf') harf.push(s.short || s.name);
   }
   const exact = subjects.filter((s) => modes[s.key] === 'same' || modes[s.key] === 'reverse').map((s) => s.short || s.name);
-  if (exact.length) warnings.push(`B kitapçığı eşleşmesi kesin bulundu: ${exact.join(', ')}.`);
+  if (exact.length) warnings.push(`${kit} kitapçığı eşleşmesi kesin bulundu: ${exact.join(', ')}.`);
   if (harf.length)
     warnings.push(
-      `B kitapçığının soru sırası dosyada yok; ${harf.join(', ')} için eşleşme cevap harflerinden kuruldu (tahmini). Net ve puanlar kesin doğru hesaplanır; soru bazlı analizde aynı cevaplı B soruları yer değiştirmiş olabilir. Gerçek B sırası elinizdeyse "Sorular" bölümünden girin.`
+      `${kit} kitapçığının soru sırası dosyada yok; ${harf.join(', ')} için eşleşme cevap harflerinden kuruldu (tahmini). Net ve puanlar kesin doğru hesaplanır; soru bazlı analizde aynı cevaplı ${kit} soruları yer değiştirmiş olabilir.${kit === 'B' ? ' Gerçek B sırası elinizdeyse "Sorular" bölümünden girin.' : ''}`
     );
   return { questions: out, modes, warnings };
 }

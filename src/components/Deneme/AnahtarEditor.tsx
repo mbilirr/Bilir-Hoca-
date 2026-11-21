@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
-import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
+import { kitapciklarOf, NO_ALANI, questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
+import { bookletKey } from '../../lib/deneme/anahtarCikti';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
 import { listEslesmeler, listKazanimlar, listYillikPlan, saveEslesme, type BankRow } from '../../services/denemeService';
 import { isPlanSubject, planCutoff, planDateTr, planStartOf, planUsable, plansForGrade, type PlanMap } from '../../lib/deneme/yillikPlan';
@@ -19,6 +20,7 @@ import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../
 // yalnızca bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir.
 // Excel yoksa A cevapları elle yazılır; B kitapçığı "A'nın tersi" ya da "A ile aynı" seçilir.
 // Aşama 89: cevap anahtarı PDF'ten de okunur; A ve B kitapçığının cevapları ayrı verilmişse B eşleşmesi kurulur.
+// Aşama 336: 4 kitapçıklı denemede C ve D kitapçığının cevapları yazılınca eşleşme (cNo / dNo) harflerden kurulur.
 // ============================================================================
 
 // Aşama 93: kitapçık eşleştirme penceresi yalnızca açılınca yüklenir
@@ -64,6 +66,10 @@ export const AnahtarEditor: React.FC<{
   // Aşama 89: B sırası dosyada olmayıp cevap harflerinden kurulan dersler (yalnızca bu oturumda gösterilir)
   const [estB, setEstB] = useState<Set<string>>(new Set());
   const toolOf = (k: string) => bTools[k] || { order: '', dir: 'a2b' as const, bKey: '' };
+  // Aşama 336: C / D kitapçığı cevapları (ders başına) ve sonuç iletisi
+  const [ekTools, setEkTools] = useState<Record<string, { C?: string; D?: string; msg?: { tone: 'success' | 'danger'; text: string } }>>({});
+  const kitaplar = useMemo(() => kitapciklarOf(questions), [questions]);
+  const ekVar = kitaplar.length > 2;
   const setTool = (k: string, p: Partial<{ order: string; dir: 'a2b' | 'b2a'; bKey: string; msg?: { tone: 'success' | 'warning' | 'danger'; text: string } }>) =>
     setBTools((m) => ({ ...m, [k]: { ...toolOf(k), ...p } }));
 
@@ -520,6 +526,11 @@ export const AnahtarEditor: React.FC<{
                   </span>
                 )}
                 {bCheck && bCheck.mismatches.length > 0 && <span className="ui-chip ui-chip-danger">B anahtarıyla {bCheck.mismatches.length} uyuşmazlık</span>}
+                {list.some((q) => q.cNo || q.dNo) && (
+                  <span className="ui-chip ui-chip-info" title="Bu derste C / D kitapçığı eşleşmesi var">
+                    {['C', 'D'].filter((k) => list.some((q) => q[NO_ALANI[k as 'C' | 'D']])).join(' · ')} kitapçığı
+                  </span>
+                )}
                 {estB.has(s.key) && rule === 'custom' && (
                   <span
                     className="ui-chip ui-chip-warning"
@@ -663,6 +674,77 @@ export const AnahtarEditor: React.FC<{
                       {bProblems.length > 8 && <li>… {bProblems.length - 8} sorun daha</li>}
                     </ul>
                   )}
+                  {/* Aşama 336: 4 kitapçıklı denemeler (A-B-C-D) */}
+                  <div className="border-t border-line pt-2 space-y-1.5" data-ek-kitapcik={s.key}>
+                    <p className="text-xs font-semibold text-fg inline-flex items-center gap-1">
+                      C ve D kitapçığı
+                      <InfoTip text="Yalnız 4 kitapçıklı denemelerde doldurun. Kitapçığın cevaplarını kendi sırasıyla yazın; eşleşme harflerden kurulur. Net ve puan kesin doğru çıkar." />
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {(['C', 'D'] as const).map((k) => {
+                        const alan = NO_ALANI[k];
+                        const mapped = list.some((q) => q[alan]);
+                        const et = ekTools[s.key] || {};
+                        const val = et[k] ?? (mapped ? bookletKey(s, questions, k).map((x) => x || ' ').join('').trimEnd() : '');
+                        const uygula = async () => {
+                          const D = await import('../../lib/deneme/anahtarDuzen');
+                          const aKey = Array.from({ length: s.count }, (_, i) => list.find((q) => q.no === i + 1)?.answer || ' ').join('');
+                          const r = D.inferBMap(aKey, cleanKey(val));
+                          if (r.mode === 'uyumsuz') {
+                            setEkTools((m) => ({ ...m, [s.key]: { ...(m[s.key] || {}), msg: { tone: 'danger', text: `${k} kitapçığı eşleşmedi: ${r.reason}.` } } }));
+                            return;
+                          }
+                          setSubject(
+                            s.key,
+                            Array.from({ length: s.count }, (_, i) => ({ ...(list.find((q) => q.no === i + 1) || { no: i + 1, answer: '' }), [alan]: r.bNos[i] }))
+                          );
+                          setEkTools((m) => ({
+                            ...m,
+                            [s.key]: { ...(m[s.key] || {}), [k]: undefined, msg: { tone: 'success', text: `${k} kitapçığı eşlendi${r.mode === 'harf' ? ' (sıra harflerden, tahmini)' : ''}. Kaydetmeyi unutmayın.` } },
+                          }));
+                        };
+                        const kaldir = () => {
+                          setSubject(
+                            s.key,
+                            list.map((q) => {
+                              const n = { ...q };
+                              delete n[alan];
+                              return n;
+                            })
+                          );
+                          setEkTools((m) => ({ ...m, [s.key]: { ...(m[s.key] || {}), [k]: '', msg: { tone: 'success', text: `${k} kitapçığı eşleşmesi kaldırıldı.` } } }));
+                        };
+                        return (
+                          <div key={k} className="space-y-1">
+                            <label className="text-[11px] font-semibold text-fg-2" htmlFor={`ek-${k}-${s.key}`}>
+                              {k} kitapçığının cevapları
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                id={`ek-${k}-${s.key}`}
+                                className="ui-input py-1 text-xs font-mono tracking-widest uppercase flex-1 min-w-0"
+                                placeholder={`${k} sırasıyla ${s.count} harf`}
+                                value={val}
+                                maxLength={s.count + 10}
+                                onChange={(e) => setEkTools((m) => ({ ...m, [s.key]: { ...(m[s.key] || {}), [k]: e.target.value, msg: undefined } }))}
+                              />
+                              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm w-24 justify-center" disabled={cleanKey(val).length !== s.count} onClick={() => void uygula()}>
+                                Eşleştir
+                              </button>
+                              {mapped && (
+                                <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm w-20 justify-center" onClick={kaldir}>
+                                  Kaldır
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {ekTools[s.key]?.msg && (
+                      <p className={cx('text-[11px] font-semibold', ekTools[s.key]!.msg!.tone === 'success' ? 'text-success-fg' : 'text-danger-fg')}>{ekTools[s.key]!.msg!.text}</p>
+                    )}
+                  </div>
                 </div>
               )}
               {isOpen && (
@@ -673,6 +755,8 @@ export const AnahtarEditor: React.FC<{
                         <th className="px-3 py-2 font-semibold w-12">No</th>
                         <th className="px-3 py-2 font-semibold w-20">Cevap</th>
                         <th className="px-3 py-2 font-semibold w-14">B no</th>
+                        {ekVar && <th className="px-3 py-2 font-semibold w-14">C no</th>}
+                        {ekVar && <th className="px-3 py-2 font-semibold w-14">D no</th>}
                         <th className="px-3 py-2 font-semibold min-w-72">Kazanım (bankadan)</th>
                         <th className="px-3 py-2 font-semibold w-44">Konu</th>
                         <th className="px-3 py-2 font-semibold w-44">Alt kazanım</th>
@@ -712,6 +796,22 @@ export const AnahtarEditor: React.FC<{
                                 title={badB.has(q.no) ? 'Bu B numarası geçersiz ya da başka bir soruda da kullanılmış' : undefined}
                               />
                             </td>
+                            {ekVar &&
+                              (['C', 'D'] as const).map((k) => (
+                                <td key={k} className="px-3 py-1.5 align-top">
+                                  <input
+                                    className="ui-input py-0.5 px-1 text-xs text-center tabular-nums w-14"
+                                    inputMode="numeric"
+                                    value={q[NO_ALANI[k]] ? String(q[NO_ALANI[k]]) : ''}
+                                    placeholder={String(q.no)}
+                                    onChange={(e) => {
+                                      const v = e.target.value.replace(/\D/g, '').slice(0, 3);
+                                      set({ [NO_ALANI[k]]: v ? Number(v) : undefined });
+                                    }}
+                                    aria-label={`${q.no}. sorunun ${k} kitapçığındaki numarası`}
+                                  />
+                                </td>
+                              ))}
                             <td className="px-3 py-1.5 text-fg-2 align-top">
                               <select
                                 className="ui-input py-0.5 text-xs"

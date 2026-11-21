@@ -8,7 +8,7 @@
 //     birbirinden çok farklıysa eşleşme yanlış olabilir; B'deki olası doğru numara önerilir.
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { markOf, type ExamQuestion, type ExamQuestions, type ExamSubject } from './lgs';
+import { markOf, NO_ALANI, type EkKitapcik, type ExamQuestion, type ExamQuestions, type ExamSubject } from './lgs';
 
 // ----------------------------------------------------------------------------- 1) doğrulama
 /** Bir dersin B eşleşmesindeki sorunlar (boşsa sorun yok). Hiç B numarası yoksa "A ile aynı sıra" sayılır. */
@@ -31,13 +31,35 @@ export function bMapProblems(subject: ExamSubject, list: ExamQuestion[]): string
   return out;
 }
 
-/** Bütün derslerin B eşleşme sorunları (yalnızca cevap anahtarı girilmiş dersler) */
+/** Aşama 336: C / D kitapçığı eşleşmesindeki sorunlar (B ile aynı kurallar) */
+export function ekMapProblems(subject: ExamSubject, list: ExamQuestion[], k: Exclude<EkKitapcik, 'B'>): string[] {
+  const f = NO_ALANI[k];
+  const out: string[] = [];
+  if (!list.length || list.every((q) => !q[f])) return out;
+  const used = new Map<number, number[]>();
+  for (const q of list) {
+    const n = q[f];
+    if (!n) {
+      out.push(`${subject.name} ${q.no}. soru: ${k} numarası yazılmamış.`);
+      continue;
+    }
+    if (!Number.isInteger(n) || n < 1 || n > subject.count) {
+      out.push(`${subject.name} ${q.no}. soru: ${k} numarası ${n} geçersiz (1-${subject.count} olmalı).`);
+      continue;
+    }
+    used.set(n, [...(used.get(n) || []), q.no]);
+  }
+  for (const [b, as] of used) if (as.length > 1) out.push(`${subject.name}: ${k} kitapçığının ${b}. sorusu birden çok A sorusuna verilmiş (${as.join(', ')}. sorular).`);
+  return out;
+}
+
+/** Bütün derslerin B (ve varsa C / D) eşleşme sorunları (yalnızca cevap anahtarı girilmiş dersler) */
 export function keyBProblems(subjects: ExamSubject[], qs: ExamQuestions): string[] {
   const out: string[] = [];
   for (const s of subjects) {
     const list = qs[s.key] || [];
     if (!list.some((q) => q.answer)) continue;
-    out.push(...bMapProblems(s, list));
+    out.push(...bMapProblems(s, list), ...ekMapProblems(s, list, 'C'), ...ekMapProblems(s, list, 'D'));
   }
   return out;
 }
@@ -149,7 +171,8 @@ export const BOOKLET_MIN = 12; // kitapçık başına en az öğrenci
  * işaretlendiğine bakılarak olası doğru B numarası önerilir.
  */
 export function bookletConsistency(exam: DenemeExam, results: DenemeResult[]): BookletCheck {
-  const A = results.filter((r) => (r.booklet || 'A') !== 'B');
+  // Aşama 336: C / D kitapçıklı öğrenciler A grubuna katılmaz (yalnız A ile B karşılaştırılır)
+  const A = results.filter((r) => !r.booklet || r.booklet === 'A');
   const B = results.filter((r) => r.booklet === 'B');
   const enough = A.length >= BOOKLET_MIN && B.length >= BOOKLET_MIN;
   const issues: BookletIssue[] = [];

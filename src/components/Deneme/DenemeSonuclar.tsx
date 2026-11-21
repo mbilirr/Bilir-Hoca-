@@ -10,7 +10,10 @@ import { dateTr } from '../../lib/deneme/karneModel';
 import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
 import { BOOKLET_MIN, bookletConsistency, keyBProblems } from '../../lib/deneme/bKitapcik';
-import { planBRemap, type BRemapPlan } from '../../lib/deneme/bYenidenDuzen';
+import { planBRemap, type BChange, type BRemapPlan } from '../../lib/deneme/bYenidenDuzen';
+
+/** Aşama 336: eşleşmesi değişen kitapçıklar ("B", "B / C") */
+const kitapListesi = (ch: BChange[]) => Array.from(new Set(ch.map((c) => c.kitapcik))).sort().join(' / ');
 import { useHistoryState } from '../../lib/useHistoryState';
 import { usePagedList, ShowMoreBar, useMediaQuery } from '../../lib/listPaging';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
@@ -144,7 +147,7 @@ export const DenemeSonuclar: React.FC<{
       if (missing.length) throw new Error(`Cevap anahtarı eksik: ${missing.map((s) => s.name).join(', ')}`);
       // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı
       const bp = keyBProblems(subs, qs);
-      if (bp.length) throw new Error(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''}`);
+      if (bp.length) throw new Error(`Kitapçık eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''}`);
       const plan = planBRemap(subs, exam.questions, qs, results, exam.scoring && exam.scoring.base ? exam.scoring : LGS_SCORING);
       if (plan.changes.length && plan.nB) {
         setRemap({ plan, qs });
@@ -170,7 +173,7 @@ export const DenemeSonuclar: React.FC<{
       setRemap(null);
       setNotice(
         plan.changes.length && plan.nB
-          ? `Cevap anahtarı kaydedildi; ${plan.nB} B kitapçıklı öğrencinin cevapları yeni eşleşmeye göre düzenlendi${plan.scoreChanged ? `, ${plan.scoreChanged} öğrencinin puanı değişti` : ', puanlar değişmedi'}.`
+          ? `Cevap anahtarı kaydedildi; ${plan.nB} ${kitapListesi(plan.changes)} kitapçıklı öğrencinin cevapları yeni eşleşmeye göre düzenlendi${plan.scoreChanged ? `, ${plan.scoreChanged} öğrencinin puanı değişti` : ', puanlar değişmedi'}.`
           : 'Cevap anahtarı kaydedildi ve bütün sonuçlar yeniden hesaplandı.'
       );
     } catch (e: any) {
@@ -670,14 +673,14 @@ export const DenemeSonuclar: React.FC<{
           <div className="space-y-2 text-xs text-fg-2">
             <ul className="rounded-lg border border-line divide-y divide-line">
               {remap.plan.changes.map((c) => (
-                <li key={c.subject.key} className="flex justify-between gap-2 px-2.5 py-1.5">
+                <li key={`${c.kitapcik}-${c.subject.key}`} className="flex justify-between gap-2 px-2.5 py-1.5">
                   <span className="font-semibold text-fg">{c.subject.name}</span>
-                  <span className="tabular-nums">{c.questions} sorunun B numarası</span>
+                  <span className="tabular-nums">{c.questions} sorunun {c.kitapcik} numarası</span>
                 </li>
               ))}
             </ul>
             <p>
-              <b className="text-fg">{remap.plan.nB}</b> B kitapçıklı öğrencinin cevapları yeni sıraya göre düzenlenecek; soru, kazanım ve B uyum analizleri buna göre yeniden hesaplanır.
+              <b className="text-fg">{remap.plan.nB}</b> {kitapListesi(remap.plan.changes)} kitapçıklı öğrencinin cevapları yeni sıraya göre düzenlenecek; soru, kazanım ve B uyum analizleri buna göre yeniden hesaplanır.
             </p>
             <p className={cx('rounded-lg px-2.5 py-1.5 font-semibold', remap.plan.scoreChanged ? 'bg-warning-soft text-warning-fg' : 'bg-success-soft text-success-fg')} id="b-remap-puan">
               {remap.plan.scoreChanged

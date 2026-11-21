@@ -1,9 +1,10 @@
 // ============================================================================
 // Aşama 335: HAZIR OPTİK FORMATLARI (5-6-7 ve LGS)
 // Mustafa'nın verdiği 160 TXT ve 11 FMT ile çıkarıldı; her TXT bunlardan yalnız BİRİNE temiz uyar.
+// Aşama 336: Sinan Kuzucu (A-B-C-D kitapçık) formatları eklendi.
 // Kurumun kayıtlı formatlarından sonra denenir; uymazsa FMT'siz okuma (optikOtomatik) devreye girer.
 // Hazır format düzenlenemez/silinemez; düzenlenirse kuruma yeni format olarak kaydedilir.
-// Sinan Kuzucu (A-B-C-D kitapçık) ve kurum optiğinin "Değerler" kutuları BİLEREK yok (bkz. KURULUM-335).
+// Kurum optiğinin "Değerler" kutuları BİLEREK yok (dersleri bilinmiyor; bkz. KURULUM-335).
 // ============================================================================
 import type { DenemeFormat } from '../../services/denemeService';
 import type { FieldRole, OptikField } from './optik';
@@ -111,6 +112,34 @@ const TANIMLAR: Tanim[] = [
       [115, 20, 'answers', 'ing', 'İngilizce'],
       [136, 20, 'answers', 'mat', 'Matematik'],
       [157, 20, 'answers', 'fen', 'Fen bilimleri'],
+    ],
+  },
+  {
+    id: 'hazir:kuzucu-sayisal',
+    name: 'Sinan Kuzucu sayısal 91 (A-B-C-D kitapçık)',
+    len: 91,
+    alanlar: [
+      [10, 5, 'number', null, 'ÖGR No'],
+      [15, 11, 'tc', null, 'TC No'],
+      [28, 1, 'booklet', null, 'Kitapçık Türü'],
+      [30, 22, 'fullname', null, 'Ad Soyad'],
+      [52, 20, 'answers', 'mat', 'MAT'],
+      [72, 20, 'answers', 'fen', 'FEN'],
+    ],
+  },
+  {
+    id: 'hazir:kuzucu-sozel',
+    name: 'Sinan Kuzucu sözel 131 (A-B-C-D kitapçık)',
+    len: 131,
+    alanlar: [
+      [10, 5, 'number', null, 'ÖGR No'],
+      [15, 11, 'tc', null, 'TC No'],
+      [28, 1, 'booklet', null, 'Kitapçık Türü'],
+      [30, 22, 'fullname', null, 'Ad Soyad'],
+      [52, 20, 'answers', 'tr', 'Türkçe'],
+      [72, 20, 'answers', 'din', 'Din-Ahlak'],
+      [92, 20, 'answers', 'sos', 'Sosyal'],
+      [112, 20, 'answers', 'ing', 'Y.Dil'],
     ],
   },
   {
