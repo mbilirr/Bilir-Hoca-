@@ -379,7 +379,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   if (!isSuperAdmin) {
     return (
-      <div className="bg-surface border border-danger/30 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
+      <div className="bg-surface border border-danger/30 rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
         <div className="w-16 h-16 rounded-2xl bg-danger/15 border border-danger/30 text-danger-fg flex items-center justify-center mx-auto">
           <ShieldAlert className="w-8 h-8" />
         </div>
@@ -668,7 +668,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       )}
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-[10000] max-w-md animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-6 right-6 z-(--z-bildirim) max-w-md animate-in slide-in-from-bottom-3 duration-200">
           <div
             className={`px-4 py-3 rounded-2xl shadow-2xl border text-xs sm:text-sm font-bold flex items-center space-x-2.5 backdrop-blur-xl ${
               toastMsg.type === 'success'
@@ -763,7 +763,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter('all');
             setStatusFilter('all');
           }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition cursor-pointer ${
             roleFilter === 'all' && statusFilter === 'all'
               ? 'border-brand ring-2 ring-brand/50 bg-brand-soft'
               : 'border-line hover:border-line hover:bg-surface-2/50'
@@ -774,7 +774,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <Users className="w-4 h-4 text-brand-fg" />
           </div>
           <p className="text-2xl font-bold text-fg">{stats.total}</p>
-          <span className="text-[10px] text-muted mt-1 block">Tüm kayıtları listele</span>
+          <span className="text-2xs text-muted mt-1 block">Tüm kayıtları listele</span>
         </button>
 
         {/* Yöneticiler */}
@@ -784,7 +784,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'admin' && statusFilter === 'all' ? 'all' : 'admin');
             setStatusFilter('all');
           }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition cursor-pointer ${
             roleFilter === 'admin' && statusFilter === 'all'
               ? 'border-warning ring-2 ring-warning/50 bg-warning-soft'
               : 'border-warning/20 hover:border-warning/40 hover:bg-warning-soft'
@@ -795,7 +795,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <Crown className="w-4 h-4 text-warning-fg" />
           </div>
           <p className="text-2xl font-bold text-fg">{stats.admins}</p>
-          <span className="text-[10px] text-warning-fg/70 mt-1 block">Tam Yetkili (Admin)</span>
+          <span className="text-2xs text-warning-fg/70 mt-1 block">Tam Yetkili (Admin)</span>
         </button>
 
         {/* Öğretmenler */}
@@ -805,7 +805,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'teacher' && statusFilter === 'all' ? 'all' : 'teacher');
             setStatusFilter('all');
           }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition cursor-pointer ${
             roleFilter === 'teacher' && statusFilter === 'all'
               ? 'border-brand ring-2 ring-brand/50 bg-brand-soft'
               : 'border-brand/20 hover:border-brand/40 hover:bg-brand-soft'
@@ -816,7 +816,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <GraduationCap className="w-4 h-4 text-brand-fg" />
           </div>
           <p className="text-2xl font-bold text-fg">{stats.teachers}</p>
-          <span className="text-[10px] text-brand-fg/70 mt-1 block">Aktif Branş Eğitmenleri</span>
+          <span className="text-2xs text-brand-fg/70 mt-1 block">Aktif Branş Eğitmenleri</span>
         </button>
 
         {/* Öğrenciler */}
@@ -826,7 +826,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'student' && statusFilter === 'all' ? 'all' : 'student');
             setStatusFilter('all');
           }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition cursor-pointer ${
             roleFilter === 'student' && statusFilter === 'all'
               ? 'border-success ring-2 ring-success/50 bg-success-soft'
               : 'border-success/20 hover:border-success/40 hover:bg-success-soft'
@@ -837,7 +837,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <School className="w-4 h-4 text-success-fg" />
           </div>
           <p className="text-2xl font-bold text-fg">{stats.students}</p>
-          <span className="text-[10px] text-success-fg/70 mt-1 block">Kayıtlı Öğrenci Sayısı</span>
+          <span className="text-2xs text-success-fg/70 mt-1 block">Kayıtlı Öğrenci Sayısı</span>
         </button>
 
         {/* Askıya Alınanlar */}
@@ -847,7 +847,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended');
             setRoleFilter('all');
           }}
-          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition cursor-pointer ${
             statusFilter === 'suspended'
               ? 'border-danger ring-2 ring-danger/50 bg-danger-soft'
               : 'border-danger/20 hover:border-danger/40 hover:bg-danger-soft'
@@ -858,7 +858,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <Ban className="w-4 h-4 text-danger-fg" />
           </div>
           <p className="text-2xl font-bold text-danger-fg">{stats.suspended}</p>
-          <span className="text-[10px] text-danger-fg/70 mt-1 block">Girişleri Kapatılmış</span>
+          <span className="text-2xs text-danger-fg/70 mt-1 block">Girişleri Kapatılmış</span>
         </button>
 
       </div>
@@ -1035,7 +1035,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <>
         {/* Quick Role & Status Filter Pill Buttons */}
         <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-line">
-          <span className="text-[11px] font-bold text-muted">Hızlı Filtre:</span>
+          <span className="text-xs font-bold text-muted">Hızlı Filtre:</span>
           <button
             type="button"
             onClick={() => {
@@ -1116,11 +1116,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       </div>
 
       {/* Users Table */}
-      <div className="bg-surface border border-line rounded-3xl overflow-hidden shadow-xl">
+      <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-line bg-canvas/60 text-[11px] font-bold uppercase tracking-wider text-muted">
+              <tr className="border-b border-line bg-canvas/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <th className="py-3.5 px-4 sm:px-6">Kullanıcı (Ad Soyad & Profil)</th>
                 <th className="py-3.5 px-4">İletişim & Kullanıcı Adı</th>
                 <th className="py-3.5 px-4">Mevcut Rolü</th>
@@ -1174,16 +1174,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                                 {u.name}
                               </span>
                               {isCurrentAdminSelf && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-brand/20 text-brand-fg border border-brand/30">
+                                <span className="px-1.5 py-0.2 rounded text-3xs font-bold bg-brand/20 text-brand-fg border border-brand/30">
                                   Siz
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-muted font-mono block">
+                            <span className="text-xs text-muted font-mono block">
                               @{u.username}
                             </span>
                             {isHead && u.kurumId && (
-                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-info-soft text-info-fg" data-kurum-badge>
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-2xs font-semibold bg-info-soft text-info-fg" data-kurum-badge>
                                 {dataService.getKurumNameForId(u.kurumId)}
                               </span>
                             )}
@@ -1213,7 +1213,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               <span>{phoneOf(u)}</span>
                             </div>
                           ) : null}
-                          {birthOf(u) ? <div className="text-[11px] text-muted">Doğum: {birthDateLabel(birthOf(u))}</div> : null}
+                          {birthOf(u) ? <div className="text-xs text-muted">Doğum: {birthDateLabel(birthOf(u))}</div> : null}
                         </div>
                       </td>
 
@@ -1258,7 +1258,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               {u.className || 'Genel'}
                             </span>
                             {u.studentNumber && (
-                              <span className="text-[11px] text-muted">
+                              <span className="text-xs text-muted">
                                 No: {u.studentNumber}
                               </span>
                             )}
@@ -1273,7 +1273,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               if (!c || (c.classes === 0 && c.students === 0)) return null;
                               const parts = [c.classes ? `${c.classes} sınıf` : '', c.students ? `${c.students} öğrenci` : ''].filter(Boolean);
                               return (
-                                <span className="text-[10px] text-brand-fg font-medium">
+                                <span className="text-2xs text-brand-fg font-medium">
                                   {parts.join(' · ')} yetkili
                                 </span>
                               );
@@ -1285,21 +1285,21 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       {/* Status */}
                       <td className="py-3.5 px-4">
                         {isSuspended ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-danger/20 text-danger-fg border border-danger/30">
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-danger/20 text-danger-fg border border-danger/30">
                             <Ban className="w-3 h-3 text-danger-fg" />
                             <span>Askıya Alındı</span>
                           </span>
                         ) : u.status === 'pending' ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-warning/20 text-warning-fg border border-warning/30">
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-warning/20 text-warning-fg border border-warning/30">
                             <AlertTriangle className="w-3 h-3 text-warning-fg" />
                             <span>Onay Bekliyor</span>
                           </span>
                         ) : u.status === 'rejected' ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-surface-3 text-fg-2">
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-surface-3 text-fg-2">
                             <span>Reddedildi</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-success/15 text-success-fg border border-success/30">
+                          <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-lg text-xs font-bold bg-success/15 text-success-fg border border-success/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-success/40 animate-pulse" />
                             <span>Aktif</span>
                           </span>
@@ -1423,10 +1423,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 1: BİLGİ VE ŞİFRE GÜNCELLEME (ADMIN OVERRIDE FORMU) */}
       {/* ========================================================================= */}
       {editModalUser && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setEditModalUser(null)} />
           <div
-            className="relative w-full max-w-2xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
+            className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1694,7 +1694,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={handleCopyPassword}
-                              className="p-1 rounded-md hover:bg-surface-2 text-muted hover:text-fg"
+                              className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
                               title={copiedPassword ? 'Kopyalandı' : 'Şifreyi kopyala'}
                               aria-label="Şifreyi kopyala"
                             >
@@ -1704,7 +1704,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="p-1 rounded-md hover:bg-surface-2 text-muted hover:text-fg"
+                            className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
                             title={showPassword ? 'Gizle' : 'Göster'}
                             aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
                           >
@@ -1717,7 +1717,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     {!pwOpen && editModalUser.id !== dataService.getCurrentTeacher()?.id && (
                       <KayitliSifre tur={isTeacherAccount(editModalUser) ? 'teacher' : 'student'} kayitId={editModalUser.id} className="mb-2" />
                     )}
-                    <label className="flex items-center gap-2 text-[11px] text-fg-2 cursor-pointer">
+                    <label className="flex items-center gap-2 text-xs text-fg-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={editFormData.mustChangePassword}
@@ -1763,10 +1763,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 2: ROL & YETKİ DEĞİŞTİRME (RBAC MODAL) */}
       {/* ========================================================================= */}
       {roleModalUser && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setRoleModalUser(null)} />
           <div
-            className="relative w-full max-w-lg bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
+            className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1795,7 +1795,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               {/* Admin */}
               <div
                 onClick={() => setSelectedTargetRole('admin')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start space-x-3 ${
+                className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-start space-x-3 ${
                   selectedTargetRole === 'admin'
                     ? 'bg-warning/15 border-warning/60 ring-2 ring-warning/20 text-fg'
                     : 'bg-canvas border-line text-fg-2 hover:border-line'
@@ -1815,7 +1815,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               {/* Teacher */}
               <div
                 onClick={() => setSelectedTargetRole('teacher')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start space-x-3 ${
+                className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-start space-x-3 ${
                   selectedTargetRole === 'teacher'
                     ? 'bg-brand/15 border-brand/60 ring-2 ring-brand/20 text-fg'
                     : 'bg-canvas border-line text-fg-2 hover:border-line'
@@ -1835,7 +1835,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </div>
 
             {/* Notice */}
-            <div className="p-3 bg-canvas rounded-xl border border-line text-[11px] text-muted flex items-center space-x-2">
+            <div className="p-3 bg-canvas rounded-xl border border-line text-xs text-muted flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-warning-fg shrink-0" />
               {/* Aşama 184: kısaltıldı, ayrıntı ⓘ içinde */}
               <span className="flex-1">Yeni yetki en geç 1 saat içinde geçerli olur.</span>
@@ -1876,10 +1876,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 3: ASKIDAN AL / AKTİFLEŞTİR ONAY PENCERESİ */}
       {/* ========================================================================= */}
       {suspendModalUser && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setSuspendModalUser(null)} />
           <div
-            className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
+            className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-2xl bg-danger/15 border border-danger/30 text-danger-fg flex items-center justify-center mx-auto">
@@ -1941,10 +1941,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 4: KALICI SİLME ONAY PENCERESİ */}
       {/* ========================================================================= */}
       {deleteModalUser && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setDeleteModalUser(null)} />
           <div
-            className="relative w-full max-w-md bg-surface border border-danger/40 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
+            className="relative w-full max-w-md bg-surface border border-danger/40 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-2xl bg-danger/20 border border-danger/40 text-danger-fg flex items-center justify-center mx-auto">
@@ -1982,10 +1982,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 5: ÖĞRETMEN SINIF VE ÖĞRENCİ ERİŞİM YETKİLENDİRMESİ (ERİŞİM MATRİSİ) */}
       {/* ========================================================================= */}
       {authModalTeacher && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <OverlayLayer onClose={() => setAuthModalTeacher(null)} />
           <div
-            className="relative w-full max-w-2xl bg-surface border border-brand/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+            className="relative w-full max-w-2xl bg-surface border border-brand/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -2045,7 +2045,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   roleNote={roleSeesAll ? `${wideRoleText(authWideRoles)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; işaretlemek gerekmez.` : undefined}
                 />
                 {authGradesMissing && (
-                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-access-grades-missing">
+                  <p className="text-xs font-semibold text-warning-fg" id="teacher-access-grades-missing">
                     Kademe için önce Supabase'de sql/102_ogretmen_kademe.sql çalıştırılmalı.
                   </p>
                 )}
@@ -2058,7 +2058,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     <School className="w-4 h-4 text-brand-fg" />
                     <span>Sınıf Erişim Yetkileri ({roleSeesAll ? classes.length : new Set([...selectedAuthClassIds, ...gradeCovered]).size}/{classes.length} Sınıf Seçili)</span>
                   </h4>
-                  <div className="flex items-center space-x-2 text-[11px]">
+                  <div className="flex items-center space-x-2 text-xs">
                     <button
                       type="button"
                       onClick={() => setSelectedAuthClassIds(classes.map((c) => c.id))}
@@ -2090,7 +2090,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         <label
                           key={cls.id}
                           title={viaRole ? 'Rolünden açık; rol değişince kendiliğinden güncellenir' : viaGrade ? 'Kademeden açık; kapatmak için yukarıdan kademeyi kaldırın' : undefined}
-                          className={`p-3 rounded-xl border flex items-center justify-between transition-all ${locked ? 'cursor-default' : 'cursor-pointer'} ${
+                          className={`p-3 rounded-xl border flex items-center justify-between transition ${locked ? 'cursor-default' : 'cursor-pointer'} ${
                             isChecked
                               ? 'bg-brand/15 border-brand/50 text-fg'
                               : 'bg-canvas/80 border-line text-muted hover:border-line'
@@ -2114,15 +2114,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               <span className="text-xs font-bold block truncate text-fg">
                                 {cls.name}
                               </span>
-                              <span className="text-[10px] text-muted block truncate">
+                              <span className="text-2xs text-muted block truncate">
                                 {cls.gradeLevel || cls.schoolLevel || cls.branch || 'Genel'}
                               </span>
                             </div>
                           </div>
                           {viaRole ? (
-                            <span className="ui-chip ui-chip-info shrink-0 ml-2 text-[10px]">Rolünden</span>
+                            <span className="ui-chip ui-chip-info shrink-0 ml-2 text-2xs">Rolünden</span>
                           ) : viaGrade ? (
-                            <span className="ui-chip ui-chip-brand shrink-0 ml-2 text-[10px]">Kademeden</span>
+                            <span className="ui-chip ui-chip-brand shrink-0 ml-2 text-2xs">Kademeden</span>
                           ) : (
                             isChecked && <CheckCircle2 className="w-4 h-4 text-brand-fg shrink-0 ml-2" />
                           )}
@@ -2142,7 +2142,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   </h4>
                 </div>
 
-                <p className="text-[11px] text-muted">
+                <p className="text-xs text-muted">
                   Sınıf haricinde bu öğretmene özel olarak atanmış bireysel öğrencileri seçebilirsiniz.
                 </p>
 
@@ -2181,11 +2181,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
                             <span className="font-bold text-fg truncate">{std.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted">
+                            <span className="text-2xs px-1.5 py-0.5 rounded bg-surface-2 text-muted">
                               {std.className}
                             </span>
                             {isViaClass && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand/20 text-brand-fg font-mono">
+                              <span className="text-3xs px-1.5 py-0.2 rounded bg-brand/20 text-brand-fg font-mono">
                                 Sınıfından Yetkili
                               </span>
                             )}
@@ -2206,7 +2206,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               }}
                               className="rounded bg-surface border-line text-success-fg focus:ring-0 w-3.5 h-3.5"
                             />
-                            <span className="text-[11px] text-muted">Bireysel İzin</span>
+                            <span className="text-xs text-muted">Bireysel İzin</span>
                           </label>
                         </div>
                       );
@@ -2481,7 +2481,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
       title="Yeni Öğretmen Hesabı"
       description="Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar."
       size="md"
-      layerClass="z-[9999]"
+      layerClass="z-(--z-pencere)"
       closeOnBackdrop={false}
       footer={
         created ? (
@@ -2524,11 +2524,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="px-3 py-2 rounded-lg bg-surface-2 border border-line">
-              <span className="block text-[11px] text-muted">Kullanıcı adı</span>
+              <span className="block text-xs text-muted">Kullanıcı adı</span>
               <span className="font-mono text-sm font-semibold text-fg select-all">{created.username}</span>
             </div>
             <div className="px-3 py-2 rounded-lg bg-surface-2 border border-line">
-              <span className="block text-[11px] text-muted">Şifre</span>
+              <span className="block text-xs text-muted">Şifre</span>
               <span className="font-mono text-sm font-semibold text-fg select-all">{created.password}</span>
             </div>
           </div>
@@ -2602,7 +2602,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                   placeholder="Örn: aysedemir"
                   className="ui-field font-mono"
                 />
-                <p className="text-[11px] text-muted mt-1">Küçük harf, rakam, - ve _ ; Türkçe karakter ve boşluk olmadan.</p>
+                <p className="text-xs text-muted mt-1">Küçük harf, rakam, - ve _ ; Türkçe karakter ve boşluk olmadan.</p>
               </div>
               <div>
                 <FieldLabel htmlFor="teacher-create-password">Giriş şifresi *</FieldLabel>
@@ -2663,7 +2663,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <FieldLabel htmlFor="teacher-create-phone">Telefon</FieldLabel>
                 <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className="ui-field" />
               </div>
-              <p id="teacher-create-tc-help" className="col-span-2 -mt-1.5 text-[11px] text-muted">
+              <p id="teacher-create-tc-help" className="col-span-2 -mt-1.5 text-xs text-muted">
                 TC saklanmaz; yalnız geri çevrilemez parmak izi tutulur, kayıttan sonra görünmez.
               </p>
             </div>
@@ -2719,11 +2719,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                   })}
                 </div>
                 {rolesOff && (
-                  <p className="text-[11px] font-medium text-warning-fg mt-1.5" id="teacher-create-roles-off">
+                  <p className="text-xs font-medium text-warning-fg mt-1.5" id="teacher-create-roles-off">
                     Kurumda rol yetkileri kapalı: roller kaydedilir, rol yetkileri açılınca uygulanır.
                   </p>
                 )}
-                <p className="text-[11px] text-muted mt-1.5">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
+                <p className="text-xs text-muted mt-1.5">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
               </div>
             )}
             <GradeTicks
@@ -2733,7 +2733,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               onChange={setGrades}
               roleNote={createSeesAll ? `${wideRoleText(createWide)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; kademe seçmek gerekmez.` : undefined}
             />
-            <p className="text-[11px] text-muted flex items-center gap-1">
+            <p className="text-xs text-muted flex items-center gap-1">
               Tek tek sınıf / öğrenci erişimi
               <InfoTip text="Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız." />
             </p>

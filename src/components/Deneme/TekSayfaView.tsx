@@ -27,7 +27,7 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
   const kacirilan = d.dersler.flatMap((s) => s.sorular.filter((q) => q.mark !== 'D').map((q) => ({ s, q })));
   return (
     <div className="space-y-3" id="karne-tek-ozet">
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         <b className="text-fg">{d.title}</b> · {d.examName} · tek sayfa karnenin özeti. Bütün soruların kazanım listesi ve grafiklerle tam sayfa için <b>PDF indir</b>.
       </p>
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-5">

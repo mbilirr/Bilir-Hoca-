@@ -576,7 +576,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                         <div className="flex items-start gap-1.5">
                           <div className="min-w-0">
                             <p className="font-semibold text-fg">{e.name}</p>
-                            <p className="text-[11px] text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
+                            <p className="text-xs text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
                             {isDraftExam(e) && <span className="ui-chip ui-chip-warning mt-1 sm:hidden">Taslak · {e.draftInfo!.step}. adım</span>}
                           </div>
                           {!readOnly && (
@@ -665,7 +665,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
               <input id="dn-edit-pub" className="ui-input" value={editForm.publisher} maxLength={120} onChange={(ev) => setEditForm((f) => ({ ...f, publisher: ev.target.value }))} />
             </div>
           </div>
-          <p className="text-[11px] text-muted">Cevap anahtarını ve kazanımları düzenlemek için denemeyi açın.</p>
+          <p className="text-xs text-muted">Cevap anahtarını ve kazanımları düzenlemek için denemeyi açın.</p>
           {editError && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{editError}</p>}
         </div>
       </Modal>
@@ -674,7 +674,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       {sinif && tab === 'etut' && etutTabOk && (sinifExams.length ? <DenemeEtut key={sinif} exams={sinifExams} students={sinifStudents} classes={sinifClasses} branchOnly={plain} /> : <p className="text-sm text-muted">Etüt listesi için önce {sinifEtiketi(sinif)} denemesi ekleyin.</p>)}
       {sinif && tab === 'kazanim' && !readOnly && <KazanimBankasi key={sinif} grade={sinif} />}
 
-      <p className="text-[11px] text-muted flex items-center gap-1">
+      <p className="text-xs text-muted flex items-center gap-1">
         TC kimlik numarası saklanmaz ve gösterilmez.
         <InfoTip
           label="Mahremiyet"

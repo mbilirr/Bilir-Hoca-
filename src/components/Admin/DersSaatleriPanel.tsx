@@ -252,14 +252,14 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
 
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-fg-2" id="ders-sayisi-etiket">
+            <span className="text-xs font-semibold text-fg-2" id="ders-sayisi-etiket">
               Günlük ders sayısı
             </span>
             <div className="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-line-strong" role="group" aria-labelledby="ders-sayisi-etiket">
               <button type="button" className={STEP_BTN} onClick={() => sayiDegis(form.dersSayisi - 1)} disabled={form.dersSayisi <= 1} aria-label="Bir ders azalt">
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <output className="grid w-10 place-items-center bg-surface text-[13px] font-bold tabular-nums text-fg" id="ders-sayisi" aria-live="polite">
+              <output className="grid w-10 place-items-center bg-surface text-sm font-bold tabular-nums text-fg" id="ders-sayisi" aria-live="polite">
                 {form.dersSayisi}
               </output>
               <button type="button" className={STEP_BTN} onClick={() => sayiDegis(form.dersSayisi + 1)} disabled={form.dersSayisi >= DERS_MAX} aria-label="Bir ders ekle">
@@ -268,7 +268,7 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-fg-2">Ders günleri</span>
+            <span className="text-xs font-semibold text-fg-2">Ders günleri</span>
             <div className="flex flex-wrap gap-1" role="group" aria-label="Ders günleri">
               {GUN_KISA.map((g, i) => {
                 const on = form.gunler.includes(i + 1);
@@ -293,19 +293,19 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
 
         {dolOpen && (
           <div className="rounded-xl border border-line bg-surface-2 p-3 flex flex-wrap items-end gap-3" id="ders-saatleri-doldur-panel">
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               İlk ders
               <input type="time" className="ui-field w-28" value={dol.ilk} onChange={(e) => setDol({ ...dol, ilk: e.target.value })} />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               Süre (dk)
               <input type="number" min={10} max={120} className="ui-field w-20" value={dol.sure} onChange={(e) => setDol({ ...dol, sure: Number(e.target.value) })} />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               Teneffüs (dk)
               <input type="number" min={0} max={60} className="ui-field w-20" value={dol.teneffus} onChange={(e) => setDol({ ...dol, teneffus: Number(e.target.value) })} />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               Öğle arası
               <select className="ui-field w-32" value={dol.ogleSonra} onChange={(e) => setDol({ ...dol, ogleSonra: Number(e.target.value) })}>
                 <option value={0}>Yok</option>
@@ -317,7 +317,7 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
               </select>
             </label>
             {dol.ogleSonra > 0 && (
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
                 Öğle (dk)
                 <input type="number" min={10} max={120} className="ui-field w-20" value={dol.ogleDk} onChange={(e) => setDol({ ...dol, ogleDk: Number(e.target.value) })} />
               </label>
@@ -372,7 +372,7 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
                   </div>
                 </div>
                 {sonraki && (
-                  <div className="grid h-6 grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-3 text-[11px]" aria-hidden={ara === null}>
+                  <div className="grid h-6 grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-3 text-xs" aria-hidden={ara === null}>
                     <span />
                     <span
                       className={cx(
@@ -406,14 +406,14 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
         </ol>
 
         <div className="flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+          <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
             <span className="flex items-center gap-1">
               Gecikme uyarısı (dk)
               <InfoTip text="Ders bittikten bu kadar dakika sonra yoklama hâlâ alınmamışsa idareci ekranına düşer ve uyarı e-postası gider." />
             </span>
             <input type="number" min={10} max={240} className="ui-field w-24" value={form.gecikmeDk} onChange={(e) => set({ gecikmeDk: Number(e.target.value) })} id="ders-gecikme" />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[16rem]">
+          <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 flex-1 min-w-[16rem]">
             <span className="flex items-center gap-1">
               Yoklama uyarı e-postaları
               <InfoTip text="Müdür yardımcılarının e-posta adresleri (en çok 5, virgülle ayırın). Geciken yoklamalar bu adreslere toplu tek e-postayla gider. Boş bırakılırsa Müdür Yardımcısı rolündeki öğretmenlerin gerçek e-postalarına gider (Aşama 221)." />

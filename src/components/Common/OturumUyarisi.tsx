@@ -31,7 +31,7 @@ export const OturumUyarisi: React.FC<{ bitis: number | null; onDevam: () => void
       tone="warning"
       size="sm"
       title="Oturumunuz kapanmak üzere"
-      layerClass="z-[10060]"
+      layerClass="z-(--z-kritik)"
       footer={
         <>
           <button type="button" id="oturum-uyari-cikis" onClick={onCikis} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28">

@@ -185,7 +185,7 @@ export const KitapcikEslestirModal: React.FC<{
       <button type="button" className={cx(BTN, 'ui-btn-secondary')} disabled={busy} onClick={() => refs[side].current?.click()} id={`kit-${side}`}>
         <FileText /> PDF seç
       </button>
-      <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{files[side].length ? files[side].map((f) => f.name).join(', ') : 'Seçilmedi'}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-muted">{files[side].length ? files[side].map((f) => f.name).join(', ') : 'Seçilmedi'}</span>
       <input
         ref={refs[side]}
         type="file"
@@ -241,7 +241,7 @@ export const KitapcikEslestirModal: React.FC<{
           {pick('A')}
           {pick('B')}
         </div>
-        <p className="text-[11px] text-muted flex items-center gap-1">
+        <p className="text-xs text-muted flex items-center gap-1">
           Öğrenci bilgisi yapay zekâya gitmez.
           <InfoTip text="Sözel ve sayısal ayrı dosyaysa ikisini birlikte seçin. Dijital kitapçık bu bilgisayarda okunur. Taranmış kitapçıkta yalnızca kitapçığın sayfa resimleri yapay zekâya gönderilir." />
         </p>
@@ -284,12 +284,12 @@ export const KitapcikEslestirModal: React.FC<{
                       <span className={cx('ui-chip', moved.length ? 'ui-chip-brand' : 'ui-chip-neutral')}>{moved.length ? `${moved.length} değişiklik` : 'Değişiklik yok'}</span>
                     </div>
                     {moved.length > 0 && (
-                      <p className="text-[11px] text-fg-2">
+                      <p className="text-xs text-fg-2">
                         {moved.map((p) => `${p.aNo}. soru: B'de ${p.bNo} (şimdi ${p.oldBNo})`).join(' · ')}
                       </p>
                     )}
                     {odd.length > 0 && (
-                      <p className="text-[11px] font-semibold text-warning-fg">
+                      <p className="text-xs font-semibold text-warning-fg">
                         Kontrol: {odd.map((p) => `${p.aNo}. soru${p.status === 'harf' ? ' (cevap harfi uyuşmuyor)' : p.status === 'yok' ? ' (okunamadı; numarası değişmez)' : ` (benzerlik %${p.sim})`}`).join(' · ')}
                       </p>
                     )}
@@ -298,7 +298,7 @@ export const KitapcikEslestirModal: React.FC<{
               })}
             </ul>
             {keyed.some((s) => !res.some((m) => m.subject.key === s.key)) && (
-              <p className="text-[11px] text-muted">
+              <p className="text-xs text-muted">
                 Kitapçıklarda bulunamayan dersler: {keyed.filter((s) => !res.some((m) => m.subject.key === s.key)).map((s) => s.short).join(', ')} (B numaraları değişmez).
               </p>
             )}

@@ -98,7 +98,7 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
           items={kitaplar.map((b) => ({ value: b, label: `${b} kitapçığı`, id: `anahtar-${b.toLowerCase()}` }))}
         />
         {booklet === 'B' && !mapped && (
-          <p className="text-[11px] font-semibold text-warning-fg bg-warning-soft rounded-lg px-2.5 py-1.5">
+          <p className="text-xs font-semibold text-warning-fg bg-warning-soft rounded-lg px-2.5 py-1.5">
             Bu denemede B karşılığı girilmemiş; B kitapçığı A ile aynı sırada sayılıyor.
           </p>
         )}
@@ -110,10 +110,10 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
             <div className="grid grid-cols-10 gap-1">
               {key.map((a, i) => (
                 <div key={i} className="flex flex-col items-center" title={`${booklet} kitapçığı ${i + 1}. soru: ${a === 'X' ? 'iptal' : a || 'girilmemiş'}`}>
-                  <span className="text-[9px] leading-3 text-muted tabular-nums">{i + 1}</span>
+                  <span className="text-3xs leading-3 text-muted tabular-nums">{i + 1}</span>
                   <span
                     className={cx(
-                      'flex h-6 w-full max-w-7 items-center justify-center rounded-md border text-xs font-black',
+                      'flex h-6 w-full max-w-7 items-center justify-center rounded-lg border text-xs font-black',
                       a === 'X' ? 'border-warning/40 bg-warning-soft text-warning-fg' : a ? 'border-line bg-surface-2 text-fg' : 'border-dashed border-line text-muted'
                     )}
                   >
@@ -124,7 +124,7 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
             </div>
           </div>
         ))}
-        <p className="text-[11px] text-muted flex items-center gap-1">İ: iptal edilen soru (herkese doğru sayılır).<InfoTip text="Excel dosyası yayınevi düzenindedir; başka bir denemeye de yüklenebilir." /></p>
+        <p className="text-xs text-muted flex items-center gap-1">İ: iptal edilen soru (herkese doğru sayılır).<InfoTip text="Excel dosyası yayınevi düzenindedir; başka bir denemeye de yüklenebilir." /></p>
         {msg && (
           <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-lg px-2.5 py-1.5">
             {msg}

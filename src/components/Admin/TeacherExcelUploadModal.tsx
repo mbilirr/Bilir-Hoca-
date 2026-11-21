@@ -397,12 +397,12 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                         <td className="px-2 py-1.5 text-muted">{r.rowNumber}</td>
                         <td className="px-2 py-1.5">
                           <div className="font-semibold text-fg">{r.name || '—'}</div>
-                          {r.error && <div className="text-[11px] text-danger-fg">{r.error}</div>}
-                          {!r.error && r.warning && <div className="text-[11px] text-warning-fg">{r.warning}</div>}
+                          {r.error && <div className="text-xs text-danger-fg">{r.error}</div>}
+                          {!r.error && r.warning && <div className="text-xs text-warning-fg">{r.warning}</div>}
                         </td>
                         <td className="px-2 py-1.5">
                           <div>{r.branch || '—'}</div>
-                          {roleUi && <div className="text-[11px] text-brand-fg font-semibold">Unvan: {roleLabel(roleFromBranch(r.branch))}</div>}
+                          {roleUi && <div className="text-xs text-brand-fg font-semibold">Unvan: {roleLabel(roleFromBranch(r.branch))}</div>}
                         </td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{birthDateLabel(r.birthDate)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{r.phone}</td>
@@ -475,7 +475,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                     <tr key={c.teacherId}>
                       <td className="px-2 py-1.5">
                         <div className="font-semibold text-fg">{c.name}</div>
-                        <div className="text-[11px] text-muted">{c.branch}</div>
+                        <div className="text-xs text-muted">{c.branch}</div>
                       </td>
                       <td className="px-2 py-1.5 font-mono font-bold text-brand-fg select-all">{c.username}</td>
                       <td className="px-2 py-1.5 font-mono font-bold text-warning-fg select-all">{c.password}</td>

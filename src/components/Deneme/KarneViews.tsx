@@ -61,7 +61,7 @@ export const TopicAnalysisView: React.FC<{ analysis: SubjectTopics[] }> = ({ ana
           <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
             <DersAd ad={st.subject.name} renk={dersRgb(st.subject.key, si)} className="text-sm font-extrabold" />
             <Yuzde v={st.rate} className="text-sm" />
-            <span className="text-[11px] text-muted tabular-nums">
+            <span className="text-xs text-muted tabular-nums">
               D {st.d} · Y {st.y} · B {st.b}
             </span>
           </div>
@@ -246,8 +246,8 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
           alt="işaretlenmeyen"
         />
         <KKutu className="col-span-2 lg:col-span-1" etiket="Sınıf ortalamasına göre" deger={<Delta v={data.score !== null && data.clsAvgScore !== null ? data.score - data.clsAvgScore : null} digits="score" />}>
-          <p className="text-[11px] text-muted">Sınıf ort. {fmtScore(data.clsAvgScore)}</p>
-          {data.kurumMaxScore !== null && <p className="text-[11px] text-muted">En yüksek {fmtScore(data.kurumMaxScore)}</p>}
+          <p className="text-xs text-muted">Sınıf ort. {fmtScore(data.clsAvgScore)}</p>
+          {data.kurumMaxScore !== null && <p className="text-xs text-muted">En yüksek {fmtScore(data.kurumMaxScore)}</p>}
         </KKutu>
       </div>
 
@@ -398,7 +398,7 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
       {/* Cevap çizelgesi (ortalama karnede yok) */}
       {!avg && (
         <KBolum baslik="Cevap çizelgesi" aciklama="Kutudaki harf öğrencinin cevabı; altındaki küçük harf doğru cevap">
-          <div className="flex flex-wrap gap-3 text-[11px] text-fg-2">
+          <div className="flex flex-wrap gap-3 text-xs text-fg-2">
             <span className="inline-flex items-center gap-1">
               <span className="h-3 w-3 rounded bg-success" /> Doğru
             </span>
@@ -421,9 +421,9 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
                 <div className="flex flex-wrap gap-1">
                   {s.answers.map((a) => (
                     <div key={a.no} className="flex w-8 flex-col items-center" title={`${a.no}. soru · cevap ${a.key || '-'}${a.kurumRate !== null ? ` · kurumda doğru oranı %${a.kurumRate}` : ''}`}>
-                      <span className="text-[9px] text-muted tabular-nums">{a.no}</span>
+                      <span className="text-3xs text-muted tabular-nums">{a.no}</span>
                       <span className={cx('flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-black', markCls(a.mark))}>{a.key === 'X' ? '✓' : a.given || '·'}</span>
-                      <span className={cx('text-[9px] font-semibold', a.mark === 'D' ? 'text-transparent' : 'text-fg-2')}>{a.key === 'X' ? 'iptal' : a.key || '-'}</span>
+                      <span className={cx('text-3xs font-semibold', a.mark === 'D' ? 'text-transparent' : 'text-fg-2')}>{a.key === 'X' ? 'iptal' : a.key || '-'}</span>
                     </div>
                   ))}
                 </div>
@@ -461,7 +461,7 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
                       <tr key={t.konu} className={KT.satir}>
                         <td className={cx(KT.td, 'text-fg')}>
                           <p className="font-semibold">{t.konu}</p>
-                          {t.alt && <p className="text-[11px] text-muted">{t.alt}</p>}
+                          {t.alt && <p className="text-xs text-muted">{t.alt}</p>}
                         </td>
                         <td className={cx(KT.tdc, 'text-muted')}>{avg ? `${t.questions.length} soru` : t.questions.join(', ')}</td>
                         <td className={cx(KT.tdc, 'whitespace-nowrap')}>
@@ -470,7 +470,7 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
                         <td className={KT.td}>
                           <RateBar rate={t.rate} marker={t.kurumRate} />
                         </td>
-                        <td className={cx(KT.td, 'text-[11px] font-semibold')}>
+                        <td className={cx(KT.td, 'text-xs font-semibold')}>
                           <span className={LV_TEXT[levelOf(t.rate)]}>{LEVEL_INFO[levelOf(t.rate)].label}</span>
                         </td>
                       </tr>
@@ -546,7 +546,7 @@ export const StudentKarneView: React.FC<{
                   ))}
               </select>
             </div>
-            <span className="text-[11px] text-muted pb-2">
+            <span className="text-xs text-muted pb-2">
               {useAvg ? 'Karne seçilen denemelerin ortalamasıyla hazırlanır; tek bir denemenin karnesi için listeden deneme seçin.' : 'Aşağıda seçilen denemenin ayrıntılı karnesi, onun altında kapsamdaki denemelerin gelişimi yer alır.'}
             </span>
           </div>
@@ -626,7 +626,7 @@ export const ClassKarneView: React.FC<{ exams: DenemeExam[]; results: DenemeResu
               <tr key={e.id} className={KT.satir}>
                 <td className={KT.td}>
                   <p className="font-semibold text-fg">{e.name}</p>
-                  <p className="text-[10px] text-muted">{dateTr(e.examDate)}</p>
+                  <p className="text-2xs text-muted">{dateTr(e.examDate)}</p>
                 </td>
                 <td className={KT.tdc}>{ca?.count ?? 0}</td>
                 {subs.map((s) => (

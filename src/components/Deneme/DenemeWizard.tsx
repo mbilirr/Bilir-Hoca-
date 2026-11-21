@@ -1110,7 +1110,7 @@ export const DenemeWizard: React.FC<{
                     </div>
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-muted flex items-center gap-1">
+                <p className="mt-2 text-xs text-muted flex items-center gap-1">
                   Soru sayısı cevap anahtarı dosyasından kendiliğinden ayarlanır; dosyada yoksa buradan yazın.
                   <InfoTip text="MEB'in 5-6-7. sınıflar için resmî puanı yoktur. Puan LGS yöntemiyle hesaplanır: Türkçe, Matematik ve Fen ×4, diğer dersler ×1; bütün sorular doğruysa 500." />
                 </p>
@@ -1413,7 +1413,7 @@ export const DenemeWizard: React.FC<{
                         </tbody>
                       </table>
                     </div>
-                    <p className="px-3 py-2 text-[11px] text-muted border-t border-line">
+                    <p className="px-3 py-2 text-xs text-muted border-t border-line">
                       İlk 6 satır gösteriliyor (toplam {allRows.length}). Ders sütunları işaretlenen cevap sayısıdır. Ad ve sınıf doğru görünmüyorsa format alanlarını kontrol edin.
                     </p>
                   </div>
@@ -1473,7 +1473,7 @@ export const DenemeWizard: React.FC<{
               {matchMsg}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-3 mb-2 text-[11px] text-muted">
+          <div className="flex flex-wrap items-center gap-3 mb-2 text-xs text-muted">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3 h-3 rounded bg-danger-soft border border-danger/30" /> Tanınmayan öğrenci
             </span>
@@ -1591,7 +1591,7 @@ export const DenemeWizard: React.FC<{
               </table>
             </div>
           </div>
-          <p className="text-[11px] text-muted flex items-center gap-1 mt-2">Eşleştirmeler hatırlanır.<InfoTip text="Elle seçtiğiniz ve ad soyadla bulunan eşleştirmeler hatırlanır; sonraki denemelerde otomatik eşleşir." /></p>
+          <p className="text-xs text-muted flex items-center gap-1 mt-2">Eşleştirmeler hatırlanır.<InfoTip text="Elle seçtiğiniz ve ad soyadla bulunan eşleştirmeler hatırlanır; sonraki denemelerde otomatik eşleşir." /></p>
         </Panel>
       )}
 
@@ -1667,7 +1667,7 @@ export const DenemeWizard: React.FC<{
                     </table>
                   </div>
                 </div>
-                <p className="text-[11px] text-muted flex items-center gap-1">
+                <p className="text-xs text-muted flex items-center gap-1">
                   {lgs ? 'Puan yaklaşık LGS puanıdır.' : 'Puan LGS yöntemiyle hesaplanır (tam net 500).'}
                   <InfoTip text={puanNotu({ grade, scoring })} />
                 </p>
@@ -1696,7 +1696,7 @@ export const DenemeWizard: React.FC<{
         {step < 4 ? (
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {canDraft && (
-              <span className="text-[11px] text-muted" id="deneme-taslak-durum">
+              <span className="text-xs text-muted" id="deneme-taslak-durum">
                 {draftBusy ? 'Kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklik var' : savedAt ? `Kaydedildi · ${hhmm(savedAt)}` : ''}
               </span>
             )}
@@ -1765,7 +1765,7 @@ export const DenemeWizard: React.FC<{
                 onChange={setPairStudent}
               />
             </div>
-            <p className="text-[11px] text-muted">Birleştirince iki satır seçtiğiniz öğrencide tek sonuç olur ve sonraki yüklemelerde kendiliğinden birleşir.</p>
+            <p className="text-xs text-muted">Birleştirince iki satır seçtiğiniz öğrencide tek sonuç olur ve sonraki yüklemelerde kendiliğinden birleşir.</p>
           </div>
         )}
       </Modal>

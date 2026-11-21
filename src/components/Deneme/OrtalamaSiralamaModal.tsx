@@ -220,7 +220,7 @@ export const OrtalamaSiralamaModal: React.FC<{
             'Bu kademede deneme yok.'
           )}
         </p>
-        <p className="text-[11px] text-muted flex items-center gap-1">
+        <p className="text-xs text-muted flex items-center gap-1">
           Sıralama ortalama puana göredir.{duzen === 'sinif' ? ' Her sınıf ayrı sayfadır.' : ' Tüm öğrenciler tek sayfadadır.'}
           <InfoTip text={'Eşitlikte toplam nete bakılır. Ortalama, öğrencinin girdiği denemelerden alınır; Excel\'deki "Deneme" sütunu kaç denemeye girdiğini gösterir.'} />
         </p>

@@ -156,7 +156,7 @@ type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
 const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
 // Aşama 134: toplu işlemlerde "İndir" ve "Gönder" ayrı küçük kutular
 const TOPLU_KUTU = 'rounded-xl border border-line bg-surface p-2 space-y-1.5';
-const TOPLU_KUTU_BASLIK = 'flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted [&>svg]:w-3.5 [&>svg]:h-3.5';
+const TOPLU_KUTU_BASLIK = 'flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-muted [&>svg]:w-3.5 [&>svg]:h-3.5';
 // Aşama 133 (119b): seçili öğrencinin 4 tek tık düğmesi (en-boy eşit, yazı sığsın diye w-40)
 const TEK_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center';
 // Aşama 135: yönetim ekranında "Tek sayfa karne" türü (öğrenci ekranının tür listesi değişmez)
@@ -403,7 +403,7 @@ const TopluKarneGonder: React.FC<{
         <span className="text-sm font-bold text-fg">
           {cls ? (downloadOnly ? 'Sınıfa toplu indir' : 'Sınıfa toplu gönder') : 'Tüm sınıflara toplu gönder'}: {label}
         </span>
-        <span className="text-[11px] text-muted">{downloadOnly ? 'Her öğrenci ayrı sayfada' : 'Her öğrenciye yalnızca kendi karnesi gider'} · Tür: {TUR_NAME[tur]}</span>
+        <span className="text-xs text-muted">{downloadOnly ? 'Her öğrenci ayrı sayfada' : 'Her öğrenciye yalnızca kendi karnesi gider'} · Tür: {TUR_NAME[tur]}</span>
       </div>
       {confirmRevoke ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -553,7 +553,7 @@ const TopluKarneGonder: React.FC<{
                   );
                 })}
               </ul>
-              <p className="px-3 py-2 text-[11px] text-muted flex items-center gap-1">
+              <p className="px-3 py-2 text-xs text-muted flex items-center gap-1">
                 Her öğrenci tek dokunuşla gönderilir.
                 <InfoTip
                   label="WhatsApp ile gönderim"
@@ -1137,7 +1137,7 @@ export const DenemeKarne: React.FC<{
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void saveTarget()}>
                 <Save /> Hedefi kaydet
               </button>
-              <span className="text-[11px] text-muted">Hedef öğrencinin kendi karnesinde de görünür. Silmek için kutuyu boşaltıp kaydedin.</span>
+              <span className="text-xs text-muted">Hedef öğrencinin kendi karnesinde de görünür. Silmek için kutuyu boşaltıp kaydedin.</span>
             </div>
             )
           }

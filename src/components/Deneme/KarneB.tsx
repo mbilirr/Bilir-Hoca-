@@ -41,19 +41,19 @@ const DersKart: React.FC<{ d: BirlesikDers; n: number }> = ({ d, n }) => (
           {d.ad}
         </p>
         {d.bu && (
-          <p className="text-[11px] text-muted tabular-nums">
+          <p className="text-xs text-muted tabular-nums">
             D {d.bu.d} · Y {d.bu.y} · B {d.bu.b} · Net {fmt2(d.bu.net)}
           </p>
         )}
         {d.toplamRate !== null && (
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             {n} denemede <b className="text-fg">%{d.toplamRate}</b>
           </p>
         )}
       </div>
       <div className="flex max-w-[45%] flex-wrap justify-end gap-1">
         {LV_ORDER.filter((k) => d.sayilar[k]).map((k) => (
-          <span key={k} className={cx(LV_CHIP[k], 'text-[10px]')}>
+          <span key={k} className={cx(LV_CHIP[k], 'text-2xs')}>
             {d.sayilar[k]} {LEVEL_INFO[k].label.toLocaleLowerCase('tr-TR')}
           </span>
         ))}
@@ -70,11 +70,11 @@ const DersKart: React.FC<{ d: BirlesikDers; n: number }> = ({ d, n }) => (
                 <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: rgb(LEVEL_INFO[s.durum].rgb) }} title={LEVEL_INFO[s.durum].label} />
                 <span>{s.konu}</span>
               </p>
-              {s.altlar.length > 0 && <p className="pl-3.5 text-[10px] text-muted truncate">Alt: {s.altlar.map((a) => `${a.ad} %${a.rate}`).join(' · ')}</p>}
+              {s.altlar.length > 0 && <p className="pl-3.5 text-2xs text-muted truncate">Alt: {s.altlar.map((a) => `${a.ad} %${a.rate}`).join(' · ')}</p>}
               {s.bu && s.bu.sorular.length > 0 && (
                 <div className="mt-0.5 flex flex-wrap gap-0.5 pl-3.5">
                   {s.bu.sorular.map((q) => (
-                    <span key={q.no} className={cx('inline-flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[9px] font-bold text-white tabular-nums', MARK_BG[q.mark])} title={`${q.no}. soru: ${q.mark === 'D' ? 'doğru' : q.mark === 'Y' ? 'yanlış' : 'boş'}`}>
+                    <span key={q.no} className={cx('inline-flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-3xs font-bold text-white tabular-nums', MARK_BG[q.mark])} title={`${q.no}. soru: ${q.mark === 'D' ? 'doğru' : q.mark === 'Y' ? 'yanlış' : 'boş'}`}>
                       {q.no}
                     </span>
                   ))}
@@ -94,7 +94,7 @@ const DersKart: React.FC<{ d: BirlesikDers; n: number }> = ({ d, n }) => (
             </div>
             <div className="text-right leading-tight tabular-nums">
               <p className={cx('text-xs font-extrabold', LV_TEXT[levelOf(ana)])}>%{ana}</p>
-              {two && <p className="text-[10px] text-muted">%{s.toplam!.rate}</p>}
+              {two && <p className="text-2xs text-muted">%{s.toplam!.rate}</p>}
             </div>
           </li>
         );
@@ -232,7 +232,7 @@ const NetMini: React.FC<{ d: GelisimPanoData['dersler'][number]; n: number }> = 
         <b style={{ color: rgb(d.renk) }}>{d.ad}</b>
         <span className="tabular-nums">
           <b className="text-fg">{fmt1(nv.length ? nv[nv.length - 1] : null)}</b>{' '}
-          {fark !== null && <span className={cx('text-[10px] font-bold', Math.abs(fark) < 0.05 ? 'text-muted' : fark > 0 ? 'text-success-fg' : 'text-danger-fg')}>{Math.abs(fark) < 0.05 ? 'sabit' : `${fark > 0 ? '+' : '-'}${fmt1(Math.abs(fark))}`}</span>}
+          {fark !== null && <span className={cx('text-2xs font-bold', Math.abs(fark) < 0.05 ? 'text-muted' : fark > 0 ? 'text-success-fg' : 'text-danger-fg')}>{Math.abs(fark) < 0.05 ? 'sabit' : `${fark > 0 ? '+' : '-'}${fmt1(Math.abs(fark))}`}</span>}
         </span>
       </div>
       <div ref={kutu}>
@@ -277,7 +277,7 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
       <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
         <section className="ui-card ui-card-pad">
           <p className="text-sm font-bold text-fg">
-            Puan gelişimi <span className="text-[11px] font-normal text-muted">kalın çizgi öğrenci · kesik çizgi sınıf ortalaması{g.hedef !== null ? ' · yeşil kesik çizgi hedef' : ''}</span>
+            Puan gelişimi <span className="text-xs font-normal text-muted">kalın çizgi öğrenci · kesik çizgi sınıf ortalaması{g.hedef !== null ? ' · yeşil kesik çizgi hedef' : ''}</span>
           </p>
           <PuanGrafik g={g} vurgu={vurgu} />
         </section>
@@ -287,12 +287,12 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
             <p className="text-2xl font-black tabular-nums" style={{ color: rgb(vurgu) }}>
               {fmt1(last.puan)}
             </p>
-            <p className="text-[11px] text-muted">{dlt === null ? last.ad : `Önceki denemeye göre ${dlt >= 0 ? '+' : '-'}${fmt1(Math.abs(dlt))}`}</p>
+            <p className="text-xs text-muted">{dlt === null ? last.ad : `Önceki denemeye göre ${dlt >= 0 ? '+' : '-'}${fmt1(Math.abs(dlt))}`}</p>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2/50 p-3">
             <p className="ui-eyebrow">Ortalama puan</p>
             <p className="text-2xl font-black tabular-nums text-fg">{fmt1(g.ortalama)}</p>
-            <p className="text-[11px] text-muted">{deg === null ? `${n} deneme` : `${n} denemede ${deg >= 0 ? '+' : '-'}${fmt1(Math.abs(deg))} değişim`}</p>
+            <p className="text-xs text-muted">{deg === null ? `${n} deneme` : `${n} denemede ${deg >= 0 ? '+' : '-'}${fmt1(Math.abs(deg))} değişim`}</p>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2/50 p-3">
             {hedefP !== null && g.hedef !== null && last.puan !== null ? (
@@ -302,13 +302,13 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
                 <div className="my-1 h-1.5 rounded-full bg-line">
                   <div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, hedefP)}%` }} />
                 </div>
-                <p className="text-[11px] text-muted">{g.hedef - last.puan > 0 ? `${fmt1(g.hedef - last.puan)} puan kaldı` : `Hedefin ${fmt1(last.puan - g.hedef)} puan üstünde`}</p>
+                <p className="text-xs text-muted">{g.hedef - last.puan > 0 ? `${fmt1(g.hedef - last.puan)} puan kaldı` : `Hedefin ${fmt1(last.puan - g.hedef)} puan üstünde`}</p>
               </>
             ) : (
               <>
                 <p className="ui-eyebrow">Son toplam net</p>
                 <p className="text-2xl font-black tabular-nums text-fg">{fmt2(last.toplamNet)}</p>
-                <p className="text-[11px] text-muted">Sınıf sırası {last.sinifSira}</p>
+                <p className="text-xs text-muted">Sınıf sırası {last.sinifSira}</p>
               </>
             )}
           </div>
@@ -319,13 +319,13 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
           const on = i === kart.length - 1;
           return (
             <div key={`${d.ad}-${i}`} className="rounded-2xl border border-line p-2.5" style={on ? { borderColor: rgb(vurgu), background: rgb(vurgu, 0.07) } : undefined}>
-              <p className="truncate text-[11px] text-muted">
+              <p className="truncate text-xs text-muted">
                 {d.kisa} · {d.tarih}
               </p>
               <p className="text-lg font-black tabular-nums" style={on ? { color: rgb(vurgu) } : undefined}>
                 {fmt1(d.puan)}
               </p>
-              <p className="text-[10px] leading-snug text-muted">
+              <p className="text-2xs leading-snug text-muted">
                 Sınıf {d.sinifSira} · Kurum {d.kurumSira} · Net {fmt1(d.toplamNet)}
               </p>
             </div>
@@ -334,7 +334,7 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
       </div>
       <section className="ui-card ui-card-pad">
         <p className="mb-2 text-sm font-bold text-fg">
-          Ders netlerinin gelişimi <span className="text-[11px] font-normal text-muted">renkli çizgi öğrenci · gri çizgi sınıf ortalaması · sağ üstte son net ve ilk denemeye göre fark</span>
+          Ders netlerinin gelişimi <span className="text-xs font-normal text-muted">renkli çizgi öğrenci · gri çizgi sınıf ortalaması · sağ üstte son net ve ilk denemeye göre fark</span>
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {g.dersler.map((d) => (
@@ -344,13 +344,13 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
       </section>
       <section className="ui-card overflow-x-auto">
         <table className="w-full text-xs text-fg-2">
-          <thead className="bg-surface-2/60 text-[11px] uppercase tracking-wider text-muted">
+          <thead className="bg-surface-2/60 text-xs uppercase tracking-wider text-muted">
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Deneme</th>
               {g.dersler.map((d) => (
                 <th key={d.ad} className="px-2 py-2 text-center font-semibold" style={{ color: rgb(d.renk) }}>
                   {d.kisa}
-                  <span className="block text-[9px] font-normal normal-case tracking-normal text-muted">D / Y / Net</span>
+                  <span className="block text-3xs font-normal normal-case tracking-normal text-muted">D / Y / Net</span>
                 </th>
               ))}
               <th className="px-2 py-2 text-center font-semibold">Toplam net</th>
@@ -364,7 +364,7 @@ export const GelisimPano: React.FC<{ data: GelisimPanoData }> = ({ data: g }) =>
               <tr key={`${d.ad}-${i}`} className="hover:bg-surface-2/30">
                 <td className="px-3 py-1.5">
                   <p className="font-semibold text-fg">{d.ad}</p>
-                  <p className="text-[10px] text-muted">{d.tarih}</p>
+                  <p className="text-2xs text-muted">{d.tarih}</p>
                 </td>
                 {d.netler.map((v, k) => (
                   <td key={k} className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap">
@@ -406,7 +406,7 @@ export const IsiNokta: React.FC<{ data: IsiNoktaData; adlar: string[]; fazla?: n
         Konu Isı Tablosu
         <InfoTip text="Satırlar kazanımlar, sütunlar denemeler; her daire o denemedeki başarıdır (içindeki sayı yüzde). Kesikli boş daire o denemede sorulmadı demektir." />
       </h3>
-      <p className="mt-1 text-[11px] text-muted">
+      <p className="mt-1 text-xs text-muted">
         Sütunlar: {adlar.map((a, i) => `${i + 1}) ${a}`).join('  ')}
         {fazla ? ` (son ${adlar.length} deneme gösterilir)` : ''}
       </p>
@@ -417,13 +417,13 @@ export const IsiNokta: React.FC<{ data: IsiNoktaData; adlar: string[]; fazla?: n
         <p className="flex items-center gap-2 px-3 pt-2.5 text-sm font-extrabold" style={{ color: rgb(d.renk) }}>
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(d.renk) }} />
           {d.ad}
-          <span className="text-[11px] font-normal text-muted">
+          <span className="text-xs font-normal text-muted">
             {d.satirlar.length} kazanım · {data.denemeler.length} denemede %{d.genelOran}
           </span>
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-fg-2">
-            <thead className="text-[10px] text-muted">
+            <thead className="text-2xs text-muted">
               <tr>
                 <th className="sticky left-0 bg-surface px-3 py-1.5 text-left font-semibold">Kazanım</th>
                 {data.denemeler.map((e) => (
@@ -445,7 +445,7 @@ export const IsiNokta: React.FC<{ data: IsiNoktaData; adlar: string[]; fazla?: n
                       {v === null ? (
                         <span className="mx-auto block h-6 w-6 rounded-full border border-dashed border-line" title="Sorulmadı" />
                       ) : (
-                        <span className="mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-extrabold text-white tabular-nums" style={{ background: rgb(lvRgb(v)) }}>
+                        <span className="mx-auto flex h-6 w-6 items-center justify-center rounded-full text-3xs font-extrabold text-white tabular-nums" style={{ background: rgb(lvRgb(v)) }}>
                           {v}
                         </span>
                       )}

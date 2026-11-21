@@ -183,7 +183,7 @@ const TeacherCredentialSendContent: React.FC<{ onClose: () => void; teachers: Te
                 <span className="font-semibold text-fg">{t.name}</span>
                 {t.branch ? <span className="text-muted"> · {t.branch}</span> : null}
               </span>
-              <span className={cx('text-[11px]', sms && !t.phone ? 'text-warning-fg' : 'text-muted')}>{t.phone || 'telefon yok'}</span>
+              <span className={cx('text-xs', sms && !t.phone ? 'text-warning-fg' : 'text-muted')}>{t.phone || 'telefon yok'}</span>
             </label>
           ))}
         </div>

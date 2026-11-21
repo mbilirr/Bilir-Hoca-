@@ -78,7 +78,7 @@ export const PasswordRecoveryModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5">
+    <div className="fixed inset-0 z-(--z-pencere-ust) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5">
       <OverlayLayer />
       <div className="min-h-full flex items-center justify-center py-4">
         <div className="w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 space-y-4 text-fg">

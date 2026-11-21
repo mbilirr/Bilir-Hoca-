@@ -604,7 +604,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                 >
                   <span
                     className={cx(
-                      'grid h-8 w-8 place-items-center rounded-lg text-[11px] font-bold tracking-tight transition-colors duration-150',
+                      'grid h-8 w-8 place-items-center rounded-lg text-xs font-bold tracking-tight transition-colors duration-150',
                       sec ? 'bg-brand text-white' : 'bg-surface-3 text-fg-2'
                     )}
                     aria-hidden="true"
@@ -613,10 +613,10 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                   </span>
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5">
-                      <span className={cx('truncate text-[13px] font-semibold', sec ? 'text-brand-fg' : 'text-fg')}>{x.ad}</span>
+                      <span className={cx('truncate text-sm font-semibold', sec ? 'text-brand-fg' : 'text-fg')}>{x.ad}</span>
                       {taslakli.has(x.id) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />}
                     </span>
-                    <span className="block truncate text-[11px] text-muted">{x.alt}</span>
+                    <span className="block truncate text-xs text-muted">{x.alt}</span>
                   </span>
                   {x.saat ? (
                     <span className="justify-self-end text-right text-xs font-bold tabular-nums text-fg-2">
@@ -626,7 +626,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                       </span>
                     </span>
                   ) : (
-                    <span className="justify-self-end rounded-md bg-warning-soft px-1.5 py-0.5 text-[10px] font-bold text-warning-fg">Programsız</span>
+                    <span className="justify-self-end rounded-lg bg-warning-soft px-1.5 py-0.5 text-2xs font-bold text-warning-fg">Programsız</span>
                   )}
                 </button>
               );
@@ -639,7 +639,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
           {/* Seçilenin özeti */}
           {(gorunum === 'ogretmen' ? seciliOgretmen : seciliSinif) && (
             <div className="flex min-w-0 items-center gap-3" id="program-secilen">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand text-[13px] font-bold text-white" aria-hidden="true">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand text-sm font-bold text-white" aria-hidden="true">
                 {gorunum === 'ogretmen' ? avatar(seciliOgretmen?.name || '') : sinifAv(seciliSinif?.name || '')}
               </span>
               <div className="min-w-0">
@@ -720,9 +720,9 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                           >
                             {ic ? (
                               <>
-                                <span className={cx('text-[13px] leading-4 font-semibold truncate max-w-full', yeni ? 'text-brand-fg' : 'text-fg')}>{ic.ust}</span>
+                                <span className={cx('text-sm leading-4 font-semibold truncate max-w-full', yeni ? 'text-brand-fg' : 'text-fg')}>{ic.ust}</span>
                                 {ic.alt && (
-                                  <span className="text-[10px] leading-3 font-medium text-muted truncate max-w-full">{ic.alt}</span>
+                                  <span className="text-2xs leading-3 font-medium text-muted truncate max-w-full">{ic.alt}</span>
                                 )}
                               </>
                             ) : (
@@ -821,7 +821,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                   )}
                 >
                   <span className="block text-xs font-semibold text-fg">{tekDers ? sinifAd.get(o.classId) || o.classId : o.ad}</span>
-                  <span className={cx('block text-[11px]', o.pasif ? 'text-danger-fg' : 'text-muted')}>{o.not}</span>
+                  <span className={cx('block text-xs', o.pasif ? 'text-danger-fg' : 'text-muted')}>{o.not}</span>
                 </button>
               );
             })}
@@ -847,7 +847,7 @@ export const ProgramPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                     )}
                   >
                     <span className="block text-xs font-semibold text-fg">{d}</span>
-                    <span className={cx('block text-[11px] truncate', mesgul ? 'text-danger-fg' : 'text-muted')}>
+                    <span className={cx('block text-xs truncate', mesgul ? 'text-danger-fg' : 'text-muted')}>
                       {mesgul || `${tids.length > 1 ? 'Ortak ders: ' : ''}${tids.map((t) => ogretmenAd.get(t) || 'Bilinmeyen öğretmen').join(', ')}`}
                     </span>
                   </button>

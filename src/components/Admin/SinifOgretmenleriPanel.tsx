@@ -75,9 +75,9 @@ const DigerSiniflar: React.FC<{
   };
   return (
     <div className="space-y-1.5 basis-full" id={id}>
-      <p className="text-[11px] font-semibold text-fg-2">Aynı öğretmeni şu sınıflara da ekle</p>
+      <p className="text-xs font-semibold text-fg-2">Aynı öğretmeni şu sınıflara da ekle</p>
       {aday.length === 0 ? (
-        <p className="text-[11px] text-muted">Bu kademede başka sınıf yok.</p>
+        <p className="text-xs text-muted">Bu kademede başka sınıf yok.</p>
       ) : (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Diğer sınıflar">
           {secilebilir.length > 1 && (
@@ -112,7 +112,7 @@ const DigerSiniflar: React.FC<{
         </div>
       )}
       {digerKademeVar && (
-        <button type="button" className="text-[11px] font-semibold text-brand-fg hover:underline" onClick={() => ac(!hepsi)}>
+        <button type="button" className="text-xs font-semibold text-brand-fg hover:underline" onClick={() => ac(!hepsi)}>
           {hepsi ? 'Yalnız bu kademe' : 'Diğer kademeleri de göster'}
         </button>
       )}
@@ -373,7 +373,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
                   {liste !== null && (
                     <span
                       className={cx(
-                        'shrink-0 text-[10px] font-bold',
+                        'shrink-0 text-2xs font-bold',
                         on ? 'text-white/80' : n ? 'text-muted' : 'text-warning-fg'
                       )}
                     >
@@ -388,7 +388,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
 
         {yeniAcik && classId && (
           <div className="rounded-xl border border-line bg-surface-2 p-3 flex flex-wrap items-end gap-2" id="sdo-yeni">
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[12rem]">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 flex-1 min-w-[12rem]">
               Ders
               <input
                 list="sdo-ders-onerileri"
@@ -404,7 +404,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
                 ))}
               </datalist>
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[12rem]">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 flex-1 min-w-[12rem]">
               Öğretmen
               <select className="ui-field w-full" value={yeniOgretmen} onChange={(e) => setYeniOgretmen(e.target.value)}>
                 <option value="">Seçin</option>
@@ -457,10 +457,10 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
               <div key={d.ders} className="py-3">
               <div className="grid grid-cols-[minmax(0,1fr)_2rem] sm:grid-cols-[12rem_minmax(0,1fr)_8.5rem_2rem] items-center gap-x-4 gap-y-2">
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-semibold text-fg" title={d.ders}>
+                  <span className="block truncate text-sm font-semibold text-fg" title={d.ders}>
                     {d.ders}
                   </span>
-                  <span className="block truncate text-[11px] text-muted">
+                  <span className="block truncate text-xs text-muted">
                     {d.tids.length > 1 ? 'Ortak ders · birlikte girerler' : `Kısaltma: ${dersKisa(d.ders)}`}
                   </span>
                 </span>
@@ -479,13 +479,13 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
                     const ad = ogretmenAd.get(tid) || 'Bilinmeyen öğretmen';
                     return (
                       <span key={tid} className="inline-flex h-8 max-w-full items-center gap-2 rounded-lg bg-surface-2 pl-1 pr-1 text-xs font-semibold text-fg">
-                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-3 text-[10px] font-bold text-fg-2" aria-hidden="true">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-surface-3 text-2xs font-bold text-fg-2" aria-hidden="true">
                           {avatar(ad)}
                         </span>
                         <span className="truncate">{ad}</span>
                         <button
                           type="button"
-                          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-danger-soft hover:text-danger-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-muted transition-colors duration-150 hover:bg-danger-soft hover:text-danger-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                           aria-label={`${ad} dersten çıkar`}
                           title="Dersten çıkar"
                           onClick={() => void ogretmenCikar(d.ders, tid)}
@@ -521,7 +521,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
               {/* Aşama 238: öğretmen ekleme satırın altında; aynı öğretmen diğer sınıflara da eklenebilir */}
               {ekleDers === d.ders && sinif && (
                 <div className="mt-2 rounded-xl border border-line bg-surface-2 p-3 flex flex-wrap items-end gap-3" id="sdo-ogretmen-ekle">
-                  <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 w-full sm:w-64">
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 w-full sm:w-64">
                     {d.ders} öğretmeni
                     <select className="ui-field w-full" value={ekleOgretmen} onChange={(e) => setEkleOgretmen(e.target.value)}>
                       <option value="">Öğretmen seçin</option>
@@ -550,7 +550,7 @@ export const SinifOgretmenleriPanel: React.FC<{ kurumId: string; classes: ClassG
             ))}
           </div>
         )}
-        <p className="text-[11px] text-muted">Bir derse birden fazla öğretmen yazılabilir (ortak ders). Yoklamayı öğretmenlerden biri alır, hepsinde görünür.</p>
+        <p className="text-xs text-muted">Bir derse birden fazla öğretmen yazılabilir (ortak ders). Yoklamayı öğretmenlerden biri alır, hepsinde görünür.</p>
       </div>
     </Panel>
   );

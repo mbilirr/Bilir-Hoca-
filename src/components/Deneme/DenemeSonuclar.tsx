@@ -474,7 +474,7 @@ export const DenemeSonuclar: React.FC<{
         </div>
       )}
       {!limited && bCheck && !bCheck.enough && bCheck.nB > 0 && (
-        <p className="text-[11px] text-muted">
+        <p className="text-xs text-muted">
           B kitapçığı uyum kontrolü için kitapçık başına en az {BOOKLET_MIN} öğrenci gerekir (A: {bCheck.nA}, B: {bCheck.nB}).
         </p>
       )}
@@ -521,7 +521,7 @@ export const DenemeSonuclar: React.FC<{
         )}
         {view === 'list' && results.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5" id="deneme-sonuc-pdf">
-            <span className="text-[11px] text-muted">PDF:</span>
+            <span className="text-xs text-muted">PDF:</span>
             <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void resultsPdf('toplu')} title="Bütün öğrenciler tek listede, kurum sırasıyla">
               <Download /> Toplu liste
             </button>
@@ -550,7 +550,7 @@ export const DenemeSonuclar: React.FC<{
                   {subs.map((s) => (
                     <th key={s.key} className="px-2 py-2.5 font-semibold text-center" title={s.name}>
                       {s.short}
-                      <span className="block normal-case tracking-normal font-normal text-[10px]">D/Y/N</span>
+                      <span className="block normal-case tracking-normal font-normal text-2xs">D/Y/N</span>
                     </th>
                   ))}
                   <th className="px-2 py-2.5 font-semibold text-center">Net</th>
@@ -570,7 +570,7 @@ export const DenemeSonuclar: React.FC<{
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-fg">{r.studentName}</p>
                         {(r.stats.missing?.length || r.stats.bookletGuessed) && (
-                          <p className="text-[10px] text-warning-fg">
+                          <p className="text-2xs text-warning-fg">
                             {r.stats.missing?.length ? `${r.stats.missing.map((m) => (m === 'sozel' ? 'Sözel' : 'Sayısal')).join(', ')} oturumuna girmedi · sıralama dışı` : ''}
                             {r.stats.bookletGuessed ? `${r.stats.missing?.length ? ' · ' : ''}Kitapçık tahmin edildi` : ''}
                           </p>

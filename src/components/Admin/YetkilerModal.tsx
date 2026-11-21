@@ -36,23 +36,23 @@ import {
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
-const SEG = 'h-7 w-14 inline-flex items-center justify-center text-[11px] font-semibold transition-colors';
-const TAB = 'h-8 flex-1 inline-flex items-center justify-center text-xs font-semibold rounded-md transition-colors';
+const SEG = 'h-7 w-14 inline-flex items-center justify-center text-xs font-semibold transition-colors';
+const TAB = 'h-8 flex-1 inline-flex items-center justify-center text-xs font-semibold rounded-lg transition-colors';
 const MODE_OPTS: Array<{ mode: SectionMode; label: string }> = [
   { mode: 'role', label: 'Rolden' },
   { mode: 'allow', label: 'Açık' },
   { mode: 'deny', label: 'Kapalı' },
 ];
 
-// Aşama 146: Kullanıcı Bilgileri penceresi (z-[9999]) ve bildirim (z-[10000]) üstünde açılır
-const YETKI_LAYER = 'z-[10001]';
+// Aşama 146: Kullanıcı Bilgileri penceresi (z-(--z-pencere)) ve bildirim (z-(--z-bildirim)) üstünde açılır
+const YETKI_LAYER = 'z-(--z-pencere-ust)';
 
 export type YetkiTab = 'unvan' | 'bolum' | 'islem';
 type RoleSettings = { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean } | null;
 
 // Aşama 98: rol yetkileri kapalıyken verilen rol ve izinler uygulanmaz
 export const RolesOffWarning: React.FC<{ id: string }> = ({ id }) => (
-  <p id={id} role="note" className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold">
+  <p id={id} role="note" className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-xs font-semibold">
     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
     <span>
       Bu kurumda <b>Rol yetkileri kapalı</b>. Verdiğiniz roller ve izinler kaydedilir ama uygulanmaz; açmak için Roller ve yetkiler &gt; Rol
@@ -78,7 +78,7 @@ const SegRow: React.FC<{
     <li className="flex items-center gap-2 px-2.5 py-1.5" data-yetki={dataKey} title={hint}>
       <span className="flex-1 min-w-0">
         <span className="block text-xs font-semibold text-fg truncate">{label}</span>
-        <span className={cx('block text-[10.5px]', effective === true ? 'text-success-fg' : effective === false ? 'text-subtle' : 'text-muted')}>
+        <span className={cx('block text-xs', effective === true ? 'text-success-fg' : effective === false ? 'text-subtle' : 'text-muted')}>
           {effective === null ? 'Kurum ayarına göre' : effective ? 'Açık' : 'Kapalı'}
           {mode === 'role' ? ' (rolüne göre)' : ' (özel izin)'}
         </span>
@@ -246,7 +246,7 @@ export const YetkilerModal: React.FC<{
               data-yetki-tab={k}
             >
               {label}
-              {n > 0 && <span className="ml-1 text-[10px] text-brand-fg tabular-nums">({n})</span>}
+              {n > 0 && <span className="ml-1 text-2xs text-brand-fg tabular-nums">({n})</span>}
             </button>
           ))}
         </div>
@@ -254,7 +254,7 @@ export const YetkilerModal: React.FC<{
         {rolesOff && <RolesOffWarning id="yetkiler-off-warning" />}
 
         {suggested && (
-          <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="yetkiler-oneri-note">
+          <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-xs font-semibold" id="yetkiler-oneri-note">
             <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
             <span>
               Kayıtlı unvanı yok; branşına göre <b>{roleLabel(suggested)}</b> işaretlendi. Bölüm ve işlemler bu unvana göre gösteriliyor; Kaydet'e basınca kaydedilir.
@@ -264,7 +264,7 @@ export const YetkilerModal: React.FC<{
 
         {tab === 'unvan' && (
           <>
-            <p className="text-[11px] text-muted flex items-center gap-1">Birden fazla unvan seçebilirsiniz.<InfoTip text='Bölüm ve işlem izinleri "Rolden" iken seçili unvana göre çalışır.' /></p>
+            <p className="text-xs text-muted flex items-center gap-1">Birden fazla unvan seçebilirsiniz.<InfoTip text='Bölüm ve işlem izinleri "Rolden" iken seçili unvana göre çalışır.' /></p>
             <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Roller">
               {ROLE_DEFS.map((r) => {
                 const on = sel.includes(r.code);
@@ -297,7 +297,7 @@ export const YetkilerModal: React.FC<{
               })}
             </div>
             {sel.length > 0 && (
-              <ul className="space-y-0.5 text-[11px] text-fg-2">
+              <ul className="space-y-0.5 text-xs text-fg-2">
                 {sortRoles(sel).map((c) => (
                   <li key={c}>
                     <b>{roleLabel(c)}:</b> {ROLE_BY_CODE[c as TeacherRole]?.description}
@@ -311,7 +311,7 @@ export const YetkilerModal: React.FC<{
         {tab === 'bolum' && (
           <>
             {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
-            <p className="text-[11px] text-muted flex items-center gap-1">
+            <p className="text-xs text-muted flex items-center gap-1">
               <span><b>Rolden</b>: unvanına göre. <b>Açık</b> / <b>Kapalı</b>: unvandan bağımsız.</span>
               <InfoTip text="Rolden seçiliyken unvanın verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. Kurumda kapalı olan bölüm yine açılmaz." />
             </p>
@@ -333,12 +333,12 @@ export const YetkilerModal: React.FC<{
         {tab === 'islem' && (
           <>
             {idare ? (
-              <p className="flex items-start gap-1.5 rounded-lg bg-info-soft text-info-fg px-2.5 py-1.5 text-[11px] font-semibold" id="yetkiler-idare-note">
+              <p className="flex items-start gap-1.5 rounded-lg bg-info-soft text-info-fg px-2.5 py-1.5 text-xs font-semibold" id="yetkiler-idare-note">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
                 <span>Kurum yöneticisi, Müdür ve Müdür Yardımcısında bütün işlemler açıktır; kişiye özel işlem izni uygulanmaz.</span>
               </p>
             ) : (
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 <span><b>Rolden</b>: unvanına göre. <b>Açık</b> / <b>Kapalı</b>: unvandan bağımsız.</span>
                 <InfoTip text="Rolden seçiliyken unvanın verdiği yetki (yetki tablosu) Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. Ekrandaki düğmeler ve sunucu aynı kuralı uygular; kişi sayfayı yenileyince geçerli olur." />
               </p>

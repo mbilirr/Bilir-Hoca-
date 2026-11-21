@@ -194,7 +194,7 @@ export const OgrenciBolumPanel: React.FC<{
         <div className="min-w-0">
           <h3 className="text-xs font-bold text-fg">Öğrenci Bölümleri</h3>
           {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
-          <p className="text-[11px] text-muted flex items-center gap-1">
+          <p className="text-xs text-muted flex items-center gap-1">
             Öğrencinin ekranında hangi bölümlerin açık olacağını seçin.
             <InfoTip text="İlk satırdaki kutu o bölümü bütün sınıflarda açar ya da kapatır; sonra tek tek sınıflarda değiştirebilirsiniz. Kapalı bölümde öğretmen o sınıfa ödev, etüt, soru hedefi ve haftalık plan veremez; Not-Devamsızlık ve Deneme yalnız öğrenciden gizlenir. Sınıfsız öğrenciler ilk satırı kullanır." />
           </p>
@@ -209,7 +209,7 @@ export const OgrenciBolumPanel: React.FC<{
               {OGR_BOLUMLER.map((b) => (
                 <th key={b.key} className="font-semibold px-1.5 py-1.5 whitespace-nowrap text-center" title={b.hint}>
                   <span className="block">{SHORT[b.key]}</span>
-                  {capped(b) && <span className="block text-[10px] font-medium text-subtle">kurumda kapalı</span>}
+                  {capped(b) && <span className="block text-2xs font-medium text-subtle">kurumda kapalı</span>}
                 </th>
               ))}
               <th className="text-right font-semibold px-2.5 py-1.5 whitespace-nowrap">Durum</th>
@@ -249,7 +249,7 @@ export const OgrenciBolumPanel: React.FC<{
                         )}
                       </span>
                     ) : (
-                      <span className={cx('text-[11px]', changed ? 'font-semibold text-warning-fg' : 'text-subtle')}>
+                      <span className={cx('text-xs', changed ? 'font-semibold text-warning-fg' : 'text-subtle')}>
                         {changed ? 'Varsayılana dönecek' : 'Varsayılan'}
                       </span>
                     )}
@@ -263,7 +263,7 @@ export const OgrenciBolumPanel: React.FC<{
       </div>
 
       {sorted.length === 0 && (
-        <p className="flex items-center gap-1.5 text-[11px] text-muted" id="ogrenci-bolum-sinif-yok">
+        <p className="flex items-center gap-1.5 text-xs text-muted" id="ogrenci-bolum-sinif-yok">
           <Info className="w-3.5 h-3.5 shrink-0" /> {classesNote || 'Bu alanda sınıf yok; varsayılan bütün öğrencilere uygulanır.'}
         </p>
       )}

@@ -177,7 +177,7 @@ export const KurumAktarModal: React.FC<{ open: boolean; onClose: () => void; exa
                     }
                   />
                   <span className="min-w-0 flex-1 truncate text-fg">{e.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted">
+                  <span className="shrink-0 text-xs text-muted">
                     {dateTr(e.examDate)} · {kurumName(e.kurumId)}
                   </span>
                 </label>

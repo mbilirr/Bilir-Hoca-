@@ -113,7 +113,7 @@ export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) =
                 );
               })}
             </select>
-            <span className="text-[11px] text-muted">
+            <span className="text-xs text-muted">
               {kurumsuz ? 'Yüklediğiniz plan bütün kurumlarda ortak plan olarak kullanılır (kendi planını yükleyen kurum hariç).' : 'Yüklediğiniz plan yalnız kurumunuzda kullanılır.'}
             </span>
           </div>
@@ -187,7 +187,7 @@ export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) =
                   {busy ? 'Kaydediliyor…' : 'Planı kaydet'}
                 </button>
               </div>
-              {preview.r.warnings.length > 0 && <p className="px-3 py-2 text-[11px] text-warning-fg bg-warning-soft">{preview.r.warnings.join(' ')}</p>}
+              {preview.r.warnings.length > 0 && <p className="px-3 py-2 text-xs text-warning-fg bg-warning-soft">{preview.r.warnings.join(' ')}</p>}
               <div className="max-h-64 overflow-y-auto">
                 <table className="w-full text-left text-xs text-fg-2">
                   <tbody className="divide-y divide-line">
@@ -217,7 +217,7 @@ export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) =
               {msg.text}
             </p>
           )}
-          <p className="text-[11px] text-muted flex items-center gap-1">
+          <p className="text-xs text-muted flex items-center gap-1">
             Planın Excel hâlini seçin.
             <InfoTip text={'AY, HAFTA, ÜNİTE, KONU, KAZANIM sütunları olmalı; açıklama sütunları olsa da olur. Haftalar "1. Hafta: 14-18 Eylül" gibi yazılmalı. Deneme tarihi girilmemişse ya da deneme başka bir eğitim yılına aitse süzgeç kullanılmaz.'} />
           </p>

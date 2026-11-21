@@ -121,9 +121,9 @@ const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: stri
           </td>
           <td className="px-3 py-1.5 align-top">
             <p className="text-fg">{r.text}</p>
-            {r.konu && <p className="text-[11px] text-muted">Konu: {r.konu}</p>}
+            {r.konu && <p className="text-xs text-muted">Konu: {r.konu}</p>}
             {r.alt && r.alt.length > 0 && (
-              <ol className="mt-0.5 space-y-0.5 text-[11px] text-fg-2">
+              <ol className="mt-0.5 space-y-0.5 text-xs text-fg-2">
                 {r.alt.map((a, ai) => (
                   <li key={ai}>
                     <span className="text-muted">Alt {ai + 1})</span> {a}
@@ -587,7 +587,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
         description="MEB öğretim programı PDF'lerini seçin; kazanımları kontrol edip kaydedersiniz."
       >
         <div className="space-y-3">
-          <p className="text-[11px] text-muted flex items-start gap-1.5">
+          <p className="text-xs text-muted flex items-start gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-fg" />
             <span className="inline-flex items-center gap-1">
               Yapay zekâya yalnız kazanım sayfalarının metni gider.
@@ -683,7 +683,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
             </div>
           )}
           {files.some((f) => f.scanned) && (
-            <p className="text-[11px] text-warning-fg">
+            <p className="text-xs text-warning-fg">
               Bazı PDF'lerin metni okunamıyor (taranmış ya da özel yazı tipli). Bu dosyaların sayfaları resim olarak ikişer ikişer yapay zekâya okutulur; biraz daha uzun sürer.
             </p>
           )}
@@ -715,15 +715,15 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                 </span>
               </div>
               <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }} />
+                <div className="h-full bg-brand rounded-full transition-[width]" style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }} />
               </div>
               {progress.wait && <p className="text-xs font-semibold text-warning-fg">{progress.wait}</p>}
-              <p className="text-[11px] text-muted">Ücretsiz planda bölümler arasında birkaç saniye beklenir. Sayfadan ayrılmayın.</p>
+              <p className="text-xs text-muted">Ücretsiz planda bölümler arasında birkaç saniye beklenir. Sayfadan ayrılmayın.</p>
             </div>
           )}
 
           {notes.length > 0 && (
-            <div className="text-[11px] rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
+            <div className="text-xs rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
               {notes.slice(0, 6).map((n, i) => (
                 <p key={i}>{n}</p>
               ))}
@@ -834,7 +834,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                   setPreview(null);
                 }}
               />
-              <p className="text-[11px] text-muted mt-1 flex items-center gap-1">
+              <p className="text-xs text-muted mt-1 flex items-center gap-1">
                 Her kazanım kendi koduyla başlamalı.
                 <InfoTip text={'Kısa kodlu satırlar (ör. F.8.1.1.) ve kodsuz başlıklar konu olarak kullanılır. "a)", "b)" ile başlayan açıklamalar atlanır.'} />
               </p>
@@ -871,10 +871,10 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                     {new Set(preview.rows.map((r) => r.konu).filter(Boolean)).size} konu
                   </span>
                 </div>
-                {preview.warnings.length > 0 && <p className="px-3 py-2 text-[11px] text-warning-fg bg-warning-soft">{preview.warnings.join(' ')}</p>}
+                {preview.warnings.length > 0 && <p className="px-3 py-2 text-xs text-warning-fg bg-warning-soft">{preview.warnings.join(' ')}</p>}
                 <div className="max-h-72 overflow-y-auto">
                   <BankTable rows={preview.rows.slice(0, 200)} />
-                  {preview.rows.length > 200 && <p className="px-3 py-2 text-[11px] text-muted">… ve {preview.rows.length - 200} kazanım daha.</p>}
+                  {preview.rows.length > 200 && <p className="px-3 py-2 text-xs text-muted">… ve {preview.rows.length - 200} kazanım daha.</p>}
                 </div>
               </div>
             )}
@@ -939,7 +939,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                           </td>
                           <td className="px-3 py-1.5 align-top">
                             <p className="text-fg">{c.text}</p>
-                            <p className="text-[11px] text-muted">Şu anki konu: {c.old || '—'}</p>
+                            <p className="text-xs text-muted">Şu anki konu: {c.old || '—'}</p>
                           </td>
                           <td className="px-3 py-1.5 align-top w-64">
                             <input
@@ -1065,11 +1065,11 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                               </td>
                               <td className="px-3 py-1.5 align-top">
                                 <p className="text-fg">{r.text}</p>
-                                <p className="text-[11px] text-muted">
+                                <p className="text-xs text-muted">
                                   {[r.konu ? `Konu: ${r.konu}` : '', r.updatedAt ? `Yüklenme: ${fmtStamp(r.updatedAt)}` : ''].filter(Boolean).join(' · ')}
                                 </p>
                                 {r.alt && r.alt.length > 0 && (
-                                    <ol className="mt-0.5 space-y-0.5 text-[11px] text-fg-2">
+                                    <ol className="mt-0.5 space-y-0.5 text-xs text-fg-2">
                                       {r.alt.map((a, ai) => (
                                         <li key={ai}>
                                           <span className="text-muted">Alt {ai + 1})</span> {a}

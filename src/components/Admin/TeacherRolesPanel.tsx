@@ -244,16 +244,16 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
                         {t.name}
                         {t.isAdmin && <span className="ml-1.5 ui-chip ui-chip-warning">Kurum yön.</span>}
                       </p>
-                      <p className="text-[11px] text-muted truncate">
+                      <p className="text-xs text-muted truncate">
                         {t.branch || 'Branş yok'}
                         {isHead ? ` · ${t.kurumId ? dataService.getKurumNameForId(t.kurumId) : 'Kurumsuz'}` : ''}
                       </p>
                     </div>
                     <div className="flex-1 min-w-0 flex flex-wrap gap-1">
                       {roles === null ? (
-                        <span className="text-[11px] text-subtle">—</span>
+                        <span className="text-xs text-subtle">—</span>
                       ) : rs.length === 0 ? (
-                        <span className="text-[11px] text-subtle">Rol verilmedi</span>
+                        <span className="text-xs text-subtle">Rol verilmedi</span>
                       ) : (
                         rs.map((r) => (
                           <span key={r} className={`ui-chip ui-chip-${ROLE_BY_CODE[r]?.chip || 'neutral'}`} title={ROLE_BY_CODE[r]?.description}>
@@ -296,7 +296,7 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
             </summary>
             <ul className="mt-2 space-y-1">
               {log.map((l) => (
-                <li key={l.id} className="text-[11px] text-fg-2">
+                <li key={l.id} className="text-xs text-fg-2">
                   <span className="text-muted tabular-nums">{whenText(l.created_at)}</span> · <b>{l.teacher_name || 'Öğretmen'}</b>
                   {l.added.length > 0 && <span className="text-success-fg"> · eklendi: {l.added.map(roleLabel).join(', ')}</span>}
                   {l.removed.length > 0 && <span className="text-danger-fg"> · kaldırıldı: {l.removed.map(roleLabel).join(', ')}</span>}
@@ -334,7 +334,7 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
 
       <Modal open={matrixOpen} onClose={() => setMatrixOpen(false)} icon={Table2} title="Yetki tablosu" description="Rollere göre kim neyi görebilir / yapabilir (kurumda rol yetkileri açıkken uygulanır)" size="xl" id="roles-matrix-modal">
         <div className="overflow-x-auto rounded-xl border border-line">
-          <table className="w-full min-w-[46rem] text-[11px]">
+          <table className="w-full min-w-[46rem] text-xs">
             <thead className="bg-surface-2 text-fg-2">
               <tr>
                 <th className="text-left font-bold px-2.5 py-2 sticky left-0 bg-surface-2">Bölüm</th>
@@ -359,7 +359,7 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
             </tbody>
           </table>
         </div>
-        <ul className="mt-3 space-y-1 text-[11px] text-muted list-disc pl-4">
+        <ul className="mt-3 space-y-1 text-xs text-muted list-disc pl-4">
           {MATRIX_NOTES.map((n) => (
             <li key={n}>{n}</li>
           ))}

@@ -193,7 +193,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
   const frameSrc = drivePreview || (viewUrl ? (isExternal ? `${viewUrl}#toolbar=1` : viewUrl) : '');
   const kindLabel = isImage ? 'Fotoğraf' : 'PDF';
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md" onClick={onClose}>
+    <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md" onClick={onClose}>
       <OverlayLayer onClose={onClose} />
       <div
         role="dialog"
@@ -252,7 +252,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
           )}
         </div>
         {!isImage && (
-          <div className="px-4 py-2 border-t border-line text-[11px] text-muted flex-shrink-0">
+          <div className="px-4 py-2 border-t border-line text-xs text-muted flex-shrink-0">
             PDF burada görünmüyorsa (özellikle telefonda) "PDF İndir" ya da "Yeni Sekmede Aç" ile açabilirsiniz.
           </div>
         )}
@@ -352,7 +352,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
           <>
             {activeVideoModal && (
               <div
-                className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+                className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
                 onClick={() => setActiveVideoModal(null)}
               >
                 <OverlayLayer onClose={() => setActiveVideoModal(null)} />
@@ -454,7 +454,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted flex items-center space-x-1.5">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted flex items-center space-x-1.5">
           <Film className="w-3.5 h-3.5 text-brand-fg" />
           <span>Ödev Materyalleri & Ek Kaynaklar ({allResources.length})</span>
         </span>
@@ -466,7 +466,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
           return (
             <div
               key={res.id}
-              className="p-3 bg-canvas/60 border border-line rounded-xl hover:border-line transition-all flex flex-col justify-between group"
+              className="p-3 bg-canvas/60 border border-line rounded-xl hover:border-line transition flex flex-col justify-between group"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center space-x-2">
@@ -478,9 +478,9 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                       {res.title}
                     </h5>
                     <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="text-[10px] text-muted font-medium">{badge.label}</span>
+                      <span className="text-2xs text-muted font-medium">{badge.label}</span>
                       {res.fileSize && (
-                        <span className="text-[10px] text-muted font-mono">
+                        <span className="text-2xs text-muted font-mono">
                           • {res.fileSize}
                         </span>
                       )}
@@ -505,7 +505,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
               </div>
 
               {res.description && (
-                <p className="text-[11px] text-muted line-clamp-2 mb-2.5 italic">
+                <p className="text-xs text-muted line-clamp-2 mb-2.5 italic">
                   {res.description}
                 </p>
               )}
@@ -550,7 +550,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                     href={safeHttpUrl(res.url) || undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="py-1 px-2.5 bg-info/20 hover:bg-info/30 text-info-fg border border-info/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
+                    className="py-1 px-2.5 bg-info/20 hover:bg-info/30 text-info-fg border border-info/30 rounded-lg text-xs font-semibold transition inline-flex items-center justify-center space-x-1.5"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Bağlantıyı Aç</span>

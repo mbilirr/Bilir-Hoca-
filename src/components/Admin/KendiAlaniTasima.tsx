@@ -33,7 +33,7 @@ export const KendiAlaniTasima: React.FC<{ classes: ClassGroup[] }> = ({ classes 
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-fg">Bireysel hesaba taşı</p>
-        <p className="text-[11px] text-muted">Kendi alanınızdaki sınıflar öğrencileri, ödev, etüt ve planlarıyla bireysel hesabınıza geçer.</p>
+        <p className="text-xs text-muted">Kendi alanınızdaki sınıflar öğrencileri, ödev, etüt ve planlarıyla bireysel hesabınıza geçer.</p>
       </div>
       <button type="button" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={() => setOpen(true)} id="kendi-alani-tasi-ac">
         Taşı
@@ -162,7 +162,7 @@ const TasimaPencere: React.FC<{ classes: ClassGroup[]; onClose: () => void }> = 
             {SONUC.map(([k, ad]) => (
               <div key={k} className="rounded-lg border border-line bg-canvas px-2.5 py-1.5">
                 <span className="block text-base font-bold text-fg tabular-nums">{sonuc[k] ?? 0}</span>
-                <span className="block text-[11px] text-muted">{ad}</span>
+                <span className="block text-xs text-muted">{ad}</span>
               </div>
             ))}
           </div>
@@ -177,7 +177,7 @@ const TasimaPencere: React.FC<{ classes: ClassGroup[]; onClose: () => void }> = 
       ) : (
         <div className="space-y-3 text-xs">
           <div>
-            <label className="block text-[11px] font-bold text-fg-2 mb-1" htmlFor="kendi-alani-hedef">
+            <label className="block text-xs font-bold text-fg-2 mb-1" htmlFor="kendi-alani-hedef">
               Hedef bireysel hesap
             </label>
             <SelectBox
@@ -200,7 +200,7 @@ const TasimaPencere: React.FC<{ classes: ClassGroup[]; onClose: () => void }> = 
           </div>
 
           <div>
-            <p className="text-[11px] font-bold text-fg-2 mb-1">
+            <p className="text-xs font-bold text-fg-2 mb-1">
               Sınıflar <span className="font-normal text-muted">({secili.size} sınıf · {nOgr} öğrenci)</span>
             </p>
             <ul className="max-h-72 overflow-y-auto rounded-xl border border-line divide-y divide-line" id="kendi-alani-siniflar">

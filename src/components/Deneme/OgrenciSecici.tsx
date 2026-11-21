@@ -136,7 +136,8 @@ export const OgrenciSecici: React.FC<{
         createPortal(
           <div
             ref={boxRef}
-            className="fixed z-[90] bg-surface border border-line rounded-xl shadow-pop overflow-hidden"
+            data-acilir=""
+            className="fixed z-(--z-acilir) bg-surface border border-line rounded-xl shadow-pop overflow-hidden"
             style={{ left: pos.left, width: pos.width, ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }) }}
           >
             <div className="p-2 border-b border-line relative">
@@ -170,12 +171,12 @@ export const OgrenciSecici: React.FC<{
               />
             </div>
             <div role="listbox" className="max-h-72 overflow-y-auto py-1">
-              {list.cand.length > 0 && <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-muted">Öneriler</p>}
+              {list.cand.length > 0 && <p className="px-3 pt-1 pb-0.5 text-2xs uppercase tracking-wider text-muted">Öneriler</p>}
               {list.cand.map((s, i) => row(s, i))}
-              {list.cand.length > 0 && list.rest.length > 0 && <p className="px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-muted">Tüm öğrenciler</p>}
+              {list.cand.length > 0 && list.rest.length > 0 && <p className="px-3 pt-2 pb-0.5 text-2xs uppercase tracking-wider text-muted">Tüm öğrenciler</p>}
               {list.rest.map((s, i) => row(s, list.cand.length + i))}
               {!flat.length && <p className="px-3 py-3 text-xs text-subtle">Öğrenci bulunamadı.</p>}
-              {list.more > 0 && <p className="px-3 py-1.5 text-[11px] text-muted">… {list.more} öğrenci daha. Aramayı daraltın.</p>}
+              {list.more > 0 && <p className="px-3 py-1.5 text-xs text-muted">… {list.more} öğrenci daha. Aramayı daraltın.</p>}
             </div>
             {value && (
               <div className="border-t border-line p-1.5">

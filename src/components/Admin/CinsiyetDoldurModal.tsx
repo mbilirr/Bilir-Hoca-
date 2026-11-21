@@ -141,11 +141,11 @@ export const CinsiyetDoldurModal: React.FC<{
             ].map((x) => (
               <div key={x.l} className="rounded-lg border border-line bg-surface-2 py-1.5">
                 <div className="text-sm font-bold text-fg tabular-nums">{x.v}</div>
-                <div className="text-[10px] font-semibold text-muted">{x.l}</div>
+                <div className="text-2xs font-semibold text-muted">{x.l}</div>
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-muted flex items-center gap-1">
+          <p className="text-xs text-muted flex items-center gap-1">
             Tanınmayan adlar boş kalır.
             <InfoTip text="İki cinsiyette de kullanılan ya da tanınmayan adlar boş bırakılır; dilerseniz satırdan seçebilirsiniz." />
           </p>
@@ -168,7 +168,7 @@ export const CinsiyetDoldurModal: React.FC<{
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-semibold text-fg truncate">{p.name}</div>
-                    {p.sub && <div className="text-[10px] text-muted truncate">{p.sub}</div>}
+                    {p.sub && <div className="text-2xs text-muted truncate">{p.sub}</div>}
                   </div>
                   <select
                     aria-label={`${p.name} cinsiyeti`}

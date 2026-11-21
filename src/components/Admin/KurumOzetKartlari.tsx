@@ -61,8 +61,8 @@ const Kart: React.FC<{ id: string; baslik: string; onClick: () => void; children
     className="group ui-card text-left p-3.5 flex flex-col gap-2.5 min-w-0 transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-line-strong focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
   >
     <span className="flex items-center justify-between gap-2">
-      <span className="text-[11px] font-bold tracking-wide uppercase text-muted">{baslik}</span>
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-subtle group-hover:text-brand-fg">
+      <span className="text-xs font-bold tracking-wide uppercase text-muted">{baslik}</span>
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-subtle group-hover:text-brand-fg">
         Aç <ArrowRight className="w-3 h-3" />
       </span>
     </span>
@@ -87,7 +87,7 @@ const Cubuk: React.FC<{ parcalar: Array<{ n: number; renk: string }> }> = ({ par
 };
 
 const Anahtar: React.FC<{ ogeler: Array<{ yazi: string; renk: string }> }> = ({ ogeler }) => (
-  <span className="flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] text-muted">
+  <span className="flex flex-wrap gap-x-2.5 gap-y-1 text-xs text-muted">
     {ogeler.map((o) => (
       <span key={o.yazi} className="inline-flex items-center gap-1">
         <i className={cx('w-[7px] h-[7px] rounded-[2px]', o.renk)} />
@@ -226,8 +226,8 @@ export const KurumOzetKartlari: React.FC<{
 
       <div className="ui-card p-3.5 flex flex-col gap-2.5 min-w-0" id="yonetim-yapilacaklar">
         <span className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold tracking-wide uppercase text-muted">Yapılacaklar</span>
-          <span className="text-[11px] font-semibold text-subtle tabular-nums">{isSayisi ? `${isSayisi} iş` : ''}</span>
+          <span className="text-xs font-bold tracking-wide uppercase text-muted">Yapılacaklar</span>
+          <span className="text-xs font-semibold text-subtle tabular-nums">{isSayisi ? `${isSayisi} iş` : ''}</span>
         </span>
         <span className="flex flex-col gap-1">
           {isler.map((x) => (
@@ -240,7 +240,7 @@ export const KurumOzetKartlari: React.FC<{
             >
               <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
               <span className="truncate">{x.yazi}</span>
-              <span className="ml-auto min-w-6 h-[18px] px-1.5 rounded-md grid place-items-center text-[11px] tabular-nums bg-warning-soft text-warning-fg">{x.n}</span>
+              <span className="ml-auto min-w-6 h-[18px] px-1.5 rounded-lg grid place-items-center text-xs tabular-nums bg-warning-soft text-warning-fg">{x.n}</span>
             </button>
           ))}
           {mailBagli !== undefined && mailBagli !== null && (
@@ -254,7 +254,7 @@ export const KurumOzetKartlari: React.FC<{
               <span className="truncate">{mailBagli ? 'Kurum e-postası bağlı' : 'Kurum e-postası bağlı değil'}</span>
               <span
                 className={cx(
-                  'ml-auto min-w-6 h-[18px] px-1.5 rounded-md grid place-items-center text-[11px]',
+                  'ml-auto min-w-6 h-[18px] px-1.5 rounded-lg grid place-items-center text-xs',
                   mailBagli ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg'
                 )}
               >

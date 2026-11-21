@@ -87,7 +87,7 @@ export const UpdateAvailableBanner: React.FC = () => {
       role="status"
       aria-live="polite"
       id="update-available-banner"
-      className="fixed z-[100] left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-brand/40 bg-brand text-white shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+      className="fixed z-(--z-bildirim) left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-brand/40 bg-brand text-white shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
     >
       <div className="flex items-start gap-2.5 flex-1 min-w-0">
         <RefreshCw className="w-5 h-5 shrink-0 mt-0.5" />

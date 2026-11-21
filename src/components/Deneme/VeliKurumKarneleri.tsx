@@ -31,7 +31,7 @@ const KonuListesi: React.FC<{ baslik: React.ReactNode; bos: string; list: VeliKa
             <DersAd ad={t.subject.short} renk={dersRgb(t.subject.key, Math.max(0, LGS_SIRA.indexOf(t.subject.key)))} className="shrink-0 text-xs leading-5" />
             <span className="min-w-0 flex-1 text-fg">
               {t.name}
-              <span className="block text-[11px] text-muted">{t.hint}</span>
+              <span className="block text-xs text-muted">{t.hint}</span>
             </span>
             <Yuzde v={t.rate} className="shrink-0 text-xs leading-5" />
           </li>
@@ -137,7 +137,7 @@ export const VeliKarneView: React.FC<{
         ) : (
           <p className="whitespace-pre-line text-sm text-fg-2">{note || '—'}</p>
         )}
-        <p className="text-[11px] text-muted">{note.length}/600 · Boş bırakılırsa PDF'te elle yazılabilecek boş satırlar çıkar.</p>
+        <p className="text-xs text-muted">{note.length}/600 · Boş bırakılırsa PDF'te elle yazılabilecek boş satırlar çıkar.</p>
       </KBolum>
       <KBolum
         baslik={
@@ -153,7 +153,7 @@ export const VeliKarneView: React.FC<{
           <li>Uyku ve dinlenme düzenine dikkat edin; başarıları küçük de olsa takdir edin.</li>
         </ul>
       </KBolum>
-      {d.lgs && <p className="text-[11px] text-muted">{LGS_PERCENTILE_NOTE}</p>}
+      {d.lgs && <p className="text-xs text-muted">{LGS_PERCENTILE_NOTE}</p>}
     </div>
   );
 };
@@ -241,9 +241,9 @@ export const OncelikKarneView: React.FC<{ pk: PriorityKarne }> = ({ pk }) => {
                           <SeviyeCubuk v={Math.max(4, (r.gainPoints / maxGain) * 100)} renk={TIER_RENK[t]} className="flex-1" />
                           <span className="whitespace-nowrap font-bold text-fg tabular-nums">+{fmtNet(r.gainNet)} net</span>
                         </div>
-                        <span className="text-[10px] text-muted">≈ +{fmtScore(r.gainPoints)} puan · toplam kaybın %{String(r.share).replace('.', ',')} kadarı</span>
+                        <span className="text-2xs text-muted">≈ +{fmtScore(r.gainPoints)} puan · toplam kaybın %{String(r.share).replace('.', ',')} kadarı</span>
                       </td>
-                      <td className={cx(KT.td, 'min-w-48 text-[11px] text-fg-2')}>{priorityAdvice(r)}</td>
+                      <td className={cx(KT.td, 'min-w-48 text-xs text-fg-2')}>{priorityAdvice(r)}</td>
                     </tr>
                   );
                 })}
@@ -295,7 +295,7 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
                 const total = p.bands!.reduce((a, b) => a + b, 0);
                 return (
                   <div key={p.exam.id}>
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center justify-between text-xs">
                       <span className="truncate font-semibold text-fg">{p.exam.name}</span>
                       <span className="text-muted tabular-nums">ilk %10: {p.bands![0] + p.bands![1] + p.bands![2]}</span>
                     </div>
@@ -305,7 +305,7 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
                         if (!n || !total) return null;
                         const w = (n / total) * 100;
                         return (
-                          <span key={b.label} className="flex h-full items-center justify-center text-[9px] font-bold text-white" style={{ width: `${w}%`, background: rgb(b.rgb) }} title={`${b.label}: ${n} öğrenci`}>
+                          <span key={b.label} className="flex h-full items-center justify-center text-3xs font-bold text-white" style={{ width: `${w}%`, background: rgb(b.rgb) }} title={`${b.label}: ${n} öğrenci`}>
                             {w >= 7 ? n : ''}
                           </span>
                         );
@@ -314,7 +314,7 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
                   </div>
                 );
               })}
-              <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-fg-2">
+              <div className="flex flex-wrap gap-3 pt-1 text-xs text-fg-2">
                 {LGS_BANDS.map((b) => (
                   <span key={b.label} className="inline-flex items-center gap-1">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(b.rgb) }} /> {b.label}
@@ -346,11 +346,11 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
               <tr key={p.exam.id} className={KT.satir}>
                 <td className={KT.td}>
                   <p className="font-semibold text-fg">{p.exam.name}</p>
-                  <p className="text-[10px] text-muted">{dateTr(p.exam.examDate)}</p>
+                  <p className="text-2xs text-muted">{dateTr(p.exam.examDate)}</p>
                 </td>
                 <td className={cx(KT.tdc, 'whitespace-nowrap')}>
                   {p.n}
-                  {p.participation !== null && <span className={cx('ml-1 text-[11px]', p.participation < 70 ? 'font-semibold text-warning-fg' : 'text-muted')}>%{p.participation}</span>}
+                  {p.participation !== null && <span className={cx('ml-1 text-xs', p.participation < 70 ? 'font-semibold text-warning-fg' : 'text-muted')}>%{p.participation}</span>}
                 </td>
                 {k.subjects.map((x) => (
                   <td key={x.key} className={KT.tdc}>
@@ -399,7 +399,7 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
                   <td className={KT.tdc}>
                     {c.rank ? (
                       <span
-                        className={cx('inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black tabular-nums', c.rank <= 3 ? 'text-white' : 'bg-surface-2 text-fg-2')}
+                        className={cx('inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black tabular-nums', c.rank <= 3 ? 'text-white' : 'bg-surface-2 text-fg-2')}
                         style={c.rank <= 3 ? { background: rgb(tint(vurgu, c.rank === 1 ? 1 : c.rank === 2 ? 0.7 : 0.45)) } : undefined}
                       >
                         {c.rank}
@@ -432,7 +432,7 @@ export const KurumOzetView: React.FC<{ k: KurumOzet | null; scopeLabel: string }
           </tbody>
         </table>
       </KBolum>
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         Katılım: sonucu olan öğrenci / kayıtlı öğrenci (%70'in altı turuncu). {LGS_PERCENTILE_NOTE}
       </p>
     </div>

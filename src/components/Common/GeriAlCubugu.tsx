@@ -79,7 +79,7 @@ export const GeriAlCubugu: React.FC = () => {
       onMouseLeave={() => setDurdu(false)}
       onFocus={() => setDurdu(true)}
       onBlur={() => setDurdu(false)}
-      className="geri-al fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] md:bottom-6 z-[95] max-w-[calc(100vw-2rem)] overflow-hidden rounded-full bg-fg text-canvas text-xs shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200"
+      className="geri-al fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] md:bottom-6 z-(--z-bildirim) max-w-[calc(100vw-2rem)] overflow-hidden rounded-full bg-fg text-canvas text-xs shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200"
       id="geri-al-cubugu"
     >
       <div className="flex items-center gap-3 whitespace-nowrap pl-4 pr-1.5 py-1.5">

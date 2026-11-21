@@ -231,7 +231,7 @@ export const PlanaAktarModal: React.FC<{
             ]}
           />
           <span className="text-xs font-semibold text-fg">{weekRangeLabel(weekStart)}</span>
-          <span className="text-[11px] text-muted">({planDayName(weekStart, 0)} başlangıçlı)</span>
+          <span className="text-xs text-muted">({planDayName(weekStart, 0)} başlangıçlı)</span>
           {plan && (
             <span className={cx('ui-chip ml-auto', sent ? 'ui-chip-success' : plan.items.length ? 'ui-chip-warning' : 'ui-chip-neutral')}>
               {sent ? `Plan gönderilmiş · ${plan.items.length} görev` : plan.items.length ? `Taslak plan · ${plan.items.length} görev` : 'Bu hafta için plan yok'}
@@ -253,7 +253,7 @@ export const PlanaAktarModal: React.FC<{
                       <p className="text-sm font-semibold text-fg">
                         {r.s.planSubject} · {r.s.row.short}
                       </p>
-                      <p className="text-[11px] text-muted">{r.allowed ? r.s.advice : 'Bu ders branşınız dışında: aktarılmaz.'}</p>
+                      <p className="text-xs text-muted">{r.allowed ? r.s.advice : 'Bu ders branşınız dışında: aktarılmaz.'}</p>
                     </div>
                     <label className="flex items-center gap-1.5 text-xs text-fg-2">
                       Soru
@@ -281,12 +281,12 @@ export const PlanaAktarModal: React.FC<{
                           aria-pressed={on}
                           onClick={() => toggleDay(r.key, d)}
                           className={cx(
-                            'rounded-lg border px-2 py-1 text-[11px] leading-tight cursor-pointer transition-colors disabled:cursor-not-allowed',
+                            'rounded-lg border px-2 py-1 text-xs leading-tight cursor-pointer transition-colors disabled:cursor-not-allowed',
                             on ? 'border-brand/40 bg-brand-soft text-brand-fg font-semibold' : 'border-line bg-surface text-muted hover:bg-surface-2'
                           )}
                         >
                           <span className="block">{planDayName(weekStart, d).slice(0, 3)}</span>
-                          <span className="block text-[10px] opacity-80">{on ? `${parts[idx]} soru` : shortDayLabel(dateOfDay(weekStart, d))}</span>
+                          <span className="block text-2xs opacity-80">{on ? `${parts[idx]} soru` : shortDayLabel(dateOfDay(weekStart, d))}</span>
                         </button>
                       );
                     })}
@@ -299,11 +299,11 @@ export const PlanaAktarModal: React.FC<{
 
         {!loading && usable.length > 0 && (
           <div className="rounded-xl border border-line bg-surface-2/40 px-3 py-2">
-            <p className="text-[11px] font-semibold text-muted mb-1">Günlere düşen soru (bu aktarım)</p>
+            <p className="text-xs font-semibold text-muted mb-1">Günlere düşen soru (bu aktarım)</p>
             <div className="grid grid-cols-7 gap-1 text-center">
               {dayTotals.map((n, d) => (
                 <div key={d} className={cx('rounded-lg px-1 py-1', n ? 'bg-info-soft text-info-fg' : 'bg-surface text-subtle')}>
-                  <p className="text-[10px]">{planDayName(weekStart, d).slice(0, 3)}</p>
+                  <p className="text-2xs">{planDayName(weekStart, d).slice(0, 3)}</p>
                   <p className="text-sm font-bold tabular-nums">{n || '—'}</p>
                 </div>
               ))}
@@ -326,7 +326,7 @@ export const PlanaAktarModal: React.FC<{
           </label>
         )}
 
-        {blocked.length > 0 && <p className="text-[11px] text-warning-fg">{blocked.length} kazanım branşınız dışında olduğu için aktarılmaz (yalnızca kendi branşınızdan görev verebilirsiniz).</p>}
+        {blocked.length > 0 && <p className="text-xs text-warning-fg">{blocked.length} kazanım branşınız dışında olduğu için aktarılmaz (yalnızca kendi branşınızdan görev verebilirsiniz).</p>}
         {error && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
         {done && <p role="status" className="text-xs font-semibold text-success-fg bg-success-soft rounded-xl px-3 py-2">{done}</p>}
       </div>

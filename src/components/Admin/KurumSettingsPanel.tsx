@@ -349,7 +349,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                 </div>
               </div>
               <div>
-                <label htmlFor="kurum-name" className="block text-[11px] font-semibold text-fg-2 mb-1">
+                <label htmlFor="kurum-name" className="block text-xs font-semibold text-fg-2 mb-1">
                   Kurum adı
                 </label>
                 <input id="kurum-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} className={CTRL} />
@@ -360,7 +360,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                 </button>
               </div>
               {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 Saydam zeminli PNG önerilir.
                 <InfoTip text="Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. Yüksek çözünürlüklü PNG (saydam zeminli) önerilir; boş kenarlar kendiliğinden kırpılır." />
               </p>
@@ -374,7 +374,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                 <Mail className="w-3.5 h-3.5 text-brand-fg" /> Kurum Gönderim E-postası
               </h3>
               {mailAccount === undefined ? (
-                <p className="text-[11px] text-muted">Durum okunuyor…</p>
+                <p className="text-xs text-muted">Durum okunuyor…</p>
               ) : mailAccount ? (
                 <div className="flex items-center justify-between gap-2">
                   <span className="ui-chip ui-chip-success truncate">Bağlı: {mailAccount.gmail}</span>
@@ -394,7 +394,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                   {mailBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />} {mailAccount ? 'Değiştir' : 'Bağla'}
                 </button>
               </div>
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 Gmail'de iki adımlı doğrulama ve "Uygulama şifresi" gerekir.
                 <InfoTip text='Bağlanınca kurumdaki bütün e-postalar bu adresten gider; yanıtlar da bu adrese gelir. Yalnız öğretmenin kendi yazdığı duyurularda yanıt öğretmene gider.' />
               </p>
@@ -433,12 +433,12 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                 <Switch id="idare-ders-switch" label="İdare ödev / etüt verebilsin" on={kurum.idareDersVerir} disabled={roleBusy} onChange={toggleIdare} />
               </div>
               {!kurum.rolesEnabled && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2 py-1.5 text-[11px] font-semibold" id="roles-off-warning">
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2 py-1.5 text-xs font-semibold" id="roles-off-warning">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span>Rol yetkileri kapalı: verilen roller (Rehberlik, Ölçme vb.) ve kişiye özel bölüm izinleri uygulanmaz.</span>
                 </p>
               )}
-              <p className="flex items-start gap-1.5 text-[11px] text-muted">
+              <p className="flex items-start gap-1.5 text-xs text-muted">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
                 <span>
                   {canRoles
@@ -470,7 +470,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                   ))}
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-muted">İzinli sınıflar genel yöneticinin kendi panelindeki "Kurumlar" bölümünden verilir.</p>
+                  <p className="text-xs text-muted">İzinli sınıflar genel yöneticinin kendi panelindeki "Kurumlar" bölümünden verilir.</p>
                   <button type="button" id="kurum-modules-save" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={saveMods} disabled={!modDirty || modBusy}>
                     {modBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
                   </button>

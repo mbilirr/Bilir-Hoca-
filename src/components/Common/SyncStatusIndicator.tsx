@@ -69,7 +69,7 @@ export const SyncStatusIndicator: React.FC<{
           <HealthDot health={health} />
           <div className="min-w-0">
             <p className="text-xs font-semibold text-fg">{health === 'offline' ? 'Çevrimdışı' : 'Veriler güncel'}</p>
-            <p className="text-[11px] text-muted">Son eşitleme {time}</p>
+            <p className="text-xs text-muted">Son eşitleme {time}</p>
           </div>
         </div>
         <button

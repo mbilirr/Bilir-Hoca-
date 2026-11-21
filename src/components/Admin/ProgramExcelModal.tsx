@@ -195,7 +195,7 @@ export const ProgramExcelModal: React.FC<{
           <input ref={input} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => void dosyaSec(e.target.files?.[0])} />
           {dosyaAd && <span className="text-xs text-fg-2 truncate max-w-[16rem]">{dosyaAd}</span>}
         </div>
-        <p className="text-[11px] text-muted">
+        <p className="text-xs text-muted">
           Sütunlar: Sınıf · Gün · Ders saati · Ders · Öğretmen (ortak derste öğretmenleri virgülle yazın). Sınıf başına bir sayfa olan çizelge de
           okunur. Bugün başlamış ders saatleri değişmez; değişiklik o saatin bir sonraki dersinden geçerli olur.
         </p>
@@ -216,7 +216,7 @@ export const ProgramExcelModal: React.FC<{
             <p className="text-xs font-semibold text-danger-fg">
               {okunan.hatalar.length} satır okunamadı. Dosyayı düzeltip yeniden seçin (yarım yükleme yapılmaz).
             </p>
-            <ul className="text-[11px] text-danger-fg max-h-48 overflow-y-auto list-disc pl-4">
+            <ul className="text-xs text-danger-fg max-h-48 overflow-y-auto list-disc pl-4">
               {okunan.hatalar.slice(0, 60).map((h, i) => (
                 <li key={i}>
                   {h.yer}: {h.mesaj}
@@ -241,7 +241,7 @@ export const ProgramExcelModal: React.FC<{
             {deneme && deneme.ok === false && (
               <div className="rounded-xl border border-danger/30 bg-danger-soft p-3 space-y-1" role="alert">
                 <p className="text-xs font-semibold text-danger-fg">Yüklenemez: {deneme.hataSayisi} sorun var. Hiçbir şey değişmedi.</p>
-                <ul className="text-[11px] text-danger-fg max-h-48 overflow-y-auto list-disc pl-4">
+                <ul className="text-xs text-danger-fg max-h-48 overflow-y-auto list-disc pl-4">
                   {deneme.hatalar.map((h, i) => (
                     <li key={i}>{h}</li>
                   ))}

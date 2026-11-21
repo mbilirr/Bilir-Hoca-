@@ -304,9 +304,9 @@ const BulkPasswordResetContent: React.FC<Omit<Props, 'open'>> = ({ onClose, stud
                 <span className="font-mono text-muted w-14 shrink-0 truncate">{s.studentNumber || '-'}</span>
                 <span className="flex-1 min-w-0 truncate text-fg">{s.name}</span>
                 {reason ? (
-                  <span className="text-[11px] text-danger-fg shrink-0">{reason}</span>
+                  <span className="text-xs text-danger-fg shrink-0">{reason}</span>
                 ) : !s.auth_user_id ? (
-                  <span className="text-[11px] text-muted shrink-0">Hesap açılacak</span>
+                  <span className="text-xs text-muted shrink-0">Hesap açılacak</span>
                 ) : null}
               </label>
             );

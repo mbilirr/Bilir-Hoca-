@@ -120,7 +120,7 @@ const HesapKartlari: React.FC<{
                   <span className="truncate text-sm font-bold text-fg" title={s.ad}>
                     {s.ad}
                   </span>
-                  <span className={cx('shrink-0 h-5 px-2 rounded-full text-[11px] font-semibold inline-flex items-center', ROL_ETIKET[s.rolTon])}>{s.rol}</span>
+                  <span className={cx('shrink-0 h-5 px-2 rounded-full text-xs font-semibold inline-flex items-center', ROL_ETIKET[s.rolTon])}>{s.rol}</span>
                 </span>
                 <span className="block truncate text-xs text-muted mt-0.5" title={s.alt}>
                   {s.alt}
@@ -422,7 +422,7 @@ export const BagliHesaplarPencere: React.FC<{ open: boolean; onClose: () => void
             />
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted">
+            <span className="text-xs text-muted">
               {gozu ? 'Şifre yalnız doğrulama için sorulur, saklanmaz. Bağ iki yönlüdür.' : 'Şifre yalnız hesabın size ait olduğunu doğrulamak için bir kez sorulur, saklanmaz.'}
             </span>
             <button type="submit" disabled={busy || kullanici.trim().length < 3 || sifre.length < 6} className="ui-btn ui-btn-primary ui-btn-sm h-8 w-24 justify-center shrink-0">

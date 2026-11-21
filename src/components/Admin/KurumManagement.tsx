@@ -437,7 +437,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-fg">Hesap türü: {k.tur === 'bireysel' ? 'Bireysel (koçluk)' : 'Kurum'}</p>
-                      <p className="text-[11px] text-muted">
+                      <p className="text-xs text-muted">
                         {k.tur === 'bireysel'
                           ? 'Tek öğretmenli koçluk hesabı: öğretmen eklenmez, rol yetkileri kapalı.'
                           : members.length === 1
@@ -445,7 +445,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                             : `${members.length} öğretmen var; yalnız tek öğretmenli kurum bireysele çevrilebilir.`}
                       </p>
                       {cevirOnay === k.id && (
-                        <p className="mt-1 text-[11px] font-semibold text-warning-fg" role="status">
+                        <p className="mt-1 text-xs font-semibold text-warning-fg" role="status">
                           Öğretmen ekleme ve rol yetkileri kapanacak; ekrandan geri alınmaz. Onaylamak için yeniden basın.
                         </p>
                       )}

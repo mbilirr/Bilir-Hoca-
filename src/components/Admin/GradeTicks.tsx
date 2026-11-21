@@ -61,11 +61,11 @@ export const GradeTicks: React.FC<{
         })}
       </div>
       {roleNote ? (
-        <p className="text-[11px] font-medium text-info-fg" id={`${id}-rol`}>{roleNote}</p>
+        <p className="text-xs font-medium text-info-fg" id={`${id}-rol`}>{roleNote}</p>
       ) : options.length === 0 ? (
-        <p className="text-[11px] text-muted flex items-center gap-1">Kurumda henüz sınıf yok.<InfoTip text='Sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.' /></p>
+        <p className="text-xs text-muted flex items-center gap-1">Kurumda henüz sınıf yok.<InfoTip text='Sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.' /></p>
       ) : (
-        <p className="text-[11px] text-muted flex items-center gap-1">Kademe erişimi<InfoTip text="Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez." /></p>
+        <p className="text-xs text-muted flex items-center gap-1">Kademe erişimi<InfoTip text="Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez." /></p>
       )}
     </div>
   );

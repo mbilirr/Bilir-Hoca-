@@ -36,15 +36,15 @@ export const BransGelisimView: React.FC<{ data: BransGelisim | null; scopeLabel:
     >
       <div className="max-h-[36rem] overflow-auto">
         <table className="w-full text-xs text-fg-2 border-separate border-spacing-0">
-          <thead className="text-[11px] uppercase tracking-wider text-muted">
+          <thead className="text-xs uppercase tracking-wider text-muted">
             <tr>
               <th className="sticky top-0 left-0 z-30 bg-surface-2 px-2 py-2 text-center font-semibold border-b border-line w-14">No</th>
               <th className="sticky top-0 left-14 z-30 bg-surface-2 px-3 py-2 text-left font-semibold border-b border-line min-w-40">Adı Soyadı</th>
               {exams.map((e, i) => (
                 <th key={e.id} className={cx(TH, 'min-w-16')} title={`${e.name} · ${dateTr(e.examDate)} · ${counts[i]} soru`}>
                   <span className="mx-auto block max-w-20 truncate normal-case tracking-normal">{etiket[i].ust}</span>
-                  <span className="block text-[10px] font-normal tabular-nums normal-case tracking-normal">{etiket[i].alt}</span>
-                  <span className="block text-[10px] font-normal tabular-nums normal-case tracking-normal">{counts[i]} soru</span>
+                  <span className="block text-2xs font-normal tabular-nums normal-case tracking-normal">{etiket[i].alt}</span>
+                  <span className="block text-2xs font-normal tabular-nums normal-case tracking-normal">{counts[i]} soru</span>
                 </th>
               ))}
               <th className={cx(TH, 'px-2')}>Genel ort.</th>

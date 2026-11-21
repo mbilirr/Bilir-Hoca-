@@ -64,7 +64,7 @@ export const MaddeAnalizi: React.FC<{ exam: DenemeExam; results: DenemeResult[];
       </div>
       {err && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{err}</p>}
 
-      <div className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-[11px] text-info-fg">
+      <div className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-xs text-info-fg">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
           <b>{groupName}</b> ({group.length} öğrenci{isGroup ? `; kurum ${results.length} öğrenci` : ''}). Şıklarda <b>yeşil</b> doğru cevap, <b>kırmızı</b> en çok seçilen yanlış şıktır (çeldirici).{' '}
@@ -107,7 +107,7 @@ export const MaddeAnalizi: React.FC<{ exam: DenemeExam; results: DenemeResult[];
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-line bg-surface-2/60">
               <span className="text-sm font-semibold text-fg">{s.subject.name}</span>
               <span className={`ui-chip ui-chip-${LEVEL_INFO[levelOf(avg)].tone}`}>Ortalama doğru %{avg}</span>
-              <span className="text-[11px] text-muted">{s.items.filter((it) => it.flags.length).length} uyarılı soru</span>
+              <span className="text-xs text-muted">{s.items.filter((it) => it.flags.length).length} uyarılı soru</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-fg-2">
@@ -173,7 +173,7 @@ const ItemRow: React.FC<{ it: ItemStat; options: string[]; isGroup: boolean }> =
         return (
           <td key={o} className="p-0.5 text-center">
             <span
-              className={cx('block rounded-md py-1 tabular-nums', correct ? 'bg-success-soft text-success-fg font-bold' : trap ? 'bg-danger-soft text-danger-fg font-bold' : 'text-fg-2')}
+              className={cx('block rounded-lg py-1 tabular-nums', correct ? 'bg-success-soft text-success-fg font-bold' : trap ? 'bg-danger-soft text-danger-fg font-bold' : 'text-fg-2')}
               title={`${o} şıkkı: ${it.options[o]} öğrenci${correct ? ' (doğru cevap)' : trap ? ' (en çok seçilen yanlış)' : ''}`}
             >
               %{pct}
@@ -191,12 +191,12 @@ const ItemRow: React.FC<{ it: ItemStat; options: string[]; isGroup: boolean }> =
       </td>
       <td className="px-3 py-1.5">
         <span className="text-fg">{it.konu || '—'}</span>
-        {it.alt && <span className="block text-[11px] text-muted">{it.alt}</span>}
-        {it.multi > 0 && <span className="block text-[11px] text-muted">{it.multi} öğrenci birden çok şık işaretlemiş</span>}
+        {it.alt && <span className="block text-xs text-muted">{it.alt}</span>}
+        {it.multi > 0 && <span className="block text-xs text-muted">{it.multi} öğrenci birden çok şık işaretlemiş</span>}
         {it.flags.length > 0 && (
           <span className="mt-1 flex flex-wrap gap-1">
             {it.flags.map((f) => (
-              <span key={f.key} className={cx(chipTone(f.tone), 'text-[10px]')}>
+              <span key={f.key} className={cx(chipTone(f.tone), 'text-2xs')}>
                 {f.text}
               </span>
             ))}

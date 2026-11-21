@@ -134,7 +134,7 @@ export const GirisGuvenligiPanel: React.FC = () => {
             <p className="text-xs text-muted py-6 text-center border border-dashed border-line rounded-xl">Son 7 günde hatalı giriş yok.</p>
           ) : (
             <div className="border border-line rounded-xl overflow-hidden">
-              <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_5rem_7.5rem_4rem_4rem_8rem] gap-3 px-3 py-2 bg-surface-2 text-[11px] font-semibold text-muted">
+              <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_5rem_7.5rem_4rem_4rem_8rem] gap-3 px-3 py-2 bg-surface-2 text-xs font-semibold text-muted">
                 <span>Hesap</span>
                 <span>Tür</span>
                 <span>Son deneme</span>

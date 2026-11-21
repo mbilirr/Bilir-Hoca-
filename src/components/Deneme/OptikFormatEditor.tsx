@@ -160,7 +160,7 @@ export const OptikFormatEditor: React.FC<{
                     </td>
                     {sampleLine !== undefined && (
                       <td className="px-3 py-1.5">
-                        <code className="font-mono text-[11px] whitespace-pre bg-surface-2 rounded px-1.5 py-0.5 text-fg">{preview(f) || ' '}</code>
+                        <code className="font-mono text-xs whitespace-pre bg-surface-2 rounded px-1.5 py-0.5 text-fg">{preview(f) || ' '}</code>
                       </td>
                     )}
                     <td className="px-3 py-1.5 text-right whitespace-nowrap">
@@ -199,7 +199,7 @@ export const OptikFormatEditor: React.FC<{
           ))}
         </ul>
       )}
-      <p className="text-[11px] text-muted">TC kimlik numarası alanı okunmaz ve hiçbir yere kaydedilmez.</p>
+      <p className="text-xs text-muted">TC kimlik numarası alanı okunmaz ve hiçbir yere kaydedilmez.</p>
     </div>
   );
 };

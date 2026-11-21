@@ -97,7 +97,7 @@ export const NetworkSyncStatusBanner: React.FC = () => {
       id={gorunen === 'cevrimdisi' || gorunen === 'bekliyor' ? 'offline-sync-alert-banner' : 'online-sync-success-toast'}
       role="status"
       aria-live="polite"
-      className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[95] max-w-[calc(100vw-2rem)] flex items-center gap-2 whitespace-nowrap rounded-full bg-fg text-canvas text-xs px-4 py-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
+      className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-(--z-bildirim) max-w-[calc(100vw-2rem)] flex items-center gap-2 whitespace-nowrap rounded-full bg-fg text-canvas text-xs px-4 py-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
     >
       {icerik}
     </div>

@@ -90,7 +90,7 @@ const AuthField = React.forwardRef<HTMLInputElement, AuthFieldProps>(({ label, e
   const iid = id || gid;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={iid} className="block text-[13px] lg:text-xs font-semibold text-fg-2">
+      <label htmlFor={iid} className="block text-sm lg:text-xs font-semibold text-fg-2">
         {label}
       </label>
       <div className="relative">
@@ -513,12 +513,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         <AuthStrokes />
         <div className="relative flex items-center gap-2.5 md:gap-3">
           <img src="/logo.svg?v=167" alt="" className="w-[30px] h-[30px] md:w-10 md:h-10" draggable={false} />
-          <span className="auth-wordmark text-lg md:text-[22px]" aria-label="bilirEdu">
+          <span className="auth-wordmark text-lg md:text-2xl" aria-label="bilirEdu">
             bilir<span>Edu</span>
           </span>
         </div>
         <div className="relative flex flex-col gap-7">
-          <h1 className="auth-serif m-0 text-[40px] leading-[0.98] md:text-[66px] md:leading-[0.98] lg:text-[clamp(56px,6vw,84px)] lg:leading-[0.95]">
+          <h1 className="auth-serif m-0 text-[2.75rem] leading-[0.98] md:text-[4.5rem] md:leading-[0.98] lg:text-[clamp(56px,6vw,84px)] lg:leading-[0.95]">
             Her öğrencinin
             <br /> <span className="auth-gold">yolculuğu</span>,
             <br />
@@ -545,7 +545,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       <main className="auth-sheet relative z-10 grow flex flex-col px-6 pt-7 md:flex-none pb-[max(20px,env(safe-area-inset-bottom))] md:-mt-24 md:px-0 md:pt-0 lg:mt-0 lg:col-span-5 lg:justify-center lg:px-[clamp(32px,4vw,56px)] lg:py-8">
         <div className="auth-card w-full md:mx-auto md:w-[520px] md:p-9 lg:w-full lg:max-w-[400px] lg:p-0">
           <div className="hidden md:block mb-5">
-            <h2 className="text-[26px] lg:text-[28px] font-bold text-fg tracking-tight leading-tight">Giriş Yap</h2>
+            <h2 className="text-3xl lg:text-3xl font-bold text-fg tracking-tight leading-tight">Giriş Yap</h2>
             <p className="text-sm text-muted mt-1">Kaldığınız yerden devam edin.</p>
           </div>
 
@@ -566,7 +566,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   aria-selected={on}
                   id={`auth-role-${r.role}`}
                   onClick={() => handleSelectRole(r.role)}
-                  className={`auth-seg-btn inline-flex items-center justify-center text-sm lg:text-[13px] font-semibold cursor-pointer ${on ? 'is-on' : ''}`}
+                  className={`auth-seg-btn inline-flex items-center justify-center text-sm lg:text-sm font-semibold cursor-pointer ${on ? 'is-on' : ''}`}
                 >
                   {r.label}
                 </button>
@@ -634,7 +634,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       <Fingerprint className="w-5 h-5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-bold text-fg truncate">{activeBioProfile.name || activeBioProfile.identifier}</p>
+                      <p className="text-base font-bold text-fg truncate">{activeBioProfile.name || activeBioProfile.identifier}</p>
                       <p className="text-xs text-muted">{selectedRole === 'teacher' ? 'Öğretmen' : 'Öğrenci'}</p>
                     </div>
                   </div>
@@ -648,11 +648,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     <span className="auth-bio-tile">
                       <Fingerprint className="w-10 h-10" />
                     </span>
-                    <span className="text-[15px] font-bold text-fg">{isLoading ? 'Parmak izi bekleniyor...' : 'Parmak izi ile giriş'}</span>
+                    <span className="text-base font-bold text-fg">{isLoading ? 'Parmak izi bekleniyor...' : 'Parmak izi ile giriş'}</span>
                   </button>
                   {/* Aşama 326: parmak izi ekranında da "açık kal" seçeneği (önceden yalnız şifre formunda vardı) */}
                   <label
-                    className="mx-auto flex w-fit items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                    className="mx-auto flex w-fit items-center gap-2.5 cursor-pointer text-sm lg:text-sm text-fg-2 select-none"
                     id="acik-kal-secimi-bio"
                     title="Yalnız kendi cihazınızda işaretleyin: 30 gün boyunca şifre sorulmaz"
                   >
@@ -756,7 +756,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                   {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 min-h-8">
-                    <label className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none">
+                    <label className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-sm text-fg-2 select-none">
                       <input
                         type="checkbox"
                         checked={rememberMe}
@@ -767,7 +767,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </label>
                     {/* Aşama 295: oturum bu cihazda 30 gün açık kalır (326: sistem sahibi dahil) */}
                     <label
-                      className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                      className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-sm text-fg-2 select-none"
                       id="acik-kal-secimi"
                       title="Yalnız kendi cihazınızda işaretleyin: 30 gün boyunca şifre sorulmaz"
                     >
@@ -776,7 +776,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </label>
                     {!activeBioProfile && bioAvailable && (
                       <label
-                        className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                        className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-sm text-fg-2 select-none"
                         id="biometric-optin"
                         title="Girişten sonra parmak izinizi kaydedersiniz"
                       >
@@ -794,7 +794,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       type="button"
                       onClick={handleForgotPassword}
                       disabled={isLoading}
-                      className="auth-link-btn ml-auto text-sm lg:text-[13px] disabled:opacity-50"
+                      className="auth-link-btn ml-auto text-sm lg:text-sm disabled:opacity-50"
                     >
                       Şifremi unuttum
                     </button>
@@ -837,7 +837,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           )}
         </div>
 
-        <footer className="mt-auto pt-6 text-center text-[11px] text-muted md:mt-6 lg:mt-0 lg:absolute lg:left-0 lg:right-0 lg:bottom-6 lg:pt-0">
+        <footer className="mt-auto pt-6 text-center text-xs text-muted md:mt-6 lg:mt-0 lg:absolute lg:left-0 lg:right-0 lg:bottom-6 lg:pt-0">
           © {new Date().getFullYear()} bilirEdu
         </footer>
       </main>

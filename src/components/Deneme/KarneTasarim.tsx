@@ -83,7 +83,7 @@ export const KarneBant: React.FC<{
   const kutu = renk ? { background: rgb(renk.kutu) } : undefined;
   return (
     <div
-      className={cx('relative overflow-hidden rounded-3xl text-white shadow-lg', !renk && 'bg-gradient-to-br from-indigo-700 via-brand to-sky-600')}
+      className={cx('relative overflow-hidden rounded-2xl text-white shadow-lg', !renk && 'bg-gradient-to-br from-indigo-700 via-brand to-sky-600')}
       style={renk ? { background: `linear-gradient(120deg, ${rgb(renk.zemin)}, ${rgb(renk.zemin)} 55%, ${rgb(renk.zemin2)})` } : undefined}
     >
       {renk && <div className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: rgb(renk.cizgi) }} aria-hidden />}
@@ -91,10 +91,10 @@ export const KarneBant: React.FC<{
       <div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-white/5" aria-hidden />
       <div className="relative grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
         <div className="min-w-0">
-          <p className={cx('text-[11px] font-bold uppercase tracking-[0.2em]', renk ? 'text-white' : 'text-white/70')}>{ust}</p>
+          <p className={cx('text-xs font-bold uppercase tracking-[0.2em]', renk ? 'text-white' : 'text-white/70')}>{ust}</p>
           <h3 className="mt-1 truncate text-xl font-extrabold leading-tight sm:text-2xl">{baslik}</h3>
           <p className="text-sm text-white/85">{alt}</p>
-          <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+          <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
             {cipler.filter(Boolean).map((c, i) => (
               <span key={i} style={cip} className={cx('rounded-full bg-white/15 px-2.5 py-1', i === 0 && 'font-semibold')}>
                 {c}
@@ -104,16 +104,16 @@ export const KarneBant: React.FC<{
         </div>
         <div className="flex items-center gap-3">
           <div className="flex h-28 w-28 shrink-0 flex-col items-center justify-center rounded-full bg-white text-brand-fg shadow-xl ring-4 ring-white/30">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{daire.etiket}</span>
+            <span className="text-2xs font-bold uppercase tracking-wider text-muted">{daire.etiket}</span>
             <span className="mt-0.5 text-2xl font-black leading-none tabular-nums" style={renk ? { color: rgb(renk.cip) } : undefined}>
               {daire.deger}
             </span>
-            {daire.alt && <span className="mt-0.5 text-[10px] text-muted">{daire.alt}</span>}
+            {daire.alt && <span className="mt-0.5 text-2xs text-muted">{daire.alt}</span>}
           </div>
           <div className="grid gap-1.5 text-xs">
             {yan.map(([k, v]) => (
               <div key={k} className={cx('rounded-xl px-3 py-1.5', !renk && 'bg-white/15')} style={kutu}>
-                <p className={cx('text-[10px] uppercase tracking-wider', renk ? 'text-white' : 'text-white/70')}>{k}</p>
+                <p className={cx('text-2xs uppercase tracking-wider', renk ? 'text-white' : 'text-white/70')}>{k}</p>
                 <p className="font-bold tabular-nums">{v}</p>
               </div>
             ))}
@@ -178,7 +178,7 @@ export const KAltKart: React.FC<{ renk?: RGB; className?: string; children: Reac
 
 /** Açıklama satırı (renkli kutu yerine sade, küçük yazı) */
 export const KNot: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <p className={cx('flex items-start gap-1.5 text-[11px] leading-relaxed text-muted', className)}>
+  <p className={cx('flex items-start gap-1.5 text-xs leading-relaxed text-muted', className)}>
     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
     <span>{children}</span>
   </p>
@@ -216,7 +216,7 @@ export const KKutu: React.FC<{
         {deger}
       </p>
       {children}
-      {alt && <p className="text-[11px] text-muted">{alt}</p>}
+      {alt && <p className="text-xs text-muted">{alt}</p>}
     </div>
   );
 };
@@ -225,7 +225,7 @@ export const KKutu: React.FC<{
 /** Karne tablolarının sınıfları (birleştirilmiş karnenin deneme tablosu) */
 export const KT = {
   tablo: 'w-full text-left text-xs text-fg-2',
-  bas: 'bg-surface-2/60 text-[11px] uppercase tracking-wider text-muted',
+  bas: 'bg-surface-2/60 text-xs uppercase tracking-wider text-muted',
   th: 'px-3 py-2 font-semibold',
   thc: 'px-2 py-2 text-center font-semibold',
   govde: 'divide-y divide-line',
@@ -240,7 +240,7 @@ export const KT = {
 export const DersBaslik: React.FC<{ ad: string; renk: RGB; alt?: string; className?: string }> = ({ ad, renk, alt, className }) => (
   <th className={cx(KT.thc, className)} style={{ color: rgb(renk) }}>
     {ad}
-    {alt && <span className="block text-[9px] font-normal normal-case tracking-normal text-muted">{alt}</span>}
+    {alt && <span className="block text-3xs font-normal normal-case tracking-normal text-muted">{alt}</span>}
   </th>
 );
 /** Ders adı (satır başı): ders renginde kalın */
@@ -253,7 +253,7 @@ export const DersAd: React.FC<{ ad: React.ReactNode; renk: RGB; className?: stri
 // =============================================================================== Seviye (başarı yüzdesi)
 /** Seviye açıklaması: renkli noktalar ve aralıklar */
 export const SeviyeLejant: React.FC<{ kurum?: boolean; sorulmadi?: boolean; not?: React.ReactNode }> = ({ kurum, sorulmadi, not }) => (
-  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-2">
+  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-2">
     {LV_ORDER.map((k) => (
       <span key={k} className="inline-flex items-center gap-1">
         <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(LEVEL_INFO[k].rgb) }} />
@@ -297,7 +297,7 @@ export const IsiDaire: React.FC<{ v: number | null; title?: string; kucuk?: bool
     <span className={cx('mx-auto block rounded-full border border-dashed border-line', kucuk ? 'h-3.5 w-3.5' : 'h-6 w-6')} title={title || 'Sorulmadı'} />
   ) : (
     <span
-      className={cx('mx-auto flex items-center justify-center rounded-full font-extrabold text-white tabular-nums', kucuk ? 'h-3.5 w-3.5' : 'h-6 w-6 text-[9px]')}
+      className={cx('mx-auto flex items-center justify-center rounded-full font-extrabold text-white tabular-nums', kucuk ? 'h-3.5 w-3.5' : 'h-6 w-6 text-3xs')}
       style={{ background: rgb(lvRgb(v)) }}
       title={title}
     >
@@ -355,7 +355,7 @@ const sayi = (v: number) => (Math.round(v * 100) / 100).toLocaleString('tr-TR', 
 
 /** Grafiğin altındaki seri açıklaması */
 export const GrafikLejant: React.FC<{ ogeler: Array<{ ad: string; renk: RGB; kesik?: boolean }> }> = ({ ogeler }) => (
-  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-2">
+  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-2">
     {ogeler.map((o) => (
       <span key={o.ad} className="inline-flex items-center gap-1">
         <svg width="16" height="6" aria-hidden>
@@ -592,7 +592,7 @@ export const KSutun: React.FC<{
 export const KGrafikKart: React.FC<{ baslik: string; aciklama?: string; className?: string; children: React.ReactNode }> = ({ baslik, aciklama, className, children }) => (
   <section className={cx('ui-card ui-card-pad', className)}>
     <p className="mb-1 text-sm font-bold text-fg">
-      {baslik} {aciklama && <span className="text-[11px] font-normal text-muted">{aciklama}</span>}
+      {baslik} {aciklama && <span className="text-xs font-normal text-muted">{aciklama}</span>}
     </p>
     {children}
   </section>

@@ -77,7 +77,7 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
         <KKutu etiket="Ortalama toplam net" deger={fmtNet(a.totalNet)} />
         <KKutu ton="success" etiket="En iyi deneme" deger={fmtScore(a.best?.score)} alt={<span className="block truncate">{a.best?.exam.name}</span>} />
         <KKutu etiket="İlk → son puan" deger={`${fmtScore(a.first)} → ${fmtScore(a.last)}`}>
-          <p className="text-[11px]">{diff(a.last, a.first, fmtScore)}</p>
+          <p className="text-xs">{diff(a.last, a.first, fmtScore)}</p>
         </KKutu>
       </div>
       <div className="overflow-hidden rounded-2xl border border-line">
@@ -145,7 +145,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
               >
                 {isOpen ? <ChevronDown className="w-4 h-4 text-muted" /> : <ChevronRight className="w-4 h-4 text-muted" />}
                 <span className="text-sm font-bold text-fg">{h.subject.name}</span>
-                <span className="text-[11px] text-muted">{h.rows.length} kazanım</span>
+                <span className="text-xs text-muted">{h.rows.length} kazanım</span>
                 <span className="ml-auto flex gap-0.5" aria-hidden>
                   {h.examRates.map((r, i) => (
                     <IsiDaire key={i} v={r} kucuk />
@@ -161,7 +161,7 @@ export const HeatTablePanel: React.FC<{ exams: DenemeExam[]; results: DenemeResu
                         {exams.map((e, i) => (
                           <th key={e.id} className="px-1 py-2 font-semibold text-center min-w-14" title={`${e.name} · ${dateTr(e.examDate)}`}>
                             <span className="block tabular-nums">{i + 1}</span>
-                            <span className="block font-normal text-[10px] truncate max-w-16 mx-auto">{examShort(e)}</span>
+                            <span className="block font-normal text-2xs truncate max-w-16 mx-auto">{examShort(e)}</span>
                           </th>
                         ))}
                         <th className="px-2 py-2 font-semibold text-center min-w-14">Genel</th>
@@ -262,14 +262,14 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
             <div key={s.subject.key} className="grid gap-1 sm:grid-cols-[12rem_1fr_9rem] sm:items-center">
               <div>
                 <DersAd ad={s.subject.name} renk={dersRgb(s.subject.key, si)} className="text-sm" />
-                <p className="text-[11px] text-muted">{s.pctAll !== null ? `${s.all} kazanım · ${s.counts.sorulmadi} henüz sorulmadı` : `${s.asked} kazanım soruldu`}</p>
+                <p className="text-xs text-muted">{s.pctAll !== null ? `${s.all} kazanım · ${s.counts.sorulmadi} henüz sorulmadı` : `${s.asked} kazanım soruldu`}</p>
               </div>
               <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${s.subject.name}: ${s.counts.kazanildi} kazanıldı, ${s.counts.gelisiyor} gelişiyor, ${s.counts.eksik} eksik, ${s.counts.sorulmadi} sorulmadı`}>
                 {KAZ_STATUS_ORDER.map((k) =>
                   s.counts[k] > 0 ? (
                     <span
                       key={k}
-                      className={cx('flex h-full items-center justify-center text-[9px] font-bold', STATUS_BAR[k], k === 'sorulmadi' ? 'text-muted' : 'text-white')}
+                      className={cx('flex h-full items-center justify-center text-3xs font-bold', STATUS_BAR[k], k === 'sorulmadi' ? 'text-muted' : 'text-white')}
                       style={{ width: `${(s.counts[k] / Math.max(1, s.all)) * 100}%` }}
                       title={`${KAZ_STATUS_INFO[k].label}: ${s.counts[k]}`}
                     >
@@ -283,7 +283,7 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
               </p>
             </div>
           ))}
-          <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-fg-2">
+          <div className="flex flex-wrap gap-3 pt-1 text-xs text-fg-2">
             {KAZ_STATUS_ORDER.map((k) => (
               <span key={k} className="inline-flex items-center gap-1">
                 <span className={cx('h-2.5 w-2.5 rounded-full', STATUS_BAR[k])} /> {KAZ_STATUS_INFO[k].label}
@@ -322,7 +322,7 @@ export const KazanimTakipView: React.FC<{ exams: DenemeExam[]; results: DenemeRe
               {isOpen ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
               <DersAd ad={s.subject.name} renk={dersRgb(s.subject.key, si)} className="text-sm font-extrabold" />
               <span className={chipTone(s.pctAsked >= 70 ? 'success' : s.pctAsked >= 40 ? 'info' : 'danger')}>Kazanımların {withEk(s.pctAsked, true)} kazanıldı</span>
-              <span className="text-[11px] text-muted">
+              <span className="text-xs text-muted">
                 {s.counts.kazanildi} kazanıldı · {s.counts.gelisiyor} gelişiyor · {s.counts.eksik} eksik{s.counts.sorulmadi ? ` · ${s.counts.sorulmadi} sorulmadı` : ''}
               </span>
             </button>
@@ -490,11 +490,11 @@ export const CalismaPlaniView: React.FC<{
                       </td>
                       <td className="px-2 py-2">
                         <p className="font-semibold text-fg">{c.row.label}</p>
-                        <p className="text-[11px] text-muted">{c.reason}</p>
+                        <p className="text-xs text-muted">{c.reason}</p>
                       </td>
                       <td className="px-2 py-2 text-center">
                         <Yuzde v={rate} />
-                        {c.row.trend === 'down' && <p className="mt-0.5 text-[10px] text-danger-fg">düşüşte</p>}
+                        {c.row.trend === 'down' && <p className="mt-0.5 text-2xs text-danger-fg">düşüşte</p>}
                       </td>
                       <td className="px-2 py-2 text-center tabular-nums font-bold text-danger-fg">{fmtScore(c.row.perExamLoss)}</td>
                       <td className="px-2 py-2 text-center">
@@ -513,7 +513,7 @@ export const CalismaPlaniView: React.FC<{
                           <b className="tabular-nums text-fg">{c.questions}</b>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-[11px] text-fg-2 min-w-48">{c.advice}</td>
+                      <td className="px-3 py-2 text-xs text-fg-2 min-w-48">{c.advice}</td>
                     </tr>
                   );
                 })}
@@ -577,7 +577,7 @@ export const CalismaPlaniView: React.FC<{
         </KBolum>
       )}
       {!followUp && exams.length < 2 && (
-        <p className="flex items-center gap-1.5 text-[11px] text-muted">
+        <p className="flex items-center gap-1.5 text-xs text-muted">
           <AlertTriangle className="w-3.5 h-3.5" /> Önerilerin işe yarayıp yaramadığı, en az iki denemeyi kapsayan karnede "Önceki önerilerin sonucu" bölümünde görünür.
         </p>
       )}

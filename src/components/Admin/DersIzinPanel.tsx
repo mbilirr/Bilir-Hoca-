@@ -197,13 +197,13 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
                     className={cx(SINIF_BTN, on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2')}
                   >
                     <span className="truncate">{c.name}</span>
-                    {n > 0 && <span className={cx('shrink-0 text-[10px] font-bold', on ? 'text-white/80' : 'text-brand-fg')}>{n}</span>}
+                    {n > 0 && <span className={cx('shrink-0 text-2xs font-bold', on ? 'text-white/80' : 'text-brand-fg')}>{n}</span>}
                   </button>
                 );
               })}
             </div>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
                 Başlangıç
                 <input
                   type="date"
@@ -212,12 +212,12 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
                   onChange={(e) => setForm((f) => ({ ...f, bas: e.target.value, bit: f.bit < e.target.value ? e.target.value : f.bit }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
                 Bitiş
                 <input type="date" className="ui-field w-40" value={form.bit} min={form.bas} onChange={(e) => setForm((f) => ({ ...f, bit: e.target.value }))} />
               </label>
               <Segmented size="sm" value={form.tur} onChange={(t) => setForm((f) => ({ ...f, tur: t }))} items={TUR_SECENEK} />
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[10rem]">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 flex-1 min-w-[10rem]">
                 Açıklama
                 <input
                   type="text"
@@ -238,7 +238,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
               <p className="text-xs text-muted">Bu sınıfta öğrenci yok.</p>
             ) : (
               <div>
-                <button type="button" className="text-[11px] font-semibold text-brand-fg hover:underline mb-1" onClick={tumunuSec}>
+                <button type="button" className="text-xs font-semibold text-brand-fg hover:underline mb-1" onClick={tumunuSec}>
                   {secili.size === sinifOgr.length ? 'Seçimi kaldır' : 'Tümünü seç'}
                 </button>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1" id="ders-izin-ogrenciler">
@@ -269,7 +269,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
                           <span className="w-8 shrink-0 text-subtle tabular-nums">{s.studentNumber || ''}</span>
                           <span className={cx('min-w-0 flex-1 truncate font-medium', on ? 'text-brand-fg' : 'text-fg')}>{s.name}</span>
                           {iz && (
-                            <span className={cx('shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold', TUR_ETIKET[iz])}>
+                            <span className={cx('shrink-0 rounded-lg px-1.5 py-0.5 text-2xs font-bold', TUR_ETIKET[iz])}>
                               Bugün {iz === 'raporlu' ? 'raporlu' : 'izinli'}
                             </span>
                           )}
@@ -296,16 +296,16 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
               return (
                 <li key={`${g.studentId}-${g.bas}`} className={cx('flex items-center gap-3 py-2', g.bit < bugun && 'opacity-60')}>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-fg">
+                    <span className="block truncate text-sm font-semibold text-fg">
                       {o ? o.ad : 'Öğrenci'}
                       {o?.sinif && <span className="font-normal text-muted"> · {o.sinif}</span>}
                     </span>
-                    <span className="block truncate text-[11px] text-muted tabular-nums">
+                    <span className="block truncate text-xs text-muted tabular-nums">
                       {g.bas === g.bit ? tarihUzun(g.bas) : `${tarihUzun(g.bas)} – ${tarihUzun(g.bit)}`}
                       {g.aciklama && ` · ${g.aciklama}`}
                     </span>
                   </span>
-                  <span className={cx('w-16 shrink-0 rounded-md py-0.5 text-center text-[11px] font-bold', TUR_ETIKET[g.tur])}>
+                  <span className={cx('w-16 shrink-0 rounded-lg py-0.5 text-center text-xs font-bold', TUR_ETIKET[g.tur])}>
                     {g.tur === 'raporlu' ? 'Raporlu' : 'İzinli'}
                   </span>
                   <button

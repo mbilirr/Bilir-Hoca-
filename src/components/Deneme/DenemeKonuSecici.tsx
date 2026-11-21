@@ -283,7 +283,7 @@ export const DenemeKonuSecici: React.FC<{
         <>
           {!baseKey && (
             <div className="flex flex-wrap items-center gap-2" id="etut-deneme-ders">
-              <span className="text-[11px] text-muted flex-1 min-w-[12rem]">
+              <span className="text-xs text-muted flex-1 min-w-[12rem]">
                 "{subjectName || 'Bu ders'}" deneme dersi değil; konulara bakmak için deneme dersini seçin.
               </span>
               <select
@@ -307,7 +307,7 @@ export const DenemeKonuSecici: React.FC<{
           )}
           {!!subjectKey && (
             <div className="flex flex-wrap items-center gap-2" id="etut-deneme-grup">
-              <span className="text-[11px] font-semibold text-fg-2">Listele:</span>
+              <span className="text-xs font-semibold text-fg-2">Listele:</span>
               <div className="inline-flex rounded-lg border border-line bg-surface p-0.5" role="group" aria-label="Konu düzeyi">
                 {(['kazanim', 'baslik'] as Grup[]).map((g) => (
                   <button
@@ -320,7 +320,7 @@ export const DenemeKonuSecici: React.FC<{
                       setGrup(g);
                       setKonu('');
                     }}
-                    className={cx('h-7 w-28 rounded-md text-xs font-semibold cursor-pointer', grup === g ? 'bg-brand text-white' : 'text-muted hover:text-fg')}
+                    className={cx('h-7 w-28 rounded-lg text-xs font-semibold cursor-pointer', grup === g ? 'bg-brand text-white' : 'text-muted hover:text-fg')}
                   >
                     {g === 'kazanim' ? 'Kazanıma göre' : 'Konu başlığına göre'}
                   </button>
@@ -347,26 +347,26 @@ export const DenemeKonuSecici: React.FC<{
               ))}
             </select>
           )}
-          {error && <p className="text-[11px] font-semibold text-danger-fg">{error}</p>}
+          {error && <p className="text-xs font-semibold text-danger-fg">{error}</p>}
           {konuPending && (
-            <p className="text-[11px] font-semibold text-warning-fg" id="etut-deneme-konu-bekliyor">
+            <p className="text-xs font-semibold text-warning-fg" id="etut-deneme-konu-bekliyor">
               Bu konunun denemesi henüz optik okunmamış. Konu etüde yazılır; öğrenci başarısı sonuçlar yüklenince görünür.
             </p>
           )}
           {konu && !konuPending && (
             <div className="space-y-1.5">
               {calc && !loading && (
-                <p className="text-[11px] text-fg-2" id="etut-deneme-hesap">
+                <p className="text-xs text-fg-2" id="etut-deneme-hesap">
                   Hesap: {scopeN ? `son ${scopeN === 1 ? '' : `${scopeN} `}deneme` : `bütün denemeler (${doneCount})`}
                   {scopeN && doneCount < scopeN ? ` (sonuçlu ${doneCount} deneme var)` : ''} içinden bu konu{' '}
                   <b>{calc.used.length}</b> denemede var
                   {calc.used.length ? `: ${calc.used.map((e) => e.name).join(', ')}` : ''}. Öğrenci yüzdesi bu denemelerin ortalamasıdır.
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <span className="inline-flex items-center gap-1 rounded-md bg-danger px-1.5 py-0.5 font-bold text-white">%30 altı {bands ? `· ${bands.red.length}` : ''}</span>
-                <span className="inline-flex items-center gap-1 rounded-md bg-warning px-1.5 py-0.5 font-bold text-white">%30-49 {bands ? `· ${bands.orange.length}` : ''}</span>
-                <span className="inline-flex items-center gap-1 rounded-md bg-info px-1.5 py-0.5 font-bold text-white">%50-59 {bands ? `· ${bands.blue.length}` : ''}</span>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-lg bg-danger px-1.5 py-0.5 font-bold text-white">%30 altı {bands ? `· ${bands.red.length}` : ''}</span>
+                <span className="inline-flex items-center gap-1 rounded-lg bg-warning px-1.5 py-0.5 font-bold text-white">%30-49 {bands ? `· ${bands.orange.length}` : ''}</span>
+                <span className="inline-flex items-center gap-1 rounded-lg bg-info px-1.5 py-0.5 font-bold text-white">%50-59 {bands ? `· ${bands.blue.length}` : ''}</span>
                 <span className="text-muted">{loading ? 'Sonuçlar yükleniyor…' : classIds.length ? 'Seçili sınıfın öğrencileri renklendirildi.' : 'Bütün sınıfların öğrencileri renklendirildi; aşağıdan sınıf seçerek daraltabilirsiniz.'}</span>
               </div>
               {bands && (
@@ -387,7 +387,7 @@ export const DenemeKonuSecici: React.FC<{
                   </button>
                 </div>
               )}
-              {rates && !Object.keys(rates).length && !loading && <p className="text-[11px] text-muted">Seçili sınıflarda bu konuda deneme sonucu olan öğrenci yok.</p>}
+              {rates && !Object.keys(rates).length && !loading && <p className="text-xs text-muted">Seçili sınıflarda bu konuda deneme sonucu olan öğrenci yok.</p>}
             </div>
           )}
         </>

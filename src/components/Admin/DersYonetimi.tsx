@@ -153,7 +153,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
             >
               <span
                 className={cx(
-                  'grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-[13px] font-bold transition-colors duration-150',
+                  'grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-sm font-bold transition-colors duration-150',
                   acik ? 'bg-brand text-white' : a.tamam ? 'bg-success-soft text-success-fg' : 'bg-surface-2 text-muted'
                 )}
                 aria-hidden="true"
@@ -161,7 +161,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
                 {a.no === null ? <ClipboardList className="h-4 w-4" /> : a.tamam && !acik ? <Check className="h-4 w-4" /> : a.no}
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-[13.5px] font-semibold text-fg">{a.ad}</span>
+                <span className="block truncate text-sm font-semibold text-fg">{a.ad}</span>
                 <span className="block truncate text-xs text-muted tabular-nums">
                   {a.ozet}
                 </span>

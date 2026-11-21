@@ -160,7 +160,8 @@ export const StudentSearchSelect: React.FC<{
         createPortal(
           <div
             ref={boxRef}
-            className="fixed z-[120] bg-surface border border-line rounded-xl shadow-pop overflow-hidden"
+            data-acilir=""
+            className="fixed z-(--z-acilir) bg-surface border border-line rounded-xl shadow-pop overflow-hidden"
             style={{ left: pos.left, width: pos.width, ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }) }}
           >
             <div className="p-2 border-b border-line relative">
@@ -219,7 +220,7 @@ export const StudentSearchSelect: React.FC<{
                 </button>
               ))}
               {!shown.length && <p className="px-3 py-3 text-xs text-subtle">{students.length ? 'Öğrenci bulunamadı.' : 'Listede öğrenci yok.'}</p>}
-              {more > 0 && <p className="px-3 py-1.5 text-[11px] text-muted">… {more} öğrenci daha. Aramayı daraltın.</p>}
+              {more > 0 && <p className="px-3 py-1.5 text-xs text-muted">… {more} öğrenci daha. Aramayı daraltın.</p>}
             </div>
             {clearLabel && value && (
               <div className="border-t border-line p-1.5">

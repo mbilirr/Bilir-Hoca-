@@ -34,10 +34,10 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     title={title}
     description={
       itemBadge ? (
-        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-2 text-fg-2 border border-line">{itemBadge}</span>
+        <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-surface-2 text-fg-2 border border-line">{itemBadge}</span>
       ) : undefined
     }
-    layerClass="z-[10001]"
+    layerClass="z-(--z-pencere-ust)"
     footer={
       <>
         <button type="button" autoFocus onClick={onClose} className="ui-btn ui-btn-secondary">

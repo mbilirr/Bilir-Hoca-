@@ -167,7 +167,7 @@ export const AdminMaintenancePanel: React.FC = () => {
           Son yedek: <strong>{lastText}</strong>
         </p>
         {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
-        <p className="text-[11px] text-muted flex items-center gap-1.5">
+        <p className="text-xs text-muted flex items-center gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0" />
           <span>Excel ve JSON tek şifreli dosyada iner. Haftada bir yedek alın.</span>
           <InfoTip text="Dosyada bütün öğrenci bilgileri olduğu için yedek, verdiğiniz parolayla şifrelenir (.biliryedek). Parola hiçbir yerde saklanmaz; unutulursa yedek açılamaz. Açmak için aşağıdaki 'Şifreli yedeği aç'. Excel okumak içindir, JSON bütün tabloların tam kopyasıdır (giriş şifreleri girmez). Sistem bozulursa asıl geri dönüş Supabase'in kendi yedeğidir. Dosyayı bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
@@ -291,7 +291,7 @@ export const AdminMaintenancePanel: React.FC = () => {
             <p className="text-xs text-muted">Eski sürümde kayıtların içine gömülen dosyalar (ödev, teslim, arşiv)</p>
           </div>
         </div>
-        <p className="text-[11px] text-muted flex items-center gap-1">
+        <p className="text-xs text-muted flex items-center gap-1">
           Taşımak sistemi hızlandırır, hiçbir şeyi silmez.
           <InfoTip text="Bu dosyalar her eşitlemede yeniden indirildiği için sistemi yavaşlatır. Taşındıktan sonra aynı şekilde açılırlar; öğretmen ve öğrenciler fark görmez. İşlem tekrar çalıştırılabilir." />
         </p>

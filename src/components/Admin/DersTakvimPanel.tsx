@@ -196,7 +196,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
       >
         <div className="space-y-3">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               Başlangıç
               <input
                 type="date"
@@ -205,11 +205,11 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
                 onChange={(e) => setForm((f) => ({ ...f, bas: e.target.value, bit: f.bit < e.target.value ? e.target.value : f.bit }))}
               />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
               Bitiş
               <input type="date" className="ui-field w-40" value={form.bit} min={form.bas} onChange={(e) => setForm((f) => ({ ...f, bit: e.target.value }))} />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2 flex-1 min-w-[12rem]">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2 flex-1 min-w-[12rem]">
               Açıklama
               <input
                 type="text"
@@ -249,7 +249,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
             </ul>
           )}
           {gecmis.length > 0 && (
-            <button type="button" className="text-[11px] font-semibold text-brand-fg hover:underline" onClick={() => setTumu((v) => !v)}>
+            <button type="button" className="text-xs font-semibold text-brand-fg hover:underline" onClick={() => setTumu((v) => !v)}>
               {tumu ? 'Geçmiş tatilleri gizle' : `Geçmiş tatilleri göster (${gecmis.length})`}
             </button>
           )}
@@ -271,7 +271,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
               <InfoTip text="Gün sonu: son ders bitip gecikme süresi dolunca tek özet. Ders sonu: her ders bittikten sonra (yoklaması alınmışsa) en geç 10 dakika içinde. İkisi: her ikisi de gider." />
             </div>
           )}
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             Bildirim yalnız <b>Yönetim › Bildirim izinleri › Ders devamsızlığı › Veli</b> açıksa gider (e-posta / SMS). Ders sonu seçeneğinde SMS sayısı
             artabilir.
           </p>
@@ -289,7 +289,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
                 Sınır (gün)
                 <input
                   type="number"
@@ -301,7 +301,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
                   id="ders-sinir-gun"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] font-semibold text-fg-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-fg-2">
                 Kaç gün kala uyarı
                 <input
                   type="number"
@@ -324,8 +324,8 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
               </button>
               <InfoTip text="Özürsüz gün: öğrencinin o gün yoklaması alınan bütün derslerinde 'Gelmedi' olması. İzinli / raporlu / geç sayılmaz. Eğitim yılı 1 Eylül'den sayılır. Her eşik için bir kez gönderilir." />
             </div>
-            {!sinirGecerli && <p className="text-[11px] text-danger-fg font-semibold">Sınır 0–60, uyarı 0–10 gün olmalı.</p>}
-            <p className="text-[11px] text-muted">
+            {!sinirGecerli && <p className="text-xs text-danger-fg font-semibold">Sınır 0–60, uyarı 0–10 gün olmalı.</p>}
+            <p className="text-xs text-muted">
               {sinirKayitli.sinir === 0
                 ? 'Kapalı (sınır 0).'
                 : `${Math.max(sinirKayitli.sinir - sinirKayitli.kala, 1)}. günde uyarı, ${sinirKayitli.sinir}. günde "sınıra ulaştı" bildirimi. Veliye gitmesi için Bildirim izinleri › Ders devamsızlığı › Veli açık olmalı.`}

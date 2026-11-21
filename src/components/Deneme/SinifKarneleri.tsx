@@ -45,7 +45,7 @@ const DeltaPill: React.FC<{ v: number | null; f?: (n: number) => string; classNa
 /** Küçük çizgi grafik (öğrencinin denemelerdeki puanı): yükselen yeşil, düşen kırmızı */
 export const Sparkline: React.FC<{ values: Array<number | null>; width?: number; height?: number }> = ({ values, width = 64 }) => {
   const v = values.filter((x): x is number => x !== null);
-  if (v.length < 2) return <span className="text-[10px] text-subtle">—</span>;
+  if (v.length < 2) return <span className="text-2xs text-subtle">—</span>;
   return <Gidis degerler={values} renk={v[v.length - 1] >= v[0] ? YESIL : KIRMIZI} genislik={width} />;
 };
 
@@ -132,7 +132,7 @@ export const ClassCombinedView: React.FC<{ data: ClassCombined | null; scopeLabe
               <tr key={p.exam.id} className={KT.satir}>
                 <td className={KT.td}>
                   <p className="font-semibold text-fg">{p.exam.name}</p>
-                  <p className="text-[10px] text-muted">{dateTr(p.exam.examDate)}</p>
+                  <p className="text-2xs text-muted">{dateTr(p.exam.examDate)}</p>
                 </td>
                 <td className={KT.tdc}>{p.n}</td>
                 {subs.map((x) => {
@@ -225,14 +225,14 @@ export const ClassCombinedView: React.FC<{ data: ClassCombined | null; scopeLabe
       >
         <div className="overflow-auto max-h-[32rem]">
           <table className="w-full text-xs text-fg-2 border-separate border-spacing-0">
-            <thead className="text-[11px] uppercase tracking-wider text-muted">
+            <thead className="text-xs uppercase tracking-wider text-muted">
               <tr>
                 <th className="sticky top-0 left-0 z-30 bg-surface-2 px-2 py-2 text-center font-semibold border-b border-line w-10">#</th>
                 <th className="sticky top-0 left-10 z-30 bg-surface-2 px-3 py-2 text-left font-semibold border-b border-line min-w-40">Öğrenci</th>
                 {exams.map((e, i) => (
                   <th key={e.id} className="sticky top-0 z-20 bg-surface-2 px-1 py-2 text-center font-semibold border-b border-line min-w-14" title={`${e.name} · ${dateTr(e.examDate)}`}>
                     <span className="block tabular-nums">{i + 1}</span>
-                    <span className="mx-auto block max-w-16 truncate text-[10px] font-normal normal-case tracking-normal">{etiketler[i].ust}</span>
+                    <span className="mx-auto block max-w-16 truncate text-2xs font-normal normal-case tracking-normal">{etiketler[i].ust}</span>
                   </th>
                 ))}
                 <th className="sticky top-0 z-20 bg-surface-2 px-2 py-2 text-center font-semibold border-b border-line">Ortalama</th>
@@ -316,7 +316,7 @@ export const ClassCombinedView: React.FC<{ data: ClassCombined | null; scopeLabe
                     if (!n || !total) return null;
                     const w = (n / total) * 100;
                     return (
-                      <span key={b.label} className="flex h-full items-center justify-center text-[9px] font-bold text-white" style={{ width: `${w}%`, background: rgb(BAND_RGB[bi]) }} title={`${b.label}: ${n} öğrenci`}>
+                      <span key={b.label} className="flex h-full items-center justify-center text-3xs font-bold text-white" style={{ width: `${w}%`, background: rgb(BAND_RGB[bi]) }} title={`${b.label}: ${n} öğrenci`}>
                         {w >= 7 ? n : ''}
                       </span>
                     );
@@ -325,7 +325,7 @@ export const ClassCombinedView: React.FC<{ data: ClassCombined | null; scopeLabe
               </div>
             );
           })}
-          <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-fg-2">
+          <div className="flex flex-wrap gap-3 pt-1 text-xs text-fg-2">
             {SCORE_BANDS.map((b, bi) => (
               <span key={b.label} className="inline-flex items-center gap-1">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: rgb(BAND_RGB[bi]) }} /> {b.label}
@@ -435,7 +435,7 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
         {o.mode === 'basari' ? (
           <SeviyeLejant sorulmadi not={`* ${HEAT_MIN_TOTAL}'ten az cevap · Hücreye gelince ayrıntı görünür`} />
         ) : (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span className={TONE_TEXT.success}>+10 ve üstü</span>
             <span className={TONE_TEXT.info}>+5 / +9</span>
             <span className="font-bold text-fg-2">−4 / +4</span>
@@ -484,7 +484,7 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
                       <span className="line-clamp-2 min-w-0 flex-1 text-fg">{w.row.short}</span>
                       <span className="shrink-0 font-bold text-warning-fg tabular-nums">{w.rate} puan</span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted">{w.note}</p>
+                    <p className="mt-0.5 text-xs text-muted">{w.note}</p>
                   </li>
                 ))}
               </ul>
@@ -502,10 +502,10 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
                 <li key={p.cls.id} className="py-1.5 text-xs">
                   <p className="font-bold text-fg">{p.cls.name}</p>
                   {p.items.length === 0 ? (
-                    <p className="text-[11px] text-success-fg">%50 altında kazanım yok</p>
+                    <p className="text-xs text-success-fg">%50 altında kazanım yok</p>
                   ) : (
                     p.items.slice(0, 2).map((it) => (
-                      <p key={it.row.key} className="flex items-start gap-1.5 text-[11px]" title={it.row.label}>
+                      <p key={it.row.key} className="flex items-start gap-1.5 text-xs" title={it.row.label}>
                         <Yuzde v={it.rate} className="w-9 shrink-0" />
                         <span className="line-clamp-1 text-fg-2">
                           <DersAd ad={it.subject.short} renk={dersRgb(it.subject.key)} /> · {it.row.short}
@@ -536,13 +536,13 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
         >
           <div className="overflow-auto max-h-[36rem]">
             <table className="w-full text-xs text-fg-2 border-separate border-spacing-0">
-              <thead className="text-[11px] uppercase tracking-wider text-muted">
+              <thead className="text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="sticky top-0 left-0 z-30 bg-surface-2 px-3 py-2 text-left font-semibold border-b border-line min-w-64">Kazanım</th>
                   {shown.classes.map((c) => (
                     <th key={c.id} className="sticky top-0 z-20 bg-surface-2 px-1 py-2 text-center font-semibold border-b border-line min-w-16">
                       <span className="block text-fg">{c.name}</span>
-                      <span className="block text-[10px] font-normal normal-case tracking-normal">{c.students} öğr.</span>
+                      <span className="block text-2xs font-normal normal-case tracking-normal">{c.students} öğr.</span>
                     </th>
                   ))}
                   <th className="sticky top-0 z-20 bg-surface-2 px-1 py-2 text-center font-semibold border-b border-line min-w-16">Kurum</th>
@@ -556,7 +556,7 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
                   <tr key={r.key} className="group">
                     <td className="sticky left-0 z-10 bg-surface group-hover:bg-surface-2 px-3 py-1 border-b border-line/60" title={r.label}>
                       <span className="line-clamp-2 text-fg">{r.short}</span>
-                      <span className="block text-[10px] text-muted">
+                      <span className="block text-2xs text-muted">
                         {r.questions} soru · {r.examCount} deneme
                       </span>
                     </td>
@@ -595,7 +595,7 @@ export const KazanimIsiHaritasi: React.FC<{ heat: KazHeat | null; options: HeatO
         </KBolum>
       ))}
 
-      <p className="flex items-center gap-1 text-[11px] text-muted">
+      <p className="flex items-center gap-1 text-xs text-muted">
         Başarı ve fark nasıl hesaplanır?
         <InfoTip text='Başarı = doğru / soru (sınıfın bütün öğrencilerinin cevapları). "Fark" sütunu sınıflar arasındaki en yüksek ve en düşük başarı arasındaki farktır; 20 ve üstü turuncu gösterilir. Az sayıda cevaba (*) dayanan hücreler fark ve öne çıkanlar hesabına girmez.' />
       </p>

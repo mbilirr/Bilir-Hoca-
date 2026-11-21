@@ -69,7 +69,7 @@ export const HataKayitlariPanel: React.FC = () => {
                 type="button"
                 aria-pressed={gun === g}
                 onClick={() => setGun(g)}
-                className={`h-7 w-16 rounded-md text-xs font-semibold transition-colors ${gun === g ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
+                className={`h-7 w-16 rounded-lg text-xs font-semibold transition-colors ${gun === g ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
               >
                 {g === 1 ? 'Bugün' : `${g} gün`}
               </button>
@@ -118,7 +118,7 @@ export const HataKayitlariPanel: React.FC = () => {
                       <div className="sm:col-span-2 truncate"><dt className="inline text-muted">Tarayıcı (son): </dt><dd className="inline">{r.tarayici || '—'}</dd></div>
                       <div className="sm:col-span-2 truncate"><dt className="inline text-muted">Sürüm: </dt><dd className="inline">{(r.surumler || []).join(', ') || '—'}</dd></div>
                     </dl>
-                    <pre className="text-[11px] leading-relaxed text-fg-2 bg-surface-2 border border-line rounded-lg p-2.5 overflow-x-auto max-h-56 whitespace-pre-wrap break-words">
+                    <pre className="text-xs leading-relaxed text-fg-2 bg-surface-2 border border-line rounded-lg p-2.5 overflow-x-auto max-h-56 whitespace-pre-wrap break-words">
                       {r.mesaj}
                       {r.yigin ? `\n\n${r.yigin}` : ''}
                     </pre>

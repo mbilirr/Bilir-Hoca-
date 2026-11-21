@@ -482,14 +482,14 @@ export const KazanimAI: React.FC<{
     <div className="space-y-2 py-4 max-w-xl mx-auto text-center">
       <p className="text-sm font-semibold text-fg">{progress.label}</p>
       <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
-        <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }} />
+        <div className="h-full bg-brand rounded-full transition-[width]" style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }} />
       </div>
       <p className="text-xs text-muted">
         {progress.done}/{progress.total} {step === 'scan' ? 'grup' : 'sayfa'}
         {step === 'run' ? ` · ${Object.values(found).reduce((a, m) => a + Object.keys(m).length, 0)} soru bulundu` : ''}
       </p>
       {progress.wait && <p className="text-xs font-semibold text-warning-fg">{progress.wait}</p>}
-      <p className="text-[11px] text-muted">Ücretsiz planda istekler arasında birkaç saniye beklenir. Pencereyi kapatmayın.</p>
+      <p className="text-xs text-muted">Ücretsiz planda istekler arasında birkaç saniye beklenir. Pencereyi kapatmayın.</p>
     </div>
   );
 
@@ -507,7 +507,7 @@ export const KazanimAI: React.FC<{
         id="kazanim-ai"
       >
         <div className="space-y-4">
-          <p className="text-[11px] text-muted flex items-start gap-1.5">
+          <p className="text-xs text-muted flex items-start gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-fg" />
             <span className="inline-flex items-center gap-1">
               Öğrenci bilgisi gönderilmez.
@@ -570,7 +570,7 @@ export const KazanimAI: React.FC<{
               {opening && <p className="text-xs text-muted">Sayfalar hazırlanıyor… {thumbs.length ? `${thumbs.length}/${book?.pageCount ?? '?'}` : ''}</p>}
               {step === 'scan' && progressBox}
               {step === 'map' && log.length > 0 && (
-                <div className="text-[11px] rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
+                <div className="text-xs rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
                   {log.slice(0, 6).map((l, i) => (
                     <p key={i}>{l}</p>
                   ))}
@@ -614,7 +614,7 @@ export const KazanimAI: React.FC<{
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-fg">Derslerin sayfaları</p>
-                    <p className="text-[11px] text-muted">
+                    <p className="text-xs text-muted">
                       {Object.keys(pageMap).length
                         ? 'Yapay zekâ sayfaları tanıdı. Kontrol edin; yanlış varsa düzeltin (örn. "2-5, 7"). Kazanımı zaten olan dersi boş bırakabilirsiniz.'
                         : 'Her dersin sayfalarını yazın (örn. "2-5, 7"). Sayfayı büyütmek için üzerine tıklayın.'}
@@ -657,7 +657,7 @@ export const KazanimAI: React.FC<{
                       );
                     })}
                     {Object.values(bankBySubject).length === 0 && (
-                      <p className="text-[11px] text-warning-fg">Kazanım bankası boş: yapay zekâ yalnızca konu ve alt kazanım önerir. Önce "Kazanım bankası" sekmesinden öğretim programlarını yükleyin.</p>
+                      <p className="text-xs text-warning-fg">Kazanım bankası boş: yapay zekâ yalnızca konu ve alt kazanım önerir. Önce "Kazanım bankası" sekmesinden öğretim programlarını yükleyin.</p>
                     )}
                   </div>
                 </div>
@@ -676,7 +676,7 @@ export const KazanimAI: React.FC<{
           {step === 'review' && (
             <div className="space-y-3">
               {log.length > 0 && (
-                <div className="text-[11px] rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
+                <div className="text-xs rounded-xl px-3 py-2 bg-warning-soft text-warning-fg space-y-0.5">
                   {log.slice(0, 8).map((l, i) => (
                     <p key={i}>{l}</p>
                   ))}
@@ -693,7 +693,7 @@ export const KazanimAI: React.FC<{
                   </button>
                 </div>
               )}
-              <p className="text-[11px] text-muted flex items-center gap-1">
+              <p className="text-xs text-muted flex items-center gap-1">
                 Güveni düşük ve zaten kazanımı olan sorular işaretsiz gelir.
                 <InfoTip text="Konu = seçilen MEB kazanımı (parantez içinde konu başlığıyla); alt kazanım = o kazanımın açıklama maddelerinden biri. Güveni %50'nin altındakiler ve zaten kazanımı olan sorular işaretsiz gelir." />
               </p>
@@ -774,7 +774,7 @@ export const KazanimAI: React.FC<{
                                     ))}
                                   </select>
                                   {d.code2 && (
-                                    <p className="text-[11px] text-muted mt-0.5">
+                                    <p className="text-xs text-muted mt-0.5">
                                       İkincil: {d.code2}
                                       {second ? ` — ${short(second.text, 70)}` : ''}
                                     </p>
@@ -782,11 +782,11 @@ export const KazanimAI: React.FC<{
                                   {(() => {
                                     const later = laterOf(s.key, d.code);
                                     return later ? (
-                                      <p className="text-[11px] text-warning-fg mt-0.5">Planda henüz işlenmedi ({planDateTr(later)} haftası). Doğruysa bırakın; değilse işlenmiş bir kazanım seçin.</p>
+                                      <p className="text-xs text-warning-fg mt-0.5">Planda henüz işlenmedi ({planDateTr(later)} haftası). Doğruysa bırakın; değilse işlenmiş bir kazanım seçin.</p>
                                     ) : null;
                                   })()}
-                                  {(q.kazanimCode || q.konu) && <p className="text-[11px] text-warning-fg mt-0.5">Şu an: {[q.kazanimCode, q.konu].filter(Boolean).join(' · ')}</p>}
-                                  {!f && <p className="text-[11px] text-muted mt-0.5">Yapay zekâ bu soruyu bulamadı; isterseniz elle seçin.</p>}
+                                  {(q.kazanimCode || q.konu) && <p className="text-xs text-warning-fg mt-0.5">Şu an: {[q.kazanimCode, q.konu].filter(Boolean).join(' · ')}</p>}
+                                  {!f && <p className="text-xs text-muted mt-0.5">Yapay zekâ bu soruyu bulamadı; isterseniz elle seçin.</p>}
                                 </td>
                                 <td className="px-2 py-1.5">
                                   {(() => {
@@ -809,11 +809,11 @@ export const KazanimAI: React.FC<{
                                       <span className="text-subtle">{d.code ? 'Bu kazanımın alt maddesi yok' : '—'}</span>
                                     );
                                   })()}
-                                  {d.konu && <p className="text-[11px] text-muted mt-0.5">Konu başlığı: {d.konu}</p>}
+                                  {d.konu && <p className="text-xs text-muted mt-0.5">Konu başlığı: {d.konu}</p>}
                                 </td>
                                 <td className="px-2 py-1.5 text-center">
                                   {f ? <span className={cx('ui-chip', confTone(f.sug.guven))}>%{f.sug.guven}</span> : <span className="text-subtle">—</span>}
-                                  {f && <p className="text-[10px] text-subtle mt-0.5">s.{f.page}</p>}
+                                  {f && <p className="text-2xs text-subtle mt-0.5">s.{f.page}</p>}
                                 </td>
                               </tr>
                             );
@@ -824,7 +824,7 @@ export const KazanimAI: React.FC<{
                   </div>
                 );
               })}
-              <p className="text-[11px] text-muted">
+              <p className="text-xs text-muted">
                 Uyguladıktan sonra cevap anahtarında "Kaydet"e basın. Güveni düşük satırları kontrol edin.
               </p>
             </div>

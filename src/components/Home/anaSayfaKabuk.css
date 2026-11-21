@@ -140,9 +140,9 @@
 .ak-err { font-size: calc(0.75 * var(--ak-rem)); color: var(--red); }
 
 /* ---- Sağdan açılan iş paneli ---- */
-.ak-scrim { position: fixed; inset: 0; z-index: 70; background: rgb(15 36 27 / .32); opacity: 0; pointer-events: none; transition: opacity .25s var(--out); }
+.ak-scrim { position: fixed; inset: 0; z-index: var(--z-cekmece); background: rgb(15 36 27 / .32); opacity: 0; pointer-events: none; transition: opacity .25s var(--out); }
 .ak-scrim.on { opacity: 1; pointer-events: auto; }
-.ak-sheet { position: fixed; top: calc(0.75 * var(--ak-rem)); right: calc(0.75 * var(--ak-rem)); bottom: calc(0.75 * var(--ak-rem)); z-index: 71; width: min(calc(27.5 * var(--ak-rem)), calc(100vw - calc(1.5 * var(--ak-rem)))); background: var(--paper-2); color: var(--fg); border: 1px solid var(--line); border-radius: calc(1.25 * var(--ak-rem)); box-shadow: var(--pop); display: flex; flex-direction: column; transform: translateX(calc(100% + calc(1.5 * var(--ak-rem)))); transition: transform .45s var(--out), visibility 0s linear .45s; visibility: hidden; }
+.ak-sheet { position: fixed; top: calc(0.75 * var(--ak-rem)); right: calc(0.75 * var(--ak-rem)); bottom: calc(0.75 * var(--ak-rem)); z-index: calc(var(--z-cekmece) + 1); width: min(calc(27.5 * var(--ak-rem)), calc(100vw - calc(1.5 * var(--ak-rem)))); background: var(--paper-2); color: var(--fg); border: 1px solid var(--line); border-radius: calc(1.25 * var(--ak-rem)); box-shadow: var(--pop); display: flex; flex-direction: column; transform: translateX(calc(100% + calc(1.5 * var(--ak-rem)))); transition: transform .45s var(--out), visibility 0s linear .45s; visibility: hidden; }
 .ak-sheet.on { transform: none; visibility: visible; transition: transform .45s var(--out); }
 .ak-sheet .sh-h { display: flex; align-items: flex-start; gap: calc(0.75 * var(--ak-rem)); padding: calc(1.375 * var(--ak-rem)) calc(1.5 * var(--ak-rem)) calc(1 * var(--ak-rem)); border-bottom: 1px solid var(--line); }
 .ak-sheet .sh-h .tt { flex: 1; min-width: 0; }
@@ -165,7 +165,7 @@
 .ak-dot { width: calc(0.5 * var(--ak-rem)); height: calc(0.5 * var(--ak-rem)); border-radius: 50%; background: currentColor; flex-shrink: 0; display: inline-block; }
 .ak-dot.live { animation: ak-pulse 1.8s var(--out) infinite; }
 @keyframes ak-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 100% { box-shadow: 0 0 0 calc(0.5 * var(--ak-rem)) transparent; } }
-.ak-toast { position: fixed; left: 50%; bottom: calc(1.75 * var(--ak-rem)); z-index: 80; transform: translate(-50%, 0); max-width: calc(100vw - calc(2 * var(--ak-rem))); min-height: calc(2.625 * var(--ak-rem)); padding: calc(0.625 * var(--ak-rem)) calc(1.25 * var(--ak-rem)); border-radius: 999px; display: flex; align-items: center; background: var(--ink); color: #fff; font-size: calc(0.8125 * var(--ak-rem)); box-shadow: var(--pop); animation: ak-toast .5s var(--spring) both; }
+.ak-toast { position: fixed; left: 50%; bottom: calc(1.75 * var(--ak-rem)); z-index: var(--z-bildirim); transform: translate(-50%, 0); max-width: calc(100vw - calc(2 * var(--ak-rem))); min-height: calc(2.625 * var(--ak-rem)); padding: calc(0.625 * var(--ak-rem)) calc(1.25 * var(--ak-rem)); border-radius: 999px; display: flex; align-items: center; background: var(--ink); color: #fff; font-size: calc(0.8125 * var(--ak-rem)); box-shadow: var(--pop); animation: ak-toast .5s var(--spring) both; }
 .ak-toast.bad { background: var(--red); }
 @keyframes ak-toast { from { opacity: 0; transform: translate(-50%, calc(1.5 * var(--ak-rem))); } to { opacity: 1; transform: translate(-50%, 0); } }
 

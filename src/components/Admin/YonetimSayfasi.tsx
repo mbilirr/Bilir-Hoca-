@@ -87,7 +87,7 @@ const Sayi: React.FC<{ icon: React.ComponentType<{ className?: string }>; tone: 
     </span>
     <span className="min-w-0">
       <span className="block text-base font-bold text-fg tabular-nums leading-tight">{value}</span>
-      <span className="block text-[11px] text-muted truncate">{label}</span>
+      <span className="block text-xs text-muted truncate">{label}</span>
     </span>
   </div>
 );
@@ -291,7 +291,7 @@ export const YonetimSayfasi: React.FC<{
                   );
                 })}
               </div>
-              <p className="text-[11px] text-muted">Bölümleri ve izinli sınıfları genel yönetici açar.</p>
+              <p className="text-xs text-muted">Bölümleri ve izinli sınıfları genel yönetici açar.</p>
             </div>
           ))}
         {altAktif === 'dersler' &&

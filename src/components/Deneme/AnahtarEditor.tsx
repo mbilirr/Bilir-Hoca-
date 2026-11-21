@@ -378,7 +378,7 @@ export const AnahtarEditor: React.FC<{
           </button>
         )}
       </div>
-      <p className="text-[11px] text-muted flex items-center gap-1">
+      <p className="text-xs text-muted flex items-center gap-1">
         Kazanımlar <b>Kazanım bankasından</b> gelir.
         <InfoTip text="Sistem yalnızca Kazanım bankasındaki MEB kazanımlarını kullanır. Excel'deki kazanımlar bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir." />
       </p>
@@ -587,7 +587,7 @@ export const AnahtarEditor: React.FC<{
                   <p className="text-xs font-semibold text-fg">B kitapçığı eşleşmesi</p>
                   <div className="grid gap-2 lg:grid-cols-2">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-fg-2" htmlFor={`b-order-${s.key}`}>
+                      <label className="text-xs font-semibold text-fg-2" htmlFor={`b-order-${s.key}`}>
                         B sırasını yapıştırın
                       </label>
                       <textarea
@@ -608,7 +608,7 @@ export const AnahtarEditor: React.FC<{
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-fg-2" htmlFor={`b-key-${s.key}`}>
+                      <label className="text-xs font-semibold text-fg-2" htmlFor={`b-key-${s.key}`}>
                         B kitapçığının cevap anahtarı (isteğe bağlı, kontrol için)
                       </label>
                       <input
@@ -620,12 +620,12 @@ export const AnahtarEditor: React.FC<{
                         onChange={(e) => setTool(s.key, { bKey: e.target.value })}
                       />
                       {tool.bKey && cleanKey(tool.bKey).length < s.count && (
-                        <p className="text-[11px] text-muted">
+                        <p className="text-xs text-muted">
                           {cleanKey(tool.bKey).length}/{s.count} harf
                         </p>
                       )}
                       {bCheck && (
-                        <div className="text-[11px] space-y-1">
+                        <div className="text-xs space-y-1">
                           {bCheck.mismatches.length === 0 ? (
                             <p className="font-semibold text-success-fg">✓ {bCheck.checked} sorunun hepsi B anahtarıyla uyuşuyor; eşleşme doğru görünüyor.</p>
                           ) : (
@@ -664,10 +664,10 @@ export const AnahtarEditor: React.FC<{
                     </div>
                   </div>
                   {tool.msg && (
-                    <p className={cx('text-[11px] font-semibold', tool.msg.tone === 'success' ? 'text-success-fg' : tool.msg.tone === 'warning' ? 'text-warning-fg' : 'text-danger-fg')}>{tool.msg.text}</p>
+                    <p className={cx('text-xs font-semibold', tool.msg.tone === 'success' ? 'text-success-fg' : tool.msg.tone === 'warning' ? 'text-warning-fg' : 'text-danger-fg')}>{tool.msg.text}</p>
                   )}
                   {bProblems.length > 0 && (
-                    <ul className="text-[11px] text-danger-fg list-disc pl-4 space-y-0.5">
+                    <ul className="text-xs text-danger-fg list-disc pl-4 space-y-0.5">
                       {bProblems.slice(0, 8).map((p, pi) => (
                         <li key={pi}>{p}</li>
                       ))}
@@ -716,7 +716,7 @@ export const AnahtarEditor: React.FC<{
                         };
                         return (
                           <div key={k} className="space-y-1">
-                            <label className="text-[11px] font-semibold text-fg-2" htmlFor={`ek-${k}-${s.key}`}>
+                            <label className="text-xs font-semibold text-fg-2" htmlFor={`ek-${k}-${s.key}`}>
                               {k} kitapçığının cevapları
                             </label>
                             <div className="flex items-center gap-1.5">
@@ -742,7 +742,7 @@ export const AnahtarEditor: React.FC<{
                       })}
                     </div>
                     {ekTools[s.key]?.msg && (
-                      <p className={cx('text-[11px] font-semibold', ekTools[s.key]!.msg!.tone === 'success' ? 'text-success-fg' : 'text-danger-fg')}>{ekTools[s.key]!.msg!.text}</p>
+                      <p className={cx('text-xs font-semibold', ekTools[s.key]!.msg!.tone === 'success' ? 'text-success-fg' : 'text-danger-fg')}>{ekTools[s.key]!.msg!.text}</p>
                     )}
                   </div>
                 </div>
@@ -875,7 +875,7 @@ export const AnahtarEditor: React.FC<{
                                   ) : null;
                                 })()}
                                 {(q.srcCode || q.srcText) && (
-                                  <span className={cx('text-[11px]', q.kazanimCode || q.konuCode ? 'text-muted' : 'text-warning-fg')}>
+                                  <span className={cx('text-xs', q.kazanimCode || q.konuCode ? 'text-muted' : 'text-warning-fg')}>
                                     Excel: {short([q.srcCode, q.srcText].filter(Boolean).join(' — '), 110)}
                                     {!q.kazanimCode && (q.konuCode ? ' · yalnız konu' : ' · eşleşmedi')}
                                   </span>
@@ -916,7 +916,7 @@ export const AnahtarEditor: React.FC<{
           );
         })}
       </div>
-      <p className="text-[11px] text-muted flex items-center gap-1">
+      <p className="text-xs text-muted flex items-center gap-1">
         "İptal" seçilen soru herkes için doğru sayılır.
         <InfoTip
           label="Kazanım seçimi"

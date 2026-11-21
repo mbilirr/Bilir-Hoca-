@@ -526,13 +526,13 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
           >
             <FileSpreadsheet /> {excelBusy ? 'Hazırlanıyor' : 'Excel indir'}
           </button>
-          <span className="text-[11px] text-muted basis-full">
+          <span className="text-xs text-muted basis-full">
             "En az soru": o konudan en az bu kadar soru çözmüş öğrenciler değerlendirilir (tek soruyla yanlış karar verilmesin).
             {subjectList.length > 1 && excelScope === 'tum' ? ' Excel: her ders ayrı sayfa; konu / kazanım seçimi yalnız "Seçili ders"te uygulanır.' : ''}
           </span>
         </div>
         {/* Aşama 53: durum etiketlerinin anlamı */}
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]" id="etut-level-legend">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs" id="etut-level-legend">
           <span className="font-semibold text-fg-2">Durum:</span>
           <span className="ui-chip ui-chip-danger" title={LEVEL_INFO.kritik.advice}>Kritik %0–29</span>
           <span className="text-subtle" aria-hidden>|</span>
@@ -588,7 +588,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                   <ChevronDown className={cx('w-4 h-4 shrink-0 text-muted transition-transform', !acik && '-rotate-90')} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-fg">{g.label}</span>
-                    {level === 'alt' && g.konu !== g.label && <span className="block text-[11px] text-muted">Konu: {g.konu}</span>}
+                    {level === 'alt' && g.konu !== g.label && <span className="block text-xs text-muted">Konu: {g.konu}</span>}
                   </span>
                 </button>
                 <span className="ui-chip ui-chip-warning">{g.rows.length} öğrenci</span>
@@ -639,7 +639,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                               %{r.rate} · {LEVEL_INFO[levelOf(r.rate)].label}
                             </span>
                           </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted">{studentNote(r)}</td>
+                          <td className="px-3 py-1.5 text-xs text-muted">{studentNote(r)}</td>
                         </tr>
                       ))}
                     </tbody>

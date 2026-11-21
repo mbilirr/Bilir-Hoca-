@@ -22,7 +22,7 @@ import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 const INPUT = 'ui-input h-8 py-0 text-xs w-full';
-const LABEL = 'block text-[11px] font-bold text-fg-2 mb-1';
+const LABEL = 'block text-xs font-bold text-fg-2 mb-1';
 
 const toUsername = (name: string) =>
   name
@@ -181,11 +181,11 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
           </p>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-line bg-canvas px-2.5 py-1.5">
-              <span className="block text-[10px] text-muted">Kullanıcı adı</span>
+              <span className="block text-2xs text-muted">Kullanıcı adı</span>
               <span className="font-mono font-bold text-fg select-all">{done.username}</span>
             </div>
             <div className="rounded-lg border border-line bg-canvas px-2.5 py-1.5">
-              <span className="block text-[10px] text-muted">Şifre</span>
+              <span className="block text-2xs text-muted">Şifre</span>
               <span className="font-mono font-bold text-fg select-all">{done.password}</span>
             </div>
           </div>
@@ -368,11 +368,11 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold text-fg-2 w-12" title="İsteğe bağlı; sonradan Kurum Ayarları'ndan da eklenir">Logo</span>
+              <span className="text-xs font-bold text-fg-2 w-12" title="İsteğe bağlı; sonradan Kurum Ayarları'ndan da eklenir">Logo</span>
               {logo ? (
-                <img src={logo} alt="Kurum logosu" className="h-8 w-8 rounded-md border border-line object-contain bg-white" />
+                <img src={logo} alt="Kurum logosu" className="h-8 w-8 rounded-lg border border-line object-contain bg-white" />
               ) : (
-                <span className="h-8 w-8 rounded-md border border-dashed border-line" aria-hidden />
+                <span className="h-8 w-8 rounded-lg border border-dashed border-line" aria-hidden />
               )}
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} id="yk-logo" />
               <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => fileRef.current?.click()}>
