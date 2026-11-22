@@ -729,7 +729,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                               <button
                                 type="button"
                                 onClick={() => openStudent(r.info.student.id)}
-                                className="text-left font-semibold text-fg hover:text-brand-fg hover:underline cursor-pointer"
+                                className="ui-link ui-link-yazi ui-link-satir text-left"
                                 title="Öğrenci raporunu aç"
                               >
                                 {r.info.student.name}

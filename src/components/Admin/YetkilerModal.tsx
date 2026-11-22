@@ -36,8 +36,8 @@ import {
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
-const SEG = 'h-7 w-14 inline-flex items-center justify-center text-xs font-semibold transition-colors';
-const TAB = 'h-8 flex-1 inline-flex items-center justify-center text-xs font-semibold rounded-lg transition-colors';
+const SEG = 'h-8 w-14 inline-flex items-center justify-center text-xs font-semibold transition-colors'; // Aşama 352: 32 px
+const TAB = 'ui-seg-btn flex-1'; // Aşama 352: ortak bölmeli seçim
 const MODE_OPTS: Array<{ mode: SectionMode; label: string }> = [
   { mode: 'role', label: 'Rolden' },
   { mode: 'allow', label: 'Açık' },
@@ -242,7 +242,7 @@ export const YetkilerModal: React.FC<{
               role="tab"
               aria-selected={tab === k}
               onClick={() => setTab(k)}
-              className={cx(TAB, tab === k ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg')}
+              className={TAB}
               data-yetki-tab={k}
             >
               {label}

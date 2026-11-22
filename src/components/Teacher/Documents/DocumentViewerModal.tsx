@@ -176,7 +176,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               <div className="hidden sm:flex items-center space-x-1 bg-surface-2 px-2 py-1 rounded-xl border border-line text-xs text-fg-2">
                 <button
                   onClick={() => setZoomLevel((prev) => Math.max(70, prev - 15))}
-                  className="p-1 hover:text-fg rounded"
+                  className="ui-btn-mini hover:bg-surface-3"
                   title="Küçült"
                 >
                   <ZoomOut className="w-3.5 h-3.5" />
@@ -184,7 +184,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                 <span className="w-10 text-center font-mono font-medium">%{zoomLevel}</span>
                 <button
                   onClick={() => setZoomLevel((prev) => Math.min(150, prev + 15))}
-                  className="p-1 hover:text-fg rounded"
+                  className="ui-btn-mini hover:bg-surface-3"
                   title="Büyüt"
                 >
                   <ZoomIn className="w-3.5 h-3.5" />

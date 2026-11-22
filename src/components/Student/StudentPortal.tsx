@@ -748,7 +748,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           60
                         )
                       }
-                      className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs"
+                      className="ui-btn ui-btn-secondary ui-btn-icon"
                       title="Takvim dosyası indir"
                     >
                       <Calendar className="w-3.5 h-3.5" />
@@ -776,26 +776,18 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center bg-canvas p-1 rounded-xl border border-line text-xs font-medium">
+            <div className="ui-seg" role="group" aria-label="Etüt görünümü">
               <button
                 type="button"
                 onClick={() => setEtutViewMode('calendar')}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                  etutViewMode === 'calendar'
-                    ? 'bg-brand text-white font-bold shadow'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn" aria-pressed={etutViewMode === 'calendar'}
               >
                 Haftalık Takvim
               </button>
               <button
                 type="button"
                 onClick={() => setEtutViewMode('cards')}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                  etutViewMode === 'cards'
-                    ? 'bg-brand text-white font-bold shadow'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn" aria-pressed={etutViewMode === 'cards'}
               >
                 Kart Görünümü ({myEtuts.length})
               </button>
@@ -886,7 +878,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                             etut.location
                           )
                         }
-                        className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line rounded-xl text-xs cursor-pointer transition-colors"
+                        className="ui-btn ui-btn-secondary ui-btn-icon"
                         title="Takvim dosyası indir"
                       >
                         <Calendar className="w-3.5 h-3.5" />

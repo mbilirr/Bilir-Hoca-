@@ -411,7 +411,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                         <td className="px-2 py-1.5">
                           <button
                             type="button"
-                            className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon h-7 w-7"
+                            className="ui-btn-mini ui-btn-mini-danger"
                             title="Bu satırı çıkar"
                             aria-label={`${r.name || 'Satır'} satırını çıkar`}
                             disabled={stage === 'creating'}
@@ -484,7 +484,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
-                            className="ui-btn ui-btn-secondary ui-btn-sm ui-btn-icon h-7 w-7"
+                            className="ui-btn ui-btn-secondary ui-btn-icon"
                             title="Giriş bilgisini kopyala"
                             aria-label={`${c.name} giriş bilgisini kopyala`}
                             onClick={() => void copyText(credentialText(c), c.teacherId)}
@@ -494,7 +494,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                           {(
                             <button
                               type="button"
-                              className="ui-btn ui-btn-secondary ui-btn-sm ui-btn-icon h-7 w-7"
+                              className="ui-btn ui-btn-secondary ui-btn-icon"
                               title={c.phone ? 'SMS ile gönder' : 'Telefon yok'}
                               aria-label={`${c.name} bilgilerini SMS ile gönder`}
                               disabled={!c.phone || !!smsBusy}

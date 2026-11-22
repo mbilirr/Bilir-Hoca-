@@ -192,7 +192,7 @@ export const StudentTodayPlan: React.FC<{
     );
   }
 
-  const smallBtn = 'inline-flex items-center justify-center h-7 w-20 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+  const smallBtn = 'ui-btn ui-btn-sm w-20'; // Aşama 352: ortak düğme (32 px)
 
   // Yapılan görevin soru kaydındaki payı: "Soru kaydında: 40 soru · Düzenle"
   const renderShare = (it: PlanItem) => {
@@ -222,10 +222,10 @@ export const StudentTodayPlan: React.FC<{
             className="w-16 h-7 min-h-0 rounded-lg border border-line-strong bg-surface px-2 py-0 text-xs font-semibold text-fg tabular-nums outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             autoFocus
           />
-          <button type="submit" disabled={editSaving} className={cx(smallBtn, 'bg-brand text-white hover:bg-brand-hover')}>
+          <button type="submit" disabled={editSaving} className={cx(smallBtn, 'ui-btn-primary')}>
             {editSaving ? 'Kaydediliyor…' : 'Kaydet'}
           </button>
-          <button type="button" disabled={editSaving} onClick={() => setEditId(null)} className={cx(smallBtn, 'border border-line bg-surface text-fg hover:bg-surface-2')}>
+          <button type="button" disabled={editSaving} onClick={() => setEditId(null)} className={cx(smallBtn, 'ui-btn-secondary')}>
             Vazgeç
           </button>
         </form>
@@ -243,7 +243,7 @@ export const StudentTodayPlan: React.FC<{
           <span>{busy ? 'Soru kaydına aktarılıyor…' : 'Soru kaydına aktarılmadı'}</span>
         )}
         {!busy && (
-          <button type="button" data-task-share-btn data-yazma onClick={() => startEdit(it)} className="font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer">
+          <button type="button" data-task-share-btn data-yazma onClick={() => startEdit(it)} className="ui-link ui-link-satir">
             {share ? 'Düzenle' : 'Soru kaydına ekle'}
           </button>
         )}
@@ -274,7 +274,7 @@ export const StudentTodayPlan: React.FC<{
             : 'bg-surface border-dashed border-line-strong'
         )}
       >
-        <button
+        <button data-serbest="işaret dairesi"
           type="button"
           data-task-toggle
           data-yazma
@@ -385,7 +385,7 @@ export const StudentTodayPlan: React.FC<{
           id="student-plan-week-toggle"
           aria-expanded={showWeek}
           onClick={() => setShowWeek((v) => !v)}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer"
+          className="ui-link inline-flex items-center gap-1"
         >
           {showWeek ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           Bu haftanın planı ({weekRangeLabel(weekStart)})

@@ -175,7 +175,7 @@ export const StudyPlanBooksModal: React.FC<{
     if (await applyChange(entry, next, draftSubject)) cancelEdit();
   };
 
-  const iconBtn = 'inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+  const iconBtn = 'ui-btn ui-btn-ghost ui-btn-icon text-muted'; // Aşama 352: ortak simge düğmesi
 
   return (
     <Modal

@@ -185,10 +185,7 @@ export const ProfilResmiSecModal: React.FC<{
                   role="radio"
                   aria-checked={cins === o.v}
                   onClick={() => setCins(o.v)}
-                  className={cx(
-                    'h-8 w-20 rounded-lg text-xs font-semibold border transition-colors',
-                    cins === o.v ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
-                  )}
+                  className="ui-secim w-20"
                 >
                   {o.l}
                 </button>

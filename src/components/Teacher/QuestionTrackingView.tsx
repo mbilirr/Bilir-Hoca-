@@ -948,7 +948,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSelectClass('')}
-                  className="text-2xs text-muted hover:text-danger-fg font-semibold cursor-pointer"
+                  className="ui-link ui-link-muted text-2xs hover:text-danger-fg"
                 >
                   Sınıfı Temizle ✕
                 </button>
@@ -988,7 +988,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedStudentId('')}
-                  className="text-2xs text-muted hover:text-danger-fg font-semibold cursor-pointer"
+                  className="ui-link ui-link-muted text-2xs hover:text-danger-fg"
                 >
                   Seçimi Kaldır ✕
                 </button>
@@ -1173,37 +1173,25 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <Calendar className="w-3.5 h-3.5 text-fg" />
               Analiz Boyutu
             </label>
-            <div className="flex rounded-lg bg-surface border border-line-strong p-0.5">
+            <div className="ui-seg flex w-full" role="group" aria-label="Analiz boyutu">
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('weekly')}
-                className={`ui-btn ui-btn-sm h-7 flex-1 ${
-                  activeAnalysisMode === 'weekly'
-                    ? 'bg-fg text-surface shadow-xs'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn flex-1" aria-pressed={activeAnalysisMode === 'weekly'}
               >
                 Haftalık
               </button>
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('monthly')}
-                className={`ui-btn ui-btn-sm h-7 flex-1 ${
-                  activeAnalysisMode === 'monthly'
-                    ? 'bg-fg text-surface shadow-xs'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn flex-1" aria-pressed={activeAnalysisMode === 'monthly'}
               >
                 Aylık
               </button>
               <button
                 type="button"
                 onClick={() => setActiveAnalysisMode('class_overview')}
-                className={`ui-btn ui-btn-sm h-7 flex-1 ${
-                  activeAnalysisMode === 'class_overview'
-                    ? 'bg-fg text-surface shadow-xs'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn flex-1" aria-pressed={activeAnalysisMode === 'class_overview'}
               >
                 Sınıf
               </button>
@@ -1748,7 +1736,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     ) : (
                       <div className="flex justify-between items-center">
                         <span>Bu hafta hedef yok (varsayılan: günde 50 soru)</span>
-                        <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="text-2xs font-bold text-brand-fg underline cursor-pointer">
+                        <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="ui-link text-2xs">
                           Hedef ver
                         </button>
                       </div>
@@ -1908,26 +1896,18 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <WeeklyChartLegend targetText={`Günlük hedef (${dailyQuestionTarget})`} mode={chartVisualType} />
 
                     {/* Chart Mode Buttons */}
-                    <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
+                    <div className="ui-seg" role="group" aria-label="Grafik türü">
                       <button
                         type="button"
                         onClick={() => setChartVisualType('bar')}
-                        className={`ui-btn ui-btn-sm h-7 ${
-                          chartVisualType === 'bar'
-                            ? 'bg-surface text-fg shadow-xs'
-                            : 'text-muted hover:text-fg'
-                        }`}
+                        className="ui-seg-btn" aria-pressed={chartVisualType === 'bar'}
                       >
                         Sütun Grafiği
                       </button>
                       <button
                         type="button"
                         onClick={() => setChartVisualType('area')}
-                        className={`ui-btn ui-btn-sm h-7 ${
-                          chartVisualType === 'area'
-                            ? 'bg-surface text-fg shadow-xs'
-                            : 'text-muted hover:text-fg'
-                        }`}
+                        className="ui-seg-btn" aria-pressed={chartVisualType === 'area'}
                       >
                         Trend & Alan
                       </button>
@@ -2607,7 +2587,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               setSelectedStudentId(row.student.id);
                               setActiveAnalysisMode('weekly');
                             }}
-                            className="hover:text-brand-fg text-left transition-colors cursor-pointer"
+                            className="ui-link ui-link-yazi ui-link-satir text-left"
                           >
                             {row.student.name}
                           </button>
@@ -2739,7 +2719,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                     }
                                   }
                                 }}
-                                className="p-1.5 text-danger-fg hover:text-danger-fg hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
+                                className="ui-btn-mini ui-btn-mini-danger"
                                 title="Kaydı Sil"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -2898,7 +2878,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setWeekSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted cursor-pointer"
+                      className="ui-input-btn right-2.5"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -3160,7 +3140,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setMonthSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted cursor-pointer"
+                      className="ui-input-btn right-2.5"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

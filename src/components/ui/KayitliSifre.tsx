@@ -105,7 +105,7 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
     <div className={cx('flex items-center gap-1.5', className)}>
       <span
         className={cx(
-          'flex-1 min-w-0 h-9 px-3 flex items-center rounded-lg border border-line bg-surface-2 font-mono text-sm font-bold text-fg truncate',
+          'flex-1 min-w-0 h-8 px-3 flex items-center rounded-lg border border-line bg-surface-2 font-mono text-sm font-bold text-fg truncate',
           acik ? 'tracking-wider' : 'tracking-[0.2em]'
         )}
         aria-label={acik ? 'Giriş şifresi' : 'Giriş şifresi gizli'}
@@ -117,7 +117,7 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
         type="button"
         onClick={() => void goster()}
         disabled={aciliyor}
-        className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
+        className="ui-btn ui-btn-secondary ui-btn-icon"
         title={acik ? 'Gizle' : 'Göster'}
         aria-label={acik ? 'Şifreyi gizle' : 'Şifreyi göster'}
       >
@@ -127,7 +127,7 @@ export const KayitliSifre: React.FC<{ tur: 'student' | 'teacher'; kayitId: strin
         type="button"
         onClick={() => void kopyala()}
         disabled={aciliyor}
-        className="ui-btn ui-btn-secondary ui-btn-sm h-9 w-9 p-0 justify-center"
+        className="ui-btn ui-btn-secondary ui-btn-icon"
         title={kopyalandi ? 'Kopyalandı' : 'Kopyala'}
         aria-label="Şifreyi kopyala"
       >

@@ -358,7 +358,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg cursor-pointer"
+                  className="ui-input-btn right-3"
                 >
                   {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -382,7 +382,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg cursor-pointer"
+                className="ui-input-btn right-3"
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>

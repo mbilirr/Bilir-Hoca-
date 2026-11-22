@@ -497,7 +497,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                     <button
                       type="button"
                       onClick={() => downloadResource(res)}
-                      className="p-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs transition-colors"
+                      className="ui-btn ui-btn-secondary ui-btn-icon"
                       title="Dosyayı İndir"
                       aria-label="Dosyayı İndir"
                     >

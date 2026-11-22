@@ -231,7 +231,7 @@ export const KurumOzetKartlari: React.FC<{
         </span>
         <span className="flex flex-col gap-1">
           {isler.map((x) => (
-            <button
+            <button data-serbest="liste satırı"
               key={x.id}
               type="button"
               id={`yonetim-is-${x.id}`}
@@ -244,7 +244,7 @@ export const KurumOzetKartlari: React.FC<{
             </button>
           ))}
           {mailBagli !== undefined && mailBagli !== null && (
-            <button
+            <button data-serbest="liste satırı"
               type="button"
               id="yonetim-is-mail"
               onClick={() => onGit('genel')}

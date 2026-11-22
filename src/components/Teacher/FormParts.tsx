@@ -53,10 +53,7 @@ export const SelectBox: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> 
 );
 
 export const chipCls = (active: boolean) =>
-  cx(
-    'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold transition-colors cursor-pointer select-none', // Aşama 205: h-8
-    active ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:border-line-strong hover:bg-surface-2'
-  );
+  cx('ui-secim gap-1.5 rounded-full', active && 'is-on'); // Aşama 352: ortak seçim etiketi
 
 // Sınıfın kademesi (Ortaokul / Lise)
 export function classLevel(cls?: ClassGroup | null): 'Ortaokul' | 'Lise' {
@@ -322,7 +319,7 @@ export const StudentPicker: React.FC<{
               id={`${idPrefix}-toggle-visible`}
               onClick={toggleVisible}
               disabled={visibleIds.length === 0}
-              className="text-xs font-semibold text-brand-fg hover:underline disabled:opacity-40 cursor-pointer"
+              className="ui-link"
             >
               {allVisibleSelected ? 'Görünenleri kaldır' : 'Görünenlerin tümünü seç'}
             </button>
@@ -405,7 +402,7 @@ export const StudentPicker: React.FC<{
                   type="button"
                   onClick={() => toggleStudent(s.id)}
                   aria-label={`${s.name} seçimini kaldır`}
-                  className="p-0.5 rounded-full hover:bg-surface-3 cursor-pointer"
+                  className="ui-chip-x"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -441,7 +438,7 @@ export const TagInput: React.FC<{ value: string[]; onChange: (v: string[]) => vo
         {value.map((t) => (
           <span key={t} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-info-soft text-info-fg text-xs font-semibold max-w-full">
             <span className="truncate">{t}</span>
-            <button type="button" onClick={() => onChange(value.filter((x) => x !== t))} aria-label={`${t} kaldır`} className="p-0.5 rounded-full hover:bg-surface cursor-pointer">
+            <button type="button" onClick={() => onChange(value.filter((x) => x !== t))} aria-label={`${t} kaldır`} className="ui-chip-x">
               <X className="w-3 h-3" />
             </button>
           </span>
@@ -486,7 +483,7 @@ export const MailNoticeBar: React.FC<{
       <Mail className="w-4 h-4 shrink-0 mt-px" />
       <span className="flex-1">{notice.text}</span>
       {action}
-      <button type="button" onClick={onClose} aria-label="Kapat" className="p-0.5 rounded hover:bg-surface/60 cursor-pointer">
+      <button type="button" onClick={onClose} aria-label="Kapat" className="ui-btn-mini">
         <X className="w-3.5 h-3.5" />
       </button>
     </div>

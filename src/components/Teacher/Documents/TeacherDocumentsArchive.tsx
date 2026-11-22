@@ -39,7 +39,7 @@ import { SelectBox, inputCls } from '../FormParts';
 import { matchTurkishSearch } from '../../../utils/turkishSearch';
 
 // Aşama 80: arşivdeki tüm açılır kutular, arama kutusu ve düğmeler aynı yükseklik ve yazı boyutunda
-const FIELD_CLS = `${inputCls} h-10 cursor-pointer`;
+const FIELD_CLS = `${inputCls} cursor-pointer`;
 
 interface TeacherDocumentsArchiveProps {
   documents: TeacherDocument[];
@@ -403,7 +403,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
       {actionError && (
         <div role="alert" className="p-3 bg-danger/10 border border-danger/30 rounded-xl text-danger-fg text-xs flex items-center justify-between gap-2">
           <span>{actionError}</span>
-          <button type="button" onClick={() => setActionError(null)} className="font-bold text-danger-fg hover:text-fg cursor-pointer">
+          <button type="button" onClick={() => setActionError(null)} className="ui-link ui-link-danger ui-link-satir">
             Tamam
           </button>
         </div>
@@ -418,7 +418,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Belge adı, zümre, konu veya etiket ara..."
-            className={`${inputCls} h-10 pl-9`}
+            className={`${inputCls} pl-9`}
           />
         </div>
 
@@ -493,7 +493,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   curriculum: false,
                 });
               }}
-              className="ui-btn ui-btn-secondary h-10"
+              className="ui-btn ui-btn-secondary"
             >
               Sıfırla
             </button>
@@ -578,7 +578,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             e.stopPropagation();
                             scrollCategoryTrack(category.id, -340);
                           }}
-                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
+                          className="ui-btn-mini"
                           title="Sola Kaydır"
                         >
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -589,7 +589,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             e.stopPropagation();
                             scrollCategoryTrack(category.id, 340);
                           }}
-                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
+                          className="ui-btn-mini"
                           title="Sağa Kaydır"
                         >
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -639,7 +639,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           </div>
 
                           {weeklyPlanSelectedClass && (
-                            <button type="button" onClick={() => setWeeklyPlanSelectedClass('')} className="ui-btn ui-btn-secondary h-10 shrink-0">
+                            <button type="button" onClick={() => setWeeklyPlanSelectedClass('')} className="ui-btn ui-btn-secondary shrink-0">
                               Tüm Sınıflar
                             </button>
                           )}
@@ -791,7 +791,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                   <button
                                     type="button"
                                     onClick={() => handleDownload(doc)}
-                                    className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs border border-line transition-colors cursor-pointer"
+                                    className="ui-btn ui-btn-secondary ui-btn-icon"
                                     title="Belgeyi Bilgisayara İndir"
                                   >
                                     <Download className="w-3.5 h-3.5" />
@@ -801,7 +801,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     <button
                                       type="button"
                                       onClick={() => setDocToDelete(doc)}
-                                      className="p-2 bg-danger-soft hover:bg-danger-soft text-danger-fg hover:text-danger-fg rounded-xl text-xs border border-danger/30 transition-colors cursor-pointer"
+                                      className="ui-btn ui-btn-danger-soft ui-btn-icon"
                                       title="Belgeyi Sil"
                                       aria-label="Belgeyi Sil"
                                     >

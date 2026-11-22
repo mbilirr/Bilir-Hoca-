@@ -207,7 +207,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                     {/* Aşama 171: kendi resmi yoksa cinsiyet ve role göre çizim */}
                     <img src={profilResmi({ id: teacher.id, name, avatar, gender: teacher.gender }, ogretmenProfilRol({ ...teacher, branch }))} alt={name} className="w-full h-full object-cover" />
                   </div>
-                  <button
+                  <button data-serbest="fotoğraf rozeti"
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute -bottom-1 -right-1 p-1.5 bg-brand hover:bg-brand-hover text-white rounded-full border border-surface shadow-md cursor-pointer transition-transform hover:scale-110"
@@ -524,7 +524,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowOld(!showOld)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+                className="ui-input-btn right-3"
               >
                 {showOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -549,7 +549,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+                className="ui-input-btn right-3"
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>

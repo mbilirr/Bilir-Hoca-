@@ -323,7 +323,7 @@ export const DersProgramim: React.FC = () => {
         )}
       </div>
       {simdiki && (
-        <button
+        <button data-serbest="renkli kartta ana eylem"
           type="button"
           onClick={() => ac(simdiki)}
           className={cx(
@@ -529,7 +529,7 @@ export const DersProgramim: React.FC = () => {
               {haftaGunleri.map((t) => {
                 const on = t === gun;
                 return (
-                  <button
+                  <button data-serbest="gün kutusu"
                     key={t}
                     type="button"
                     aria-pressed={on}

@@ -160,13 +160,13 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-full sm:w-40">
-            <SelectBox id="etut-notes-period" aria-label="Dönem" value={period} onChange={(e) => setPeriod(e.target.value as 'week' | 'last30')} className={`${inputCls} h-10 cursor-pointer`}>
+            <SelectBox id="etut-notes-period" aria-label="Dönem" value={period} onChange={(e) => setPeriod(e.target.value as 'week' | 'last30')} className={`${inputCls} cursor-pointer`}>
               <option value="week">Bu hafta</option>
               <option value="last30">Son {ETUT_NOTE_DAYS} gün</option>
             </SelectBox>
           </div>
           <div className="w-full sm:w-56">
-            <SelectBox id="etut-notes-teacher" aria-label="Öğretmen" value={teacher} onChange={(e) => setTeacher(e.target.value)} className={`${inputCls} h-10 cursor-pointer`}>
+            <SelectBox id="etut-notes-teacher" aria-label="Öğretmen" value={teacher} onChange={(e) => setTeacher(e.target.value)} className={`${inputCls} cursor-pointer`}>
               <option value="">Öğretmen seçiniz</option>
               {teacherOptions.map((n) => (
                 <option key={n} value={n}>
@@ -182,11 +182,11 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Öğrenci, ders, not ara…"
-              className={`${inputCls} h-10 pl-9`}
+              className={`${inputCls} pl-9`}
             />
           </div>
           {unseen > 0 && (
-            <button type="button" id="etut-notes-mark-all" onClick={() => markSeen(items.map((x) => x.id))} className="ui-btn ui-btn-secondary h-10">
+            <button type="button" id="etut-notes-mark-all" onClick={() => markSeen(items.map((x) => x.id))} className="ui-btn ui-btn-secondary">
               <CheckCheck className="w-3.5 h-3.5" /> Tümünü okundu yap
             </button>
           )}

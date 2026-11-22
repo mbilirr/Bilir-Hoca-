@@ -231,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Hızlı arama (öğretmen) */}
             {isTeacherSession && (
               <>
-                <button
+                <button data-serbest="arama kutusu"
                   type="button"
                   id="navbar-search-btn"
                   onClick={openCommandPalette}

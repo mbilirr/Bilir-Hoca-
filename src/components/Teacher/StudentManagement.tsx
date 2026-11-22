@@ -1926,7 +1926,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               setPasswordTargetValue(dataService.generatePassword());
                               setPasswordTargetError(null);
                             }}
-                            className="p-1 text-muted hover:text-brand-fg rounded hover:bg-brand-soft transition-colors cursor-pointer"
+                            className="ui-btn-mini"
                             title={std.auth_user_id ? 'Yeni şifre belirle' : 'Şifre belirleyip giriş hesabı aç'}
                           >
                             <Key className="w-3.5 h-3.5" />
@@ -1962,7 +1962,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => openEditStudent(std)}
-                            className="p-2 bg-surface-2 hover:bg-surface-2 text-muted hover:text-fg border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
+                            className="ui-btn ui-btn-secondary ui-btn-icon"
                             title="Düzenle"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -1971,7 +1971,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setStudentToDelete(std)}
-                              className="p-2 bg-surface-2 hover:bg-danger-soft text-muted hover:text-danger-fg border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
+                              className="ui-btn ui-btn-secondary ui-btn-icon hover:bg-danger-soft hover:text-danger-fg"
                               title="Öğrenciyi Sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2398,7 +2398,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   {(parents.length > 1 || hasParentInfo(p)) && (
                     <button
                       type="button"
-                      className="text-xs font-semibold text-muted hover:text-danger-fg cursor-pointer"
+                      className="ui-link ui-link-muted hover:text-danger-fg"
                       onClick={() => {
                         setParents((list) => {
                           const next = list.filter((_, k) => k !== i);
@@ -3417,7 +3417,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                     setViewingClassStudents(null);
                                     openEditStudent(std);
                                   }}
-                                  className="p-1.5 text-muted hover:text-brand-fg hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
+                                  className="ui-btn-mini"
                                   title="Öğrenciyi Düzenle"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -3434,7 +3434,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                       }
                                     }
                                   }}
-                                  className="p-1.5 text-subtle hover:text-danger-fg hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
+                                  className="ui-btn-mini ui-btn-mini-danger"
                                   title="Öğrenciyi Bu Sınıftan Çıkar"
                                 >
                                   <UserMinus className="w-3.5 h-3.5" />

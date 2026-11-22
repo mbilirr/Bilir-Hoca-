@@ -238,7 +238,7 @@ export const OgrenciBolumPanel: React.FC<{
                         {canEdit && (
                           <button
                             type="button"
-                            className="ui-btn ui-btn-ghost ui-btn-sm h-7 px-2"
+                            className="ui-btn ui-btn-ghost ui-btn-sm"
                             id={`ogr-bolum-sifirla-${c.id}`}
                             title="Varsayılana dön"
                             disabled={busy}

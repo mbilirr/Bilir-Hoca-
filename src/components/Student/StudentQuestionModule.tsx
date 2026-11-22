@@ -1729,26 +1729,18 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   showNoTarget={chartDays.some((d) => !d.dayTarget && d.totalQuestions > 0)}
                 />
 
-                <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
+                <div className="ui-seg" role="group">
                   <button
                     type="button"
                     onClick={() => setChartVisualType('bar')}
-                    className={`px-3 py-1 rounded-lg font-bold transition ${
-                      chartVisualType === 'bar'
-                        ? 'bg-surface text-fg shadow-xs'
-                        : 'text-muted hover:text-fg'
-                    }`}
+                    className="ui-seg-btn" aria-pressed={chartVisualType === 'bar'}
                   >
                     Sütun
                   </button>
                   <button
                     type="button"
                     onClick={() => setChartVisualType('area')}
-                    className={`px-3 py-1 rounded-lg font-bold transition ${
-                      chartVisualType === 'area'
-                        ? 'bg-surface text-fg shadow-xs'
-                        : 'text-muted hover:text-fg'
-                    }`}
+                    className="ui-seg-btn" aria-pressed={chartVisualType === 'area'}
                   >
                     Trend
                   </button>
@@ -2290,16 +2282,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
+              <div className="ui-seg" role="group">
                 <button
                   type="button"
                   id="qe-mode-list"
                   onClick={() => switchInputMode('list')}
-                  className={`px-3 py-1 rounded-lg font-bold transition ${
-                    inputMode === 'list'
-                      ? 'bg-surface text-fg shadow-xs'
-                      : 'text-muted hover:text-fg'
-                  }`}
+                  className="ui-seg-btn" aria-pressed={inputMode === 'list'}
                 >
                   Ders Listesi Tablosu
                 </button>
@@ -2307,11 +2295,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   type="button"
                   id="qe-mode-single"
                   onClick={() => switchInputMode('single')}
-                  className={`px-3 py-1 rounded-lg font-bold transition ${
-                    inputMode === 'single'
-                      ? 'bg-surface text-fg shadow-xs'
-                      : 'text-muted hover:text-fg'
-                  }`}
+                  className="ui-seg-btn" aria-pressed={inputMode === 'single'}
                 >
                   Tek Tek Ders Ekle
                 </button>
@@ -2426,7 +2410,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       disabled={!text}
                       onClick={() => transferPlanTasks(it.subject, [it])}
                       title={text ? 'Konu / Test kutusuna aktar' : 'Bu görevde aktarılacak yazı yok'}
-                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-brand/30 text-xs text-fg hover:border-brand cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="ui-btn ui-btn-secondary ui-btn-sm max-w-full"
                     >
                       <span className="font-bold text-brand-fg shrink-0">{it.subject}</span>
                       <span className="truncate">{text || '—'}</span>
@@ -2637,7 +2621,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               onClick={() => transferPlanTasks(row.subject, rowPlanTasks)}
                               title={`Günlük plandaki görevi aktar: ${rowPlanTasks.map(planTaskText).join(', ')}`}
                               aria-label={`${row.subject} için günlük plandaki görevi konu kutusuna aktar`}
-                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-lg border border-brand/30 bg-brand-soft text-brand-fg text-2xs font-bold hover:bg-brand-soft cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-sm shrink-0 text-brand-fg"
                             >
                               <ClipboardList className="w-3 h-3" />
                               Plan
@@ -2857,7 +2841,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveSingleEntry(idx)}
-                          className="text-danger-fg hover:text-danger-fg text-xs font-semibold cursor-pointer"
+                          className="ui-link ui-link-danger"
                         >
                           Kaldır
                         </button>
@@ -2975,7 +2959,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               }
                             }
                           }}
-                          className="p-1.5 text-danger-fg hover:text-danger-fg hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
+                          className="ui-btn-mini ui-btn-mini-danger"
                           title="Kaydı Sil"
                           aria-label="Kaydı Sil"
                         >
@@ -3045,7 +3029,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setWeekSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
+                    className="ui-input-btn right-2.5"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -3172,7 +3156,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setMonthSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
+                    className="ui-input-btn right-2.5"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

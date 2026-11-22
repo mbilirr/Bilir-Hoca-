@@ -203,7 +203,7 @@ export const AdminMaintenancePanel: React.FC = () => {
           type="button"
           onClick={handleBackup}
           disabled={backupBusy}
-          className="w-full sm:w-auto px-4 py-1.5 bg-success hover:bg-success disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center justify-center gap-2 cursor-pointer"
+          className="ui-btn ui-btn-success w-full sm:w-auto"
         >
           {backupBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LockKeyhole className="w-4 h-4" />}
           {backupBusy ? backupProgress || 'Hazırlanıyor…' : 'Şifreli Yedeği İndir'}
@@ -300,7 +300,7 @@ export const AdminMaintenancePanel: React.FC = () => {
             type="button"
             onClick={handleScan}
             disabled={scanBusy || moveBusy}
-            className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 disabled:opacity-60 text-fg border border-line rounded-xl text-[0.8125rem] font-bold flex items-center gap-2 cursor-pointer"
+            className="ui-btn ui-btn-secondary"
           >
             {scanBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Eski Dosyaları Tara
@@ -310,7 +310,7 @@ export const AdminMaintenancePanel: React.FC = () => {
               type="button"
               onClick={handleMove}
               disabled={moveBusy}
-              className="px-4 py-1.5 bg-brand hover:bg-brand-hover disabled:opacity-60 text-white rounded-xl text-[0.8125rem] font-bold flex items-center gap-2 cursor-pointer"
+              className="ui-btn ui-btn-primary"
             >
               {moveBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderSync className="w-4 h-4" />}
               {moveBusy && moveProgress ? `Taşınıyor… ${moveProgress.done}/${moveProgress.total}` : `${scan.totalFiles} Dosyayı Taşı`}

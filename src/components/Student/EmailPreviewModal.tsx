@@ -135,26 +135,18 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
       baslikSag={
         <>
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-surface-2/80 p-0.5 rounded-lg border border-line text-xs">
+            <div className="ui-seg" role="group" aria-label="Görünüm">
               <button
                 type="button"
                 onClick={() => setViewMode('html')}
-                className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                  viewMode === 'html'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn" aria-pressed={viewMode === 'html'}
               >
                 HTML Tasarımı
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('text')}
-                className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                  viewMode === 'text'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'text-muted hover:text-fg'
-                }`}
+                className="ui-seg-btn" aria-pressed={viewMode === 'text'}
               >
                 Düz Metin
               </button>

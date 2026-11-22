@@ -947,10 +947,10 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                           <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold', subjectTone(g.subject))}>{g.subject}</span>
                           {editable && (
                             <span className="flex items-center gap-0.5 shrink-0">
-                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => openEdit(g)}>
+                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="ui-btn-mini" onClick={() => openEdit(g)}>
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-lg text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteGroup(g)}>
+                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="ui-btn-mini ui-btn-mini-danger" onClick={() => setDeleteGroup(g)}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </span>

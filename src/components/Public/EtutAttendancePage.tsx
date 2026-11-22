@@ -243,8 +243,8 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                         disabled={!data.canSave && !(notes[s.id]?.note || notes[s.id]?.topic)}
                         onClick={() => setOpenNote((cur) => (cur === s.id ? null : s.id))}
                         className={cx(
-                          'shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
-                          notes[s.id]?.note || notes[s.id]?.topic ? 'bg-info-soft text-info-fg border-info/40' : 'bg-surface text-fg-2 border-line'
+                          'ui-btn ui-btn-secondary ui-btn-sm shrink-0',
+                          (notes[s.id]?.note || notes[s.id]?.topic) && 'bg-info-soft text-info-fg border-info/40 hover:bg-info-soft'
                         )}
                         title="Öğrenciye özel not / farklı anlatılan konu"
                       >
@@ -257,7 +257,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                         const on = marks[s.id] === o.value;
                         const Icon = o.icon;
                         return (
-                          <button
+                          <button data-serbest="yoklama seçeneği"
                             key={o.value}
                             type="button"
                             role="radio"

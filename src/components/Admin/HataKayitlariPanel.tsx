@@ -62,14 +62,14 @@ export const HataKayitlariPanel: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="group" aria-label="Süre">
+          <div className="ui-seg" role="group" aria-label="Süre">
             {GUNLER.map((g) => (
               <button
                 key={g}
                 type="button"
                 aria-pressed={gun === g}
                 onClick={() => setGun(g)}
-                className={`h-7 w-16 rounded-lg text-xs font-semibold transition-colors ${gun === g ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
+                className="ui-seg-btn w-16"
               >
                 {g === 1 ? 'Bugün' : `${g} gün`}
               </button>

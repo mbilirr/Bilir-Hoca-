@@ -308,7 +308,7 @@ export const DenemeKonuSecici: React.FC<{
           {!!subjectKey && (
             <div className="flex flex-wrap items-center gap-2" id="etut-deneme-grup">
               <span className="text-xs font-semibold text-fg-2">Listele:</span>
-              <div className="inline-flex rounded-lg border border-line bg-surface p-0.5" role="group" aria-label="Konu düzeyi">
+              <div className="ui-seg" role="group" aria-label="Konu düzeyi">
                 {(['kazanim', 'baslik'] as Grup[]).map((g) => (
                   <button
                     key={g}
@@ -320,7 +320,7 @@ export const DenemeKonuSecici: React.FC<{
                       setGrup(g);
                       setKonu('');
                     }}
-                    className={cx('h-7 w-28 rounded-lg text-xs font-semibold cursor-pointer', grup === g ? 'bg-brand text-white' : 'text-muted hover:text-fg')}
+                    className="ui-seg-btn w-32"
                   >
                     {g === 'kazanim' ? 'Kazanıma göre' : 'Konu başlığına göre'}
                   </button>

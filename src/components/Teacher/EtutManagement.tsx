@@ -654,7 +654,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           <div className="flex items-center gap-3 flex-wrap">
             {viewMode === 'cards' && <EtutStatusLegend />}
             {filtersOn && (
-              <button type="button" id="etut-filter-clear" onClick={clearFilters} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
+              <button type="button" id="etut-filter-clear" onClick={clearFilters} className="ui-link">
                 Süzgeçleri temizle
               </button>
             )}
@@ -897,7 +897,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               setReportSelectedStudentId(std.id);
                               setIsReportModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 text-xs bg-surface-2 hover:bg-brand-soft text-fg-2 px-2 py-0.5 rounded-lg border border-line transition-colors cursor-pointer"
+                            className="ui-chip ui-chip-neutral cursor-pointer transition-colors hover:bg-brand-soft hover:text-brand-fg"
                             title={`${std.name} için etüt analizini görüntüle`}
                           >
                             <span
@@ -1251,7 +1251,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           return (
             <div className="ui-card p-8 text-center text-sm text-muted" id="etut-attendance-empty-filter">
               Bu süzgeçte yoklaması alınacak etüt yok.{' '}
-              <button type="button" onClick={clearFilters} className="font-semibold text-brand-fg hover:underline cursor-pointer">
+              <button type="button" onClick={clearFilters} className="ui-link ui-link-satir">
                 Süzgeçleri temizle
               </button>
             </div>
@@ -1355,7 +1355,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <h3 className="text-sm font-bold text-fg">Etüt Seçin</h3>
                       <InfoTip text="Yoklamasını almak istediğiniz etüde dokunun. Yoklaması alınmamış geçmiş etütler Bekleyen'de görünür." />
                     </div>
-                    <div role="tablist" aria-label="Etüt süzgeci" className="inline-flex rounded-lg bg-surface-2 border border-line p-0.5">
+                    <div role="tablist" aria-label="Etüt süzgeci" className="ui-seg">
                       {filters.map((f) => (
                         <button
                           key={f.key}
@@ -1367,10 +1367,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             setAttPickFilter(f.key);
                             setAttPickLimit(15);
                           }}
-                          className={cx(
-                            'h-8 w-24 rounded-lg text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1',
-                            filt === f.key ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'
-                          )}
+                          className="ui-seg-btn w-24 gap-1"
                         >
                           {f.label}
                           <span className={cx('tabular-nums', filt === f.key ? 'text-brand-fg' : 'text-subtle')}>{f.n}</span>

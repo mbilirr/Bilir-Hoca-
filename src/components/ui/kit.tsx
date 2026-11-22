@@ -186,7 +186,7 @@ export function Segmented<T extends string>({
   return (
     <div
       role="tablist"
-      className={cx('inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface-2 border border-line max-w-full', className)}
+      className={cx('ui-seg', className)}
     >
       {items.map((it) => {
         const active = it.value === value;
@@ -199,13 +199,8 @@ export function Segmented<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(it.value)}
-            className={cx(
-              'inline-flex items-center gap-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors cursor-pointer',
-              // Aşama 205: sekmeler de düğmelerle aynı ölçü (h-8, 12 px yazı)
-              'h-8 text-xs',
-              size === 'sm' ? 'px-2.5' : 'px-3',
-              active ? 'bg-surface text-fg shadow-card' : 'text-muted hover:text-fg'
-            )}
+            // Aşama 352: görünüm index.css .ui-seg-btn (h-8, 12 px); seçili olanı aria-selected boyar
+            className={cx('ui-seg-btn', size === 'sm' && 'px-2.5')}
           >
             {Icon && <Icon className="w-3.5 h-3.5" />}
             {it.label}

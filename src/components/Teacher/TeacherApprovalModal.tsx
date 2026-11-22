@@ -220,7 +220,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                         <button
                           type="button"
                           onClick={() => handleDelete(teacher.id, teacher.name)}
-                          className="p-1.5 text-subtle hover:text-danger-fg hover:bg-danger-soft rounded-xl transition-colors cursor-pointer"
+                          className="ui-btn-mini ui-btn-mini-danger"
                           title="Öğretmeni Sil"
                         >
                           <Trash2 className="w-4 h-4" />

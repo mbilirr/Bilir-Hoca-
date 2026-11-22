@@ -274,7 +274,7 @@ export const PlanaAktarModal: React.FC<{
                       const on = r.days.includes(d);
                       const idx = r.days.indexOf(d);
                       return (
-                        <button
+                        <button data-serbest="iki satırlı gün kutusu"
                           key={d}
                           type="button"
                           disabled={!r.allowed || busy}

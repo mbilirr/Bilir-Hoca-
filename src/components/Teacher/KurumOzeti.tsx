@@ -229,7 +229,7 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
               </p>
             )}
             {gecikenDers.length > 6 && (
-              <button type="button" onClick={() => setRapor('yoklama')} className="text-xs font-semibold text-danger-fg hover:underline cursor-pointer">
+              <button type="button" onClick={() => setRapor('yoklama')} className="ui-link ui-link-danger">
                 +{gecikenDers.length - 6} ders daha
               </button>
             )}
@@ -263,7 +263,7 @@ export const KurumOzeti: React.FC<Props> = ({ etuts, homeworks, submissions, stu
               })}
             </ul>
             {bugunEtut.length > ETUT_ROWS && (
-              <button type="button" onClick={() => setTumEtut((v) => !v)} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" id="kurum-ozeti-tumu">
+              <button type="button" onClick={() => setTumEtut((v) => !v)} className="ui-link" id="kurum-ozeti-tumu">
                 {tumEtut ? 'Daralt' : `+${bugunEtut.length - ETUT_ROWS} etüt daha`}
               </button>
             )}

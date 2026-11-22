@@ -504,7 +504,7 @@ export const ParentAnnouncements: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                  className="ui-link"
                   onClick={() => setClassIds(classIds.length === usableClasses.length ? [] : usableClasses.map((c) => c.id))}
                 >
                   {classIds.length === usableClasses.length ? 'Seçimi temizle' : 'Tüm sınıflarımı seç'}
@@ -540,13 +540,13 @@ export const ParentAnnouncements: React.FC = () => {
               <div className="flex items-center gap-3 text-xs">
                 <button
                   type="button"
-                  className="font-semibold text-brand-fg hover:underline cursor-pointer"
+                  className="ui-link ui-link-satir"
                   onClick={() => setStudentIds(Array.from(new Set([...studentIds, ...visibleStudents.map((s) => s.id)])))}
                 >
                   Listedekilerin hepsini seç
                 </button>
                 {studentIds.length > 0 && (
-                  <button type="button" className="font-semibold text-muted hover:underline cursor-pointer" onClick={() => setStudentIds([])}>
+                  <button type="button" className="ui-link ui-link-muted ui-link-satir" onClick={() => setStudentIds([])}>
                     Seçimi temizle
                   </button>
                 )}

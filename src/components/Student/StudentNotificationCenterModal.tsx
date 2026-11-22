@@ -222,15 +222,11 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
           {/* Filter Bar & Quick Actions */}
           <div className="px-5 py-3 border-b border-line bg-surface/60 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center space-x-1.5 overflow-x-auto text-xs">
+            <div className="ui-seg" role="group" aria-label="Bildirim türü">
               <button
                 type="button"
                 onClick={() => setFilter('all')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                  filter === 'all'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
-                }`}
+                className="ui-seg-btn" aria-pressed={filter === 'all'}
               >
                 Tümü ({notifications.length})
               </button>
@@ -239,13 +235,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={() => setFilter('homework')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  filter === 'homework'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
-                }`}
+                className="ui-seg-btn" aria-pressed={filter === 'homework'}
               >
-                <BookOpen className="w-3.5 h-3.5" />
+                <BookOpen />
                 <span>Ödevler</span>
               </button>
               )}
@@ -254,13 +246,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={() => setFilter('etuts')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  filter === 'etuts'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
-                }`}
+                className="ui-seg-btn" aria-pressed={filter === 'etuts'}
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar />
                 <span>Etütler</span>
               </button>
               )}
@@ -268,13 +256,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={() => setFilter('emails')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  filter === 'emails'
-                    ? 'bg-brand text-white shadow-sm'
-                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
-                }`}
+                className="ui-seg-btn" aria-pressed={filter === 'emails'}
               >
-                <Mail className="w-3.5 h-3.5" />
+                <Mail />
                 <span>E-Postalar ({emails.length})</span>
               </button>
             </div>

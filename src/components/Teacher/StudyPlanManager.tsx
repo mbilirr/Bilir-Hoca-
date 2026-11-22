@@ -800,10 +800,10 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
                           )}
                           {editable && (
                             <>
-                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-lg text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => setTaskModal({ mode: 'edit', item: it, day: it.day })}>
+                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="ui-btn-mini" onClick={() => setTaskModal({ mode: 'edit', item: it, day: it.day })}>
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-lg text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteItem(it)}>
+                              <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="ui-btn-mini ui-btn-mini-danger" onClick={() => setDeleteItem(it)}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </>

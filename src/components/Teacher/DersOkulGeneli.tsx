@@ -221,7 +221,7 @@ export const DersOkulGeneli: React.FC<{ students: Student[]; classes: ClassGroup
                         const soluk = suzgec === 'geciken' && h.durum !== 'geciken';
                         const tam = `${r.classAd} · ${s}. ders · ${h.ders} · ${h.teacherAdlari.join(', ')} · ${AD[h.durum]}${h.oturum?.alanAd ? ` (${h.oturum.alanAd})` : ''}`;
                         return (
-                          <button
+                          <button data-serbest="tablo hücresi"
                             key={s}
                             type="button"
                             title={tam}

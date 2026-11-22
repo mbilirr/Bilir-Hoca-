@@ -7,9 +7,7 @@ import { InfoTip } from '../ui/Compact'; // Aşama 215
 // Düğmeler eşit boyda (h-8, en az w-24), yazıyla aynı büyüklükte.
 // Aşama 236: secimCls dışa açıldı; Yeni Öğretmen Hesabı penceresindeki Unvan / Rol düğmeleri de aynı ölçüde.
 export const secimCls = (on: boolean) =>
-  `h-8 min-w-24 px-3 inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-    on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2'
-  }`;
+  `ui-secim min-w-24 font-medium${on ? ' is-on' : ''}`; // Aşama 352: ortak seçim etiketi
 const tickCls = secimCls;
 
 export const GradeTicks: React.FC<{

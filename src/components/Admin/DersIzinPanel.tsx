@@ -30,7 +30,7 @@ import {
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 /** Sınıf düğmeleri: hepsi aynı en ve boy (Sınıf öğretmenleri ile aynı ölçü) */
 const SINIF_BTN =
-  'h-8 w-[5.5rem] px-2 inline-flex items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold tabular-nums transition-[background-color,border-color,color,scale] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40';
+  'ui-secim w-[5.5rem] px-2 gap-1.5 tabular-nums transition-[background-color,border-color,color,scale] duration-150 ease-out active:scale-[0.96]'; // Aşama 352: ortak seçim etiketi (seçili = aria-checked)
 const TUR_ETIKET: Record<IzinTur, string> = { izinli: 'bg-brand-soft text-brand-fg', raporlu: 'bg-warning-soft text-warning-fg' };
 
 const TUR_SECENEK: Array<{ value: IzinTur; label: string; id: string }> = [
@@ -194,7 +194,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
                     aria-checked={on}
                     onClick={() => setClassId(c.id)}
                     title={`${c.name}${n ? ` · bugün ${n} öğrenci izinli` : ''}`}
-                    className={cx(SINIF_BTN, on ? 'bg-brand border-brand text-white' : 'bg-surface border-line text-fg-2 hover:border-line-strong hover:bg-surface-2')}
+                    className={SINIF_BTN}
                   >
                     <span className="truncate">{c.name}</span>
                     {n > 0 && <span className={cx('shrink-0 text-2xs font-bold', on ? 'text-white/80' : 'text-brand-fg')}>{n}</span>}

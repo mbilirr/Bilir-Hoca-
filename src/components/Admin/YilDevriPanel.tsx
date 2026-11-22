@@ -247,7 +247,7 @@ export const YilDevriPanel: React.FC = () => {
                   const simdi = n === adim;
                   return (
                     <li key={ad}>
-                      <button
+                      <button data-serbest="seçenek kartı"
                         type="button"
                         disabled={n > adim || mesgul}
                         onClick={() => adimaGit(n)}
@@ -319,7 +319,7 @@ export const YilDevriPanel: React.FC = () => {
                                 </div>
                                 <button
                                   type="button"
-                                  className={cx('justify-self-end sm:justify-self-start h-8 px-2 rounded-lg text-xs font-semibold transition-colors', k.length ? 'text-brand-fg bg-brand-soft' : 'text-brand-fg hover:bg-surface-2')}
+                                  className={cx('ui-btn ui-btn-ghost ui-btn-sm justify-self-end sm:justify-self-start text-brand-fg', k.length > 0 && 'bg-brand-soft')}
                                   aria-expanded={acik}
                                   aria-controls={`kalan-${c.id}`}
                                   onClick={() => setAcikKalan(acik ? null : c.id)}

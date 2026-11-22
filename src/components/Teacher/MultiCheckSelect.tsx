@@ -135,7 +135,7 @@ export const MultiCheckSelect: React.FC<{
                 id={`${id}-all`}
                 onClick={toggleAllVisible}
                 disabled={visibleIds.length === 0}
-                className="inline-flex items-center gap-2 text-xs font-bold text-brand-fg cursor-pointer disabled:opacity-40"
+                className="ui-link inline-flex items-center gap-2"
               >
                 <Box on={allVisibleOn} partial={!allVisibleOn && visibleIds.some((x) => sel.has(x))} />
                 {allVisibleOn ? 'Hepsini kaldır' : 'Hepsini seç'}

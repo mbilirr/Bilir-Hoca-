@@ -690,7 +690,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     id="auth-baska-hesap"
                     onClick={handleForgetRememberedUser}
                     title="Kayıtlı profili bu cihazdan kaldırır"
-                    className="auth-link-btn shrink-0 h-9 px-2"
+                    className="auth-link-btn shrink-0 h-8 px-2"
                   >
                     Başka hesap
                   </button>

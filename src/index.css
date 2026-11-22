@@ -286,6 +286,82 @@
     @apply bg-danger-soft text-danger-fg hover:brightness-95 dark:hover:brightness-125;
   }
 
+  /* Aşama 352: DÜĞME AİLESİ TAMAM. Elle yazılmış düğme kalmadı; her düğme şu sınıflardan biridir:
+       .ui-btn (+ primary/secondary/ghost/success/warning/danger/danger-soft, sm/lg, icon) : eylem düğmesi, 32 px
+       .ui-btn-mini (+ -danger)  : satır içi küçük simge düğmesi (sil, düzenle, yakınlaştır), 24 px
+       .ui-input-btn             : kutunun içindeki göz / temizle düğmesi (kutunun sağında, 24 px)
+       .ui-link (+ -muted, -danger, -yazi, -satir): yazı bağlantısı gibi düğme ("Tümünü gör", "Temizle")
+       .ui-chip-x                : etiket (çip) içindeki kaldır düğmesi, 16 px
+       .ui-seg + .ui-seg-btn     : bölmeli seçim (Sütun | Trend), seçili = aria-pressed / aria-selected
+       .ui-secim                 : seçilebilir etiket (sınıf, gün, üye), seçili = aria-pressed / .is-on
+     Bu ailenin dışında kalması gereken özel düğme (takvim hücresi, işaret dairesi, koyu çubuk düğmesi)
+     data-serbest="neden" niteliğini taşır; tasarım denetimi yalnız bunları geçirir.
+     Satır, kart, liste öğesi, takvim hücresi gibi tıklanan YÜZEYLER düğme sayılmaz; kendi düzenlerini korur. */
+  .ui-btn-mini {
+    @apply inline-grid place-items-center shrink-0 h-6 w-6 rounded-lg text-muted transition-colors cursor-pointer hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .ui-btn-mini svg {
+    @apply w-3.5 h-3.5;
+  }
+  .ui-btn-mini-danger {
+    @apply hover:bg-danger-soft hover:text-danger-fg;
+  }
+  .ui-input-btn {
+    @apply absolute top-1/2 -translate-y-1/2 inline-grid place-items-center h-6 w-6 rounded-lg text-subtle transition-colors cursor-pointer hover:text-fg hover:bg-surface-2;
+  }
+  .ui-input-btn svg {
+    @apply w-4 h-4;
+  }
+  .ui-link {
+    @apply inline-flex items-center gap-1 text-xs font-semibold text-brand-fg underline-offset-2 cursor-pointer hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline;
+  }
+  .ui-link-muted {
+    @apply text-muted hover:text-fg;
+  }
+  .ui-link-danger {
+    @apply text-danger-fg;
+  }
+  /* cümle içindeki bağlantı: çevresindeki yazının boyunu alır */
+  .ui-link-satir {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  /* tablodaki ad bağlantısı: normal yazı rengi, üzerine gelince vurgu */
+  .ui-link-yazi {
+    @apply text-fg hover:text-brand-fg;
+  }
+  /* Aşama 352: bölmeli seçim (kit Segmented ve sayfa içi "Sütun | Trend" gibi ikili seçimler).
+     Kap .ui-seg, düğme .ui-seg-btn; seçili olan aria-pressed / aria-selected ile işaretlenir (ekran okuyucu da duyar). */
+  .ui-seg {
+    @apply inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface-2 border border-line max-w-full;
+  }
+  .ui-seg-btn {
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap text-muted transition-colors cursor-pointer hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .ui-seg-btn svg {
+    @apply w-3.5 h-3.5 shrink-0;
+  }
+  .ui-seg-btn[aria-pressed='true'],
+  .ui-seg-btn[aria-selected='true'] {
+    @apply bg-surface text-fg shadow-card;
+  }
+  /* Aşama 352: seçilebilir etiket (sınıf, gün, üye / başkan, filtre). Seçili: aria-pressed / aria-checked ya da .is-on */
+  .ui-secim {
+    @apply inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg border border-line bg-surface text-xs font-semibold text-fg-2 whitespace-nowrap transition-colors cursor-pointer select-none hover:border-line-strong hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .ui-secim svg {
+    @apply w-3.5 h-3.5 shrink-0;
+  }
+  .ui-secim[aria-pressed='true'],
+  .ui-secim[aria-checked='true'],
+  .ui-secim.is-on {
+    @apply bg-brand border-brand text-white hover:bg-brand hover:border-brand;
+  }
+  /* etiket (çip) içindeki kaldır düğmesi, 16 px */
+  .ui-chip-x {
+    @apply inline-grid place-items-center shrink-0 h-4 w-4 rounded-full opacity-70 transition-[opacity,background-color] cursor-pointer hover:opacity-100 hover:bg-surface-3;
+  }
+
   /* Aşama 190: pencere alt düğmeleri her yerde aynı boy (h-8, en az w-28, küçük yazı).
      Katman içinde olduğu için bir düğmeye özel verilen genişlik / yükseklik sınıfı yine geçerlidir. */
   .ui-modal-footer .ui-btn:not(.ui-btn-icon) {

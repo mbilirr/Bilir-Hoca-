@@ -1542,7 +1542,7 @@ export const DenemeWizard: React.FC<{
                             {dup && (
                               <button
                                 type="button"
-                                className="block mt-0.5 text-left text-warning-fg underline underline-offset-2 hover:text-fg"
+                                className="ui-link ui-link-satir block mt-0.5 text-left text-warning-fg"
                                 onClick={() => jumpToTwin(m)}
                                 title="Aynı öğrencinin seçildiği diğer satıra git"
                               >

@@ -135,14 +135,11 @@ export const PlanTargetPicker: React.FC<{
                     aria-pressed={on}
                     disabled={disabled}
                     onClick={() => toggleClass(g.cid)}
-                    className={cx(
-                      'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer',
-                      on ? 'border-brand bg-brand text-white' : 'border-line bg-surface text-fg-2 hover:border-brand/50'
-                    )}
+                    className="ui-secim rounded-full"
                   >
                     {on && <CheckCircle2 className="w-3.5 h-3.5" />}
                     {g.name}
-                    <span className={cx('text-2xs font-bold', on ? 'text-white/80' : 'text-muted')}>
+                    <span className="text-2xs font-bold opacity-75">
                       {g.list.length} öğr.{sentN ? ` · ${sentN} gönderildi` : ''}
                     </span>
                   </button>

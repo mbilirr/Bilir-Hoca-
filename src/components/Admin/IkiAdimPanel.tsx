@@ -154,10 +154,10 @@ export const IkiAdimPanel: React.FC = () => {
               <div className="col-span-2 flex justify-center sm:block">
                 <KodKutusu id="iki-adim-kurulum-kod" value={kod} onChange={setKod} onTam={(v) => void tamamla(v)} disabled={mesgul} autoFocus hata={!!hata} />
               </div>
-              <button type="submit" className="ui-btn ui-btn-primary w-full sm:w-28 h-11 justify-center" disabled={mesgul || kod.length !== 6}>
+              <button type="submit" className="ui-btn ui-btn-primary w-full sm:w-28 self-center" disabled={mesgul || kod.length !== 6}>
                 {mesgul ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Doğrula'}
               </button>
-              <button type="button" className="ui-btn ui-btn-secondary w-full sm:w-28 h-11 justify-center" disabled={mesgul} onClick={() => void vazgec()}>
+              <button type="button" className="ui-btn ui-btn-secondary w-full sm:w-28 self-center" disabled={mesgul} onClick={() => void vazgec()}>
                 Vazgeç
               </button>
             </form>
@@ -180,10 +180,10 @@ export const IkiAdimPanel: React.FC = () => {
           <div className="col-span-2 flex justify-center sm:block">
             <KodKutusu id="iki-adim-kapat-kod" value={kod} onChange={setKod} disabled={mesgul} autoFocus hata={!!hata} />
           </div>
-          <button type="submit" className="ui-btn ui-btn-primary w-full sm:w-28 h-11 justify-center" disabled={mesgul || kod.length !== 6}>
+          <button type="submit" className="ui-btn ui-btn-primary w-full sm:w-28 self-center" disabled={mesgul || kod.length !== 6}>
             {mesgul ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kapat'}
           </button>
-          <button type="button" className="ui-btn ui-btn-secondary w-full sm:w-28 h-11 justify-center" disabled={mesgul} onClick={() => (setKod(''), setHata(null), setAsama('acik'))}>
+          <button type="button" className="ui-btn ui-btn-secondary w-full sm:w-28 self-center" disabled={mesgul} onClick={() => (setKod(''), setHata(null), setAsama('acik'))}>
             Vazgeç
           </button>
         </form>

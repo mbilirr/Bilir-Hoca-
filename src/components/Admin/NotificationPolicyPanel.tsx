@@ -181,7 +181,7 @@ export const NotificationPolicyPanel: React.FC = () => {
                         {usable && (
                           <button
                             type="button"
-                            className="mt-0.5 text-2xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                            className="ui-link mt-0.5 text-2xs"
                             onClick={() => setColumn(ch.id, !allOn)}
                           >
                             {allOn ? 'Tümünü kapat' : 'Tümünü aç'}

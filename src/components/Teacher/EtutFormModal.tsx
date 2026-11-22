@@ -833,7 +833,7 @@ const EtutFormContent: React.FC<Props> = ({
                       />
                     </span>
                     {isAdmin && onManageTeachers && (
-                      <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ml-auto text-xs font-semibold text-brand-fg hover:underline flex items-center gap-1 cursor-pointer">
+                      <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ui-link ml-auto flex items-center gap-1">
                         <Settings2 className="w-3.5 h-3.5" />
                         Listeyi yönet
                       </button>

@@ -92,7 +92,7 @@ export const GeriAlCubugu: React.FC = () => {
         ) : (
           <>
             <span className="min-w-0 font-semibold truncate">{kayit.metin}</span>
-            <button
+            <button data-serbest="koyu bildirim çubuğu"
               type="button"
               onClick={() => void geriAl()}
               disabled={durum === 'calisiyor'}

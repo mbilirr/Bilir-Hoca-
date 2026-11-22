@@ -102,7 +102,7 @@ export const StudentDersDevamsizlik: React.FC = () => {
             ))}
           </ul>
           {v.kayitlar.length > ROWS && (
-            <button type="button" onClick={() => setTumu((x) => !x)} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
+            <button type="button" onClick={() => setTumu((x) => !x)} className="ui-link">
               {tumu ? 'Daralt' : `+${v.kayitlar.length - ROWS} kayıt daha`}
             </button>
           )}

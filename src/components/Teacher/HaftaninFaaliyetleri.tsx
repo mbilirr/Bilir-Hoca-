@@ -226,7 +226,7 @@ export const HaftaninFaaliyetleri: React.FC<{ onTakvim: () => void }> = ({ onTak
           ) : (
             <p className="text-xs text-subtle py-2">Yaklaşan etkinlik yok</p>
           )}
-          <button type="button" onClick={onTakvim} className="mt-auto self-start text-xs font-semibold text-brand-fg hover:underline inline-flex items-center gap-1 cursor-pointer" id="home-akt-tum">
+          <button type="button" onClick={onTakvim} className="ui-link mt-auto self-start inline-flex items-center gap-1" id="home-akt-tum">
             Tüm takvim <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </aside>

@@ -245,7 +245,7 @@ export const TeacherAnnouncements: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                  className="ui-link"
                   onClick={() => setClassIds(classIds.length === usableClasses.length ? [] : usableClasses.map((c) => c.id))}
                 >
                   {classIds.length === usableClasses.length ? 'Seçimi temizle' : 'Tüm sınıflarımı seç'}
@@ -281,13 +281,13 @@ export const TeacherAnnouncements: React.FC = () => {
               <div className="flex items-center gap-3 text-xs">
                 <button
                   type="button"
-                  className="font-semibold text-brand-fg hover:underline cursor-pointer"
+                  className="ui-link ui-link-satir"
                   onClick={() => setStudentIds(Array.from(new Set([...studentIds, ...visibleStudents.map((s) => s.id)])))}
                 >
                   Listedekilerin hepsini seç
                 </button>
                 {studentIds.length > 0 && (
-                  <button type="button" className="font-semibold text-muted hover:underline cursor-pointer" onClick={() => setStudentIds([])}>
+                  <button type="button" className="ui-link ui-link-muted ui-link-satir" onClick={() => setStudentIds([])}>
                     Seçimi temizle
                   </button>
                 )}
@@ -369,10 +369,10 @@ export const TeacherAnnouncements: React.FC = () => {
                   {confirmDeleteId === g.groupId ? (
                     <span className="inline-flex items-center gap-2 text-xs">
                       <span className="text-danger-fg font-semibold">Öğrencilerden de kaldırılsın mı?</span>
-                      <button type="button" onClick={() => handleDelete(g.groupId)} className="font-bold text-danger-fg hover:underline cursor-pointer">
+                      <button type="button" onClick={() => handleDelete(g.groupId)} className="ui-link ui-link-danger ui-link-satir">
                         Evet, sil
                       </button>
-                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="font-semibold text-muted hover:underline cursor-pointer">
+                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="ui-link ui-link-muted ui-link-satir">
                         Vazgeç
                       </button>
                     </span>
@@ -380,7 +380,7 @@ export const TeacherAnnouncements: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(g.groupId)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-danger-fg cursor-pointer"
+                      className="ui-link ui-link-muted inline-flex items-center gap-1 hover:text-danger-fg"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Sil
                     </button>

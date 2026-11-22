@@ -172,7 +172,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
                       const isDone = !!i.doneAt;
                       return (
                         <li key={i.id} className="flex items-start gap-3 px-4 py-3" data-mark-item={i.id} data-done={isDone ? '1' : '0'}>
-                          <button
+                          <button data-serbest="işaret dairesi"
                             type="button"
                             data-mark-toggle
                             aria-pressed={isDone}

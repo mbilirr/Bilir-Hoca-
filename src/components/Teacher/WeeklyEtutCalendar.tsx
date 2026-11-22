@@ -523,13 +523,13 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1 bg-canvas p-1 rounded-xl border border-line">
-              <button type="button" onClick={goToPreviousWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Önceki hafta" aria-label="Önceki hafta">
+              <button type="button" onClick={goToPreviousWeek} className="ui-btn-mini" title="Önceki hafta" aria-label="Önceki hafta">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button type="button" onClick={goToToday} className="ui-btn ui-btn-sm hover:bg-surface-2 text-brand-fg min-w-24">
                 Bugün
               </button>
-              <button type="button" onClick={goToNextWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Sonraki hafta" aria-label="Sonraki hafta">
+              <button type="button" onClick={goToNextWeek} className="ui-btn-mini" title="Sonraki hafta" aria-label="Sonraki hafta">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -576,7 +576,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 className="ui-field w-full sm:w-56 pl-8 pr-7"
               />
               {query && (
-                <button type="button" onClick={() => setQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-muted hover:text-fg cursor-pointer" aria-label="Aramayı temizle">
+                <button type="button" onClick={() => setQuery('')} className="ui-input-btn right-1.5" aria-label="Aramayı temizle">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -607,7 +607,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
             const count = (etutsByDay[day.dateKey] || []).length;
             const sel = day.dateKey === selectedDay.dateKey;
             return (
-              <button
+              <button data-serbest="gün kutusu"
                 key={day.dateKey}
                 type="button"
                 onClick={() => setSelectedKey(day.dateKey)}
@@ -667,7 +667,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="p-1 hover:bg-surface-2 text-muted hover:text-brand-fg rounded-lg cursor-pointer"
+                        className="ui-btn-mini"
                         title={`${day.dayName} gününe etüt ekle`}
                         aria-label={`${day.dayName} gününe etüt ekle`}
                       >

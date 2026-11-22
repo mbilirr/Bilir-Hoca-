@@ -883,7 +883,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         type="button"
                         onClick={() => setTrackerSearch('')}
                         aria-label="Aramayı temizle"
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
+                        className="ui-input-btn right-2.5"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1232,7 +1232,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                             <button
                                               type="button"
                                               onClick={() => setViewingSubmissionKey({ homeworkId: currentHw.id, studentId: std.id })}
-                                              className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:text-brand-fg hover:underline cursor-pointer"
+                                              className="ui-link mt-0.5 inline-flex items-center gap-1"
                                             >
                                               <Paperclip className="w-3 h-3" />
                                               <span>
@@ -1362,7 +1362,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       <button
                         type="button"
                         onClick={() => setHwSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
+                        className="ui-input-btn right-2.5"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1657,7 +1657,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
-                                        className="px-2 py-0.5 rounded-lg bg-surface border border-brand/30 text-brand-fg hover:bg-brand-soft text-xs font-bold cursor-pointer"
+                                        className="ui-btn ui-btn-secondary ui-btn-sm"
                                       >
                                         Gör
                                       </button>

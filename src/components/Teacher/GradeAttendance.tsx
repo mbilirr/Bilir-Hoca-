@@ -573,7 +573,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setGradeToDelete(g)}
-                                    className="p-1.5 text-subtle hover:text-danger-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                                    className="ui-btn-mini ui-btn-mini-danger"
                                     title="Notu Sil"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -646,7 +646,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                             <button
                               type="button"
                               onClick={() => setGradeToDelete(g)}
-                              className="p-1 text-subtle hover:text-danger-fg rounded transition-colors cursor-pointer"
+                              className="ui-btn-mini ui-btn-mini-danger"
                               title="Notu Sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

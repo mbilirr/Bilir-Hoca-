@@ -105,7 +105,7 @@ const gunleri = (g: Pick<AktKayit, 'tarih' | 'bitis' | 'ayIcinde'>): string[] =>
 
 /** Aşama 329: seçme kutusu (yarım seçimde çizgi) */
 const SecKutusu: React.FC<{ durum: boolean | 'mixed'; onClick: () => void; etiket: string; id?: string }> = ({ durum, onClick, etiket, id }) => (
-  <button
+  <button data-serbest="seçme kutusu"
     type="button"
     id={id}
     role="checkbox"
@@ -445,7 +445,7 @@ export const AkademikTakvim: React.FC = () => {
               const aktif = !odak && ay === m;
               const simdi = m === tarihCoz(bugunS).getMonth() + 1;
               return (
-                <button
+                <button data-serbest="takvim hücresi"
                   key={m}
                   type="button"
                   role="tab"
@@ -880,10 +880,7 @@ const EtkinlikPenceresi: React.FC<{
                   type="button"
                   aria-pressed={on}
                   onClick={() => setSiniflar((p) => (on ? p.filter((x) => x !== s) : [...p, s]))}
-                  className={cx(
-                    'h-8 rounded-full border text-xs font-semibold transition-colors cursor-pointer',
-                    on ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:border-line-strong hover:bg-surface-2'
-                  )}
+                  className="ui-secim rounded-full"
                 >
                   {sinifAdi(s)}
                 </button>
@@ -1052,7 +1049,7 @@ const ZumrelerPenceresi: React.FC<{
 
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 min-w-0">
-            <SelectBox id="akt-zumre-sec" aria-label="Zümre" className="ui-field w-full h-10 cursor-pointer" value={zumre} onChange={(e) => (setZumre(e.target.value), setNot(null))}>
+            <SelectBox id="akt-zumre-sec" aria-label="Zümre" className="ui-field w-full cursor-pointer" value={zumre} onChange={(e) => (setZumre(e.target.value), setNot(null))}>
               {zumreler.map(({ z, n }) => {
                 const u = uyeler(z).length;
                 return (
@@ -1063,7 +1060,7 @@ const ZumrelerPenceresi: React.FC<{
               })}
             </SelectBox>
           </div>
-          <button type="button" id="akt-zumre-oner" className="ui-btn ui-btn-sm h-10 justify-center w-full sm:w-36 ui-btn-secondary" onClick={oner} disabled={!kayitli || !zumre}>
+          <button type="button" id="akt-zumre-oner" className="ui-btn ui-btn-secondary ui-btn-sm justify-center w-full sm:w-36" onClick={oner} disabled={!kayitli || !zumre}>
             Branşa göre öner
           </button>
         </div>
@@ -1117,10 +1114,7 @@ const ZumrelerPenceresi: React.FC<{
                         type="button"
                         aria-pressed={baskan}
                         onClick={() => baskanYap(t.id)}
-                        className={cx(
-                          'h-7 w-20 shrink-0 rounded-full border text-xs font-semibold transition-colors cursor-pointer',
-                          baskan ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:border-line-strong'
-                        )}
+                        className="ui-secim w-20 shrink-0 rounded-full"
                       >
                         {baskan ? 'Başkan' : 'Üye'}
                       </button>
@@ -1360,7 +1354,7 @@ const ExcelPenceresi: React.FC<{
               ))}
             </div>
             <p className="text-xs text-muted">Sayfa adları ay adıdır (EYLÜL … HAZİRAN). Boş satırlar atlanır. Yıl yanlış yazılmışsa ay sayfasına göre düzeltilir.</p>
-            <button type="button" className="text-xs font-semibold text-brand-fg hover:underline inline-flex items-center gap-1 cursor-pointer" onClick={() => void takvimSablonIndir(yil)}>
+            <button type="button" className="ui-link inline-flex items-center gap-1" onClick={() => void takvimSablonIndir(yil)}>
               <Download className="w-3.5 h-3.5" /> Boş şablonu indir
             </button>
           </div>

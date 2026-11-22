@@ -424,14 +424,14 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleGoToToday}
-                className="px-2 py-0.5 text-xs font-bold text-brand-fg hover:text-fg bg-brand/20 hover:bg-brand-hover border border-brand/40 rounded-lg transition-colors cursor-pointer"
+                className="ui-btn ui-btn-secondary ui-btn-sm"
               >
                 Bugün
               </button>
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="p-1 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                className="ui-btn-mini"
                 title="Önceki Ay"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -439,7 +439,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="p-1 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                className="ui-btn-mini"
                 title="Sonraki Ay"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -461,7 +461,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               const hasHw = cell.homeworkList.length > 0;
               const hasEtut = cell.etutList.length > 0;
               return (
-                <button
+                <button data-serbest="takvim hücresi"
                   key={`${cell.dateStr}-${idx}`}
                   type="button"
                   onClick={() => setSelectedDateStr(cell.dateStr)}

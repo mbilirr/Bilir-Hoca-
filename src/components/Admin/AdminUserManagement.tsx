@@ -856,7 +856,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+                className="ui-input-btn right-3"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -1300,7 +1300,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenRoleModal(u)}
-                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-warning-fg border border-line transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-icon"
                               title="Öğretmen / Yönetici yetkisi"
                             >
                               <Shield className="w-3.5 h-3.5" />
@@ -1312,7 +1312,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setYetkiTeacherId(u.id)}
-                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-brand-fg border border-line transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-icon"
                               title="Yetkiler (unvan, bölümler, işlem izinleri)"
                               aria-label="Yetkiler"
                               data-yetki-open={u.id}
@@ -1326,7 +1326,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setStuSendOne(studentById.get(u.id) || null)}
-                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-brand-fg border border-line transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-icon"
                               title="Giriş bilgisini SMS / e-postayla gönder"
                               aria-label={`${u.name} giriş bilgisini gönder`}
                               data-testid="ogrenci-giris-gonder-satir"
@@ -1340,7 +1340,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             type="button"
                             disabled={!manageable && !isCurrentAdminSelf}
                             onClick={() => handleOpenEdit(u)}
-                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-brand-fg border border-line transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="ui-btn ui-btn-secondary ui-btn-icon"
                             title="Bilgileri ve Şifreyi Güncelle (Admin Override)"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -1369,7 +1369,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             type="button"
                             onClick={() => setDeleteModalUser(u)}
                             disabled={isProtectedAdmin}
-                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-danger/30 text-muted hover:text-danger-fg border border-line transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                            className="ui-btn ui-btn-secondary ui-btn-icon hover:text-danger-fg"
                             title="Kullanıcıyı Kalıcı Olarak Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
