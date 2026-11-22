@@ -5,7 +5,7 @@ import { dataService } from '../../../services/dataService';
 import { targetPeriodText, ownerText } from '../TargetListParts';
 import { TargetSummaryTable } from '../../Student/TargetSummaryTable';
 import { PlanWallGrid } from '../../Student/StudentTargetCards';
-import { shortTurkishDate, TargetLineLabel, WeeklyChartLegend, CHART_BAR_CURSOR, CHART_LINE_CURSOR, CHART_COLORS } from '../../Student/StudentQuestionModule';
+import { shortTurkishDate, TargetLineLabel, WeeklyChartLegend, CHART_BAR_CURSOR, CHART_LINE_CURSOR, CHART_COLORS } from '../../Student/soruModulu/ortak';
 import { downloadWeeklyPDF } from '../../../utils/questionAnalytics';
 import { useSoruTakibiBaglam } from './useSoruTakibi';
 

@@ -2,7 +2,7 @@
 import { Calendar, Users, Download, ChevronDown, RotateCcw, BarChart3, CalendarDays, Award, Target, BookOpen } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList } from 'recharts';
 import { dataService } from '../../../services/dataService';
-import { MonthlyBucketTooltip, CHART_BAR_CURSOR } from '../../Student/StudentQuestionModule';
+import { MonthlyBucketTooltip, CHART_BAR_CURSOR } from '../../Student/soruModulu/ortak';
 import { downloadMonthlyPDF } from '../../../utils/questionAnalytics';
 import { useSoruTakibiBaglam } from './useSoruTakibi';
 

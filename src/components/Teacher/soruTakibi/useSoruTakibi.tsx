@@ -9,7 +9,7 @@ import { callMail, describeMailResult } from '../../../lib/mailApi';
 import { periodOf } from '../TargetListParts';
 import { usePlanWallData } from '../../Student/StudentTargetCards';
 import { isFlexibleTarget as isFlexTarget, isPlanCountTarget, isPlanMirrorTarget } from '../../../utils/targetDays';
-import { generalDailyTarget, computeMonthlyTargetPlan, useTodayIso, useIsNarrowScreen, parseIsoDate } from '../../Student/StudentQuestionModule';
+import { generalDailyTarget, computeMonthlyTargetPlan, useTodayIso, useIsNarrowScreen, parseIsoDate } from '../../Student/soruModulu/ortak';
 import { computeWeeklyAnalytics, computeMonthlyAnalytics, formatTurkishDate, formatDateISO, getWeekStartOf, TURKISH_MONTHS } from '../../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../../utils/turkishSearch';
 import { useHistoryState } from '../../../lib/useHistoryState';
