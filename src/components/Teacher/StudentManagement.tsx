@@ -6,7 +6,8 @@
 //   Öğrenciler / Sınıflar sekmeleri ve büyük pencereler ayrı parça: yalnız açılınca yüklenir
 //   (sayfa açıldıktan kısa süre sonra öğrenci/sınıf pencereleri arka planda hazırlanır, ilk açılış beklemez).
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { IskeletListe } from '../ui/Durum';
 import type { StudentManagementProps } from './ogrenciler/ortak';
 import { OgrenciBaglam, useOgrenciYonetimi } from './ogrenciler/useOgrenciYonetimi';
@@ -22,13 +23,13 @@ const yukle = {
   aktar: () => import('./ogrenciler/OgrenciAktarPenceresi'),
   cakisan: () => import('./ogrenciler/CakisanOgrenciPenceresi'),
 };
-const OgrenciListesiSekmesi = lazy(yukle.liste);
-const SiniflarSekmesi = lazy(yukle.siniflar);
-const OgrenciFormPenceresi = lazy(yukle.ogrenciFormu);
-const SinifFormPenceresi = lazy(yukle.sinifFormu);
-const SinifOgrencileriPenceresi = lazy(yukle.sinifOgrencileri);
-const OgrenciAktarPenceresi = lazy(yukle.aktar);
-const CakisanOgrenciPenceresi = lazy(yukle.cakisan);
+const OgrenciListesiSekmesi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/OgrenciListesiSekmesi').default>>(yukle.liste, 'default');
+const SiniflarSekmesi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/SiniflarSekmesi').default>>(yukle.siniflar, 'default');
+const OgrenciFormPenceresi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/OgrenciFormPenceresi').default>>(yukle.ogrenciFormu, 'default');
+const SinifFormPenceresi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/SinifFormPenceresi').default>>(yukle.sinifFormu, 'default');
+const SinifOgrencileriPenceresi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/SinifOgrencileriPenceresi').default>>(yukle.sinifOgrencileri, 'default');
+const OgrenciAktarPenceresi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/OgrenciAktarPenceresi').default>>(yukle.aktar, 'default');
+const CakisanOgrenciPenceresi = lazyNamed<React.ComponentProps<typeof import('./ogrenciler/CakisanOgrenciPenceresi').default>>(yukle.cakisan, 'default');
 
 export const StudentManagement: React.FC<StudentManagementProps> = (props) => {
   const s = useOgrenciYonetimi(props);

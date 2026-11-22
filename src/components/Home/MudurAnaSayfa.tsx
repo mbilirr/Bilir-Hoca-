@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { dataService } from '../../services/dataService';
@@ -59,7 +60,7 @@ import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 //   5 dakikada bir ve sekmeye dönünce sunucudan yeniden okunur. Geçmiş günler kısa süre önbellekte tutulur.
 // ============================================================================
 
-const KurumRaporu = lazy(() => import('../Teacher/KurumRaporu').then((m) => ({ default: m.KurumRaporu })));
+const KurumRaporu = lazyNamed<React.ComponentProps<typeof import('../Teacher/KurumRaporu').KurumRaporu>>(() => import('../Teacher/KurumRaporu'), 'KurumRaporu');
 
 type Rapor = 'yoklama' | 'devamsizlik' | 'ogretmen' | 'odev';
 

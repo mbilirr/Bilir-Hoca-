@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ArrowRight, CalendarDays, ClipboardCheck, Users } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { ClassGroup, Etut, Student, Teacher, TeacherTabType } from '../../types';
@@ -19,7 +20,7 @@ import './kalanAnaSayfa.css';
 // Veri: dataService'teki etütler (yalnız bu öğretmenin etütleri, isMyEtut). Etüt bölümü kapalıysa hiçbir şey çizilmez.
 // ============================================================================
 
-const EtutAttendanceModal = lazy(() => import('../Teacher/EtutAttendanceModal').then((m) => ({ default: m.EtutAttendanceModal })));
+const EtutAttendanceModal = lazyNamed<React.ComponentProps<typeof import('../Teacher/EtutAttendanceModal').EtutAttendanceModal>>(() => import('../Teacher/EtutAttendanceModal'), 'EtutAttendanceModal');
 
 interface Props {
   currentTeacher: Teacher | null;

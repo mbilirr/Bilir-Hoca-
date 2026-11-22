@@ -1,5 +1,6 @@
 import { dondurmaOzeti, useKurumDurumlari, type KurumDurumu } from '../../services/kurumDurumu'; // Aşama 368
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { supabase } from '../../lib/supabase';
 import { callMail } from '../../lib/mailApi';
@@ -24,8 +25,8 @@ import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 // Aşama 252: "Gözüyle bak" düğmesi: sorun yaşayan kişinin ekranını şifresiz açar (GozuyleBakSheet, sql/252).
 // ============================================================================
 
-const YeniKurumModal = lazy(() => import('../Admin/YeniKurumModal').then((m) => ({ default: m.YeniKurumModal })));
-const SentCommunicationsModal = lazy(() => import('../Teacher/SentCommunicationsModal').then((m) => ({ default: m.SentCommunicationsModal })));
+const YeniKurumModal = lazyNamed<React.ComponentProps<typeof import('../Admin/YeniKurumModal').YeniKurumModal>>(() => import('../Admin/YeniKurumModal'), 'YeniKurumModal');
+const SentCommunicationsModal = lazyNamed<React.ComponentProps<typeof import('../Teacher/SentCommunicationsModal').SentCommunicationsModal>>(() => import('../Teacher/SentCommunicationsModal'), 'SentCommunicationsModal');
 
 interface SmsDurum {
   provider: string | null;

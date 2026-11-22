@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, Teacher, TeacherTabType } from '../../types';
@@ -38,8 +39,8 @@ import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 //          roller kaydedilince yenilenir, 5 dakikada bir ve sekmeye dönünce sunucudan yeniden okunur. Yerel kopya yok.
 // ============================================================================
 
-const KurumRaporu = lazy(() => import('../Teacher/KurumRaporu').then((m) => ({ default: m.KurumRaporu })));
-const ProgramExcelModal = lazy(() => import('../Admin/ProgramExcelModal').then((m) => ({ default: m.ProgramExcelModal })));
+const KurumRaporu = lazyNamed<React.ComponentProps<typeof import('../Teacher/KurumRaporu').KurumRaporu>>(() => import('../Teacher/KurumRaporu'), 'KurumRaporu');
+const ProgramExcelModal = lazyNamed<React.ComponentProps<typeof import('../Admin/ProgramExcelModal').ProgramExcelModal>>(() => import('../Admin/ProgramExcelModal'), 'ProgramExcelModal');
 
 const ROL_RENK: Partial<Record<TeacherRole, string>> = {
   mudur: 'var(--red)',

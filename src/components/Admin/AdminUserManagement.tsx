@@ -6,7 +6,8 @@
 //   Düzenleme, rol, erişim ve yeni öğretmen pencereleri ayrı parça: yalnız açılınca yüklenir
 //   (sayfa açıldıktan kısa süre sonra arka planda hazırlanır, ilk tıklama beklemez).
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import type { AdminUserManagementProps } from './kullanicilar/ortak';
 import { KullaniciBaglam, useKullaniciYonetimi } from './kullanicilar/useKullaniciYonetimi';
 import { YetkisizErisim } from './kullanicilar/YetkisizErisim';
@@ -22,10 +23,10 @@ const yukle = {
   erisim: () => import('./kullanicilar/ErisimPenceresi'),
   yeniOgretmen: () => import('./kullanicilar/YeniOgretmenParcasi'),
 };
-const KullaniciDuzenlePenceresi = lazy(yukle.duzenle);
-const RolPenceresi = lazy(yukle.rol);
-const ErisimPenceresi = lazy(yukle.erisim);
-const YeniOgretmenParcasi = lazy(yukle.yeniOgretmen);
+const KullaniciDuzenlePenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/KullaniciDuzenlePenceresi').default>>(yukle.duzenle, 'default');
+const RolPenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/RolPenceresi').default>>(yukle.rol, 'default');
+const ErisimPenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/ErisimPenceresi').default>>(yukle.erisim, 'default');
+const YeniOgretmenParcasi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/YeniOgretmenParcasi').default>>(yukle.yeniOgretmen, 'default');
 
 export const AdminUserManagement: React.FC<AdminUserManagementProps> = (props) => {
   const s = useKullaniciYonetimi(props);

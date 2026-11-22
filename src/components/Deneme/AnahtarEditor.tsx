@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
@@ -25,7 +26,7 @@ import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 // ============================================================================
 
 // Aşama 93: kitapçık eşleştirme penceresi yalnızca açılınca yüklenir
-const KitapcikEslestirModal = lazy(() => import('./KitapcikEslestirModal').then((m) => ({ default: m.KitapcikEslestirModal })));
+const KitapcikEslestirModal = lazyNamed<React.ComponentProps<typeof import('./KitapcikEslestirModal').KitapcikEslestirModal>>(() => import('./KitapcikEslestirModal'), 'KitapcikEslestirModal');
 
 const keyString = (qs: ExamQuestion[]) => qs.map((q) => q.answer || ' ').join('').replace(/\s+$/, '');
 const short = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);

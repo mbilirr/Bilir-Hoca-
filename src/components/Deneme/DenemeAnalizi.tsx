@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronDown, ChevronRight, GraduationCap, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import { IskeletListe, Yukleniyor } from '../ui/Durum'; // Aşama 305
@@ -54,9 +54,9 @@ const sinifEtiketi = (g: string) => (/^\d+$/.test(g) ? `${g}. sınıf` : g);
 // ============================================================================
 
 // Aşama 92: denemeleri başka kuruma aktarma penceresi (genel yönetici; yalnızca açılınca yüklenir)
-const KurumAktarModal = lazy(() => import('./KurumAktarModal').then((m) => ({ default: m.KurumAktarModal })));
+const KurumAktarModal = lazyNamed<React.ComponentProps<typeof import('./KurumAktarModal').KurumAktarModal>>(() => import('./KurumAktarModal'), 'KurumAktarModal');
 // Aşama 115: ortalama sıralama penceresi (Son 3 / Son 5 / seçerek; Excel). Öğretmen / Zümre / Etüt Öğretmeni göremez.
-const OrtalamaSiralamaModal = lazy(() => import('./OrtalamaSiralamaModal').then((m) => ({ default: m.OrtalamaSiralamaModal })));
+const OrtalamaSiralamaModal = lazyNamed<React.ComponentProps<typeof import('./OrtalamaSiralamaModal').OrtalamaSiralamaModal>>(() => import('./OrtalamaSiralamaModal'), 'OrtalamaSiralamaModal');
 // Aşama 363: sihirbaz ayrı parça; yalnız Yeni deneme, taslak ya da optik yükleme açılınca iner
 const DenemeWizardParca = lazyNamed<DenemeWizardProps>(() => import('./DenemeWizard'), 'DenemeWizard');
 const DenemeWizard: React.FC<DenemeWizardProps> = (p) => (

@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload } from 'lucide-react';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
@@ -20,7 +21,7 @@ import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 91: A / B anahtarı penceresi yalnızca açılınca yüklenir (deneme ekranı hafif kalır)
-const CevapAnahtariModal = lazy(() => import('./CevapAnahtariModal').then((m) => ({ default: m.CevapAnahtariModal })));
+const CevapAnahtariModal = lazyNamed<React.ComponentProps<typeof import('./CevapAnahtariModal').CevapAnahtariModal>>(() => import('./CevapAnahtariModal'), 'CevapAnahtariModal');
 
 // Aşama 59: "Denemelere dön" belirgin düğme (marka renginde çerçeveli; üzerine gelince dolu)
 const BACK_BTN =

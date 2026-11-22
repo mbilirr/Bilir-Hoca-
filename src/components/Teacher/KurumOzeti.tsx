@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { AlertTriangle, CalendarDays, FileBarChart, Landmark, UserX } from 'lucide-react';
 import type { ClassGroup, Etut, Homework, HomeworkSubmission, Student, StudentMessage, TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -19,7 +20,7 @@ import { dersHatirlat } from '../../lib/push'; // Aşama 230
 // Önceki sürümdeki öğretmen etkinliği tablosu, "Son 14 gün devamsızlık" ve oran kartları ana sayfadan kalktı.
 // ============================================================================
 
-const KurumRaporu = lazy(() => import('./KurumRaporu').then((m) => ({ default: m.KurumRaporu })));
+const KurumRaporu = lazyNamed<React.ComponentProps<typeof import('./KurumRaporu').KurumRaporu>>(() => import('./KurumRaporu'), 'KurumRaporu');
 
 type Go = (tab: TeacherTabType, focus?: Parameters<typeof setQuickFocus>) => void;
 const ETUT_ROWS = 6;

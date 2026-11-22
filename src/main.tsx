@@ -1,6 +1,7 @@
-import { StrictMode, Suspense, lazy } from 'react';
+import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import { lazyNamed } from './lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateAvailableBanner } from './components/Common/UpdateAvailableBanner';
 import './index.css';
@@ -81,9 +82,7 @@ const attendanceToken = (() => {
     return null;
   }
 })();
-const EtutAttendancePage = lazy(() =>
-  import('./components/Public/EtutAttendancePage').then((m) => ({ default: m.EtutAttendancePage }))
-);
+const EtutAttendancePage = lazyNamed(() => import('./components/Public/EtutAttendancePage'), 'EtutAttendancePage');
 // Aşama 22: e-postadaki haftalık plan bağlantısı (…/?plan=…) öğrencinin giriş yapmadan görev işaretlediği sayfayı açar
 const planToken = (() => {
   try {
@@ -92,7 +91,7 @@ const planToken = (() => {
     return null;
   }
 })();
-const PlanMarkPage = lazy(() => import('./components/Public/PlanMarkPage').then((m) => ({ default: m.PlanMarkPage })));
+const PlanMarkPage = lazyNamed(() => import('./components/Public/PlanMarkPage'), 'PlanMarkPage');
 const isPublicPage = !!(attendanceToken || planToken);
 
 // Aşama 124: uygulama dosyaları (/assets) cihazda tutulsun diye servis çalışanı açılışta (boşta) kaydedilir.

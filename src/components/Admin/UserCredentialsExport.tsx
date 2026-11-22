@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { fetchTeacherContacts, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
 import { birthDateLabel } from '../../lib/teacherImport';
@@ -9,7 +10,7 @@ import { Panel } from '../ui/kit';
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 131: toplu şifre yenileme penceresi yalnız açılınca yüklenir (bölüm hafif kalır)
-const BulkPasswordResetModal = lazy(() => import('./BulkPasswordResetModal').then((m) => ({ default: m.BulkPasswordResetModal })));
+const BulkPasswordResetModal = lazyNamed<React.ComponentProps<typeof import('./BulkPasswordResetModal').BulkPasswordResetModal>>(() => import('./BulkPasswordResetModal'), 'BulkPasswordResetModal');
 
 // ============================================================================
 // Aşama 25: ÖĞRENCİ VE ÖĞRETMEN LİSTESİ (EXCEL) — ilk giriş şifreleri dahil

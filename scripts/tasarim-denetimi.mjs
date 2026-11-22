@@ -16,6 +16,8 @@
 //   7) Aşama 353: sayfa içi geçici yazı ("Kaydedildi", "E-posta gönderildi") ortak bildirimdedir:
 //      const setNotice = useBildirimKanali() (lib/bildirim). useAutoDismiss ile kendi şeridini tutmak yasak
 //      (yalnız SMS deneme sonucu gibi uzun teknik çıktı istisna). Formdaki alan hataları yerinde kalır.
+//   8) Aşama 370: düz React.lazy yok. Parçalar lazyNamed (lib/lazyLoad) ile yüklenir: yeni sürüm yayınlanınca eski
+//      parça sunucuda yoksa sayfa bir kez kendiliğinden yenilenir (düz lazy'de bölüm boş / hata ekranı kalırdı).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -119,6 +121,9 @@ for (const p of dosyalar(join(KOK, 'src'))) {
     // sınıf sabitlerindeki ortak düğme de 32 px kalır (const BTN = 'ui-btn … h-9' gibi)
     if (p.endsWith(".tsx") === false || !/<button/.test(satir)) if (/\bui-btn\b/.test(satir) && BOY_DISI.test(satir) && !/\bsm:h-8\b/.test(satir)) {
       hatalar.push(`${rel}:${i + 1}  düğme boyu: ${satir.match(BOY_DISI)[0]}  → .ui-btn kendi boyunu verir (32 px)`);
+    }
+    if (/\.tsx?$/.test(p) && /(?<![\w.])lazy\(/.test(satir) && rel.split('\\').join('/') !== 'src/lib/lazyLoad.tsx') {
+      hatalar.push(`${rel}:${i + 1}  düz React.lazy  → lazyNamed(() => import('…'), 'Ad') (lib/lazyLoad)`);
     }
     if (p.endsWith('.tsx') && /\buseAutoDismiss\(/.test(satir) && !GECICI_YAZI_IZINLI.has(rel.split('\\').join('/'))) {
       hatalar.push(`${rel}:${i + 1}  sayfa içi geçici yazı: useAutoDismiss  → const setNotice = useBildirimKanali() (lib/bildirim)`);

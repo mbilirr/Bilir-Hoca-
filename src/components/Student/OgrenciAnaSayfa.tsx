@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ArrowRight, Award, BarChart3, Bell, BookOpen, Calendar, Check, Flame, HelpCircle, Home, MessageSquare, Plus } from 'lucide-react';
 import type { Etut, Homework, HomeworkSubmission, Student, StudentMessage, StudentNotification, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
@@ -34,7 +35,7 @@ import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 // Sayılar Soru Takibi sayfasıyla AYNI fonksiyonlardan (buildStudentQuestionSummary, weekDayGoal).
 // ============================================================================
 
-const StudentTodayPlan = lazy(() => import('./StudentTodayPlan').then((m) => ({ default: m.StudentTodayPlan })));
+const StudentTodayPlan = lazyNamed<React.ComponentProps<typeof import('./StudentTodayPlan').StudentTodayPlan>>(() => import('./StudentTodayPlan'), 'StudentTodayPlan');
 
 type Hub = 'odev' | 'etut' | 'mesaj' | 'bild';
 

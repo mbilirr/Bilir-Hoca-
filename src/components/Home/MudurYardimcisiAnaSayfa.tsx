@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { ArrowRight } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { useDenemeSurumu } from '../../lib/denemeCanli'; // Aşama 349c
@@ -50,7 +51,7 @@ import { akMesaj } from '../../lib/bildirim'; // Aşama 348
 // Senkron: ders tabloları canlı; saat her dakika ilerler, 5 dakikada bir ve sekmeye dönünce sunucudan okunur.
 // ============================================================================
 
-const KurumRaporu = lazy(() => import('../Teacher/KurumRaporu').then((m) => ({ default: m.KurumRaporu })));
+const KurumRaporu = lazyNamed<React.ComponentProps<typeof import('../Teacher/KurumRaporu').KurumRaporu>>(() => import('../Teacher/KurumRaporu'), 'KurumRaporu');
 
 type Rapor = 'yoklama' | 'devamsizlik' | 'ogretmen' | 'odev';
 type Durum = 'ok' | 'late' | 'reminded' | 'cur' | 'later' | 'none';

@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus, UserRound, PauseCircle, PlayCircle } from 'lucide-react';
 import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
@@ -20,8 +21,8 @@ import { dondurmaOzeti, kurumEtkinlestir, useKurumDurumlari } from '../../servic
 // Aşama 95: "Yeni kurum" düğmesi — kurum + kurum yöneticisi + bölümler + logo tek pencerede (kod düğmeye basınca yüklenir).
 // ============================================================================
 
-const YeniKurumModal = lazy(() => import('./YeniKurumModal').then((m) => ({ default: m.YeniKurumModal })));
-const KurumDondurPenceresi = lazy(() => import('./KurumDondurPenceresi').then((m) => ({ default: m.KurumDondurPenceresi })));
+const YeniKurumModal = lazyNamed<React.ComponentProps<typeof import('./YeniKurumModal').YeniKurumModal>>(() => import('./YeniKurumModal'), 'YeniKurumModal');
+const KurumDondurPenceresi = lazyNamed<React.ComponentProps<typeof import('./KurumDondurPenceresi').KurumDondurPenceresi>>(() => import('./KurumDondurPenceresi'), 'KurumDondurPenceresi');
 
 interface Draft {
   name: string;

@@ -1,5 +1,6 @@
 // Öğretmen ana sayfası: sayfanın ortak yardımcıları (Aşama 364, OgretmenAnaSayfa.tsx bölündü)
-import React, { lazy, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { lazyNamed } from '../../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { Bell } from 'lucide-react';
 import { type ClassGroup, type Etut, type Homework, type HomeworkSubmission, type Student, type StudentMessage, type TeacherTabType, type Teacher } from '../../../types';
 import { GUN_ADLARI, isoGun, tarihUzun } from '../../../services/dersService';
@@ -10,9 +11,9 @@ import { useBildirimKanali } from '../../../lib/bildirim';
 
 
 // Ders ve etüt yoklaması pencereleri ayrı parça (yalnız açılınca iner)
-export const DersYoklamaModal = lazy(() => import('../../Teacher/DersYoklamaModal').then((m) => ({ default: m.DersYoklamaModal })));
+export const DersYoklamaModal = lazyNamed<React.ComponentProps<typeof import('../../Teacher/DersYoklamaModal').DersYoklamaModal>>(() => import('../../Teacher/DersYoklamaModal'), 'DersYoklamaModal');
 
-export const EtutAttendanceModal = lazy(() => import('../../Teacher/EtutAttendanceModal').then((m) => ({ default: m.EtutAttendanceModal })));
+export const EtutAttendanceModal = lazyNamed<React.ComponentProps<typeof import('../../Teacher/EtutAttendanceModal').EtutAttendanceModal>>(() => import('../../Teacher/EtutAttendanceModal'), 'EtutAttendanceModal');
 
 export type Go = (tab: TeacherTabType, focus?: Parameters<typeof setQuickFocus>) => void;
 

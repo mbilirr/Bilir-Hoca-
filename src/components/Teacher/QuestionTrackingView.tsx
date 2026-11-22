@@ -6,7 +6,8 @@
 //   Sınıf görünümü, haftalık / aylık pano, sınıf sıralaması ve büyük pencereler ayrı parça: yalnız gerekince
 //   yüklenir (sayfa açıldıktan kısa süre sonra panolar arka planda hazırlanır, ilk tıklama beklemez).
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { IskeletListe } from '../ui/Durum';
 import type { QuestionTrackingViewProps } from './soruTakibi/ortak';
 import { SoruTakibiBaglam, useSoruTakibi } from './soruTakibi/useSoruTakibi';
@@ -23,14 +24,14 @@ const yukle = {
   gecmisAy: () => import('./soruTakibi/GecmisAylarPenceresi'),
   tebrik: () => import('./soruTakibi/TebrikPenceresi'),
 };
-const SinifGenelBakis = lazy(yukle.sinif);
-const HaftalikPano = lazy(yukle.haftalik);
-const AylikPano = lazy(yukle.aylik);
-const SinifSiralamasi = lazy(yukle.siralama);
-const SoruKayitlariPenceresi = lazy(yukle.kayitlar);
-const GecmisHaftaPenceresi = lazy(yukle.gecmisHafta);
-const GecmisAylarPenceresi = lazy(yukle.gecmisAy);
-const TebrikPenceresi = lazy(yukle.tebrik);
+const SinifGenelBakis = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/SinifGenelBakis').default>>(yukle.sinif, 'default');
+const HaftalikPano = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/HaftalikPano').default>>(yukle.haftalik, 'default');
+const AylikPano = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/AylikPano').default>>(yukle.aylik, 'default');
+const SinifSiralamasi = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/SinifSiralamasi').default>>(yukle.siralama, 'default');
+const SoruKayitlariPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/SoruKayitlariPenceresi').default>>(yukle.kayitlar, 'default');
+const GecmisHaftaPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/GecmisHaftaPenceresi').default>>(yukle.gecmisHafta, 'default');
+const GecmisAylarPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/GecmisAylarPenceresi').default>>(yukle.gecmisAy, 'default');
+const TebrikPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruTakibi/TebrikPenceresi').default>>(yukle.tebrik, 'default');
 
 export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = (props) => {
   const s = useSoruTakibi(props);

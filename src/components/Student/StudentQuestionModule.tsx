@@ -7,7 +7,8 @@
 //   Sekmeler ve pencereler ayrı parça: yalnız açılınca yüklenir (sayfa açıldıktan kısa süre sonra öbür
 //   sekmeler arka planda hazırlanır, sekme değişince bekleme olmaz).
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { IskeletListe } from '../ui/Durum';
 import type { StudentQuestionModuleProps } from './soruModulu/ortak';
 import { SoruModuluBaglam, useSoruModulu } from './soruModulu/useSoruModulu';
@@ -21,12 +22,12 @@ const yukle = {
   gecmisHafta: () => import('./soruModulu/GecmisHaftalarPenceresi'),
   gecmisAy: () => import('./soruModulu/GecmisAylarPenceresi'),
 };
-const HaftalikSoruPanosu = lazy(yukle.haftalik);
-const AylikSoruPanosu = lazy(yukle.aylik);
-const SoruGirisFormu = lazy(yukle.giris);
-const GecmisKayitlar = lazy(yukle.gecmis);
-const GecmisHaftalarPenceresi = lazy(yukle.gecmisHafta);
-const GecmisAylarPenceresi = lazy(yukle.gecmisAy);
+const HaftalikSoruPanosu = lazyNamed<React.ComponentProps<typeof import('./soruModulu/HaftalikSoruPanosu').default>>(yukle.haftalik, 'default');
+const AylikSoruPanosu = lazyNamed<React.ComponentProps<typeof import('./soruModulu/AylikSoruPanosu').default>>(yukle.aylik, 'default');
+const SoruGirisFormu = lazyNamed<React.ComponentProps<typeof import('./soruModulu/SoruGirisFormu').default>>(yukle.giris, 'default');
+const GecmisKayitlar = lazyNamed<React.ComponentProps<typeof import('./soruModulu/GecmisKayitlar').default>>(yukle.gecmis, 'default');
+const GecmisHaftalarPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruModulu/GecmisHaftalarPenceresi').default>>(yukle.gecmisHafta, 'default');
+const GecmisAylarPenceresi = lazyNamed<React.ComponentProps<typeof import('./soruModulu/GecmisAylarPenceresi').default>>(yukle.gecmisAy, 'default');
 
 export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = (props) => {
   const s = useSoruModulu(props);
