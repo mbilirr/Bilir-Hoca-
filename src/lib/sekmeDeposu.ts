@@ -8,6 +8,9 @@
 //   - Çıkışta ve kurum geçişinde anahtar ve bu sekmenin kayıtları hemen silinir.
 //   - Sahipsiz kalmış eski kayıtlar (12 saattir dokunulmamış) her açılışta silinir.
 // Depo yalnız okuma kopyasıdır: asıl veri her zaman buluttadır; hata olursa sessizce devre dışı kalır.
+// Aşama 365: liste boyu sınırı (60.000 satır) kalktı. 5.000 satırdan uzun liste parça parça yazılır: her parça ayrı
+// metne çevrilip şifrelenir, parçalar arasında tarayıcıya nefes aldırılır (telefon donmaz). Okurken yalnız bütün
+// parçaları tamam olan en son yazım (nesil) kullanılır; yarım kalan yazım hiç okunmaz ve sonraki yazımda silinir.
 // Bu dosya hiçbir şeyi içe almaz (depo.ts buna dayanır, döngü olmaz).
 // ============================================================================
 
@@ -17,13 +20,19 @@ const KEY_SS = 'edu_sys_sekme_anahtar'; // edu_sys_ öneki: çıkışta sekme ve
 const SAHIPSIZ_MS = 12 * 3600000;
 
 interface Kayit {
-  id: string; // `${oturum}:${ad}`
+  id: string; // tek kayıt `${oturum}:${ad}`, parça `${oturum}:${ad}#${nesil}:${parca}`
   oturum: string;
   ad: string;
   t: number; // son yazma
   iv: ArrayBuffer;
   veri: ArrayBuffer;
+  // Aşama 365: parçalı yazım (yoksa tek kayıt)
+  nesil?: string;
+  parca?: number;
+  toplam?: number;
 }
+/** Aşama 365: bir listenin bu kadar satırı tek parçada yazılır */
+export const PARCA_SATIR = 5000;
 interface SekmeAnahtari {
   oturum: string;
   anahtar: string; // ham AES anahtarı (base64)
@@ -118,20 +127,118 @@ let zamanlayici: ReturnType<typeof setTimeout> | null = null;
 let kapali = false; // kurum geçişi: sayfa yenilenene kadar yazılmaz
 let calisan: Promise<void> | null = null;
 
+/** Tarayıcı boşalınca (ya da en geç yarım saniyede) devam eder: uzun işler arasında ekran donmaz. */
+const bosta = () =>
+  new Promise<void>((r) => {
+    const ric = (globalThis as any).requestIdleCallback;
+    if (typeof ric === 'function') ric(() => r(), { timeout: 500 });
+    else setTimeout(r, 0);
+  });
+
+async function sifrele(key: CryptoKey, veri: unknown): Promise<{ iv: ArrayBuffer; veri: ArrayBuffer }> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const sifreli = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(veri)));
+  return { iv: iv.buffer, veri: sifreli };
+}
+
+/**
+ * Bir listenin depodaki kayıtlarını siler. birak.tek: tek kayıt kalır; birak.nesil: o yazımın parçaları kalır.
+ * (Kimlik aralığı `${oturum}:${ad}` … `${oturum}:${ad}#…`; başka liste yanlışlıkla silinmesin diye ad ayrıca denetlenir.)
+ */
+function adKayitlariniSil(oturum: string, ad: string, birak: { tek?: boolean; nesil?: string } = {}): Promise<unknown> {
+  return idb('readwrite', (s) => {
+    const c = s.openCursor(IDBKeyRange.bound(`${oturum}:${ad}`, `${oturum}:${ad}#\uffff`));
+    c.onsuccess = () => {
+      const cur = c.result;
+      if (!cur) return;
+      const k = cur.value as Kayit;
+      const kalir = k.ad !== ad || (birak.tek && !k.nesil) || (!!birak.nesil && k.nesil === birak.nesil);
+      if (!kalir) cur.delete();
+      cur.continue();
+    };
+  });
+}
+
 async function yazSimdi(ad: string, veri: unknown): Promise<void> {
   const sa = await anahtarAl(true);
   if (!sa || kapali) return;
   const key = await cryptoAnahtari(sa);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const sifreli = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(veri)));
   // şifreleme sürerken çıkış yapıldıysa ya da anahtar değiştiyse yazılmaz
-  const simdi = anahtarOku();
-  if (kapali || !simdi || simdi.anahtar !== sa.anahtar) return;
-  const k: Kayit = { id: `${sa.oturum}:${ad}`, oturum: sa.oturum, ad, t: Date.now(), iv: iv.buffer, veri: sifreli };
-  await idb('readwrite', (s) => s.put(k));
+  const gecerli = () => {
+    const simdi = anahtarOku();
+    return !kapali && !!simdi && simdi.anahtar === sa.anahtar;
+  };
+  // yazma sırasında çıkış yapıldıysa bu listenin kayıtları yine silinir
+  const cikildiysaSil = async () => {
+    if (kapali || !anahtarOku()) {
+      await adKayitlariniSil(sa.oturum, ad).catch(() => {});
+      return true;
+    }
+    return false;
+  };
+  const toplam = Array.isArray(veri) && veri.length > PARCA_SATIR ? Math.ceil(veri.length / PARCA_SATIR) : 0;
+  if (!toplam) {
+    const sifreli = await sifrele(key, veri);
+    if (!gecerli()) return;
+    const k: Kayit = { id: `${sa.oturum}:${ad}`, oturum: sa.oturum, ad, t: Date.now(), ...sifreli };
+    await idb('readwrite', (s) => s.put(k));
+    if (await cikildiysaSil()) return;
+    await adKayitlariniSil(sa.oturum, ad, { tek: true }); // önceki parçalı yazım
+  } else {
+    const liste = veri as unknown[];
+    const nesil = b64(crypto.getRandomValues(new Uint8Array(6)).buffer);
+    for (let i = 0; i < toplam; i++) {
+      if (i) await bosta();
+      // yazım baştan sona aynı anlık görüntüyü yazar; liste bu arada değişirse yeni hâli sıradaki yazımda gelir
+      // (çıkış yapıldıysa bırakılır: yarım nesil hiç okunmaz, sahipsiz kayıt temizliği siler)
+      if (!gecerli()) return;
+      const sifreli = await sifrele(key, liste.slice(i * PARCA_SATIR, (i + 1) * PARCA_SATIR));
+      if (!gecerli()) return;
+      const k: Kayit = { id: `${sa.oturum}:${ad}#${nesil}:${i}`, oturum: sa.oturum, ad, t: Date.now(), ...sifreli, nesil, parca: i, toplam };
+      await idb('readwrite', (s) => s.put(k));
+      if (await cikildiysaSil()) return;
+    }
+    await adKayitlariniSil(sa.oturum, ad, { nesil }); // tek kayıt ve eski yazımlar
+  }
   sonYazma.set(ad, Date.now());
-  // yazma sırasında çıkış yapıldıysa kayıt yine silinir
-  if (kapali || !anahtarOku()) await idb('readwrite', (s) => s.delete(k.id)).catch(() => {});
+}
+
+/**
+ * Aşama 365: okunacak kayıtları seçer (saf işlev, sınanır). Tek kayıt olduğu gibi; parçalı listede yalnız bütün
+ * parçaları tamam olan en son yazım, parça sırasıyla. Bir liste için ikisi de varsa en son yazılan kazanır.
+ * okunmayacaklar: seçilmeyen (yarım ya da eski) kayıtların kimlikleri.
+ */
+export function okunacakKayitlar<K extends { id: string; ad: string; t: number; nesil?: string; parca?: number; toplam?: number }>(
+  kayitlar: K[]
+): { secilen: Map<string, K[]>; okunmayacaklar: string[] } {
+  const adlar = new Map<string, K[]>();
+  for (const k of kayitlar) {
+    const l = adlar.get(k.ad);
+    if (l) l.push(k);
+    else adlar.set(k.ad, [k]);
+  }
+  const secilen = new Map<string, K[]>();
+  const okunmayacaklar: string[] = [];
+  for (const [ad, l] of adlar) {
+    const adaylar: { t: number; parcalar: K[] }[] = [];
+    const nesiller = new Map<string, K[]>();
+    for (const k of l) {
+      if (!k.nesil) adaylar.push({ t: k.t, parcalar: [k] });
+      else (nesiller.get(k.nesil) || nesiller.set(k.nesil, []).get(k.nesil)!).push(k);
+    }
+    for (const p of nesiller.values()) {
+      const toplam = p[0].toplam || 0;
+      const sirali = [...p].sort((a, b) => (a.parca || 0) - (b.parca || 0));
+      const tamam = toplam > 0 && sirali.length === toplam && sirali.every((k, i) => k.parca === i && k.toplam === toplam);
+      if (tamam) adaylar.push({ t: Math.max(...sirali.map((k) => k.t)), parcalar: sirali });
+    }
+    adaylar.sort((a, b) => b.t - a.t);
+    const en = adaylar[0];
+    if (en) secilen.set(ad, en.parcalar);
+    const tutulan = new Set((en?.parcalar || []).map((k) => k.id));
+    for (const k of l) if (!tutulan.has(k.id)) okunmayacaklar.push(k.id);
+  }
+  return { secilen, okunmayacaklar };
 }
 
 function bekleyenleriYaz(): Promise<void> {
@@ -190,7 +297,7 @@ export function sekmedenSil(ad: string): void {
   depodakiler.delete(ad);
   const sa = anahtarOku();
   if (!sa || !sekmeDeposuVar()) return;
-  idb('readwrite', (s) => s.delete(`${sa.oturum}:${ad}`)).catch(() => {});
+  adKayitlariniSil(sa.oturum, ad).catch(() => {}); // Aşama 365: parçalarıyla birlikte
 }
 
 /** Sayfa açılışında: bu sekmenin depodaki listeleri çözülüp verilir (yoksa boş). */
@@ -203,14 +310,27 @@ export async function sekmedenOku(): Promise<Map<string, unknown>> {
     const kayitlar = (await idb<Kayit[]>('readonly', (s) => s.index('oturum').getAll(sa.oturum))) || [];
     if (!kayitlar.length) return out;
     const key = await cryptoAnahtari(sa);
-    for (const k of kayitlar) {
+    const coz = async (k: Kayit) => JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(k.iv) }, key, k.veri)));
+    // Aşama 365: yarım ya da eski yazımlar okunmaz, boşta silinir
+    const { secilen, okunmayacaklar } = okunacakKayitlar(kayitlar);
+    if (okunmayacaklar.length) idb('readwrite', (s) => okunmayacaklar.forEach((id) => s.delete(id))).catch(() => {});
+    for (const [ad, parcalar] of secilen) {
+      depodakiler.add(ad);
       try {
-        const acik = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(k.iv) }, key, k.veri);
-        out.set(k.ad, JSON.parse(new TextDecoder().decode(acik)));
-        depodakiler.add(k.ad);
+        if (!parcalar[0].nesil) out.set(ad, await coz(parcalar[0]));
+        else {
+          const liste: unknown[] = [];
+          for (let i = 0; i < parcalar.length; i++) {
+            if (i) await bosta();
+            const p = await coz(parcalar[i]);
+            for (const x of p) liste.push(x);
+          }
+          out.set(ad, liste);
+        }
       } catch {
-        // çözülemeyen kayıt (bozuk): silinir, liste buluttan okunur
-        idb('readwrite', (s) => s.delete(k.id)).catch(() => {});
+        // çözülemeyen kayıt (bozuk): listenin bütün kayıtları silinir, liste buluttan okunur
+        depodakiler.delete(ad);
+        adKayitlariniSil(sa.oturum, ad).catch(() => {});
       }
     }
   } catch {

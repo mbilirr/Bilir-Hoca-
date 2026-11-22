@@ -290,13 +290,12 @@ function tooBigToCache(data: unknown): boolean {
 // Aşama 355: sekme önbelleğine sığmayan büyük liste artık atılmaz, şifreli sekme deposuna (IndexedDB) yazılır;
 // sayfa yenilenince ekran bu listeyle hemen açılır (buluttan inmesi beklenmez). Liste yeniden sığarsa depodaki
 // eski kopya silinir; böylece bir liste her zaman tek yerde durur.
-const SEKME_DEPOSU_EN_COK = 60000; // bundan büyük listeler hiç saklanmaz (metne çevirmek telefonu dondurur)
+// Aşama 365: boy sınırı (60.000 satır) kalktı; uzun liste sekme deposunda parça parça, boşta yazılır (telefon donmaz).
 function writeNow(key: string, data: unknown): void {
   if (storageFrozen) return;
   if (tooBigToCache(data) || !saveDataNow(key, data)) {
     try { localStorage.removeItem(key); } catch {}
-    if (Array.isArray(data) && data.length > SEKME_DEPOSU_EN_COK) sekmedenSil(key);
-    else sekmeyeYaz(key, data);
+    sekmeyeYaz(key, data);
     return;
   }
   sekmedenSil(key);
