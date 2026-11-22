@@ -102,6 +102,7 @@ import {
   saveData,
   freezeAppStorage,
   depoDegisinceBildir,
+  buyukListeleriGeriYukle,
 } from './depo';
 import { hatirlananKisiOku, hatirlananKisiYaz, type HatirlananKisi } from './hatirla'; // Aşama 301
 import {
@@ -386,6 +387,10 @@ class DataService {
     purgeExpiredSecureCache().catch(() => {});
     if (hasSecureKey()) this.secureRestore = this.resumeSecure();
     this.initData();
+    // Aşama 355: sekme önbelleğine sığmayıp şifreli sekme deposuna yazılmış büyük listeler (sayfa yenilendiyse) açılır
+    void buyukListeleriGeriYukle()
+      .then((m) => this.buyukListeleriUygula(m))
+      .catch(() => {});
     // Aşama 243: sayfa yenilenince seçili portal önbellekteki kurum bilgisine hemen uygulanır
     this.portalHesapla();
     this.myKurum = this.portalUygula(this.myKurumRaw);
@@ -2714,6 +2719,41 @@ class DataService {
     } catch {
       /* önbellek açılamadı: tam okuma */
     }
+  }
+
+  /**
+   * Aşama 355: sekme deposundan gelen büyük listeler belleğe alınır. Bu açılışta buluttan güncel hâli gelen liste
+   * zaten süzülmüştür (depo.ts). Yoklama / mesaj / not kilitli önbellekten (Aşama 103, artımlı okuma işaretiyle)
+   * açıldıysa ona dokunulmaz.
+   */
+  private buyukListeleriUygula(m: Map<string, unknown>): void {
+    if (!m.size) return;
+    const K = STORAGE_KEYS;
+    const alanlar: Array<[string, (v: any[]) => void, string?]> = [
+      [K.TEACHERS, (v) => (this.teachers = v)],
+      [K.CLASSES, (v) => (this.classes = v)],
+      [K.STUDENTS, (v) => (this.students = v)],
+      [K.HOMEWORK, (v) => (this.homeworks = v)],
+      [K.SUBMISSIONS, (v) => (this.submissions = v)],
+      [K.ETUTS, (v) => (this.etuts = v)],
+      [K.ATTENDANCE, (v) => (this.attendance = v), 'attendance'],
+      [K.GRADES, (v) => (this.grades = v), 'grades'],
+      [K.MESSAGES, (v) => (this.messages = v), 'messages'],
+      [K.DOCUMENTS, (v) => (this.documents = v)],
+      [K.STUDENT_NOTIFICATIONS, (v) => (this.studentNotifications = v)],
+      [K.SENT_EMAILS, (v) => (this.sentEmails = v)],
+      [K.QUESTION_LOGS, (v) => (this.questionLogs = v)],
+      [K.WEEKLY_QUESTION_TARGETS, (v) => (this.weeklyQuestionTargets = v)],
+    ];
+    let degisti = false;
+    for (const [anahtar, ata, kilitliTablo] of alanlar) {
+      const v = m.get(anahtar);
+      if (!Array.isArray(v)) continue;
+      if (kilitliTablo && this.deltaState.has(kilitliTablo)) continue;
+      ata(v);
+      degisti = true;
+    }
+    if (degisti) this.notify();
   }
 
   private applySecurePayload(p: SecurePayload | null): void {

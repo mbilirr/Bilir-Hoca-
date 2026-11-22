@@ -4,8 +4,10 @@
 // boşta yapılan yazmalar (saveData), hesap geçişinde yazma kilidi (freezeAppStorage), çıkışta silme ve cihaz kimliği.
 // Kod dataService.ts'ten KELİMESİ KELİMESİNE taşındı; davranış aynıdır. Yalnız "her kayıtta haber ver" bağlantısı
 // eskiden DataService'in doğrudan yazdığı bir değişkendi, artık depoDegisinceBildir ile kurulur.
-// Bu dosya hiçbir şeyi içe almaz: veri servisi ve ileride ayrılacak parçalar buna dayanır (döngü yok).
+// Bu dosya yalnız sekmeDeposu'nu içe alır (o da hiçbir şeyi almaz): veri servisi buna dayanır (döngü yok).
 // ============================================================================
+import { sekmeyeYaz, sekmedenSil, sekmedenOku, sekmeYazmalariniBitir, sekmeDeposunuKapat, sahipsizKayitlariSil } from '../lib/sekmeDeposu';
+
 export const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
   IS_SEEDED: 'edu_sys_seeded_v6',
@@ -116,6 +118,7 @@ export function purgePersistentPersonalData(): number {
 // Çıkışta sekmedeki tüm uygulama verilerini siler
 export function clearSessionAppData(): void {
   cancelPendingSaves();
+  sekmeDeposunuKapat(); // Aşama 355: büyük listelerin şifreli sekme deposu da silinir
   if (!browserSessionStorage) return;
   try {
     const keys: string[] = [];
@@ -284,12 +287,19 @@ function tooBigToCache(data: unknown): boolean {
     return false;
   }
 }
+// Aşama 355: sekme önbelleğine sığmayan büyük liste artık atılmaz, şifreli sekme deposuna (IndexedDB) yazılır;
+// sayfa yenilenince ekran bu listeyle hemen açılır (buluttan inmesi beklenmez). Liste yeniden sığarsa depodaki
+// eski kopya silinir; böylece bir liste her zaman tek yerde durur.
+const SEKME_DEPOSU_EN_COK = 60000; // bundan büyük listeler hiç saklanmaz (metne çevirmek telefonu dondurur)
 function writeNow(key: string, data: unknown): void {
-  if (tooBigToCache(data)) {
+  if (storageFrozen) return;
+  if (tooBigToCache(data) || !saveDataNow(key, data)) {
     try { localStorage.removeItem(key); } catch {}
+    if (Array.isArray(data) && data.length > SEKME_DEPOSU_EN_COK) sekmedenSil(key);
+    else sekmeyeYaz(key, data);
     return;
   }
-  saveDataNow(key, data);
+  sekmedenSil(key);
 }
 // HIZ (Aşama 226): bekleyen yazmalar tek seferde değil, tarayıcı boşken birer birer yapılır
 // (açılışta öğrenci + ödev + etüt listesi art arda yazılınca telefonda tek uzun donma oluyordu).
@@ -329,14 +339,23 @@ function cancelPendingSaves(): void {
 }
 if (typeof window !== 'undefined') {
   // Sekme arka plana geçerken / kapanırken bekleyen yazmalar tamamlanır
-  window.addEventListener('pagehide', flushPendingSaves);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushPendingSaves();
+  window.addEventListener('pagehide', () => {
+    flushPendingSaves();
+    sekmeYazmalariniBitir();
   });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingSaves();
+      sekmeYazmalariniBitir();
+    }
+  });
+  // Aşama 355: kapanmış sekmelerden kalan (artık okunamayan) kayıtlar boşta silinir
+  setTimeout(() => void sahipsizKayitlariSil(), 4000);
 }
 
 export function saveData<T>(key: string, data: T): void {
   if (onDataChanged) onDataChanged();
+  yazilanlar.add(key);
   if (DEFERRED_SAVE_KEYS.has(key)) {
     pendingSaves.set(key, data);
     if (!pendingSaveTimer) {
@@ -356,19 +375,43 @@ let storageFrozen = false;
 export function freezeAppStorage(): void {
   storageFrozen = true;
   cancelPendingSaves();
+  sekmeDeposunuKapat(true);
 }
 
-function saveDataNow<T>(key: string, data: T): void {
-  if (storageFrozen) return;
+/** Sekme önbelleğine yazar; yazılamazsa (5 MB dolu) false döner. */
+function saveDataNow<T>(key: string, data: T): boolean {
+  if (storageFrozen) return true;
   try {
     localStorage.setItem(key, JSON.stringify(data));
+    return true;
   } catch (e) {
     console.warn(`Quota or write issue when saving ${key}. Freeing legacy storage and retrying...`, e);
     try {
       cleanUpLegacyKeys();
       localStorage.setItem(key, JSON.stringify(data));
+      return true;
     } catch (retryErr) {
-      console.error(`Persistent save error for ${key}:`, retryErr);
+      console.warn(`Sekme önbelleği dolu (${key}): liste sekme deposuna yazılacak.`, retryErr);
+      return false;
     }
   }
+}
+
+// ============================================================================
+// Aşama 355: açılışta sekme deposundaki büyük listeler
+// ============================================================================
+// Bu sayfa açılışından beri kaydedilen listeler (buluttan güncel hâli gelmiş demektir: depodaki eski kopya kullanılmaz)
+const yazilanlar = new Set<string>();
+/**
+ * Sekme önbelleğinde olmayan (sığmadığı için sekme deposuna yazılmış) büyük listeleri verir. Bu açılışta
+ * buluttan güncel hâli zaten gelmiş ya da sekme önbelleğinde kopyası bulunan liste verilmez.
+ */
+export async function buyukListeleriGeriYukle(): Promise<Map<string, unknown>> {
+  const m = await sekmedenOku();
+  for (const k of Array.from(m.keys())) {
+    let sekmede = false;
+    try { sekmede = localStorage.getItem(k) !== null; } catch {}
+    if (yazilanlar.has(k) || sekmede || !Array.isArray(m.get(k))) m.delete(k);
+  }
+  return m;
 }
