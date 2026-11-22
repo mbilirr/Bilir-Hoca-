@@ -1,6 +1,7 @@
 // Aşama 364: AKADEMİK TAKVİM BÖLÜNDÜ (eskiden 1.436 satır). Kutu parçaları takvim/ortak.tsx'te; yalnız yöneticinin
 // açtığı pencereler (etkinlik, Excel'den yükleme, zümre üyeleri) takvim/ içinde ayrı parça ve açılınca yüklenir.
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
 import { AlertTriangle, CalendarRange, Check, Download, MapPin, Mic2, Plus, Trash2, Upload, Users } from 'lucide-react';
 import { EmptyState, PageHeader, Panel, Segmented, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
@@ -54,16 +55,9 @@ import { BTN, DtKutu, gunleri, SecKutusu, Kutu, KutuSecenek, ODAK_ADI, type Odak
 // ============================================================================
 
 // Aşama 364: yönetici pencereleri (etkinlik, Excel, zümreler) ayrı parça; yalnız açılınca yüklenir
-const EtkinlikPenceresi = lazy(() => import('./takvim/EtkinlikPenceresi'));
-const ExcelPenceresi = lazy(() => import('./takvim/ExcelPenceresi'));
-const ZumrelerPenceresi = lazy(() => import('./takvim/ZumrelerPenceresi'));
-
-/** Bir kez açılan pencere kapanınca da yerinde kalır (eskiden yönetici sayfayı açınca hep çiziliydi; durumu korunur). */
-function useBirKezAcildi(acik: boolean): boolean {
-  const [acildi, setAcildi] = useState(acik);
-  if (acik && !acildi) setAcildi(true);
-  return acildi || acik;
-}
+const EtkinlikPenceresi = lazyNamed<React.ComponentProps<typeof import('./takvim/EtkinlikPenceresi').EtkinlikPenceresi>>(() => import('./takvim/EtkinlikPenceresi'), 'EtkinlikPenceresi');
+const ExcelPenceresi = lazyNamed<React.ComponentProps<typeof import('./takvim/ExcelPenceresi').ExcelPenceresi>>(() => import('./takvim/ExcelPenceresi'), 'ExcelPenceresi');
+const ZumrelerPenceresi = lazyNamed<React.ComponentProps<typeof import('./takvim/ZumrelerPenceresi').ZumrelerPenceresi>>(() => import('./takvim/ZumrelerPenceresi'), 'ZumrelerPenceresi');
 
 export const AkademikTakvim: React.FC = () => {
   const kurumId = dataService.getMyKurumId();
@@ -84,9 +78,9 @@ export const AkademikTakvim: React.FC = () => {
   const [excelAcik, setExcelAcik] = useState(false);
   const [zumreAcik, setZumreAcik] = useState(false); // Aşama 328
   // Aşama 364: pencereler ayrı parça; ilk açılışta yüklenir, sonra eskisi gibi yerinde kalır
-  const etkinlikVar = useBirKezAcildi(duzenle !== null);
-  const excelVar = useBirKezAcildi(excelAcik);
-  const zumreVar = useBirKezAcildi(zumreAcik);
+  const etkinlikVar = useEverTrue(duzenle !== null);
+  const excelVar = useEverTrue(excelAcik);
+  const zumreVar = useEverTrue(zumreAcik);
   const [secim, setSecim] = useState<Set<string>>(() => new Set()); // Aşama 329: toplu silme
   const [siliniyor, setSiliniyor] = useState(false);
   // Aşama 337: ana sayfadan bir etkinliğe basılınca yalnız o etkinlik gösterilir ("Bütün takvim" ile çıkılır)

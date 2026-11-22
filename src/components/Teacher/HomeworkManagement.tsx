@@ -6,7 +6,8 @@
 //   Sekmeler, materyal penceresi, ödev formu ve ödev ayrıntısı ayrı parça: yalnız gerekince yüklenir (sayfa
 //   açıldıktan kısa süre sonra sekmeler ve ödev formu arka planda hazırlanır, ilk tıklama beklemez).
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed, prefetchModules } from '../../lib/lazyLoad';
 import { IskeletListe } from '../ui/Durum';
 import type { HomeworkManagementProps } from './odevler/ortak';
 import { OdevBaglam, useOdevYonetimi } from './odevler/useOdevYonetimi';
@@ -21,24 +22,18 @@ const yukle = {
   form: () => import('./HomeworkFormModal'),
   ayrinti: () => import('./HomeworkDetailModal'),
 };
-const OdevKontrol = lazy(yukle.kontrol);
-const TumOdevler = lazy(yukle.tum);
-const StudyPlanManager = lazy(() => yukle.plan().then((m) => ({ default: m.StudyPlanManager })));
-const KaynakPenceresi = lazy(yukle.kaynak);
-const HomeworkFormModal = lazy(() => yukle.form().then((m) => ({ default: m.HomeworkFormModal })));
-const HomeworkDetailModal = lazy(() => yukle.ayrinti().then((m) => ({ default: m.HomeworkDetailModal })));
+const OdevKontrol = lazyNamed<React.ComponentProps<typeof import('./odevler/OdevKontrol').OdevKontrol>>(yukle.kontrol, 'OdevKontrol');
+const TumOdevler = lazyNamed<React.ComponentProps<typeof import('./odevler/TumOdevler').TumOdevler>>(yukle.tum, 'TumOdevler');
+const StudyPlanManager = lazyNamed<React.ComponentProps<typeof import('./StudyPlanManager').StudyPlanManager>>(yukle.plan, 'StudyPlanManager');
+const KaynakPenceresi = lazyNamed<React.ComponentProps<typeof import('./odevler/KaynakPenceresi').KaynakPenceresi>>(yukle.kaynak, 'KaynakPenceresi');
+const HomeworkFormModal = lazyNamed<React.ComponentProps<typeof import('./HomeworkFormModal').HomeworkFormModal>>(yukle.form, 'HomeworkFormModal');
+const HomeworkDetailModal = lazyNamed<React.ComponentProps<typeof import('./HomeworkDetailModal').HomeworkDetailModal>>(yukle.ayrinti, 'HomeworkDetailModal');
 
 export const HomeworkManagement: React.FC<HomeworkManagementProps> = (props) => {
   const s = useOdevYonetimi(props);
   // Sayfa çizildikten sonra sekmeleri ve ödev formunu boşta hazırla (sekme değişince ya da "Ödev Oluştur"da bekleme olmasın)
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void yukle.kontrol();
-      void yukle.tum();
-      void yukle.form();
-    }, 1500);
-    return () => window.clearTimeout(t);
-  }, []);
+  // (yeni sürüm yayınlanıp parça bulunamazsa sessizce geçilir; tıklanınca sayfa bir kez yenilenir, veri tasarrufunda indirilmez)
+  useEffect(() => prefetchModules([yukle.kontrol, yukle.tum, yukle.form], 1500), []);
 
   return (
     <OdevBaglam.Provider value={s}>

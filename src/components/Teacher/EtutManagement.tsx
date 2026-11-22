@@ -9,7 +9,8 @@
 //   Hep yerinde duran pencereler (form, bilgilendirme, etüt öğretmenleri) ilk açılışta yüklenir ve sonra eskisi gibi
 //   yerinde kalır: içlerindeki seçimler korunur, kapanış canlandırması bozulmaz.
 // ============================================================================
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed, prefetchModules, useEverTrue } from '../../lib/lazyLoad';
 import { IskeletListe } from '../ui/Durum';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { SentCommunicationsModal } from './SentCommunicationsModal';
@@ -30,38 +31,24 @@ const yukle = {
   yoklamaPenceresi: () => import('./EtutAttendanceModal'),
   ogretmenler: () => import('./EtutTeacherManagerModal'),
 };
-const EtutTakvim = lazy(yukle.takvim);
-const EtutKartlari = lazy(yukle.kartlar);
-const EtutYoklamaGorunumu = lazy(yukle.yoklama);
-const EtutFormModal = lazy(() => yukle.form().then((m) => ({ default: m.EtutFormModal })));
-const EtutScheduleExportModal = lazy(() => yukle.disaAktar().then((m) => ({ default: m.EtutScheduleExportModal })));
-const EtutAnalysisReportModal = lazy(() => yukle.analiz().then((m) => ({ default: m.EtutAnalysisReportModal })));
-const EtutNotificationModal = lazy(() => yukle.bilgilendirme().then((m) => ({ default: m.EtutNotificationModal })));
-const EtutAttendanceModal = lazy(() => yukle.yoklamaPenceresi().then((m) => ({ default: m.EtutAttendanceModal })));
-const EtutTeacherManagerModal = lazy(() => yukle.ogretmenler().then((m) => ({ default: m.EtutTeacherManagerModal })));
-
-/** Bir kez açılan pencere kapanınca da yerinde kalır (eskiden sayfa açılınca hep çiziliydi; içindeki durum korunur). */
-function useBirKezAcildi(acik: boolean): boolean {
-  const [acildi, setAcildi] = useState(acik);
-  if (acik && !acildi) setAcildi(true);
-  return acildi || acik;
-}
+const EtutTakvim = lazyNamed<React.ComponentProps<typeof import('./etutler/EtutTakvim').EtutTakvim>>(yukle.takvim, 'EtutTakvim');
+const EtutKartlari = lazyNamed<React.ComponentProps<typeof import('./etutler/EtutKartlari').EtutKartlari>>(yukle.kartlar, 'EtutKartlari');
+const EtutYoklamaGorunumu = lazyNamed<React.ComponentProps<typeof import('./etutler/EtutYoklamaGorunumu').EtutYoklamaGorunumu>>(yukle.yoklama, 'EtutYoklamaGorunumu');
+const EtutFormModal = lazyNamed<React.ComponentProps<typeof import('./EtutFormModal').EtutFormModal>>(yukle.form, 'EtutFormModal');
+const EtutScheduleExportModal = lazyNamed<React.ComponentProps<typeof import('./EtutScheduleExportModal').EtutScheduleExportModal>>(yukle.disaAktar, 'EtutScheduleExportModal');
+const EtutAnalysisReportModal = lazyNamed<React.ComponentProps<typeof import('./EtutAnalysisReportModal').EtutAnalysisReportModal>>(yukle.analiz, 'EtutAnalysisReportModal');
+const EtutNotificationModal = lazyNamed<React.ComponentProps<typeof import('./EtutNotificationModal').EtutNotificationModal>>(yukle.bilgilendirme, 'EtutNotificationModal');
+const EtutAttendanceModal = lazyNamed<React.ComponentProps<typeof import('./EtutAttendanceModal').EtutAttendanceModal>>(yukle.yoklamaPenceresi, 'EtutAttendanceModal');
+const EtutTeacherManagerModal = lazyNamed<React.ComponentProps<typeof import('./EtutTeacherManagerModal').EtutTeacherManagerModal>>(yukle.ogretmenler, 'EtutTeacherManagerModal');
 
 export const EtutManagement: React.FC<EtutManagementProps> = (props) => {
   const s = useEtutYonetimi(props);
-  const formVar = useBirKezAcildi(!!s.etutForm);
-  const bilgilendirmeVar = useBirKezAcildi(s.isDispatchModalOpen);
-  const ogretmenlerVar = useBirKezAcildi(s.isTeacherManagerOpen);
+  const formVar = useEverTrue(!!s.etutForm);
+  const bilgilendirmeVar = useEverTrue(s.isDispatchModalOpen);
+  const ogretmenlerVar = useEverTrue(s.isTeacherManagerOpen);
   // Sayfa çizildikten sonra görünümleri ve etüt formunu boşta hazırla (görünüm değişince ya da "Etüt Oluştur"da bekleme olmasın)
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void yukle.takvim();
-      void yukle.kartlar();
-      void yukle.yoklama();
-      void yukle.form();
-    }, 1500);
-    return () => window.clearTimeout(t);
-  }, []);
+  // (yeni sürüm yayınlanıp parça bulunamazsa sessizce geçilir; veri tasarrufunda indirilmez)
+  useEffect(() => prefetchModules([yukle.takvim, yukle.kartlar, yukle.yoklama, yukle.form], 1500), []);
 
   return (
     <EtutBaglam.Provider value={s}>

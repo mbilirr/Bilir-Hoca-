@@ -8,9 +8,9 @@ import { lazyNamed } from '../../../lib/lazyLoad';
 export const HOME_SCOPE_KEY = 'edu_home_scope_v1';
 
 // Aşama 111: Takip görünümü ve salt okunur ayrıntı penceresi ayrı parça (yalnız idare / Rehberlik açınca iner)
-export const EtutTakipView = lazyNamed(() => import('../EtutTakipView'), 'EtutTakipView');
+export const EtutTakipView = lazyNamed<React.ComponentProps<typeof import('../EtutTakipView').EtutTakipView>>(() => import('../EtutTakipView'), 'EtutTakipView');
 
-export const EtutDetayModal = lazyNamed(() => import('../EtutTakipView'), 'EtutDetayModal');
+export const EtutDetayModal = lazyNamed<React.ComponentProps<typeof import('../EtutTakipView').EtutDetayModal>>(() => import('../EtutTakipView'), 'EtutDetayModal');
 
 
 // Aşama 24: tarih süzgeci

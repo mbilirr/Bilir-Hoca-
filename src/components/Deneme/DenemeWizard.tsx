@@ -6,7 +6,8 @@
 //   Adim2Optik, Adim3Eslestirme, Adim4Kayit : ayrı parça; sihirbaz açılınca hemen arka planda hazırlanır.
 //   Sihirbazın kendisi de Deneme sayfasında yalnız "Yeni deneme", taslak ya da optik yükleme açılınca iner.
 // ============================================================================
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { lazyNamed, prefetchModules } from '../../lib/lazyLoad';
 import { IskeletListe } from '../ui/Durum';
 import type { DenemeWizardProps } from './sihirbaz/ortak';
 import { SihirbazBaglam, useSihirbaz } from './sihirbaz/useSihirbaz';
@@ -20,20 +21,16 @@ const yukle = {
   eslestirme: () => import('./sihirbaz/Adim3Eslestirme'),
   kayit: () => import('./sihirbaz/Adim4Kayit'),
 };
-const Adim2Optik = lazy(yukle.optik);
-const Adim3Eslestirme = lazy(yukle.eslestirme);
-const Adim4Kayit = lazy(yukle.kayit);
+const Adim2Optik = lazyNamed<React.ComponentProps<typeof import('./sihirbaz/Adim2Optik').Adim2Optik>>(yukle.optik, 'Adim2Optik');
+const Adim3Eslestirme = lazyNamed<React.ComponentProps<typeof import('./sihirbaz/Adim3Eslestirme').Adim3Eslestirme>>(yukle.eslestirme, 'Adim3Eslestirme');
+const Adim4Kayit = lazyNamed<React.ComponentProps<typeof import('./sihirbaz/Adim4Kayit').Adim4Kayit>>(yukle.kayit, 'Adim4Kayit');
 
 export type { DenemeWizardProps };
 
 export const DenemeWizard: React.FC<DenemeWizardProps> = (props) => {
   const s = useSihirbaz(props);
   // Sihirbaz açıldı: öbür adımları hemen arka planda hazırla (adım değişince bekleme olmasın)
-  useEffect(() => {
-    void yukle.optik();
-    void yukle.eslestirme();
-    void yukle.kayit();
-  }, []);
+  useEffect(() => prefetchModules([yukle.optik, yukle.eslestirme, yukle.kayit], 0), []);
 
   return (
     <SihirbazBaglam.Provider value={s}>

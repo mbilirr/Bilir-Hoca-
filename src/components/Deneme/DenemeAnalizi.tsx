@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState }
 import { BarChart3, BookOpen, Building2, ChevronDown, ChevronRight, GraduationCap, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import { IskeletListe, Yukleniyor } from '../ui/Durum'; // Aşama 305
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 366b
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -57,7 +58,7 @@ const KurumAktarModal = lazy(() => import('./KurumAktarModal').then((m) => ({ de
 // Aşama 115: ortalama sıralama penceresi (Son 3 / Son 5 / seçerek; Excel). Öğretmen / Zümre / Etüt Öğretmeni göremez.
 const OrtalamaSiralamaModal = lazy(() => import('./OrtalamaSiralamaModal').then((m) => ({ default: m.OrtalamaSiralamaModal })));
 // Aşama 363: sihirbaz ayrı parça; yalnız Yeni deneme, taslak ya da optik yükleme açılınca iner
-const DenemeWizardParca = lazy(() => import('./DenemeWizard').then((m) => ({ default: m.DenemeWizard })));
+const DenemeWizardParca = lazyNamed<DenemeWizardProps>(() => import('./DenemeWizard'), 'DenemeWizard');
 const DenemeWizard: React.FC<DenemeWizardProps> = (p) => (
   <Suspense fallback={<IskeletListe satir={6} />}>
     <DenemeWizardParca {...p} />
