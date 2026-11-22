@@ -1,14 +1,14 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronDown, ChevronRight, GraduationCap, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
-import { Yukleniyor } from '../ui/Durum'; // Aşama 305
+import { IskeletListe, Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { getExam, isDraftExam, isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
 import { DENEME_SINIFLARI, fmtNet, fmtScore } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
-import { DenemeWizard } from './DenemeWizard';
+import type { DenemeWizardProps } from './DenemeWizard';
 import { DenemeSonuclar } from './DenemeSonuclar';
 import { DenemeKarne } from './DenemeKarne';
 import { DenemeEtut } from './DenemeEtut';
@@ -56,6 +56,13 @@ const sinifEtiketi = (g: string) => (/^\d+$/.test(g) ? `${g}. sınıf` : g);
 const KurumAktarModal = lazy(() => import('./KurumAktarModal').then((m) => ({ default: m.KurumAktarModal })));
 // Aşama 115: ortalama sıralama penceresi (Son 3 / Son 5 / seçerek; Excel). Öğretmen / Zümre / Etüt Öğretmeni göremez.
 const OrtalamaSiralamaModal = lazy(() => import('./OrtalamaSiralamaModal').then((m) => ({ default: m.OrtalamaSiralamaModal })));
+// Aşama 363: sihirbaz ayrı parça; yalnız Yeni deneme, taslak ya da optik yükleme açılınca iner
+const DenemeWizardParca = lazy(() => import('./DenemeWizard').then((m) => ({ default: m.DenemeWizard })));
+const DenemeWizard: React.FC<DenemeWizardProps> = (p) => (
+  <Suspense fallback={<IskeletListe satir={6} />}>
+    <DenemeWizardParca {...p} />
+  </Suspense>
+);
 
 type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 // Aşama 52: görünüm tarayıcı geçmişine yazılır (yalnızca kimlik tutulur; deneme nesnesi bellekte kalır)
