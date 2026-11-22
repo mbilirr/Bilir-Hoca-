@@ -4,38 +4,18 @@ import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   BookOpen,
   Plus,
-  Calendar,
   Clock,
   CheckCircle2,
-  AlertTriangle,
-  ExternalLink,
-  Users,
-  Target,
-  Sparkles,
-  Award,
   ChevronDown,
-  ChevronUp,
   X,
   FileText,
   Trash2,
-  CalendarCheck,
-  Send,
-  Film,
-  Video,
-  Globe,
   Paperclip,
-  FileSpreadsheet,
   Search,
   Check,
-  RotateCcw,
-  GraduationCap,
-  Save,
   Edit3,
   Download,
   Eye,
-  ChevronLeft,
-  ChevronRight,
-  Printer,
   School,
   XCircle,
   AlertCircle,
@@ -63,7 +43,7 @@ import {
   getSubmissionAttachmentCount,
 } from './SubmissionViewModal';
 import { useQuickFocus } from '../../lib/quickFocus';
-import { OverlayLayer, PageHeader, Segmented } from '../ui/kit'; // Aşama 191: OverlayLayer
+import { Modal, PageHeader, Segmented } from '../ui/kit'; // Aşama 351: Modal
 import { StudyPlanManager } from './StudyPlanManager';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
@@ -1710,33 +1690,31 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {/* CREATE HOMEWORK MODAL */}
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
-        <div
-          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
-          onClick={closeEditResourcesModal}
+        <Modal
+          open
+          onClose={closeEditResourcesModal}
+          size="lg"
+          icon={Paperclip}
+          title="Ödev Materyallerini Düzenle"
+          description={editingResourcesHw.title}
+          govdeClass="p-6"
+          footer={
+            <>
+              <button type="button" onClick={closeEditResourcesModal} className="ui-btn ui-btn-secondary min-w-24">
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedResources}
+                disabled={isSavingResources || isEditUploadBusy}
+                className="ui-btn ui-btn-primary min-w-24"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>
+              </button>
+            </>
+          }
         >
-          <OverlayLayer onClose={closeEditResourcesModal} />
-          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-            <div
-              className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
-                <div className="flex items-center space-x-2">
-                  <Paperclip className="w-5 h-5 text-brand-fg" />
-                  <div>
-                    <h3 className="text-lg font-bold text-fg">Ödev Materyallerini Düzenle</h3>
-                    <p className="text-xs text-muted truncate max-w-md">{editingResourcesHw.title}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={closeEditResourcesModal}
-                  aria-label="Kapat"
-                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
               <div className="space-y-4">
                 <HomeworkResourceUploader
                   resources={editingResourcesList}
@@ -1746,28 +1724,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   onBusyChange={setIsEditUploadBusy}
                 />
 
-                <div className="pt-4 border-t border-line flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={closeEditResourcesModal}
-                    className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEditedResources}
-                    disabled={isSavingResources || isEditUploadBusy}
-                    className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas disabled:opacity-60 min-w-24"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ÖDEV OLUŞTUR / KOPYALA / DÜZENLE */}

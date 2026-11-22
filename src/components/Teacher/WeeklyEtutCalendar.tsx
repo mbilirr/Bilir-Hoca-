@@ -28,7 +28,7 @@ import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calen
 import { isEtutAttendanceMissing } from '../../lib/etutTiming';
 import { ETUT_STATUS_STYLE, etutTeacherNames, getEtutStatus, periodShort, subjectDot, subjectShort, teacherShort } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 // ============================================================================
 // HAFTALIK PLAN (Aşama 28)
@@ -759,34 +759,33 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           return y && m && d ? new Date(y, m - 1, d).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }) : openEtut.date;
         })();
         return (
-          <div
-            className="fixed inset-0 z-(--z-pencere) flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setOpenId(null)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Etüt ayrıntısı"
-          >
-            <OverlayLayer onClose={() => setOpenId(null)} />
-            <div
-              className={`w-full sm:max-w-lg max-h-[88vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-l-4 bg-surface shadow-2xl ${st.accent} border-line`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-3 p-4 border-b border-line">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`w-2.5 h-2.5 rounded-full ${subjectDot(openEtut.subject)}`} />
-                    <h3 className="text-base font-bold text-fg">{openEtut.subject}</h3>
-                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
-                    {missing && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama alınmadı</span>}
-                  </div>
-                  {openEtut.topic && <p className="text-sm text-fg-2 mt-1">{openEtut.topic}</p>}
-                </div>
-                <button type="button" onClick={() => setOpenId(null)} className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" aria-label="Kapat" autoFocus>
-                  <X className="w-4 h-4" />
-                </button>
+          <Modal
+            open
+            onClose={() => setOpenId(null)}
+            size="md"
+            title={
+              <span className="flex items-center gap-2 min-w-0">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${subjectDot(openEtut.subject)}`} />
+                <span className="truncate">{openEtut.subject}</span>
+              </span>
+            }
+            description={
+              <span className="flex flex-col gap-1">
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+                  {missing && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger-fg">Yoklama alınmadı</span>}
+                </span>
+                {openEtut.topic && <span className="text-sm text-fg-2">{openEtut.topic}</span>}
+              </span>
+            }
+            govdeClass="p-4"
+            footer={
+              <div className="w-full">
+                <ActionBar etut={openEtut} labels afterAction={() => setOpenId(null)} />
               </div>
-
-              <div className="p-4 space-y-3 text-xs text-fg-2">
+            }
+          >
+              <div className="space-y-3 text-xs text-fg-2">
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-warning-fg shrink-0" />
                   <span>
@@ -840,11 +839,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 border-t border-line">
-                <ActionBar etut={openEtut} labels afterAction={() => setOpenId(null)} />
-              </div>
-            </div>
-          </div>
+          </Modal>
         );
       })()}
     </div>

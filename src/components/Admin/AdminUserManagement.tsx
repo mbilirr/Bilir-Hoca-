@@ -6,7 +6,6 @@ import {
   Users,
   Crown,
   GraduationCap,
-  Briefcase,
   Search,
   RefreshCw,
   Edit,
@@ -18,15 +17,11 @@ import {
   Check,
   X,
   AlertTriangle,
-  Lock,
   Eye,
   EyeOff,
-  UserCheck,
-  UserX,
   Phone,
   Mail,
   School,
-  ArrowRight,
   Shield,
   CheckCircle2,
   UserPlus,
@@ -69,7 +64,7 @@ const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_COD
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import { Modal, OverlayLayer } from '../ui/kit'; // Aşama 191 · Aşama 236: Modal
+import { Modal } from '../ui/kit'; // Aşama 191 · Aşama 236: Modal
 import { bildir, hataBildir } from '../../lib/bildirim'; // Aşama 348
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
@@ -1402,32 +1397,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* MODAL 1: BİLGİ VE ŞİFRE GÜNCELLEME (ADMIN OVERRIDE FORMU) */}
       {/* ========================================================================= */}
       {editModalUser && (
-        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setEditModalUser(null)} />
-          <div
-            className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-line bg-surface-2 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-brand/15 border border-brand/30 text-brand-fg flex items-center justify-center shrink-0">
-                  <Edit className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
-                    <span>Kullanıcı Bilgilerini Güncelle</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-2 text-fg-2 font-semibold">
-                      {/* Aşama 281: rol adı Türkçe (STUDENT/TEACHER yerine) */}
-                      {editModalUser.role === 'student' ? 'Öğrenci' : editModalUser.role === 'admin' ? 'Yönetici' : 'Öğretmen'}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted">
-                    Sistem yöneticisi yetkisiyle profil alanlarını ve şifreyi doğrudan güncelleyin.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
+        <Modal
+          open
+          onClose={() => setEditModalUser(null)}
+          size="lg"
+          icon={Edit}
+          title="Kullanıcı Bilgilerini Güncelle"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              {/* Aşama 281: rol adı Türkçe (STUDENT/TEACHER yerine) */}
+              <span className="text-xs px-2 py-0.5 rounded-full bg-surface-2 text-fg-2 font-semibold">
+                {editModalUser.role === 'student' ? 'Öğrenci' : editModalUser.role === 'admin' ? 'Yönetici' : 'Öğretmen'}
+              </span>
+              <span>Sistem yöneticisi yetkisiyle profil alanlarını ve şifreyi doğrudan güncelleyin.</span>
+            </span>
+          }
+          baslikSag={
+            <>
                 {/* Aşama 143: aynı Yetkiler penceresi (unvan, bölümler, işlem izinleri) */}
                 {editModalUser.role !== 'student' && !!editModalUser.kurumId && editModalUser.id !== currentAdmin?.id && (
                   <button
@@ -1440,17 +1426,21 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     <BadgeCheck className="w-3.5 h-3.5" /> Yetkiler
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setEditModalUser(null)}
-                  aria-label="Kapat"
-                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
+            </>
+          }
+          govdeClass="p-5 sm:p-6"
+          footer={
+            <>
+              {/* Aşama 182: iki düğme eşit boyda, ortak düğme görünümü */}
+              <button type="button" onClick={() => setEditModalUser(null)} className="ui-btn ui-btn-secondary w-32">
+                İptal
+              </button>
+              <button type="submit" form="kullanici-duzenle-formu" className="ui-btn ui-btn-primary w-32">
+                Kaydet
+              </button>
+            </>
+          }
+        >
             {resimAcik && (
               <React.Suspense fallback={null}>
                 <ProfilResmiSecModal
@@ -1464,7 +1454,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </React.Suspense>
             )}
             {/* Form */}
-            <form onSubmit={handleSaveEdit} className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <form id="kullanici-duzenle-formu" onSubmit={handleSaveEdit} className="space-y-4">
               {/* Aşama 334: bilgileri düzenleme izni olan profil resmini de değiştirir (Kaydet ile yazılır) */}
               <CompactRow
                 lead={
@@ -1723,52 +1713,38 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 />
               )}
 
-              {/* Footer Buttons */}
-              <div className="pt-3 border-t border-line flex items-center justify-end space-x-2.5">
-                {/* Aşama 182: iki düğme eşit boyda, ortak düğme görünümü */}
-                <button type="button" onClick={() => setEditModalUser(null)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32">
-                  İptal
-                </button>
-                <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-32">
-                  Kaydet
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL 2: ROL & YETKİ DEĞİŞTİRME (RBAC MODAL) */}
       {/* ========================================================================= */}
       {roleModalUser && (
-        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setRoleModalUser(null)} />
-          <div
-            className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-warning/15 border border-warning/30 text-warning-fg flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-fg">Rol ve Yetki Ata</h3>
-                  <p className="text-xs text-muted">
-                    <strong>{roleModalUser.name}</strong> (@{roleModalUser.username}) için sistem rolünü belirleyin.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRoleModalUser(null)}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-              >
-                <X className="w-5 h-5" />
+        <Modal
+          open
+          onClose={() => setRoleModalUser(null)}
+          size="md"
+          icon={ShieldCheck}
+          tone="warning"
+          title="Rol ve Yetki Ata"
+          description={
+            <>
+              <strong>{roleModalUser.name}</strong> (@{roleModalUser.username}) için sistem rolünü belirleyin.
+            </>
+          }
+          govdeClass="p-6 space-y-5"
+          footer={
+            <>
+              <button type="button" onClick={() => setRoleModalUser(null)} className="ui-btn ui-btn-secondary min-w-24">
+                Vazgeç
               </button>
-            </div>
-
+              <button type="button" onClick={handleSaveRoleChange} className="ui-btn ui-btn-warning min-w-24">
+                Yetkiyi Kaydet
+              </button>
+            </>
+          }
+        >
             {/* Role Options */}
             <div className="space-y-2.5">
               {/* Admin */}
@@ -1830,47 +1806,37 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               />
             )}
 
-            {/* Actions */}
-            <div className="flex items-center justify-end space-x-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setRoleModalUser(null)}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveRoleChange}
-                className="ui-btn ui-btn-sm bg-warning hover:bg-warning/40 text-slate-950 min-w-24"
-              >
-                Yetkiyi Kaydet
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL 3: ASKIDAN AL / AKTİFLEŞTİR ONAY PENCERESİ */}
       {/* ========================================================================= */}
       {suspendModalUser && (
-        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setSuspendModalUser(null)} />
-          <div
-            className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-danger/15 border border-danger/30 text-danger-fg flex items-center justify-center mx-auto">
-              <Ban className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-fg">
-                {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
-                  ? 'Hesabı Yeniden Aktifleştir'
-                  : 'Hesabı Dondur (Askıya Al)'}
-              </h3>
+        <Modal
+          open
+          onClose={() => setSuspendModalUser(null)}
+          size="sm"
+          icon={Ban}
+          tone={suspendModalUser.isSuspended || suspendModalUser.status === 'suspended' ? 'success' : 'danger'}
+          title={suspendModalUser.isSuspended || suspendModalUser.status === 'suspended' ? 'Hesabı Yeniden Aktifleştir' : 'Hesabı Dondur (Askıya Al)'}
+          govdeClass="p-6 space-y-4"
+          footer={
+            <>
+              <button type="button" onClick={() => setSuspendModalUser(null)} className="ui-btn ui-btn-secondary min-w-24">
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmToggleSuspension}
+                className={`ui-btn min-w-24 ${suspendModalUser.isSuspended || suspendModalUser.status === 'suspended' ? 'ui-btn-success' : 'ui-btn-danger'}`}
+              >
+                {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended' ? 'Hesabı Aktifleştir' : 'Hesabı Askıya Al'}
+              </button>
+            </>
+          }
+        >
+            <div className="space-y-1.5">
               <p className="text-xs text-muted leading-relaxed">
                 <strong>{suspendModalUser.name}</strong> (@{suspendModalUser.username}) isimli kullanıcının hesabı{' '}
                 {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
@@ -1890,112 +1856,78 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-center space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setSuspendModalUser(null)}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmToggleSuspension}
-                className={`ui-btn ui-btn-sm ${
-                  suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
-                    ? 'bg-success hover:bg-success text-white'
-                    : 'bg-danger hover:bg-danger text-white'
-                }`}
-              >
-                {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
-                  ? 'Hesabı Aktifleştir'
-                  : 'Hesabı Askıya Al'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL 4: KALICI SİLME ONAY PENCERESİ */}
       {/* ========================================================================= */}
       {deleteModalUser && (
-        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setDeleteModalUser(null)} />
-          <div
-            className="relative w-full max-w-md bg-surface border border-danger/40 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-danger/20 border border-danger/40 text-danger-fg flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-fg">Kullanıcıyı Kalıcı Olarak Sil</h3>
+        <Modal
+          open
+          onClose={() => setDeleteModalUser(null)}
+          size="sm"
+          icon={Trash2}
+          tone="danger"
+          title="Kullanıcıyı Kalıcı Olarak Sil"
+          govdeClass="p-6 space-y-4"
+          footer={
+            <>
+              <button type="button" onClick={() => setDeleteModalUser(null)} className="ui-btn ui-btn-secondary min-w-24">
+                Vazgeç
+              </button>
+              <button type="button" onClick={handleConfirmDelete} className="ui-btn ui-btn-danger min-w-24">
+                Evet, Kalıcı Olarak Sil
+              </button>
+            </>
+          }
+        >
+            <div className="space-y-1.5">
               <p className="text-xs text-muted leading-relaxed">
                 <strong>{deleteModalUser.name}</strong> (@{deleteModalUser.username}) isimli kullanıcının hesabı,
                 veritabanı kayıtları ve yetkileri kalıcı olarak silinecektir. Bu işlem geri alınamaz.
               </p>
             </div>
 
-            <div className="flex items-center justify-center space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteModalUser(null)}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="ui-btn ui-btn-danger ui-btn-sm min-w-24"
-              >
-                Evet, Kalıcı Olarak Sil
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* ========================================================================= */}
       {/* MODAL 5: ÖĞRETMEN SINIF VE ÖĞRENCİ ERİŞİM YETKİLENDİRMESİ (ERİŞİM MATRİSİ) */}
       {/* ========================================================================= */}
       {authModalTeacher && (
-        <div className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setAuthModalTeacher(null)} />
-          <div
-            className="relative w-full max-w-2xl bg-surface border border-brand/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-line bg-surface-2 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-brand/20 border border-brand/40 text-brand-fg flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
-                    <span>Erişim Yetki Matrisi</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/20 text-brand-fg font-mono border border-brand/30">
-                      {authModalTeacher.name}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted">
-                    Öğretmenin sisteme eriştiğinde görebileceği ve işlem yapabileceği sınıf ile öğrencileri belirleyin.
-                  </p>
-                </div>
+        <Modal
+          open
+          onClose={() => setAuthModalTeacher(null)}
+          size="lg"
+          icon={ShieldCheck}
+          title="Erişim Yetki Matrisi"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/20 text-brand-fg font-mono border border-brand/30">{authModalTeacher.name}</span>
+              <span>Öğretmenin sisteme eriştiğinde görebileceği ve işlem yapabileceği sınıf ile öğrencileri belirleyin.</span>
+            </span>
+          }
+          govdeClass="p-5 sm:p-6 space-y-5"
+          footer={
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
+              <MailOptIn
+                id="teacher-access-notify"
+                checked={notifyTeacher}
+                onChange={setNotifyTeacher}
+                label="Öğretmene yetkili sınıflarını e-postayla bildir"
+              />
+              <div className="flex items-center gap-2 ml-auto">
+                <button type="button" onClick={() => setAuthModalTeacher(null)} className="ui-btn ui-btn-secondary min-w-24">
+                  Vazgeç
+                </button>
+                <button type="button" onClick={handleSaveAuthModal} className="ui-btn ui-btn-primary min-w-24">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Yetkileri Kaydet ve Uygula</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setAuthModalTeacher(null)}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
-
-            {/* Content Body */}
-            <div className="p-5 sm:p-6 space-y-5 overflow-y-auto max-h-[65vh]">
+          }
+        >
               {/* Info Alert */}
               {/* Aşama 184: tek satır, ayrıntı ⓘ içinde */}
               <div className="px-3 py-2 bg-brand-soft border border-brand/30 rounded-xl text-xs text-brand-fg flex items-center gap-2">
@@ -2192,36 +2124,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     })}
                 </div>
               </div>
-            </div>
-
-            {/* Footer Buttons */}
-            <div className="px-4 sm:px-5 pt-3 border-t border-line bg-canvas">
-              <MailOptIn
-                id="teacher-access-notify"
-                checked={notifyTeacher}
-                onChange={setNotifyTeacher}
-                label="Öğretmene yetkili sınıflarını e-postayla bildir"
-              />
-            </div>
-            <div className="p-4 sm:p-5 bg-canvas flex items-center justify-end space-x-2.5">
-              <button
-                type="button"
-                onClick={() => setAuthModalTeacher(null)}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAuthModal}
-                className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Yetkileri Kaydet ve Uygula</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* YENİ ÖĞRETMEN HESABI */}
       <CreateTeacherAccountModal

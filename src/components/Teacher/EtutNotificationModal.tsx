@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import {
   CalendarDays,
-  Clock,
-  MapPin,
   Mail,
-  Send,
-  ExternalLink,
   Copy,
   Check,
-  X,
   CheckCircle2,
   Users,
   MessageCircle,
@@ -22,7 +17,7 @@ import {
   createMailtoLink,
 } from '../../lib/emailTemplates';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface EtutNotificationModalProps {
   isOpen: boolean;
@@ -128,43 +123,24 @@ biliredu`.trim();
   };
 
   return (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
-      onClick={onClose}
-    >
-      <OverlayLayer onClose={onClose} />
-      <div
-        className="bg-surface border border-line rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl text-fg relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header Bar */}
-        <div className="bg-surface-2 px-5 py-4 border-b border-line flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-success/20 border border-success/40 flex items-center justify-center text-success-fg">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
-                <span>Etüt Bilgilendirme & İletişim</span>
-              </h3>
-              <p className="text-xs text-fg-2">
-                Öğrenciye WhatsApp ve Otomatik E-Posta ile etüt randevu bildirimi iletin
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-            title="Kapat"
-          >
-            <X className="w-5 h-5" />
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      icon={CalendarDays}
+      tone="success"
+      title="Etüt Bilgilendirme & İletişim"
+      description="Öğrenciye WhatsApp ve Otomatik E-Posta ile etüt randevu bildirimi iletin"
+      govdeClass="p-5 sm:p-6 space-y-4"
+      footer={
+        <div className="w-full flex items-center justify-between gap-3">
+          <span className="text-xs text-muted">Eğitim Portalı • Otomatik İletişim Servisi</span>
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+            Kapat
           </button>
         </div>
-
-        {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+      }
+    >
           {/* Automatic System Delivery Banner */}
           {/* Aşama 185: büyük kutu tek satıra indi */}
           <div className="px-3 py-2 bg-success-soft border border-success/30 rounded-xl flex items-center gap-2 text-xs text-success-fg">
@@ -314,22 +290,6 @@ biliredu`.trim();
               {universalMessage}
             </pre>
           </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="bg-canvas/80 px-5 py-3 border-t border-line flex items-center justify-between">
-          <span className="text-xs text-muted">
-            Eğitim Portalı • Otomatik İletişim Servisi
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg min-w-24"
-          >
-            Kapat
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

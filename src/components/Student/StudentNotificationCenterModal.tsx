@@ -1,19 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+
 import {
-  X,
   Bell,
   Mail,
   BookOpen,
   Calendar,
-  CheckCircle2,
   Clock,
   ChevronRight,
   Sparkles,
-  Trash2,
   CheckCheck,
-  AlertCircle,
-  ExternalLink,
   Award,
 } from 'lucide-react';
 import { StudentNotification, SentEmailLog, Student } from '../../types';
@@ -22,7 +17,7 @@ import { EmailPreviewModal } from './EmailPreviewModal';
 import { requestBrowserNotificationPermission } from '../../lib/browserNotifications';
 import { StudentTabType } from './StudentHeroBanner';
 import type { OgrBolum } from '../../lib/ogrenciBolum';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface StudentNotificationCenterModalProps {
   isOpen: boolean;
@@ -175,48 +170,39 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const modalContent = (
-    <>
-      <div
-        className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
-        onClick={onClose}
-      >
-        <OverlayLayer onClose={onClose} />
-        <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-          <div
-            className="bg-surface border border-line rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-fg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-canvas/50">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg relative">
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center ring-2 ring-surface">
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-fg leading-tight">
-                  Bildirimler & E-Posta Kutusu
-                </h3>
-                <p className="text-xs text-muted">
-                  {currentStudent.name} • Yeni ödev ve etüt bildirimleri
-                </p>
-              </div>
-            </div>
-
+  const altKisim = (
+          <div className="w-full flex items-center justify-between gap-3 text-xs text-muted">
+            <span className="text-xs">
+              Tüm ödev atamaları ve etüt planlamaları anında bildirim ve e-posta olarak iletilir.
+            </span>
             <button
+              type="button"
               onClick={onClose}
-              aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
+              className="ui-btn ui-btn-secondary min-w-24"
             >
-              <X className="w-5 h-5" />
+              Kapat
             </button>
           </div>
+  );
 
+  return (
+    <>
+      <Modal
+        open
+        onClose={onClose}
+        size="lg"
+        icon={Bell}
+        title="Bildirimler & E-Posta Kutusu"
+        description={`${currentStudent.name} • Yeni ödev ve etüt bildirimleri`}
+        baslikSag={
+          unreadCount > 0 ? (
+            <span className="inline-flex items-center h-6 px-2 rounded-full bg-danger text-white text-2xs font-bold">{unreadCount} yeni</span>
+          ) : null
+        }
+        govdeClass="p-4 space-y-2.5 bg-canvas/30 min-h-[300px]"
+        footer={altKisim}
+        ust={
+          <>
           {/* Browser Notification Banner if not enabled */}
           {notificationPermission !== 'granted' && (
             <div className="bg-brand-soft border-b border-brand/20 px-5 py-2.5 flex items-center justify-between text-xs gap-3">
@@ -305,8 +291,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
             )}
           </div>
 
-          {/* List Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-canvas/30 min-h-[300px]">
+          </>
+        }
+      >
             {filter === 'emails' ? (
               emails.length === 0 ? (
                 <div className="py-12 text-center text-muted text-xs space-y-2">
@@ -467,24 +454,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 </div>
               ))
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="px-5 py-3 border-t border-line bg-canvas/70 flex items-center justify-between text-xs text-muted">
-            <span className="text-xs">
-              Tüm ödev atamaları ve etüt planlamaları anında bildirim ve e-posta olarak iletilir.
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 font-semibold rounded-lg transition-colors border border-line cursor-pointer"
-            >
-              Kapat
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      </Modal>
 
       {/* Interactive Email Viewer Modal */}
       <EmailPreviewModal
@@ -495,5 +465,4 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
     </>
   );
 
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

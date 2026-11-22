@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+
 import {
   User,
   KeyRound,
-  X,
   Check,
   Phone,
   Mail,
@@ -17,7 +16,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Student } from '../../types';
 import { dataService } from '../../services/dataService';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface StudentProfileEditModalProps {
   isOpen: boolean;
@@ -95,41 +94,28 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
     }
   };
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <OverlayLayer onClose={onClose} />
-      <div
-        className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg shrink-0 shadow-inner">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-fg">Öğrenci Bilgilerini Güncelle</h3>
-              <p className="text-xs sm:text-xs text-muted">
-                {student.className} • No: #{student.studentNumber || student.id}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-          >
-            <X className="w-5 h-5" />
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      icon={User}
+      title="Öğrenci Bilgilerini Güncelle"
+      description={`${student.className} • No: #${student.studentNumber || student.id}`}
+      govdeClass="p-5 sm:p-6"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+            Vazgeç
           </button>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
+          <button type="submit" form="ogrenci-profil-formu" disabled={isSaving} className="ui-btn ui-btn-primary min-w-24">
+            <Check className="w-3.5 h-3.5" />
+            <span>{isSaving ? 'Kaydediliyor...' : 'Bilgileri Güncelle'}</span>
+          </button>
+        </>
+      }
+    >
+        <form id="ogrenci-profil-formu" onSubmit={handleSubmit} className="space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -222,30 +208,9 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-3 flex items-center justify-end space-x-3 border-t border-line">
-            <button
-              type="button"
-              onClick={onClose}
-              className="ui-btn ui-btn-sm text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 min-w-24"
-            >
-              Vazgeç
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'Kaydediliyor...' : 'Bilgileri Güncelle'}</span>
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 interface StudentPasswordModalProps {
@@ -330,49 +295,38 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
     }
   };
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={isMandatory ? undefined : onClose}
-    >
-      <OverlayLayer onClose={isMandatory ? undefined : onClose} />
-      <div
-        className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-warning/20 border border-warning/30 flex items-center justify-center text-warning-fg shrink-0 shadow-inner">
-              <KeyRound className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-fg">
-                {isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Öğrenci Şifresi Değiştir'}
-              </h3>
-              <p className="text-xs sm:text-xs text-muted">
-                {isMandatory
-                  ? dataService.basitSifreVarMi(student.id) // Aşama 145
-                    ? 'Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirlemeniz zorunludur'
-                    : 'Sisteme ilk girişinizde güvenliğiniz için şifrenizi güncellemeniz zorunludur'
-                  : 'Giriş güvenliğinizi sağlamak için yeni şifrenizi belirleyin'}
-              </p>
-            </div>
-          </div>
+  return (
+    <Modal
+      open
+      onClose={isMandatory ? () => {} : onClose}
+      kapatma={!isMandatory}
+      size="sm"
+      icon={KeyRound}
+      tone="warning"
+      title={isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Öğrenci Şifresi Değiştir'}
+      description={
+        isMandatory
+          ? dataService.basitSifreVarMi(student.id) // Aşama 145
+            ? 'Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirlemeniz zorunludur'
+            : 'Sisteme ilk girişinizde güvenliğiniz için şifrenizi güncellemeniz zorunludur'
+          : 'Giriş güvenliğinizi sağlamak için yeni şifrenizi belirleyin'
+      }
+      govdeClass="p-5 sm:p-6"
+      footer={
+        <>
           {!isMandatory && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-            >
-              <X className="w-5 h-5" />
+            <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+              Vazgeç
             </button>
           )}
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handlePasswordSubmit} className="p-5 sm:p-6 space-y-4">
+          <button type="submit" form="ogrenci-sifre-formu" disabled={isSaving} className="ui-btn ui-btn-primary min-w-24">
+            <Check className="w-3.5 h-3.5" />
+            <span>{isSaving ? 'Güncelleniyor...' : 'Şifreyi Değiştir'}</span>
+          </button>
+        </>
+      }
+    >
+        <form id="ogrenci-sifre-formu" onSubmit={handlePasswordSubmit} className="space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -456,30 +410,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             <span>Şifreniz güvenli bir şekilde sunucuda güncellenir. Unuttuğunuzda öğretmeninizden veya yöneticinizden şifrenizi sıfırlamasını isteyebilirsiniz.</span>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-3 flex items-center justify-end space-x-3 border-t border-line">
-            {!isMandatory && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="ui-btn ui-btn-sm text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 min-w-24"
-              >
-                Vazgeç
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'Güncelleniyor...' : 'Şifreyi Değiştir'}</span>
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

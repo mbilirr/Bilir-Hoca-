@@ -6,6 +6,8 @@
 //   3) transition-all yok (transition, transition-colors, transition-[width] …)
 //   4) Köşe ölçüsü: rounded-md ve rounded-3xl yok (kutu xl/2xl, düğme lg, hap full)
 //   5) Düğme boyu: elle h-7/h-9/h-10/h-11/h-12 düğme sayısı artamaz (eskiler sayfa paketlerinde düzelir)
+//   6) Aşama 351: elle pencere yok. "fixed inset-0" yalnız ortak kabukta ve pencere olmayan katmanlarda
+//      (açılır menü zemini, alt menü çekmecesi, komut paleti, geçiş perdesi). Yeni pencere = ui/kit Modal.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -30,6 +32,15 @@ const KURALLAR = [
 ];
 const CSS_KATMAN = /z-index:\s*(\d{2,})\s*;/g; // css'te 60 ve üstü sayı yasak (var(--z-…) kullanılır)
 
+const PENCERE_IZINLI = new Set([
+  'src/components/ui/kit.tsx', // Modal kabuğu
+  'src/components/ui/MoreMenu.tsx', // açılır menü zemini
+  'src/components/Layout/BottomNav.tsx', // alt menü çekmecesi
+  'src/components/Layout/CommandPalette.tsx', // komut paleti
+  'src/components/Layout/KullaniciGozuSeridi.tsx', // geçiş perdesi
+  'src/components/Layout/KurumSecici.tsx', // geçiş perdesi
+]);
+
 const hatalar = [];
 let dugmeSapma = 0;
 for (const p of dosyalar(join(KOK, 'src'))) {
@@ -46,6 +57,9 @@ for (const p of dosyalar(join(KOK, 'src'))) {
       }
     }
     if (/<button|ui-btn/.test(satir) && /\bh-(7|9|10|11|12)\b/.test(satir)) dugmeSapma++;
+    if (p.endsWith('.tsx') && /\bfixed inset-0\b/.test(satir) && !PENCERE_IZINLI.has(rel.split('\\').join('/'))) {
+      hatalar.push(`${rel}:${i + 1}  elle pencere: fixed inset-0  → ui/kit Modal (ust, baslikSag, footer, govdeClass)`);
+    }
   });
 }
 

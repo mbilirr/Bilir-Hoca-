@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
-  X,
   AlertCircle,
   Sparkles,
   Trash2,
@@ -15,7 +13,7 @@ import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -95,43 +93,18 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     refreshData();
   };
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <OverlayLayer onClose={onClose} />
-      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-        <div
-          className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-line bg-surface-2 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-warning/15 border border-warning/30 text-warning-fg flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2 flex-wrap gap-y-1">
-                <span>Öğretmenler & Sınıf İzinleri Yönetimi</span>
-              </h2>
-              <p className="text-xs text-muted">
-                Yöneticilik atayın ve öğretmenlerin görebileceği sınıfları belirleyin.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      icon={ShieldCheck}
+      tone="warning"
+      title="Öğretmenler & Sınıf İzinleri Yönetimi"
+      description="Yöneticilik atayın ve öğretmenlerin görebileceği sınıfları belirleyin."
+      govdeClass="p-5 sm:p-6 space-y-4"
+      ust={
+        <>
         {/* Tab Navigation */}
         <div className="px-5 sm:px-6 pt-3 pb-2 border-b border-line flex items-center justify-between gap-2 bg-canvas/40 shrink-0 flex-wrap">
           <div className="flex items-center space-x-2">
@@ -162,8 +135,14 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           </div>
         )}
 
-        {/* Content Area */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+        </>
+      }
+      footer={
+        <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+          Kapat
+        </button>
+      }
+    >
           {/* TAB 2: ALL TEACHERS & CLASS PERMISSIONS */}
           {(
             <div className="space-y-4">
@@ -272,23 +251,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
               })}
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 bg-canvas/80 border-t border-line flex items-center justify-end shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg min-w-24"
-          >
-            Kapat
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 

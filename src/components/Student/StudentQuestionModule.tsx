@@ -1,14 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef, startTransition } from 'react';
 import { soruKaydiSilindi } from '../../lib/geriAl';
 import {
-  HelpCircle,
   Plus,
   Trash2,
   Calendar,
   CheckCircle2,
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
   Download,
   BookOpen,
   Check,
@@ -16,15 +13,10 @@ import {
   ChevronRight,
   BarChart3,
   CalendarDays,
-  Sparkles,
-  ListFilter,
   Layers,
   Award,
   Target,
-  ArrowUpRight,
   Filter,
-  User,
-  Users,
   Search,
   ChevronDown,
   RotateCcw,
@@ -82,7 +74,7 @@ import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../s
 import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // =============================================================================
@@ -3020,35 +3012,24 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* ========================================================================= */}
       {/* MODAL 1: GEÇMİŞ HAFTALAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)       */}
       {/* ========================================================================= */}
-      {isWeekModalOpen && (
-        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
-          <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shadow-sm">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-fg">
-                    Haftalık İnceleme Dönemi Seçin
-                  </h3>
-                  <p className="text-xs text-muted font-medium">
-                    Yalnızca soru çözümü yapılan kayıtlı haftalar listelenmektedir
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsWeekModalOpen(false)}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                title="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      <Modal
+        open={isWeekModalOpen}
+        onClose={() => setIsWeekModalOpen(false)}
+        size="md"
+        icon={Calendar}
+        title="Haftalık İnceleme Dönemi Seçin"
+        description="Yalnızca soru çözümü yapılan kayıtlı haftalar listelenmektedir"
+        govdeClass="p-4 space-y-2"
+        footer={
+          <div className="w-full flex items-center justify-between gap-3 text-xs text-muted">
+            <span>Toplam {pastWeeksList.length} kayıtlı dönem</span>
+            <button type="button" onClick={() => setIsWeekModalOpen(false)} className="ui-btn ui-btn-secondary min-w-24">
+              Kapat
+            </button>
+          </div>
+        }
+        ust={
+          <>
             {/* Arama Barı */}
             <div className="p-4 border-b border-line bg-surface-2">
               <div className="relative">
@@ -3072,8 +3053,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
             </div>
 
-            {/* Hafta Listesi */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          </>
+        }
+      >
               {filteredPastWeeks.length === 0 ? (
                 <div className="p-8 text-center text-muted text-xs">
                   Aramanıza uygun kayıtlı hafta bulunamadı.
@@ -3152,55 +3134,29 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   );
                 })
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 border-t border-line bg-surface-2 flex justify-between items-center text-xs text-muted px-5">
-              <span>Toplam {pastWeeksList.length} kayıtlı dönem</span>
-              <button
-                type="button"
-                onClick={() => setIsWeekModalOpen(false)}
-                className="px-4 py-1.5 bg-surface-3 hover:bg-surface-3 text-fg-2 rounded-xl font-bold transition-colors cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ========================================================================= */}
       {/* MODAL 2: GEÇMİŞ AYLAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)          */}
       {/* ========================================================================= */}
-      {isMonthModalOpen && (
-        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
-          <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-center justify-between bg-surface-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shadow-sm">
-                  <CalendarDays className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-fg">
-                    Aylık Analiz Dönemi Seçin
-                  </h3>
-                  <p className="text-xs text-muted font-medium">
-                    Yalnızca soru çözümü yapılan kayıtlı aylar listelenmektedir
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsMonthModalOpen(false)}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                title="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      <Modal
+        open={isMonthModalOpen}
+        onClose={() => setIsMonthModalOpen(false)}
+        size="md"
+        icon={CalendarDays}
+        title="Aylık Analiz Dönemi Seçin"
+        description="Yalnızca soru çözümü yapılan kayıtlı aylar listelenmektedir"
+        govdeClass="p-4 space-y-2"
+        footer={
+          <div className="w-full flex items-center justify-between gap-3 text-xs text-muted">
+            <span>Toplam {pastMonthsList.length} kayıtlı ay</span>
+            <button type="button" onClick={() => setIsMonthModalOpen(false)} className="ui-btn ui-btn-secondary min-w-24">
+              Kapat
+            </button>
+          </div>
+        }
+        ust={
+          <>
             {/* Arama Barı */}
             <div className="p-4 border-b border-line bg-surface-2">
               <div className="relative">
@@ -3224,8 +3180,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
             </div>
 
-            {/* Ay Listesi */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          </>
+        }
+      >
               {filteredPastMonths.length === 0 ? (
                 <div className="p-8 text-center text-muted text-xs">
                   Aramanıza uygun kayıtlı ay bulunamadı.
@@ -3306,22 +3263,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   );
                 })
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 border-t border-line bg-surface-2 flex justify-between items-center text-xs text-muted px-5">
-              <span>Toplam {pastMonthsList.length} kayıtlı ay</span>
-              <button
-                type="button"
-                onClick={() => setIsMonthModalOpen(false)}
-                className="px-4 py-1.5 bg-surface-3 hover:bg-surface-3 text-fg-2 rounded-xl font-bold transition-colors cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

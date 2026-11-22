@@ -1,15 +1,7 @@
 import React, { useState } from 'react';
 import {
-  X,
   CheckCircle2,
-  XCircle,
-  Clock,
-  AlertCircle,
   Save,
-  Users,
-  Calendar,
-  BookOpen,
-  Sparkles,
   Mail,
   Link2,
 } from 'lucide-react';
@@ -19,7 +11,7 @@ import { dataService } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { profilResmi } from '../../lib/profilResmi';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface EtutAttendanceModalProps {
   isOpen: boolean;
@@ -179,46 +171,60 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
   const lateCount = Object.values(attendanceMap).filter((a) => a.status === 'late').length;
   const excusedCount = Object.values(attendanceMap).filter((a) => a.status === 'excused').length;
 
-  return (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <OverlayLayer onClose={onClose} />
-      <div
-        className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface/95 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
-                <span>Etüt Yoklama ve Devamsızlık Takibi</span>
-                <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand-fg border border-brand/20">
-                  {etut.subject}
-                </span>
-              </h3>
-              <p className="text-xs text-muted flex items-center space-x-2 mt-0.5">
-                <span>{etut.topic || 'Genel Konu'}</span>
-                <span>•</span>
-                <span className="text-warning-fg">{new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}</span>
-              </p>
-            </div>
+  const altKisim = (
+        <div className="w-full flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-muted">
+            {saveError && <span role="alert" className="text-danger-fg font-semibold">{saveError}</span>}
+            {savedSuccess && (
+              <span className="text-success-fg font-bold flex items-center space-x-1.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Yoklama başarıyla kaydedildi ve tüm cihazlarla eşitlendi!</span>
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={onClose}
-            aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="ui-btn ui-btn-success ui-btn-sm disabled:opacity-60 min-w-24"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>
+            </button>
+          </div>
         </div>
+  );
 
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      icon={CheckCircle2}
+      title="Etüt Yoklama ve Devamsızlık Takibi"
+      description={
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand-fg border border-brand/20">{etut.subject}</span>
+          <span>{etut.topic || 'Genel Konu'}</span>
+          <span>•</span>
+          <span className="text-warning-fg">
+            {new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}
+          </span>
+        </span>
+      }
+      govdeClass="p-6 space-y-3"
+      footer={altKisim}
+      ust={
+        <>
         {/* Aşama 16: e-postadaki yoklama bağlantısı */}
         {(hasOtherTeacher || etut.attendanceTakenBy?.via === 'link') && (
           <div className="px-6 py-2.5 border-b border-line bg-info-soft/50 flex flex-wrap items-center gap-2 shrink-0" id="etut-attendance-link-bar">
@@ -316,8 +322,9 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
           </div>
         )}
 
-        {/* Student List */}
-        <div className="p-6 overflow-y-auto space-y-3">
+        </>
+      }
+    >
           {assignedStudents.length === 0 ? (
             <div className="text-center py-8 text-muted text-xs">
               Bu etüte atanmış herhangi bir öğrenci bulunmamaktadır.
@@ -435,40 +442,6 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               );
             })
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-surface/95 shrink-0">
-          <div className="text-xs text-muted">
-            {saveError && <span role="alert" className="text-danger-fg font-semibold">{saveError}</span>}
-            {savedSuccess && (
-              <span className="text-success-fg font-bold flex items-center space-x-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Yoklama başarıyla kaydedildi ve tüm cihazlarla eşitlendi!</span>
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-            >
-              Vazgeç
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="ui-btn ui-btn-success ui-btn-sm disabled:opacity-60 min-w-24"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

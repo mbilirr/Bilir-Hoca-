@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  X,
   Download,
   Printer,
   FileSpreadsheet,
@@ -14,11 +13,10 @@ import {
   Calendar,
   User,
   Tag,
-  BookOpen,
 } from 'lucide-react';
 import { TeacherDocument } from '../../../types';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
-import { OverlayLayer } from '../../ui/kit'; // Aşama 191
+import { Modal } from '../../ui/kit'; // Aşama 351: ortak pencere
 import { matchTurkishSearch } from '../../../utils/turkishSearch'; // Aşama 154
 
 // Word'den gelen önizlemenin okunaklı görünmesi için temel biçimler (başlıklar, listeler, tablolar)
@@ -121,42 +119,58 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
       })
     : [];
 
-  return (
-    <div
-      id="document-viewer-modal"
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
-    >
-      <OverlayLayer onClose={onClose} />
-      <div
-        className={`relative my-auto bg-surface border border-line rounded-2xl flex flex-col shadow-2xl transition duration-300 ${
-          isFullScreen
-            ? 'w-full h-full rounded-none'
-            : 'w-full max-w-6xl max-h-[92vh] h-[90vh]'
-        }`}
-      >
-        {/* MODAL HEADER */}
-        <div className="px-5 py-3.5 bg-canvas border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className={`p-2 rounded-xl bg-surface-2/80 border border-line ${formatConfig.iconColor}`}>
-              <FormatIcon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${formatConfig.badgeColor}`}>
-                  {document.fileFormat.toUpperCase()}
-                </span>
-                <span className="text-xs text-muted">
-                  {document.subject} • {document.academicYear || '2026-2027'}
-                </span>
-              </div>
-              <h2 className="text-base font-bold text-fg truncate max-w-lg sm:max-w-xl">
-                {document.title}
-              </h2>
-            </div>
+  const altKisim = (
+        <div className="w-full flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-success/40"></span>
+            <span className="hidden sm:inline">Belge Sayfaya Uyumlu Güvenli Önizleme Modunda Açıldı</span>
+            <span className="sm:hidden text-fg font-medium truncate max-w-[180px]">{document.fileName}</span>
           </div>
 
-          {/* Actions Toolbar */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
+            {/* SAYFA ALTINDA İNDİR BUTONU */}
+            <button
+              type="button"
+              onClick={() => onDownload(document)}
+              id="btn-download-doc-modal-footer"
+              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
+              title="Belgeyi Bilgisayara İndir"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Belgeyi İndir ({document.fileFormat.toUpperCase()})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
+            >
+              Pencereyi Kapat
+            </button>
+          </div>
+        </div>
+  );
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      id="document-viewer-modal"
+      size="xl"
+      yukseklik="tam"
+      tamEkran={isFullScreen}
+      icon={FormatIcon}
+      title={document.title}
+      description={
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${formatConfig.badgeColor}`}>{document.fileFormat.toUpperCase()}</span>
+          <span>
+            {document.subject} • {document.academicYear || '2026-2027'}
+          </span>
+        </span>
+      }
+      baslikSag={
+        <>
             {/* Zoom Controls for PDF / Word */}
             {(document.fileFormat === 'docx' || document.fileFormat === 'pdf') && (
               <div className="hidden sm:flex items-center space-x-1 bg-surface-2 px-2 py-1 rounded-xl border border-line text-xs text-fg-2">
@@ -206,19 +220,12 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             >
               {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
-
-            {/* Close */}
-            <button
-              onClick={onClose}
-              aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-danger/20 hover:text-danger-fg"
-              title="Kapat"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
+        </>
+      }
+      govdeClass="bg-canvas p-3 sm:p-6 flex items-start justify-center overflow-x-auto"
+      footer={altKisim}
+      ust={
+        <>
         {/* METADATA SUB-BAR */}
         <div className="px-5 py-2 bg-canvas/60 border-b border-line flex flex-wrap items-center justify-between gap-2 text-xs text-muted shrink-0">
           <div className="flex items-center space-x-4">
@@ -299,8 +306,9 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
           </div>
         )}
 
-        {/* DOCUMENT VIEWPORT CONTENT */}
-        <div className="flex-1 min-h-0 overflow-auto bg-canvas p-3 sm:p-6 flex items-start justify-center">
+        </>
+      }
+    >
           {/* 1. EXCEL TABLE VIEWER */}
           {document.fileFormat === 'xlsx' && (
             <div className="w-full h-full bg-surface rounded-xl border border-line overflow-auto flex flex-col shadow-inner">
@@ -452,39 +460,6 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               )}
             </div>
           )}
-        </div>
-
-        {/* MODAL FOOTER */}
-        <div className="px-5 py-3.5 bg-canvas border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs text-muted shrink-0">
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-success/40"></span>
-            <span className="hidden sm:inline">Belge Sayfaya Uyumlu Güvenli Önizleme Modunda Açıldı</span>
-            <span className="sm:hidden text-fg font-medium truncate max-w-[180px]">{document.fileName}</span>
-          </div>
-
-          <div className="flex items-center space-x-2.5">
-            {/* SAYFA ALTINDA İNDİR BUTONU */}
-            <button
-              type="button"
-              onClick={() => onDownload(document)}
-              id="btn-download-doc-modal-footer"
-              className="ui-btn ui-btn-sm ui-btn-primary min-w-24"
-              title="Belgeyi Bilgisayara İndir"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Belgeyi İndir ({document.fileFormat.toUpperCase()})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
-            >
-              Pencereyi Kapat
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { supabase, isPasswordRecoveryActive, onPasswordRecovery, clearPasswordRecovery, passwordRecoveryLinkReady } from '../../lib/supabase';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 // "Şifremi unuttum" e-postasındaki bağlantıyla siteye gelindiğinde açılan yeni şifre belirleme penceresi.
 export const PasswordRecoveryModal: React.FC = () => {
@@ -78,15 +78,7 @@ export const PasswordRecoveryModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-(--z-pencere-ust) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5">
-      <OverlayLayer />
-      <div className="min-h-full flex items-center justify-center py-4">
-        <div className="w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 space-y-4 text-fg">
-          <div className="flex items-center space-x-2">
-            <Lock className="w-5 h-5 text-brand-fg" />
-            <h3 className="text-base font-bold text-fg">Yeni Şifre Belirle</h3>
-          </div>
-
+    <Modal open onClose={() => {}} kapatma={false} size="sm" layerClass="z-(--z-pencere-ust)" icon={Lock} title="Yeni Şifre Belirle" govdeClass="p-5 space-y-4">
           {done ? (
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-sm flex items-start space-x-2">
@@ -96,7 +88,7 @@ export const PasswordRecoveryModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-full px-3 py-1.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-semibold cursor-pointer"
+                className="ui-btn ui-btn-primary w-full"
               >
                 Giriş ekranına dön
               </button>
@@ -154,22 +146,20 @@ export const PasswordRecoveryModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-fg-2 hover:text-fg cursor-pointer"
+                  className="ui-btn ui-btn-ghost min-w-24"
                 >
                   Vazgeç
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-3 py-1.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-60"
+                  className="ui-btn ui-btn-primary min-w-24"
                 >
                   {isSaving ? 'Kaydediliyor...' : 'Şifreyi Kaydet'}
                 </button>
               </div>
             </form>
           )}
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

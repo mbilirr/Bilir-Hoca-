@@ -5,12 +5,9 @@ import {
   Calendar,
   Users,
   User,
-  GraduationCap,
   Download,
   TrendingUp,
   TrendingDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   RotateCcw,
   X,
@@ -23,14 +20,9 @@ import {
   Filter,
   Check,
   Clock,
-  Layers,
   Sparkles,
   Target,
-  ArrowUpRight,
-  Flame,
   BookOpen,
-  PieChart as PieIcon,
-  RefreshCw,
   Trash2,
   ListOrdered,
 } from 'lucide-react';
@@ -91,7 +83,7 @@ import {
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging'; // Aşama 225
 import { basariBildir } from '../../lib/bildirim'; // Aşama 348
@@ -2673,52 +2665,30 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {/* SORU KAYITLARI & GEÇMİŞ YÖNETİM MODALI                                    */}
       {/* ========================================================================= */}
       {isManageLogsModalOpen && activeStudent && (
-        <div
-          id="modal-manage-logs-backdrop"
-          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsManageLogsModalOpen(false);
-            }
-          }}
-        >
-          <OverlayLayer onClose={() => setIsManageLogsModalOpen(false)} />
-          <div
-            id="modal-manage-logs-content"
-            className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-start justify-between gap-4 bg-surface-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-soft border border-brand/30 text-brand-fg flex items-center justify-center shrink-0 shadow-xs">
-                  <ListOrdered className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-fg flex items-center gap-2">
-                    <span>{activeStudent.name} — Soru Kayıtları & Geçmiş</span>
-                    <span className="text-xs font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
-                      Yönetim & Senkronizasyon
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    Öğrenciye ait kayıtlı soru çözümlerini görüntüleyin, hatalı veya mükerrer kayıtları güvenle silin.
-                  </p>
-                </div>
-              </div>
+        <Modal
+          open
+          id="modal-manage-logs-content"
+          onClose={() => setIsManageLogsModalOpen(false)}
+          size="lg"
+          icon={ListOrdered}
+          title={`${activeStudent.name} — Soru Kayıtları & Geçmiş`}
+          description="Öğrenciye ait kayıtlı soru çözümlerini görüntüleyin, hatalı veya mükerrer kayıtları güvenle silin."
+          govdeClass="p-5 space-y-3"
+          footer={
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-muted">
+                Toplam <strong>{activeLogs.length}</strong> kayıt
+              </span>
               <button
                 type="button"
                 onClick={() => setIsManageLogsModalOpen(false)}
-                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                title="Kapat"
-                aria-label="Kapat"
+                className="ui-btn ui-btn-sm bg-fg text-surface hover:bg-fg"
               >
-                <X className="w-5 h-5" />
+                Kapat
               </button>
             </div>
-
-            {/* Content List */}
-            <div className="p-5 overflow-y-auto max-h-[60vh] space-y-3">
+          }
+        >
               {activeLogs.length === 0 ? (
                 <div className="text-center py-10 text-subtle">
                   <HelpCircle className="w-10 h-10 mx-auto text-subtle mb-2 opacity-70" />
@@ -2781,73 +2751,58 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </table>
                 </div>
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-line bg-surface-2 flex items-center justify-between">
-              <span className="text-xs text-muted">
-                Toplam <strong>{activeLogs.length}</strong> kayıt
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsManageLogsModalOpen(false)}
-                className="ui-btn ui-btn-sm bg-fg text-surface hover:bg-fg"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* GEÇMİŞ HAFTA SEÇİMİ AÇILIR PENCERESİ (POPUP MODAL)                        */}
       {/* ========================================================================= */}
       {isWeekModalOpen && activeStudent && (
-        <div
-          id="modal-week-picker-backdrop"
-          className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsWeekModalOpen(false);
-            }
-          }}
-        >
-          <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
-          <div
-            id="modal-week-picker-content"
-            className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="p-5 border-b border-line flex items-start justify-between gap-4 bg-surface-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-soft border border-brand/30 text-brand-fg flex items-center justify-center shrink-0 shadow-xs">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-fg flex items-center gap-2">
-                    <span>Geçmiş Hafta Seçimi</span>
-                    <span className="text-xs font-semibold bg-brand-soft text-brand-fg border border-brand/30 px-2 py-0.5 rounded-full">
-                      Açılır Pencere
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    <strong className="text-fg-2">{activeStudent.name}</strong> öğrencisinin geçmiş haftalarda çözdüğü soruları incelemek için dilediğiniz haftayı seçin.
-                  </p>
-                </div>
+        <Modal
+          open
+          id="modal-week-picker-content"
+          onClose={() => setIsWeekModalOpen(false)}
+          size="lg"
+          icon={Calendar}
+          title="Geçmiş Hafta Seçimi"
+          description={
+            <>
+              <strong className="text-fg-2">{activeStudent.name}</strong> öğrencisinin geçmiş haftalarda çözdüğü soruları incelemek için dilediğiniz haftayı seçin.
+            </>
+          }
+          govdeClass="p-4 space-y-2"
+          footer={
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-muted">
+                <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
+                <span>Hafta seçildiğinde grafikler, başarı analizi ve PDF raporları anında güncellenir.</span>
               </div>
-              <button
-                id="btn-close-week-modal"
-                onClick={() => setIsWeekModalOpen(false)}
-                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                title="Kapat"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {weekOffset !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeekOffset(0);
+                      setIsWeekModalOpen(false);
+                    }}
+                    className="ui-btn ui-btn-secondary ui-btn-sm w-28"
+                  >
+                    <RotateCcw className="w-3 h-3 text-brand-fg" />
+                    <span>Bu hafta</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsWeekModalOpen(false)}
+                  className="ui-btn ui-btn-sm w-28 bg-fg hover:bg-fg text-surface"
+                >
+                  Kapat
+                </button>
+              </div>
             </div>
-
+          }
+          ust={
+            <>
             {/* Quick Filter & Search Bar */}
             <div className="p-4 border-b border-line bg-surface-2 space-y-3">
               {/* Hızlı Atlama Düğmeleri */}
@@ -2979,9 +2934,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Scrollable Hafta Listesi */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            </>
+          }
+        >
               {filteredPastWeeks.length === 0 ? (
                 <div className="p-8 text-center text-muted text-xs">
                   Aramanıza veya seçtiğiniz filtreye uygun hafta bulunamadı.
@@ -3080,90 +3035,58 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   );
                 })
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-surface-2 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        </Modal>
+      )}
+      {/* ========================================================================= */}
+      {/* GEÇMİŞ AYLARI İNCELEME AÇILIR PENCERESİ (LOOKER STUDIO MODAL)               */}
+      {/* ========================================================================= */}
+      {isMonthModalOpen && activeStudent && (
+        <Modal
+          open
+          id="month-picker-modal-content"
+          onClose={() => setIsMonthModalOpen(false)}
+          size="lg"
+          icon={Calendar}
+          title="Geçmiş Ayları ve Çözülen Soruları İncele"
+          description={
+            <>
+              Öğrenci: <strong className="text-fg-2">{activeStudent.name}</strong>
+            </>
+          }
+          govdeClass="p-4 space-y-2"
+          footer={
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 text-muted">
                 <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
-                <span>Hafta seçildiğinde grafikler, başarı analizi ve PDF raporları anında güncellenir.</span>
+                <span>Ay seçildiğinde aylık grafikler, başarı oranları ve aylık PDF anında güncellenir.</span>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {weekOffset !== 0 && (
+                {(monthDate.year !== new Date().getFullYear() || monthDate.month !== new Date().getMonth()) && (
                   <button
                     type="button"
                     onClick={() => {
-                      setWeekOffset(0);
-                      setIsWeekModalOpen(false);
+                      const now = new Date();
+                      setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
+                      setIsMonthModalOpen(false);
                     }}
                     className="ui-btn ui-btn-secondary ui-btn-sm w-28"
                   >
                     <RotateCcw className="w-3 h-3 text-brand-fg" />
-                    <span>Bu hafta</span>
+                    <span>Bu ay</span>
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={() => setIsWeekModalOpen(false)}
+                  onClick={() => setIsMonthModalOpen(false)}
                   className="ui-btn ui-btn-sm w-28 bg-fg hover:bg-fg text-surface"
                 >
                   Kapat
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-      {/* ========================================================================= */}
-      {/* GEÇMİŞ AYLARI İNCELEME AÇILIR PENCERESİ (LOOKER STUDIO MODAL)               */}
-      {/* ========================================================================= */}
-      {isMonthModalOpen && activeStudent && (
-        <div
-          id="month-picker-modal-backdrop"
-          className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsMonthModalOpen(false);
-            }
-          }}
-        >
-          <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
-          <div
-            id="month-picker-modal-content"
-            className="w-full max-w-2xl bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
-          >
-            {/* Modal Başlık */}
-            <div className="p-4 sm:p-5 bg-surface-2 flex items-center justify-between border-b border-line shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-brand-fg">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xs font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-brand/20 text-brand-fg border border-brand/30">
-                      Açılır Pencere
-                    </span>
-                    <span className="text-xs text-surface font-medium">
-                      Öğrenci: <strong className="text-surface">{activeStudent.name}</strong>
-                    </span>
-                  </div>
-                  <h3 className="text-base sm:text-lg font-bold text-surface tracking-tight">
-                    Geçmiş Ayları ve Çözülen Soruları İncele
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsMonthModalOpen(false)}
-                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-                title="Kapat (ESC)"
-                aria-label="Kapat"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
+          }
+          ust={
+            <>
             {/* Hızlı Filtre & Arama Bölümü */}
             <div className="p-4 bg-surface-2 border-b border-line space-y-3 shrink-0">
               {/* Hızlı Butonlar */}
@@ -3273,9 +3196,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Scrollable Ay Listesi */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            </>
+          }
+        >
               {filteredPastMonths.length === 0 ? (
                 <div className="p-8 text-center text-muted text-xs">
                   Aramanıza veya seçtiğiniz filtreye uygun ay bulunamadı.
@@ -3374,40 +3297,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   );
                 })
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-surface-2 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 text-muted">
-                <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
-                <span>Ay seçildiğinde aylık grafikler, başarı oranları ve aylık PDF anında güncellenir.</span>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {(monthDate.year !== new Date().getFullYear() || monthDate.month !== new Date().getMonth()) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
-                      setIsMonthModalOpen(false);
-                    }}
-                    className="ui-btn ui-btn-secondary ui-btn-sm w-28"
-                  >
-                    <RotateCcw className="w-3 h-3 text-brand-fg" />
-                    <span>Bu ay</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsMonthModalOpen(false)}
-                  className="ui-btn ui-btn-sm w-28 bg-fg hover:bg-fg text-surface"
-                >
-                  Kapat
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Soru Hedefi Ver / Düzenle (Aşama 10) */}
@@ -3470,32 +3360,26 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {/* ÖĞRETMEN TEBRİK VE AFERİN BİLDİRİMİ GÖNDERME MODALI                     */}
       {/* ========================================================================= */}
       {praiseTargetDay && activeStudent && (
-        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setPraiseTargetDay(null)} />
-          <div className="bg-surface rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-warning/30 relative overflow-hidden">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-11 h-11 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center shrink-0">
-                  <Award className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-fg">
-                    Öğrenciye Tebrik ve Aferin Gönder
-                  </h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    {activeStudent.name} • {formatTurkishDate(praiseTargetDay.dateStr)} ({praiseTargetDay.dayName})
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPraiseTargetDay(null)}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-              >
-                <X className="w-5 h-5" />
+        <Modal
+          open
+          onClose={() => setPraiseTargetDay(null)}
+          size="md"
+          icon={Award}
+          title="Öğrenciye Tebrik ve Aferin Gönder"
+          description={`${activeStudent.name} • ${formatTurkishDate(praiseTargetDay.dateStr)} (${praiseTargetDay.dayName})`}
+          govdeClass="p-5 sm:p-6"
+          footer={
+            <>
+              <button type="button" onClick={() => setPraiseTargetDay(null)} className="ui-btn ui-btn-ghost min-w-24">
+                Vazgeç
               </button>
-            </div>
-
+              <button type="button" onClick={handleSendPraise} className="ui-btn ui-btn-primary">
+                <Award className="w-3.5 h-3.5" />
+                <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>
+              </button>
+            </>
+          }
+        >
             {/* Performans Özeti Rozeti */}
             <div className="bg-warning-soft/70 border border-warning/30 rounded-xl p-3.5 mb-4 text-xs text-warning-fg flex items-center justify-between">
               <div>
@@ -3561,26 +3445,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               </span>
             </div>
 
-            {/* Modal Butonları */}
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
-              <button
-                type="button"
-                onClick={() => setPraiseTargetDay(null)}
-                className="ui-btn ui-btn-sm text-muted hover:bg-surface-2"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleSendPraise}
-                className="ui-btn ui-btn-sm ui-btn-primary"
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

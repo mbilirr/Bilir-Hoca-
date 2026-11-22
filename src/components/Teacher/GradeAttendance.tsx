@@ -13,7 +13,6 @@ import {
   BookOpen,
   Filter,
   Users,
-  X,
   GraduationCap,
   AlertTriangle,
 } from 'lucide-react';
@@ -27,7 +26,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
-import { OverlayLayer, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
+import { Modal, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -804,26 +803,25 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       {/* ========================================================= */}
 
       {/* ADD GRADE MODAL */}
-      {isAddGradeOpen && (
-        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <OverlayLayer onClose={() => setIsAddGradeOpen(false)} />
-          <div className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
-              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <Award className="w-4 h-4 text-brand-fg" />
-                <span>Yeni Not / Değerlendirme Ekle</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsAddGradeOpen(false)}
-                className="ui-btn ui-btn-ghost ui-btn-icon"
-                aria-label="Kapat"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveGrade} className="space-y-3.5">
+      <Modal
+        open={isAddGradeOpen}
+        onClose={() => setIsAddGradeOpen(false)}
+        size="sm"
+        icon={Award}
+        title="Yeni Not / Değerlendirme Ekle"
+        footer={
+          <>
+            <button type="button" onClick={() => setIsAddGradeOpen(false)} className="ui-btn ui-btn-secondary w-28">
+              İptal
+            </button>
+            <button type="submit" form="not-ekle-formu" id="grade-save" disabled={isSaving} className="ui-btn ui-btn-primary w-28">
+              <Save className="w-3.5 h-3.5" />
+              <span>Kaydet</span>
+            </button>
+          </>
+        }
+      >
+            <form id="not-ekle-formu" onSubmit={handleSaveGrade} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-fg-2 mb-1">Öğrenci *</label>
                 <StudentSearchSelect
@@ -878,28 +876,8 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 />
               </div>
 
-              <div className="pt-3 border-t border-line flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddGradeOpen(false)}
-                  className="ui-btn ui-btn-secondary ui-btn-sm w-28"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  id="grade-save"
-                  disabled={isSaving}
-                  className="ui-btn ui-btn-primary ui-btn-sm w-28"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Kaydet</span>
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* CONFIRM DELETE GRADE MODAL */}
       <ConfirmDeleteModal

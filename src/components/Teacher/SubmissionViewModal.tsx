@@ -1,9 +1,9 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
-import { X, FileText, Clock, CheckCircle2, AlertTriangle, MessageSquareText, Paperclip } from 'lucide-react';
+
+import { FileText, Clock, CheckCircle2, AlertTriangle, MessageSquareText, Paperclip } from 'lucide-react';
 import { Homework, HomeworkSubmission, Student, HomeworkCheckStatus } from '../../types';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 // Öğretmenin "Yaptı / Eksik ..." işaretlerken otomatik yazılan notlar (öğrencinin yazdığı not değildir)
 const TEACHER_CHECK_NOTES = new Set([
@@ -70,40 +70,19 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
   const isTeacherOnly = !note && !hasAttachments;
   const check = submission.checkStatus ? CHECK_LABELS[submission.checkStatus] : null;
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-5"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${studentName} teslimi`}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title={studentName}
+      description={`Öğrenci teslimi · ${student?.studentNumber ? `No: ${student.studentNumber} · ` : ''}${homework.title}`}
+      footer={
+        <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+          Kapat
+        </button>
+      }
     >
-      <OverlayLayer onClose={onClose} />
-      <div className="min-h-full flex items-center justify-center py-4">
-        <div
-          className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6 text-fg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Başlık */}
-          <div className="flex items-start justify-between gap-3 pb-4 border-b border-line mb-4">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-brand-fg">Öğrenci Teslimi</p>
-              <h3 className="text-lg font-bold text-fg truncate">{studentName}</h3>
-              <p className="text-xs text-muted truncate">
-                {student?.studentNumber ? `No: ${student.studentNumber} · ` : ''}
-                {homework.title}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
           {/* Durum rozetleri */}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {isTeacherOnly ? (
@@ -166,18 +145,6 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
             )}
           </div>
 
-          <div className="pt-4 mt-5 border-t border-line flex justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-            >
-              Kapat
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 };

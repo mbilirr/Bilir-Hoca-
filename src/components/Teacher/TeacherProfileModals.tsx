@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+
 import {
-  X,
   User,
   Mail,
   Phone,
@@ -22,7 +21,7 @@ import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { profilResmi, ogretmenProfilRol, cizimSecenekleri } from '../../lib/profilResmi'; // Aşama 171
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
-import { OverlayLayer } from '../ui/kit'; // Aşama 191
+import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
 interface TeacherProfileEditModalProps {
@@ -165,39 +164,27 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
     }
   };
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
-      onClick={onClose}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      icon={User}
+      title="Öğretmen Bilgilerimi Güncelle"
+      govdeClass="p-6"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+            İptal
+          </button>
+          <button type="submit" form="ogretmen-profil-formu" disabled={isSavingProfile} className="ui-btn ui-btn-primary min-w-24">
+            <Save className="w-3.5 h-3.5" />
+            <span>{isSavingProfile ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}</span>
+          </button>
+        </>
+      }
     >
-      <OverlayLayer onClose={onClose} />
-      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-        <div
-          className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-brand/20 border border-brand/30 flex items-center justify-center text-brand-fg">
-                <User className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-fg">Öğretmen Bilgilerimi Güncelle</h3>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Kapat"
-              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <form id="ogretmen-profil-formu" onSubmit={handleSubmit} className="space-y-4">
             {errorMsg && (
               <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -398,31 +385,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             Şifrenizi değiştirmek için profil menüsündeki <strong className="text-fg">"Şifre Değiştir"</strong> seçeneğini kullanınız.
           </p>
 
-          {/* Footer Save Button */}
-          <div className="pt-4 border-t border-line flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-            >
-              İptal
-            </button>
-            <button
-              type="submit"
-              disabled={isSavingProfile}
-              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 disabled:opacity-60 text-canvas min-w-24"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSavingProfile ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}</span>
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
-  </div>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 interface TeacherPasswordModalProps {
@@ -501,43 +466,32 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
     }
   };
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5"
-      onClick={isMandatory ? undefined : onClose}
+  return (
+    <Modal
+      open
+      onClose={isMandatory ? () => {} : onClose}
+      kapatma={!isMandatory}
+      size="sm"
+      icon={KeyRound}
+      tone="warning"
+      title={isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Şifre Değiştir'}
+      description={isMandatory ? 'Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirleyiniz.' : undefined}
+      govdeClass="p-6"
+      footer={
+        <>
+          {!isMandatory && (
+            <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary min-w-24">
+              İptal
+            </button>
+          )}
+          <button type="submit" form="ogretmen-sifre-formu" className="ui-btn ui-btn-primary min-w-24">
+            <Save className="w-3.5 h-3.5" />
+            <span>{isSaving ? 'Kontrol ediliyor...' : 'Şifreyi Güncelle'}</span>
+          </button>
+        </>
+      }
     >
-      <OverlayLayer onClose={isMandatory ? undefined : onClose} />
-      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-        <div
-          className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-warning/20 border border-warning/30 flex items-center justify-center text-warning-fg">
-                <KeyRound className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-fg">{isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Şifre Değiştir'}</h3>
-                {isMandatory && (
-                  <p className="text-xs text-muted">Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirleyiniz.</p>
-                )}
-              </div>
-            </div>
-            {!isMandatory && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <form id="ogretmen-sifre-formu" onSubmit={handleSubmit} className="space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger-fg text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -620,30 +574,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
             </div>
           </div>
 
-          {/* Footer Save Button */}
-          <div className="pt-4 border-t border-line flex items-center justify-end space-x-3">
-            {!isMandatory && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-              >
-                İptal
-              </button>
-            )}
-            <button
-              type="submit"
-              className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas min-w-24"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'Kontrol ediliyor...' : 'Şifreyi Güncelle'}</span>
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
-  </div>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

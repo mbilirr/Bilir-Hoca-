@@ -354,6 +354,22 @@ export const OverlayLayer: React.FC<{ onClose?: (() => void) | null; lockScroll?
 };
 
 // Açılır pencere (Esc ile kapanır, arka plan kaydırılmaz)
+// Aşama 351: BÜTÜN PENCERELER BU KABUKTA. Elle yazılan (fixed inset-0) pencereler kaldırıldı; hepsi aynı zemin, aynı katman,
+// aynı açılış hareketi, telefonda alttan çekmece, odak tuzağı ve Esc. Özel düzenli pencereler için:
+//   ust        : başlığın altında sabit şerit (sekmeler, araç çubuğu, uyarı); kaymaz
+//   baslikSag  : başlıktaki Kapat düğmesinin solunda ek düğmeler
+//   govdeClass : gövde boşluğu (varsayılan px-5 py-4; kendi düzeni olan içerik için "p-0")
+//   yukseklik  : "icerik" (içerik kadar, en çok %92) | "tam" (görüntüleyici: hep %92)
+//   kapatma    : false → başlıkta Kapat yok, zemine tıklayınca kapanmaz (zorunlu pencere; Esc onClose'a bağlı)
+//   tamEkran   : true → bütün ekranı kaplar (belge görüntüleyicide tam ekran düğmesi)
+export type ModalBoy = 'sm' | 'md' | 'lg' | 'xl' | 'full';
+const MODAL_GENISLIK: Record<ModalBoy, string> = {
+  sm: 'sm:max-w-md',
+  md: 'sm:max-w-xl',
+  lg: 'sm:max-w-3xl',
+  xl: 'sm:max-w-5xl',
+  full: 'sm:max-w-[min(96vw,1400px)]',
+};
 export const Modal: React.FC<{
   open: boolean;
   onClose: () => void;
@@ -361,30 +377,63 @@ export const Modal: React.FC<{
   description?: React.ReactNode;
   icon?: IconType;
   tone?: Tone;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  size?: ModalBoy;
   footer?: React.ReactNode;
   children?: React.ReactNode;
   id?: string;
   closeOnBackdrop?: boolean;
   /** Aşama 146/347: katman sınıfı; varsayılan z-(--z-pencere). Pencerenin üstündeki onay vb. için z-(--z-pencere-ust) */
   layerClass?: string;
-}> = ({ open, onClose, title, description, icon, tone = 'brand', size = 'md', footer, children, id, closeOnBackdrop = true, layerClass = 'z-(--z-pencere)' }) => {
+  ust?: React.ReactNode;
+  baslikSag?: React.ReactNode;
+  govdeClass?: string;
+  yukseklik?: 'icerik' | 'tam';
+  kapatma?: boolean;
+  /** başlığın yanında yazı yerine ekran okuyucuya söylenecek ad (başlıksız pencere) */
+  ariaLabel?: string;
+  tamEkran?: boolean;
+}> = ({
+  open,
+  onClose,
+  title,
+  description,
+  icon,
+  tone = 'brand',
+  size = 'md',
+  footer,
+  children,
+  id,
+  closeOnBackdrop = true,
+  layerClass = 'z-(--z-pencere)',
+  ust,
+  baslikSag,
+  govdeClass = 'px-5 py-4',
+  yukseklik = 'icerik',
+  kapatma = true,
+  ariaLabel,
+  tamEkran = false,
+}) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // Zemine basılıp pencere içinde bırakılırsa (yazı seçerken) kapanmasın: basma ve bırakma ikisi de zeminde olmalı
+  const zemindeBasti = useRef(false);
 
   // Aşama 191: Esc ve kaydırma kilidi ortak katmandan (useOverlayLayer); onClose her çizimde yeni olabilir, katman onu ref ile tutar
   // Aşama 347: odak tuzağı + kapanınca açan düğmeye dönüş de katmanda (kap = pencere kutusu)
   useOverlayLayer(open, onClose, { kap: () => panelRef.current });
 
   if (!open) return null;
-  const width =
-    size === 'sm' ? 'sm:max-w-md' : size === 'lg' ? 'sm:max-w-3xl' : size === 'xl' ? 'sm:max-w-5xl' : size === 'full' ? 'sm:max-w-[min(96vw,1400px)]' : 'sm:max-w-xl';
+  const zemindenKapanir = closeOnBackdrop && kapatma;
 
   return createPortal(
     <div
-      className={cx('fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/55 backdrop-blur-[2px]', layerClass)}
+      className={cx('ui-modal-zemin fixed inset-0 flex items-end sm:items-center justify-center p-0', !tamEkran && 'sm:p-4', layerClass)}
       onMouseDown={(e) => {
-        if (closeOnBackdrop && e.target === e.currentTarget) onClose();
+        zemindeBasti.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (zemindenKapanir && zemindeBasti.current && e.target === e.currentTarget) onClose();
+        zemindeBasti.current = false;
       }}
     >
       <div
@@ -394,20 +443,20 @@ export const Modal: React.FC<{
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-label={!title ? ariaLabel : undefined}
         className={cx(
-          'w-full bg-surface text-fg border border-line shadow-pop flex flex-col max-h-[92vh] outline-none',
-          'rounded-t-2xl sm:rounded-2xl',
-          width
+          'ui-modal-panel w-full bg-surface text-fg border border-line shadow-pop flex flex-col outline-none',
+          tamEkran ? 'h-dvh rounded-none' : cx('max-h-[92dvh] rounded-t-2xl sm:rounded-2xl', yukseklik === 'tam' && 'h-[92dvh]', MODAL_GENISLIK[size])
         )}
       >
         {(title || icon) && (
-          <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-line">
+          <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-line shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               {icon && <IconBox icon={icon} tone={tone} />}
               <div className="min-w-0">
                 {title && (
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <h2 id={titleId} className="text-base sm:text-lg font-semibold text-fg">
+                    <h2 id={titleId} className="text-base sm:text-lg font-semibold text-fg truncate">
                       {baslik(title)}
                     </h2>
                     <DescTip d={description} />
@@ -416,14 +465,24 @@ export const Modal: React.FC<{
                 {description && !(title && isLongDesc(description)) && <p className="text-xs sm:text-sm text-muted mt-0.5">{description}</p>}
               </div>
             </div>
-            <button type="button" onClick={onClose} aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon -mr-2 -mt-1">
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0 -mr-2 -mt-1">
+              {baslikSag}
+              {kapatma && (
+                <button type="button" onClick={onClose} aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         )}
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">{children}</div>
+        {ust && <div className="shrink-0">{ust}</div>}
+        <div className={cx('flex-1 min-h-0 overflow-y-auto', govdeClass)}>{children}</div>
         {/* Aşama 190: ui-modal-footer, içindeki düğmeleri eşit boy yapar (index.css) */}
-        {footer && <div className="ui-modal-footer flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-line bg-surface-2/60 rounded-b-2xl">{footer}</div>}
+        {footer && (
+          <div className={cx('ui-modal-footer shrink-0 flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-line bg-surface-2/60', !tamEkran && 'sm:rounded-b-2xl')}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body

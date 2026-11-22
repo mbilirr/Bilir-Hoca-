@@ -12,22 +12,15 @@ import {
   School,
   X,
   Check,
-  UserCheck,
-  Phone,
-  Mail,
-  Hash,
-  Calendar,
   FileSpreadsheet,
   Download,
   Upload,
-  Camera,
   AlertCircle,
   AlertTriangle,
   Lock,
   Eye,
   EyeOff,
   Key,
-  Copy,
   CheckCircle2,
   UserPlus,
   UserMinus,
@@ -74,7 +67,7 @@ import {
 import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
-import { PageHeader, Segmented, Modal, OverlayLayer, cx } from '../ui/kit'; // Aşama 191: OverlayLayer
+import { PageHeader, Segmented, Modal, cx } from '../ui/kit';
 import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182, 184
 import { MoreMenu } from '../ui/MoreMenu'; // Aşama 207
 import {
@@ -3187,49 +3180,40 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         };
 
         return (
-          <div
-            className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-            onClick={() => setViewingClassStudents(null)}
-          >
-            <OverlayLayer onClose={() => setViewingClassStudents(null)} />
-            <div
-              className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand-fg">
-                    <School className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-base sm:text-lg font-bold text-fg">
-                        {formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel)} — Kayıtlı Öğrenci Listesi
-                      </h3>
-                      {viewingClassStudents.schoolLevel && (
-                        <span className="text-2xs font-bold px-2 py-0.5 rounded bg-warning/10 text-warning-fg border border-warning/20">
-                          {viewingClassStudents.schoolLevel}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted mt-0.5">
-                      {viewingClassStudents.branch} • {viewingClassStudents.academicYear} • Toplam{' '}
-                      <strong className="text-brand-fg font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
-                    </p>
-                  </div>
-                </div>
-
+        <Modal
+          open
+          onClose={() => setViewingClassStudents(null)}
+          size="lg"
+          icon={School}
+          title={`${formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel)} — Kayıtlı Öğrenci Listesi`}
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              {viewingClassStudents.schoolLevel && (
+                <span className="text-2xs font-bold px-2 py-0.5 rounded bg-warning/10 text-warning-fg border border-warning/20">{viewingClassStudents.schoolLevel}</span>
+              )}
+              <span>
+                {viewingClassStudents.branch} • {viewingClassStudents.academicYear} • Toplam{' '}
+                <strong className="text-brand-fg font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
+              </span>
+            </span>
+          }
+          govdeClass="p-4"
+          footer={
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs text-muted">
+                  Gösterilen: <strong className="text-fg">{filteredStudents.length}</strong> / {classStudents.length} Öğrenci
+                </span>
                 <button
                   type="button"
                   onClick={() => setViewingClassStudents(null)}
-                  aria-label="Kapat"
-                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
                 >
-                  <X className="w-5 h-5" />
+                  Kapat
                 </button>
-              </div>
-
+            </div>
+          }
+          ust={
+            <>
               {/* Toolbar: Search & Action buttons */}
               <div className="p-4 border-b border-line bg-canvas/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <div className="relative flex-1">
@@ -3301,9 +3285,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Student Table / Cards */}
-              <div className="flex-1 overflow-y-auto p-4 max-h-[55vh]">
+            </>
+          }
+        >
                 {classStudents.length === 0 ? (
                   <div className="py-12 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-surface-2 text-muted flex items-center justify-center mx-auto mb-3">
@@ -3465,23 +3449,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </table>
                   </div>
                 )}
-              </div>
-
-              {/* Footer */}
-              <div className="p-3 sm:p-4 border-t border-line bg-canvas/60 flex items-center justify-between">
-                <span className="text-xs text-muted">
-                  Gösterilen: <strong className="text-fg">{filteredStudents.length}</strong> / {classStudents.length} Öğrenci
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setViewingClassStudents(null)}
-                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
-                >
-                  Kapat
-                </button>
-              </div>
-            </div>
-          </div>
+        </Modal>
         );
       })()}
 
@@ -3556,44 +3524,35 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         };
 
         return (
-          <div
-            className="fixed inset-0 z-(--z-pencere) overflow-y-auto bg-black/60 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-            onClick={() => setTransferTargetClass(null)}
-          >
-            <OverlayLayer onClose={() => setTransferTargetClass(null)} />
-            <div
-              className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center">
-                    <ArrowRightLeft className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
-                      <span>Öğrenci Aktarımı</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/20 text-brand-fg border border-brand/30">
-                        {transferTargetClass.name}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-muted mt-0.5">
-                      Sistemdeki öğrencileri tek tek veya çoklu seçimle toplu olarak bu sınıfa aktarabilirsiniz.
-                    </p>
-                  </div>
-                </div>
-
+        <Modal
+          open
+          onClose={() => setTransferTargetClass(null)}
+          size="lg"
+          icon={ArrowRightLeft}
+          title="Öğrenci Aktarımı"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/20 text-brand-fg border border-brand/30">{transferTargetClass.name}</span>
+              <span>Sistemdeki öğrencileri tek tek veya çoklu seçimle toplu olarak bu sınıfa aktarabilirsiniz.</span>
+            </span>
+          }
+          govdeClass="p-4 space-y-2"
+          footer={
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs text-muted">
+                  Toplam {filteredTransferStudents.length} aktarılabilir öğrenci listeleniyor
+                </span>
                 <button
                   type="button"
                   onClick={() => setTransferTargetClass(null)}
-                  aria-label="Kapat"
-                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
                 >
-                  <X className="w-5 h-5" />
+                  Kapat
                 </button>
-              </div>
-
+            </div>
+          }
+          ust={
+            <>
               {/* Filter & Search Bar */}
               <div className="p-4 border-b border-line bg-canvas/40 space-y-3">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -3665,9 +3624,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Student Transfer List */}
-              <div className="flex-1 overflow-y-auto p-4 max-h-[50vh] space-y-2">
+            </>
+          }
+        >
                 {filteredTransferStudents.length === 0 ? (
                   <div className="py-12 text-center text-muted text-xs">
                     Aktarılabilecek öğrenci bulunamadı.
@@ -3734,23 +3693,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     );
                   })
                 )}
-              </div>
-
-              {/* Footer */}
-              <div className="p-3 sm:p-4 border-t border-line bg-canvas/60 flex items-center justify-between">
-                <span className="text-xs text-muted">
-                  Toplam {filteredTransferStudents.length} aktarılabilir öğrenci listeleniyor
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTransferTargetClass(null)}
-                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg min-w-24"
-                >
-                  Kapat
-                </button>
-              </div>
-            </div>
-          </div>
+        </Modal>
         );
       })()}
 

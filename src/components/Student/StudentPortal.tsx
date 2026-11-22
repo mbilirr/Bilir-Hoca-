@@ -6,30 +6,15 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  FileSpreadsheet,
   HelpCircle,
   Link as LinkIcon,
   MessageSquare,
   Send,
-  Sparkles,
   UploadCloud,
-  AlertTriangle,
-  XCircle,
   Award,
-  UserX,
   MapPin,
-  Flame,
-  Check,
-  Paperclip,
   Bell,
-  Mail,
-  Camera,
   Home,
-  ArrowRight,
-  ChevronDown,
-  UserCog,
-  KeyRound,
-  ShieldCheck,
   BarChart3,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -51,7 +36,7 @@ import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileM
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { SolMenu, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260
-import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
+import { IconBox, Modal, type Tone } from '../ui/kit'; // Aşama 351: Modal
 import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
@@ -1219,16 +1204,29 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       {/* SUBMISSION MODAL */}
       {submittingHw && (
-        <div className="fixed inset-0 z-(--z-pencere) flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <OverlayLayer onClose={cancelSubmittingHw} />
-          <div className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-fg mb-2">Ödevi Teslim Et</h3>
-            <p className="text-xs text-muted mb-4">
+        <Modal
+          open
+          onClose={cancelSubmittingHw}
+          size="md"
+          title="Ödevi Teslim Et"
+          description={
+            <>
               &quot;<strong>{submittingHw.title}</strong>&quot; adlı ödevinizi çözüm PDF'i, çözüm videosu, bağlantı veya açıklama ile
               öğretmeninize iletin.
-            </p>
-
-            <form onSubmit={handleSubmitHomework} className="space-y-4">
+            </>
+          }
+          footer={
+            <>
+              <button type="button" onClick={cancelSubmittingHw} className="ui-btn ui-btn-secondary min-w-24">
+                Vazgeç
+              </button>
+              <button type="submit" form="odev-teslim-formu" disabled={isSubmittingHw || isSubmissionUploadBusy} className="ui-btn ui-btn-primary min-w-24">
+                {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
+              </button>
+            </>
+          }
+        >
+            <form id="odev-teslim-formu" onSubmit={handleSubmitHomework} className="space-y-4">
               {/* Solution Materials: PDF, Video, Link */}
               <HomeworkResourceUploader
                 resources={submissionResources}
@@ -1262,25 +1260,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </div>
               )}
 
-              <div className="pt-4 border-t border-line flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={cancelSubmittingHw}
-                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingHw || isSubmissionUploadBusy}
-                  className="ui-btn ui-btn-sm bg-fg hover:opacity-90 text-canvas disabled:opacity-60 min-w-24"
-                >
-                  {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Student Notification Center & Received Emails Modal */}

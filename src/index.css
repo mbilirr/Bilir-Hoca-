@@ -1266,3 +1266,37 @@ html[data-scrolling] .animate-beacon::after {
   .bildirim { animation-duration: 1ms; }
   .bildirim-katmani { transition: none; }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Aşama 351: ORTAK PENCERE KABUĞU (ui/kit.tsx Modal). Bütün pencereler aynı zemin ve aynı açılış:            */
+/* masaüstünde hafif büyüyerek belirir, telefonda alttan çekmece gibi gelir. Yalnız transform + opacity.      */
+/* ------------------------------------------------------------------------- */
+.ui-modal-zemin {
+  background: rgb(2 6 23 / 0.55);
+  backdrop-filter: blur(2px);
+  animation: ui-fade-in 160ms ease-out both;
+}
+@keyframes ui-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ui-modal-panel {
+  animation: ui-sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@media (min-width: 640px) {
+  .ui-modal-panel {
+    animation: ui-modal-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-modal-zemin,
+  .ui-modal-panel {
+    animation: none;
+  }
+}
