@@ -121,6 +121,7 @@ export const YonetimSayfasi: React.FC<{
     else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler', 'yil', 'gecmis'] as string[]).includes(f.id)) {
       if (isHead) setUst('kurumlar');
       setAlt(f.id as KurumSekme);
+      if (isHead && f.label) setKurumId(f.label); // Aşama 368: ana sayfadaki kurum kartından (İncele)
     }
   });
 

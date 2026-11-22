@@ -140,6 +140,10 @@
 .ak-mdots { display: inline-flex; gap: calc(0.1875 * var(--ak-rem)); }
 .ak-mdots i { width: calc(0.375 * var(--ak-rem)); height: calc(0.375 * var(--ak-rem)); border-radius: 50%; background: var(--green); }
 .ak-mdots i.off { background: var(--line-2); }
+/* Aşama 368: dondurulmuş kurum kartı (düğme dipte: kartlar eşit boy kalır) */
+.ak-kcard > .ak-btn { margin-top: auto; }
+.ak-kcard.donmus { border-color: var(--copper-fg); border-style: dashed; }
+.ak-kcard .ak-kdur { margin: 0; font-size: calc(0.6875 * var(--ak-rem)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ak-tag { display: inline-flex; align-items: center; height: calc(1.375 * var(--ak-rem)); padding: 0 calc(0.5 * var(--ak-rem)); border-radius: calc(62.4375 * var(--ak-rem)); font-size: calc(0.6875 * var(--ak-rem)); font-weight: 700; white-space: nowrap; }
 .ak-tag.on { background: var(--green-soft); color: var(--green); } .ak-tag.off { background: var(--paper-3); color: var(--subtle); } .ak-tag.warn { background: var(--copper-soft); color: var(--copper-fg); }
 .ak-empty { font-size: calc(0.8125 * var(--ak-rem)); color: var(--muted); padding: calc(1 * var(--ak-rem)); border: 1.5px dashed var(--line-2); border-radius: calc(0.875 * var(--ak-rem)); text-align: center; }

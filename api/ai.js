@@ -79,6 +79,18 @@ async function getCaller(req) {
   if (!ur.ok) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   const user = await ur.json();
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+  // Aşama 368: kurumu dondurulmuş kişi (anahtarının süresi dolmadan da) kullanamaz. 368 SQL'i yoksa denetim atlanır.
+  try {
+    const dr = await fetch(`${e.url}/rest/v1/rpc/hesap_durumum`, {
+      method: 'POST',
+      headers: { apikey: e.anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const d = dr.ok ? await dr.json() : null;
+    if (d && d.donduruldu === true) throw new HttpError(403, 'Kurumunuzun hesabı geçici olarak durduruldu. Bilgi için okulunuzla görüşün.');
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+  }
   // Deneme Analizi yetkisi: kişinin kendi oturumuyla veritabanı işlevi
   const cr = await fetch(`${e.url}/rest/v1/rpc/deneme_can_manage`, {
     method: 'POST',

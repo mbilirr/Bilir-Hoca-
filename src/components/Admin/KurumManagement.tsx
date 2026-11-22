@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus, UserRound } from 'lucide-react';
+import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus, UserRound, PauseCircle, PlayCircle } from 'lucide-react';
 import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
@@ -8,6 +8,8 @@ import { Panel, cx } from '../ui/kit';
 import { Yukleniyor, YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { loadKurumGrantCred, setKurumGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { loadKurumGrantMove, setKurumGrantMove } from '../../lib/grantMove'; // Aşama 161
+import { appConfirm } from '../../lib/appDialog';
+import { dondurmaOzeti, kurumEtkinlestir, useKurumDurumlari } from '../../services/kurumDurumu'; // Aşama 368
 
 // ============================================================================
 // KURUMLAR (Aşama 18) – yalnızca genel yönetici görür
@@ -19,6 +21,7 @@ import { loadKurumGrantMove, setKurumGrantMove } from '../../lib/grantMove'; // 
 // ============================================================================
 
 const YeniKurumModal = lazy(() => import('./YeniKurumModal').then((m) => ({ default: m.YeniKurumModal })));
+const KurumDondurPenceresi = lazy(() => import('./KurumDondurPenceresi').then((m) => ({ default: m.KurumDondurPenceresi })));
 
 interface Draft {
   name: string;
@@ -48,6 +51,30 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
   // Aşama 263: tek öğretmenli kurumu bireysele çevirme (iki adımlı onay)
   const [cevirOnay, setCevirOnay] = useState<string | null>(null);
   const [cevirBusy, setCevirBusy] = useState<string | null>(null);
+  // Aşama 368: hesap durumu (dondur / etkinleştir)
+  const kurumDurum = useKurumDurumlari();
+  const [dondurId, setDondurId] = useState<string | null>(null);
+  const [etkinBusy, setEtkinBusy] = useState<string | null>(null);
+  const etkinlestir = async (k: KurumInfo) => {
+    if (etkinBusy) return;
+    const ok = await appConfirm({
+      title: `${k.name} etkinleştirilsin mi?`,
+      message: 'Giriş ve otomatik gönderimler yeniden açılır; süresi dolmamış veli ve karne bağlantıları yeniden çalışır.',
+      confirmText: 'Etkinleştir',
+      danger: false,
+    });
+    if (!ok) return;
+    setEtkinBusy(k.id);
+    setMsg(null);
+    try {
+      await kurumEtkinlestir(k.id);
+      setMsg({ id: k.id, tone: 'ok', text: `"${k.name}" etkinleştirildi; herkes yeniden giriş yapabilir.` });
+    } catch (e: any) {
+      setMsg({ id: k.id, tone: 'err', text: e?.message || 'Etkinleştirilemedi.' });
+    } finally {
+      setEtkinBusy(null);
+    }
+  };
   // Aşama 149: açılan sınıflara giriş bilgisi izni (kurum başına tek anahtar). null = 149 SQL'i henüz yok
   const [credSrv, setCredSrv] = useState<Record<string, boolean> | null>({});
   const [credDraft, setCredDraft] = useState<Record<string, boolean>>({});
@@ -480,6 +507,68 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                       </button>
                     )}
                   </div>
+
+                  {/* Aşama 368: hesap durumu; dondurulan kurumda kimse giremez, kayıtlar silinmez */}
+                  {(() => {
+                    const dd = kurumDurum.harita.get(k.id);
+                    const donmus = !!dd;
+                    return (
+                      <div
+                        className={cx(
+                          'flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-3 py-2.5',
+                          donmus ? 'border-warning/40 bg-warning-soft' : 'border-line bg-surface'
+                        )}
+                        id={`kurum-durum-${k.id}`}
+                      >
+                        <span className={cx('w-8 h-8 rounded-lg grid place-items-center shrink-0', donmus ? 'bg-surface text-warning-fg' : 'bg-surface-2 text-muted')}>
+                          <PauseCircle className="w-4 h-4" />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-fg">Hesap durumu: {donmus ? 'Donduruldu' : 'Etkin'}</p>
+                          <p className="text-xs text-muted">
+                            {donmus
+                              ? [dondurmaOzeti(dd), dd?.notu ? `Not: ${dd.notu}` : ''].filter(Boolean).join(' · ')
+                              : 'Dondurulursa kimse giremez, otomatik gönderimler durur; kayıtlar silinmez, etkinleştirince aynen döner.'}
+                          </p>
+                          {donmus && <p className="text-xs text-muted">Kuruma geçip kayıtlara bakabilirsiniz; bu not yalnız sizde görünür.</p>}
+                        </div>
+                        {donmus ? (
+                          <button
+                            type="button"
+                            className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center shrink-0"
+                            onClick={() => etkinlestir(k)}
+                            disabled={!!etkinBusy}
+                            id={`kurum-etkinlestir-${k.id}`}
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            {etkinBusy === k.id ? 'Açılıyor…' : 'Etkinleştir'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center shrink-0"
+                            onClick={() => setDondurId(k.id)}
+                            disabled={!kurumDurum.kurulu || !kurumDurum.yuklendi}
+                            title={kurumDurum.kurulu ? undefined : "Önce Supabase'de 368 numaralı SQL'i çalıştırın."}
+                            id={`kurum-dondur-${k.id}`}
+                          >
+                            <PauseCircle className="w-3.5 h-3.5" />
+                            Dondur
+                          </button>
+                        )}
+                        {dondurId === k.id && (
+                          <Suspense fallback={null}>
+                            <KurumDondurPenceresi
+                              kurum={{ id: k.id, name: k.name }}
+                              ogretmen={members.length}
+                              bireysel={k.tur === 'bireysel'}
+                              onClose={() => setDondurId(null)}
+                            />
+                          </Suspense>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {msg && msg.id === k.id && (
                     <p

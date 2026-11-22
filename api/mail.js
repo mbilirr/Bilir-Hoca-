@@ -22,6 +22,7 @@
 import tls from 'node:tls';
 import crypto from 'node:crypto';
 import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
+import * as dondurma from './_dondurma.js'; // Aşama 368
 // Aşama 75: yardımcı dosyalar (bildirim izinleri, SMS) GÜVENLİ yüklenir. Dosya eksik ya da hatalıysa
 // e-posta sistemi çökmez; izinler varsayılan (eski davranış) kalır, SMS gönderilmez. Hata Vercel günlüğüne yazılır.
 let policyModCache;
@@ -143,6 +144,8 @@ async function rest(path, { token, method = 'GET', body, prefer } = {}) {
   }
   return data;
 }
+// Aşama 368: dondurulmuş kurum denetimi için service okuma
+const okuServis = (path) => rest(path, { token: 'service' });
 const inList = (ids) => `(${ids.map((x) => `"${encodeURIComponent(String(x).replace(/["\\]/g, ''))}"`).join(',')})`;
 
 // Aşama 345: kayıtlı (henüz değiştirilmemiş) ilk şifreler. Veritabanında şifreli durur; yalnız sunucu anahtarıyla
@@ -200,6 +203,8 @@ async function getCaller(req) {
   if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
   const role = user.app_metadata && user.app_metadata.role;
   const isHead = (user.email || '').toLowerCase() === HEAD_ADMIN_EMAIL; // Aşama 109: tek sabit
+  // Aşama 368: kurumu dondurulmuş kişinin isteği (anahtarının süresi dolmadan da) kabul edilmez
+  if (!isHead && (await dondurma.kisiDondurulmus(okuServis, user.id, token))) throw new HttpError(403, dondurma.DONDURMA_MESAJ, { code: 'donduruldu' });
   // Aşama 18: kurum bilgisi (17 numaralı SQL çalıştırılmadıysa eski davranış)
   let kurumSupported = true;
   let rows;
@@ -823,6 +828,7 @@ async function loadAttendanceContext(token) {
   if (!row) throw new HttpError(404, 'Bu etüt silinmiş ya da bulunamadı.');
   const etut = etutView(row);
   if (!etut.teacherIds.includes(teacherId)) throw new HttpError(403, 'Bu etüde artık atanmış değilsiniz; bağlantı geçersiz.');
+  if (await dondurma.ogretmenDondurulmus(okuServis, teacherId)) throw new HttpError(410, dondurma.DONDURMA_SAYFA_YAZI); // Aşama 368
   const teacher = await resolveEtutTeacher(teacherId, null);
   const meta = parseEtutMeta(row);
   const students = (await studentsByIds(etut.studentIds, 'service')).sort((x, y) => String(x.name || '').localeCompare(String(y.name || ''), 'tr'));
@@ -2123,6 +2129,12 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
     errors: [],
     via: sender ? sender.via : null,
   };
+  // Aşama 368: dondurulmuş kurumun e-postası (ve e-postayla giden SMS'i) gönderilmez; otomatik görevler de buradan geçer
+  const gonderenKurum = (sender && sender.brandKid) || (await kurumIdForSender(senderMeta || {}).catch(() => null));
+  if (gonderenKurum && (await dondurma.kurumDondurulmus(okuServis, gonderenKurum))) {
+    summary.skipped = items.length;
+    return summary;
+  }
   items = await applyMailPolicy(items);
   const valid = [];
   for (const it of items) {
@@ -4707,9 +4719,12 @@ async function karneLinkOpen(res, token) {
   const gone = () => res.status(410).setHeader('Content-Type', 'text/html; charset=utf-8').send(kl ? kl.expiredPage(appName) : 'Bağlantı geçersiz.');
   const e = env();
   if (!kl || !e.service || !kl.isTokenShape(token)) return gone();
-  const rows = await rest(`karne_links?select=id,storage_path,expires_at,revoked_at,open_count&token_hash=eq.${kl.hashToken(token)}&limit=1`, { token: 'service' });
+  const rows = await rest(`karne_links?select=id,storage_path,expires_at,revoked_at,open_count,kurum_id,student_id&token_hash=eq.${kl.hashToken(token)}&limit=1`, { token: 'service' });
   const row = rows && rows[0];
   if (!row || row.revoked_at || Date.parse(row.expires_at) <= Date.now()) return gone();
+  // Aşama 368: kurum dondurulmuşsa karne açılmaz (bağlantı silinmez; etkinleştirince süresi içindeyse yine açılır)
+  if ((await dondurma.kurumDondurulmus(okuServis, row.kurum_id)) || (!row.kurum_id && (await dondurma.ogrenciDondurulmus(okuServis, row.student_id))))
+    return res.status(410).setHeader('Content-Type', 'text/html; charset=utf-8').send(dondurma.DONDURMA_SAYFA_YAZI);
   let signed;
   try {
     signed = await kl.storageSign(e, row.storage_path);
@@ -5007,6 +5022,11 @@ async function veliSayfaAc(req, res, token) {
   const vm = await veliMod();
   if (!vm) return res.status(503).send('Sayfa şu an açılamıyor.');
   if (!env().service || !vm.isTokenShape(token)) return res.status(410).send(vm.bilgiSayfasi('', vm.GECERSIZ_YAZI));
+  // Aşama 368: kurum dondurulmuşsa sayfa açılmaz (açılış sayılmaz); etkinleştirince süresi dolmamış bağlantı yeniden açılır
+  if ((await dondurma.dondurulmusKurumlar(okuServis)).size) {
+    const l = await rest(`veli_baglantilari?select=kurum_id&token_hash=eq.${vm.hashToken(token)}&limit=1`, { token: 'service' }).catch(() => []);
+    if (l && l[0] && (await dondurma.kurumDondurulmus(okuServis, l[0].kurum_id))) return res.status(410).send(vm.bilgiSayfasi('', dondurma.DONDURMA_SAYFA_YAZI));
+  }
   const now = Date.now();
   const h = vm.haftalar(vm.istanbulYmd(now));
   let v;
@@ -5048,6 +5068,7 @@ async function loadPlanByToken(token) {
   const plan = rows && rows[0];
   if (!plan || plan.student_id !== studentId) throw new HttpError(404, 'Plan bulunamadı ya da silinmiş.');
   if (!plan.sent_at) throw new HttpError(410, 'Öğretmenin bu planı geri çekmiş.');
+  if (await dondurma.ogrenciDondurulmus(okuServis, plan.student_id)) throw new HttpError(410, dondurma.DONDURMA_SAYFA_YAZI); // Aşama 368
   return plan;
 }
 async function actionPlanGet(body) {
@@ -5343,7 +5364,9 @@ async function actionSifreSifirla(body, req, deadline) {
   const kimlik = String(body.kimlik || '').trim().toLowerCase();
   const sonuc = { ok: true };
   if (!SIFRE_KIMLIK_RE.test(kimlik) || isInternalEmail(kimlik)) return sonuc;
-  const rows = await sifreHesaplari(kimlik);
+  // Aşama 368: dondurulmuş kurumun hesabına yenileme bağlantısı gönderilmez (yanıt aynı: hesabın varlığı belli olmaz)
+  const kapali = await dondurma.dondurulmusKurumlar(okuServis);
+  const rows = (await sifreHesaplari(kimlik)).filter((t) => !t.kurum_id || !kapali.has(String(t.kurum_id)));
   if (!rows.length) return sonuc;
   const to = String(rows[0].email).trim().toLowerCase();
   const ayni = rows.filter((t) => String(t.email).trim().toLowerCase() === to);
@@ -5391,6 +5414,37 @@ async function actionSifreSifirla(body, req, deadline) {
   const s = await deliver(sender, { authId: null, name: e.schoolName }, [item], deadline);
   if (s.failed) console.error('[sifre-sifirla] gönderilemedi', (s.errors || []).join(' | '));
   return sonuc;
+}
+
+// ----------------------------------------------------------------------------- Aşama 368: kurum dondurma bildirimi
+// Sistem sahibi kurumu dondurunca isterse kurum yöneticilerine kısa bir e-posta gider. Neden ve not YAZILMAZ.
+async function actionKurumDurumBildir(caller, body, req, deadline) {
+  if (!caller.isAdmin) throw new HttpError(403, 'Bu bildirimi yalnız sistem sahibi gönderir.');
+  const kurumId = String(body.kurumId || '');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
+  const [k, yoneticiler] = await Promise.all([
+    rest(`kurumlar?select=name&id=eq.${kurumId}`, { token: 'service' }),
+    rest(`teachers?select=id,name,email,status&kurum_id=eq.${kurumId}&is_admin=is.true`, { token: 'service' }),
+  ]);
+  if (!k || !k[0]) throw new HttpError(404, 'Kurum bulunamadı.');
+  const kurumAd = clean(k[0].name) || 'Kurumunuz';
+  const alicilar = (yoneticiler || []).filter((t) => (!t.status || t.status === 'approved') && isEmail(t.email) && !isInternalEmail(t.email));
+  if (!alicilar.length) return { ok: true, sent: 0, noEmail: 1 };
+  const sender = await resolveSender(caller);
+  if (!sender) throw new HttpError(400, 'Gönderen e-posta hesabı yok. Önce E-posta Ayarları\'ndan bir hesap bağlayın.', { code: 'not-configured' });
+  const refId = `${kurumId}-${Date.now()}`;
+  const items = alicilar.map((t) => {
+    const m = layout({
+      heading: 'Hesabınız geçici olarak durduruldu',
+      greeting: `Merhaba ${clean(t.name)},`,
+      intro: `${kurumAd} hesabı şu an kullanıma kapalı. Kayıtlarınız silinmedi; hesap açıldığında kaldığınız yerden devam edersiniz. Bu sürede giriş yapılamaz, otomatik e-posta, SMS ve bildirim gönderilmez.`,
+      rows: [['Kurum', kurumAd]],
+      footer: 'Bilgi için sistem yöneticinizle görüşün.',
+    });
+    return { event: 'kurum-durum', refId, refTitle: 'Hesap durumu', to: t.email, toName: t.name, role: 'ogretmen', subject: `${kurumAd} hesabı geçici olarak durduruldu`, ...m };
+  });
+  const s = await deliver(sender, caller, items, deadline);
+  return { ok: true, sent: s.sent, failed: s.failed, errors: s.errors };
 }
 
 export default async function handler(req, res) {
@@ -5578,6 +5632,9 @@ export default async function handler(req, res) {
         break;
       case 'test':
         result = await actionTest(caller, body, req);
+        break;
+      case 'kurum-durum-bildir': // Aşama 368
+        result = await actionKurumDurumBildir(caller, body, req, deadline);
         break;
       case 'homework-created':
         result = await actionHomeworkCreated(caller, body, req, deadline);

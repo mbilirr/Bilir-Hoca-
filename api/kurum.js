@@ -26,6 +26,7 @@
 // ============================================================================
 
 import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
+import * as dondurma from './_dondurma.js'; // Aşama 368
 
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
@@ -125,6 +126,24 @@ async function magicSession(e, email, ad) {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Aşama 368: dondurulmuş kurum. Sistem sahibi dondurulmuş kuruma geçerken / bakarken giriş kancası oturumu ancak
+// kısa süreli izinle verir (izin oturum açılır açılmaz silinir; yenilemede geçiş / bakış kaydı tanınır).
+const okuFn = (e) => (path) => rest(e, path);
+const yazFn = (e) => async (path, method, body, prefer) => {
+  const r = await fetch(`${e.url}/rest/v1/${path}`, { method, headers: { ...serviceHeaders(e), ...(prefer ? { Prefer: prefer } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!r.ok) throw new Error(`izin ${r.status}`);
+};
+async function izinliOturum(e, kurumId, authUserId, email, ad) {
+  const kapali = await dondurma.kurumDondurulmus(okuFn(e), kurumId);
+  if (!kapali) return magicSession(e, email, ad);
+  await dondurma.gecisIzniVer(yazFn(e), authUserId);
+  try {
+    return await magicSession(e, email, ad);
+  } finally {
+    await dondurma.gecisIzniKaldir(yazFn(e), authUserId);
+  }
+}
+
 async function actionEnter(e, body) {
   const kurumId = String(body.kurumId || '');
   if (!UUID.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
@@ -150,7 +169,7 @@ async function actionEnter(e, body) {
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Kurum yöneticisinin hesabı askıya alınmış.');
 
   // Tek kullanımlık bağlantı kodu üretilir (e-posta GÖNDERİLMEZ) ve hemen oturuma çevrilir
-  const session = await magicSession(e, authUser.email, 'Kuruma geçiş oturumu');
+  const session = await izinliOturum(e, kurum.id, target.auth_user_id, authUser.email, 'Kuruma geçiş oturumu'); // Aşama 368
 
   const sid = sessionIdOf(session.access_token);
   if (!UUID.test(sid)) throw new HttpError(502, 'Kuruma geçiş oturumu tanınamadı.');
@@ -249,7 +268,7 @@ async function actionGozuyle(e, body, owner) {
   if ((authUser.email || '').toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hedef.');
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
 
-  const session = await magicSession(e, authUser.email, 'Kişinin oturumu');
+  const session = await izinliOturum(e, kayit.kurum_id, authUserId, authUser.email, 'Kişinin oturumu'); // Aşama 368
   const sid = sessionIdOf(session.access_token);
   if (!UUID.test(sid)) throw new HttpError(502, 'Kişinin oturumu tanınamadı.');
   const ins = await fetch(`${e.url}/rest/v1/kullanici_gozu_oturumlari`, {
@@ -453,6 +472,7 @@ async function actionBagliGir(e, body, owner) {
   if (!t) throw new HttpError(404, 'Bağlı hesabın öğretmen kaydı bulunamadı.');
   if (t.status && t.status !== 'approved') throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Bu hesap askıya alınmış; giriş yapılamaz.');
+  if (await dondurma.kurumDondurulmus(okuFn(e), t.kurum_id)) throw new HttpError(409, 'Bu hesabın kurumu geçici olarak durduruldu; şu an giriş yapılamaz.'); // Aşama 368
   const kurum = t.kurum_id ? (await rest(e, `kurumlar?select=id,name&id=eq.${t.kurum_id}`))[0] : null;
   const session = await magicSession(e, authUser.email, 'Hesap oturumu');
   return {
@@ -492,6 +512,8 @@ export default async function handler(req, res) {
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
     if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
+    // Aşama 368: kurumu dondurulmuş kişi (sistem sahibinin geçiş / bakış oturumu hariç) bu işlemleri yapamaz
+    if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL && (await dondurma.kisiDondurulmus(okuFn(e), user.id, token))) throw new HttpError(403, dondurma.DONDURMA_MESAJ);
     // Aşama 263: bağlı hesap işlemleri her onaylı öğretmene açık (şifre doğrulamasıyla bağlanmış hesaplar arasında)
     if (body.action === 'bagla' || body.action === 'bagliGir') {
       const owner = await bagliSahibi(e, user);

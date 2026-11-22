@@ -27,6 +27,8 @@ import { appConfirm } from './lib/appDialog'; // Aşama 343
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
 import { supabase } from './lib/supabase';
 import { KullaniciGozuSeridi } from './components/Layout/KullaniciGozuSeridi';
+import { HesapDurduruldu } from './components/Common/HesapDurduruldu'; // Aşama 368
+import { useHesapDurduruldu } from './services/kurumDurumu'; // Aşama 368
 import { IkiAdimGirisi } from './components/Auth/IkiAdimGirisi'; // Aşama 294
 import { useIkiAdim } from './lib/ikiAdim';
 import { HesapSecimi } from './components/Auth/HesapSecimi'; // Aşama 256
@@ -663,6 +665,10 @@ export default function App() {
   useEffect(() => {
     document.title = brandTitle ? `${brandTitle} · biliredu` : 'biliredu';
   }, [brandTitle]);
+
+  // Aşama 368: kurumu dondurulan kişinin açık oturumu (perde açılırken oturum kapanır)
+  const hesapDurduruldu = useHesapDurduruldu();
+  if (hesapDurduruldu) return <HesapDurduruldu />;
 
   if (!authSession) {
     return (

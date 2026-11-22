@@ -32,6 +32,7 @@ export type MailAction =
   | 'kurum-mail-connect'
   | 'kurum-mail-disconnect'
   | 'veli' // Aşama 367: veli görünümü bağlantıları (durum / gönder / kopyala / iptal)
+  | 'kurum-durum-bildir' // Aşama 368: kurum dondurulunca kurum yöneticilerine e-posta (yalnız sistem sahibi)
   | 'reminders';
 
 export interface MailResult {

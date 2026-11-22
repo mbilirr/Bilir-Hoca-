@@ -1,3 +1,4 @@
+import { dondurmaOzeti, useKurumDurumlari, type KurumDurumu } from '../../services/kurumDurumu'; // Aşama 368
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { supabase } from '../../lib/supabase';
@@ -70,6 +71,7 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
   // ---- kurumlar
   const [kurumlar, setKurumlar] = useState<Yuk<KurumInfo[]>>({ s: 'yukleniyor' });
   const [rol, setRol] = useState<Record<string, boolean> | null>(null);
+  const kurumDurum = useKurumDurumlari(); // Aşama 368: dondurulmuş kurumlar
   const kurumOku = useCallback(async () => {
     try {
       const list = await dataService.listKurumlar();
@@ -161,6 +163,12 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
     onNavigateTab('user_management');
     window.scrollTo({ top: 0 });
     setTimeout(() => setQuickFocus('yonetim', ust, ''), 0);
+  };
+  // Aşama 368: dondurulmuş kurum kartı → Yönetim › Kurumlar › o kurumun Bölümler sekmesi (Hesap durumu satırı)
+  const incele = (kurumId: string) => {
+    onNavigateTab('user_management');
+    window.scrollTo({ top: 0 });
+    setTimeout(() => setQuickFocus('yonetim', 'bolumler', kurumId), 0);
   };
 
   const takiliKapat = async () => {
@@ -347,7 +355,14 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
         {kurumListe.length > 0 && (
           <div className="ak-kur">
             {kurumListe.map((x) => (
-              <KurumKarti key={x.k.id} x={x} rolAcik={rol ? rol[x.k.id] : undefined} onHata={(t) => setMesaj({ ton: 'hata', text: t })} />
+              <KurumKarti
+                key={x.k.id}
+                x={x}
+                rolAcik={rol ? rol[x.k.id] : undefined}
+                durum={kurumDurum.yuklendi && kurumDurum.kurulu ? kurumDurum.harita.get(x.k.id) || null : undefined}
+                onIncele={() => incele(x.k.id)}
+                onHata={(t) => setMesaj({ ton: 'hata', text: t })}
+              />
             ))}
           </div>
         )}
@@ -434,8 +449,11 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
 const KurumKarti: React.FC<{
   x: { k: KurumInfo; ogretmen: number; yonetici: string[]; acik: boolean[] };
   rolAcik: boolean | undefined;
+  /** Aşama 368: undefined = bilinmiyor (368 SQL'i yok), null = etkin */
+  durum: KurumDurumu | null | undefined;
+  onIncele: () => void;
   onHata: (t: string) => void;
-}> = ({ x, rolAcik, onHata }) => {
+}> = ({ x, rolAcik, durum, onIncele, onHata }) => {
   const [busy, setBusy] = useState(false);
   const acikSay = x.acik.filter(Boolean).length;
   const acikAdlar = KURUM_MODULES.filter((_, i) => x.acik[i]).map((m) => m.title);
@@ -452,7 +470,7 @@ const KurumKarti: React.FC<{
   };
   const yon = x.yonetici.length ? x.yonetici[0] + (x.yonetici.length > 1 ? ` +${x.yonetici.length - 1}` : '') : 'atanmadı';
   return (
-    <article className="ak-kcard">
+    <article className={'ak-kcard' + (durum ? ' donmus' : '')}>
       <div className="top">
         <span className="ak-av" aria-hidden="true">
           {akBasHarf(x.k.name)}
@@ -482,10 +500,29 @@ const KurumKarti: React.FC<{
             </dd>
           </>
         )}
+        {durum !== undefined && (
+          <>
+            <dt>Durum</dt>
+            <dd>
+              <span className={'ak-tag ' + (durum ? 'warn' : 'on')}>{durum ? 'Donduruldu' : 'Etkin'}</span>
+            </dd>
+          </>
+        )}
       </dl>
-      <button type="button" className="ak-btn full" onClick={gec} disabled={busy}>
-        {busy ? 'Açılıyor…' : 'Kuruma geç'}
-      </button>
+      {durum && (
+        <p className="ak-kdur" title={dondurmaOzeti(durum)}>
+          {dondurmaOzeti(durum)}
+        </p>
+      )}
+      {durum ? (
+        <button type="button" className="ak-btn full" onClick={onIncele}>
+          İncele
+        </button>
+      ) : (
+        <button type="button" className="ak-btn full" onClick={gec} disabled={busy}>
+          {busy ? 'Açılıyor…' : 'Kuruma geç'}
+        </button>
+      )}
     </article>
   );
 };

@@ -28,6 +28,7 @@
 // ============================================================================
 import crypto from 'node:crypto';
 import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
+import * as dondurma from './_dondurma.js'; // Aşama 368
 // Aşama 75: izin dosyası güvenli yüklenir; eksikse bildirimler eskisi gibi gider
 let policyModCache;
 async function policyMod() {
@@ -110,6 +111,9 @@ const clip = (s, n) => {
   const t = String(s || '').replace(/\s+/g, ' ').trim();
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
+
+// Aşama 368: dondurulmuş kurum denetimi için service okuma
+const okuServis = (path) => rest(path, { token: 'service' });
 
 async function chunked(ids, size, fn) {
   const out = [];
@@ -300,7 +304,8 @@ export async function sendToUsers(userIds, payload, { dedupe, deadline, policy }
     out.lastError = vapidProblem || 'VAPID anahtarları okunamadı';
     return out;
   }
-  const ids = uniq(userIds);
+  // Aşama 368: dondurulmuş kurumdaki kişiye bildirim gitmez (zamanlanmış hatırlatmalar da buradan geçer)
+  const ids = await dondurma.dondurulmusDisinda(okuServis, uniq(userIds));
   if (!ids.length) return out;
   const hepsi = await chunked(ids, 100, (part) =>
     rest(`push_subscriptions?select=endpoint,p256dh,auth,user_id&user_id=in.${inList(part)}`, { token: 'service' })
@@ -1075,6 +1080,8 @@ async function getCaller(req) {
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
+  // Aşama 368: kurumu dondurulmuş kişinin isteği kabul edilmez
+  if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL && (await dondurma.kisiDondurulmus(okuServis, user.id, token))) throw new HttpError(403, dondurma.DONDURMA_MESAJ);
   const t = await rest(`teachers?select=id,name,status,is_admin&auth_user_id=eq.${user.id}`, { token: 'service' });
   if (t && t[0]) {
     if (t[0].status && t[0].status !== 'approved') throw new HttpError(403, 'Öğretmen hesabınız onaylı değil.');

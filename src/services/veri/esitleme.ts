@@ -3,6 +3,7 @@
 // dataService.ts'ten KELİMESİ KELİMESİNE taşındı; yalnız "private" → "protected" (alt katmanlar kullanabilsin diye) ve
 // statik değerlerde "DataService." → tanımlandığı katmanın adı. Davranış aynı. Katman sırası: temel → kurumYetki → bulutDepo → esitleme → dataService
 // ============================================================================
+import { hesapDurumunuDenetle } from '../kurumDurumu'; // Aşama 368
 import {
   Student,
   Teacher,
@@ -305,6 +306,8 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
     const row = payload?.new;
     const tablo = typeof row?.tablo === 'string' ? row.tablo : '';
     if (!tablo) return;
+    // Aşama 368: kurum dondurulduysa ekran sunucuya sorar (sinyale tek başına güvenilmez: sistem sahibinin geçişi muaftır)
+    if (tablo === 'kurum_durum') return void hesapDurumunuDenetle(true);
     if (EsitlemeKatmani.EK_TABLOLAR.has(tablo)) return this.ekTabloBildir(tablo); // Aşama 349c
     const cfg = this.realtimeTableConfig().find((c) => c.table === tablo);
     if (!cfg) return; // bu rolün dinlemediği tablo

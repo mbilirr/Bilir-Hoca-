@@ -18,6 +18,7 @@
 
 import { pushEnv, sendToUsers } from './push.js';
 import { dispatchSms } from './_sms.js';
+import { dondurulmusDisinda } from './_dondurma.js'; // Aşama 368
 
 const APP_URL = 'https://www.biliredu.com';
 
@@ -107,7 +108,10 @@ function saat() {
 
 // Kilit yeni düştü: yöneticilere bildirim + SMS (her biri kilit başına bir kez)
 async function yoneticilereBildir(e, k) {
-  const alicilar = Array.isArray(k.alicilar) ? k.alicilar : [];
+  const hepsi = Array.isArray(k.alicilar) ? k.alicilar : [];
+  // Aşama 368: dondurulmuş kurumun yöneticisine uyarı (bildirim / SMS) gitmez
+  const acik = new Set(await dondurulmusDisinda(smsRest(e), hepsi.map((a) => a && a.uid).filter((x) => typeof x === 'string' && x)));
+  const alicilar = hepsi.filter((a) => a && (typeof a.uid !== 'string' || !a.uid || acik.has(a.uid)));
   if (!alicilar.length) return;
   const kim = `${k.tur === 'ogrenci' ? 'Öğrenci' : 'Öğretmen'} hesabı "${String(k.kimlik || '').slice(0, 40)}"`;
   const metin = `${kim}: 5 hatalı giriş denemesi (${saat()}). Hesap 15 dakika kilitlendi.`;

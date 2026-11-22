@@ -75,7 +75,13 @@ try {
         passwordRecoveryActive = true;
         sifreBaglantisi = supabase.auth
           .verifyOtp({ type: 'recovery', token_hash: token })
-          .then(({ error }) => (error ? 'Bağlantının süresi dolmuş ya da daha önce kullanılmış. Giriş ekranından yeniden "Şifremi unuttum" isteyin.' : null))
+          .then(({ error }) =>
+            !error
+              ? null
+              : /biliredu_donduruldu/i.test(error.message || '') // Aşama 368: kurum dondurulmuş
+                ? 'Kurumunuzun hesabı geçici olarak durduruldu; şu an şifre yenilenemez. Bilgi için okulunuzla görüşün.'
+                : 'Bağlantının süresi dolmuş ya da daha önce kullanılmış. Giriş ekranından yeniden "Şifremi unuttum" isteyin.'
+          )
           .catch(() => 'Bağlantı doğrulanamadı. İnternet bağlantınızı kontrol edip sayfayı yenileyin.');
       }
     }
