@@ -1100,6 +1100,8 @@ async function resolveSender(teacher, opts = {}) {
     const kid = await kurumIdForSender(teacher || {});
     const brand = await kurumBrandFor(kid);
     if (brand && (brand.name || brand.logo)) return { ...s, brandName: brand.name, brandLogo: brand.logo, brandKid: kid };
+    // Aşama 371: kurumun adı / logosu okunamasa da gönderenin kurumu bilinir (dondurma denetimi buna bakar)
+    if (kid) return { ...s, kurumKid: kid };
   } catch {}
   return s;
 }
@@ -2130,7 +2132,7 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
     via: sender ? sender.via : null,
   };
   // Aşama 368: dondurulmuş kurumun e-postası (ve e-postayla giden SMS'i) gönderilmez; otomatik görevler de buradan geçer
-  const gonderenKurum = (sender && sender.brandKid) || (await kurumIdForSender(senderMeta || {}).catch(() => null));
+  const gonderenKurum = (sender && (sender.brandKid || sender.kurumKid)) || (await kurumIdForSender(senderMeta || {}).catch(() => null)); // 371: kurumKid
   if (gonderenKurum && (await dondurma.kurumDondurulmus(okuServis, gonderenKurum))) {
     summary.skipped = items.length;
     return summary;
