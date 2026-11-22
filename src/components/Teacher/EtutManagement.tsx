@@ -52,7 +52,6 @@ import { EtutNotificationModal } from './EtutNotificationModal';
 import { EtutAttendanceModal } from './EtutAttendanceModal';
 import { EtutFormModal, type EtutFormSaved } from './EtutFormModal';
 import { EtutTeacherManagerModal } from './EtutTeacherManagerModal';
-import { MailNoticeBar } from './FormParts';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented, cx } from '../ui/kit'; // Aşama 204: cx
@@ -69,10 +68,10 @@ const HOME_SCOPE_KEY = 'edu_home_scope_v1';
 // Aşama 111: Takip görünümü ve salt okunur ayrıntı penceresi ayrı parça (yalnız idare / Rehberlik açınca iner)
 const EtutTakipView = lazyNamed(() => import('./EtutTakipView'), 'EtutTakipView');
 const EtutDetayModal = lazyNamed(() => import('./EtutTakipView'), 'EtutDetayModal');
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { profilResmi } from '../../lib/profilResmi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -152,8 +151,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [attPickFilter, setAttPickFilter] = useState<'bekleyen' | 'bugun' | 'tumu' | null>(null);
   const [attPickQuery, setAttPickQuery] = useState('');
   const [attPickLimit, setAttPickLimit] = useState(15); // Aşama 216: liste iç kaydırmasız, 15 satır + Daha fazla
-  const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
-  useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setAttendanceFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -355,16 +353,22 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const handleAddEtutForDate = (dateStr: string) => openEtutForm('create', null, dateStr);
   const [isTeacherManagerOpen, setIsTeacherManagerOpen] = useState(false);
   const [teacherListVersion, setTeacherListVersion] = useState(0);
-  const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
-  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
-  const [lastCreatedEtut, setLastCreatedEtut] = useState<Etut | null>(null);
+  const setMailNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const handleEtutSaved = async (r: EtutFormSaved) => {
     setEtutForm(null);
-    if (r.mode !== 'edit') {
-      confetti({ particleCount: 40, spread: 50, origin: { y: 0.7 } });
-      setLastCreatedEtut(r.etuts[0] || null);
-    }
+    if (r.mode !== 'edit') confetti({ particleCount: 40, spread: 50, origin: { y: 0.7 } });
+    // Aşama 353: yeni etütte bildirimde "WhatsApp ile de bildir" eylemi (eski şeritteki bağlantı)
+    const ilk = r.mode !== 'edit' ? r.etuts[0] : undefined;
+    const whatsapp = ilk
+      ? {
+          ad: 'WhatsApp ile de bildir',
+          calistir: () => {
+            setSelectedEtutForDispatch(ilk);
+            setIsDispatchModalOpen(true);
+          },
+        }
+      : undefined;
     const base =
       r.mode !== 'edit'
         ? r.etuts.length > 1
@@ -375,10 +379,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         : 'Etüt güncellendi.';
     if (!r.sendMail) {
       const extra = r.mailScheduled ? ' E-postalar etüt gününde otomatik gönderilecek (saat girilmişse 1 saat önce, değilse sabah 08:00).' : '';
-      setMailNotice({ tone: r.failedCount ? 'warning' : 'success', text: `${base}${extra}` });
+      setMailNotice({ tone: r.failedCount ? 'warning' : 'success', text: `${base}${extra}` }, whatsapp);
       return;
     }
-    setMailNotice({ tone: 'info', text: `${base} E-postalar gönderiliyor…` });
+    setMailNotice({ tone: 'info', text: `${base} E-postalar gönderiliyor…` }, whatsapp);
     let total: MailResult | null = null;
     for (const e of r.etuts) {
       const res =
@@ -400,7 +404,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       if (!res.ok || res.notConfigured || res.authError) break;
     }
     const d = describeMailResult(total);
-    setMailNotice({ tone: d.tone, text: `${base} ${d.text}` });
+    setMailNotice({ tone: d.tone, text: `${base} ${d.text}` }, whatsapp);
   };
 
   const handleConfirmDeleteEtut = async () => {
@@ -482,29 +486,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           </>
         }
       />
-      {mailNotice && (
-        <MailNoticeBar
-          notice={mailNotice}
-          onClose={() => {
-            setMailNotice(null);
-            setLastCreatedEtut(null);
-          }}
-          action={
-            lastCreatedEtut ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedEtutForDispatch(lastCreatedEtut);
-                  setIsDispatchModalOpen(true);
-                }}
-                className="shrink-0 underline underline-offset-2 hover:no-underline cursor-pointer"
-              >
-                WhatsApp ile de bildir
-              </button>
-            ) : undefined
-          }
-        />
-      )}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {viewMode === 'takip' && isAdminView ? (
           /* Aşama 111: Takip her zaman kurumun tamamını gösterir (Benim / Tümü seçimi burada geçerli değil) */
@@ -1284,12 +1265,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         return (
           <div className="space-y-5">
             {/* Bildirim Çubuğu */}
-            {attendanceFeedback && (
-              <div className="p-3 bg-success/15 border border-success/30 text-success-fg rounded-xl text-xs font-semibold flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-success-fg shrink-0" />
-                <span>{attendanceFeedback}</span>
-              </div>
-            )}
 
             {/* 1. ETÜT SEÇİMİ — Aşama 204: uzun açılır menü yerine güne göre gruplu kısa liste.
                 Her satır: saat · ders · yer · öğretmen · öğrenci sayısı · yoklama durumu. Konu yalnız seçili etüdün satırında. */}

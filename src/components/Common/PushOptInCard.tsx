@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BellRing, Smartphone, X, Share, PlusSquare } from 'lucide-react';
 import { enablePush, getPushState, resyncPush, testPush, type PushState } from '../../lib/push';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // "Telefonuma bildirim gönder" kartı (Aşama 34) — öğrenci ve öğretmen ana sayfasında
@@ -32,7 +33,7 @@ export const pushOptInErtele = () => {
 export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role }) => {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [hidden, setHidden] = useState(snoozed);
 
   useEffect(() => {
@@ -47,12 +48,6 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
     };
   }, []);
 
-  useEffect(() => {
-    if (!msg) return;
-    // Aşama 51: bildirimler açıldıysa onay yazısı 6 sn sonra kaybolur (kart da birlikte gizlenir)
-    const t = window.setTimeout(() => setMsg(null), 15000); // Aşama 99: bütün bildirimler 15 sn
-    return () => window.clearTimeout(t);
-  }, [msg, state]);
 
   if (!state || state === 'unsupported' || state === 'not-configured') return null;
   if (state !== 'on' && hidden) return null;
@@ -82,22 +77,11 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
       ? 'Yeni ödev, teslim günü, etüt saati, öğretmeninin duyurusu ve sana özel mesajları, günlük plan ve soru sayısı hatırlatmaları'
       : 'Öğrenci mesajları, etüt saati ve alınmayan yoklama hatırlatmaları';
 
-  const note = msg && (
-    <p role="status" className={`text-xs font-semibold mt-2 ${msg.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg'}`}>
-      {msg.text}
-    </p>
-  );
 
   // Aşama 51: bildirimler açıkken ana sayfada kalıcı yazı gösterilmez; yalnızca az önceki işlemin
   // kısa sonucu (ör. "Bildirimler açıldı") birkaç saniye görünür, sonra kart tamamen kaybolur.
-  if (state === 'on') {
-    if (!msg) return null;
-    return (
-      <div id="push-optin" data-state="on" className="px-3 py-2 rounded-xl border border-line bg-surface">
-        {note}
-      </div>
-    );
-  }
+  // Aşama 353: bildirimler açıkken kart görünmez; "Bildirimler açıldı" yazısı ortak bildirimde çıkar
+  if (state === 'on') return null;
 
   return (
     <div id="push-optin" data-state={state} className="relative rounded-2xl border border-brand/30 bg-brand-soft/60 p-4 pr-10">
@@ -148,7 +132,6 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
               </button>
             </div>
           )}
-          {note}
         </div>
       </div>
     </div>

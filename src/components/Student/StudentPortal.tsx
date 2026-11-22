@@ -3,7 +3,6 @@ import {
   BookOpen,
   Calendar,
   CalendarCheck,
-  CheckCircle2,
   Clock,
   ExternalLink,
   HelpCircle,
@@ -43,6 +42,7 @@ import { PushOptInCard } from '../Common/PushOptInCard';
 import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
 import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
+import { basariBildir } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
@@ -193,7 +193,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [messageText, setMessageText] = useState('');
   const [messageLink, setMessageLink] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [messageSentFeedback, setMessageSentFeedback] = useState(false);
   // Aşama 45: soru belirli bir öğretmene yazılabilir (yalnızca o öğretmen görür); boş = bütün öğretmenlerim
   const [messageTo, setMessageTo] = useState('');
   // Aşama 344: yazılan mesaj taslak olarak tutulur (öğrenci oturumu 15 dk boşta kalınca kapanır; yazdığı kaybolmasın)
@@ -416,8 +415,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setMessageSubject('');
     setMessageText('');
     setMessageLink('');
-    setMessageSentFeedback(true);
-    setTimeout(() => setMessageSentFeedback(false), 15000); // Aşama 99: 15 sn
+    basariBildir('Mesajınız öğretmene iletildi.'); // Aşama 353: ortak bildirim
   };
 
   // Aşama 107: önizlemede data-yazma işaretli düğmeler ve formlar çalışmaz (tek yerden, alt bileşenlere dokunmadan)
@@ -1020,13 +1018,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <span>Öğretmene Soru / Mesaj İlet</span>
               </h3>
             </div>
-
-            {messageSentFeedback && (
-              <div className="p-3 bg-success-soft border border-success/30 rounded-xl text-xs text-success-fg flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-success-fg" />
-                <span>Mesajınız başarıyla öğretmene iletildi!</span>
-              </div>
-            )}
 
             <form onSubmit={handleSendMessage} className="space-y-4">
               {mesajTaslak.bulunan && (

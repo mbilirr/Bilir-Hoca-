@@ -17,6 +17,7 @@ import {
   tarihUzun,
   trBugun,
 } from '../../services/dersService';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 232: GÜN BOYU İZİN / RAPOR (Yönetim › Ders programı › İzinler)
@@ -83,7 +84,7 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
   const [form, setForm] = useState<{ bas: string; bit: string; tur: IzinTur; aciklama: string }>({ bas: bugun, bit: bugun, tur: 'izinli', aciklama: '' });
   const [liste, setListe] = useState<GunIzin[] | null>(null);
   const [hata, setHata] = useState<string | null>(null);
-  const [mesaj, setMesaj] = useState<string | null>(null);
+  const setMesaj = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [mesgul, setMesgul] = useState(false);
 
   useEffect(() => {
@@ -325,11 +326,6 @@ export const DersIzinPanel: React.FC<{ kurumId: string; classes: ClassGroup[] }>
       </Panel>
       </div>
 
-      {mesaj && (
-        <p role="status" className="text-xs font-semibold text-fg-2">
-          {mesaj}
-        </p>
-      )}
     </div>
   );
 };

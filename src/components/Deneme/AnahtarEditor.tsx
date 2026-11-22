@@ -12,6 +12,7 @@ import { applyBank, applyKonu, bankIndexBySubject, bankOptionsBySubject, describ
 import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
 import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../../lib/deneme/bKitapcik';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Cevap anahtarı ve kazanım düzenleyici (Aşama 47, 48d)
@@ -48,7 +49,7 @@ export const AnahtarEditor: React.FC<{
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyText, setBusyText] = useState('');
-  const [msg, setMsg] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [aiOpen, setAiOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false); // Aşama 93
   const [bank, setBank] = useState<BankRow[] | null>(null);
@@ -413,19 +414,6 @@ export const AnahtarEditor: React.FC<{
             }}
           />
         </Suspense>
-      )}
-      {msg && (
-        <p
-          role="status"
-          className={cx(
-            'text-xs font-semibold rounded-xl px-3 py-2',
-            msg.tone === 'success' && 'bg-success-soft text-success-fg',
-            msg.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-            msg.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-          )}
-        >
-          {msg.text}
-        </p>
       )}
       {offer && lastExcel?.rawText && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand/25 bg-brand-soft/50 px-3 py-2 text-xs" id="deneme-key-ai-offer">

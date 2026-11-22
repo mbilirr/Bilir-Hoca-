@@ -54,6 +54,7 @@ import {
 } from './EtutAnalysisData';
 import { EtutAnalysisPrint, type PrintReportProps } from './EtutAnalysisPrint';
 import { downloadExcel, type ExcelSheet } from './EtutAnalysisExport';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // ETÜT ANALİZİ
@@ -263,7 +264,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
   const [sort, setSort] = useState<StudentSort>({ key: 'rate', dir: 'asc' });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const setFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const range = useMemo(() => presetRange(preset, today, { from: customFrom || null, to: customTo || null }), [preset, today, customFrom, customTo]);
 
@@ -519,11 +520,6 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       id="etut-analysis-modal"
       footer={
         <>
-          {feedback && (
-            <span role="status" className="mr-auto self-center text-xs font-semibold text-muted">
-              {feedback}
-            </span>
-          )}
           <button
             type="button"
             id="etut-analysis-excel"

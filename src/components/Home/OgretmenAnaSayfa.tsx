@@ -33,6 +33,7 @@ import { givenNamesOf } from '../../lib/greeting';
 import { setQuickFocus } from '../../lib/quickFocus';
 import { AnaSayfaKabuk, akSelam } from './AnaSayfaKabuk';
 import './ogretmen.css';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 248: ÖĞRETMEN ANA SAYFASI (taslak: "ogretmen 2.html", Odak renkleri)
@@ -105,7 +106,7 @@ const BildirimNotu: React.FC<{ yazi: string }> = ({ yazi }) => {
   const [st, setSt] = useState<PushState | null>(null);
   const [gizli, setGizli] = useState(pushOptInErtelendi);
   const [mesgul, setMesgul] = useState(false);
-  const [sonuc, setSonuc] = useState<{ ok: boolean; text: string } | null>(null);
+  const setSonuc = useBildirimKanali(); // Aşama 353: ortak bildirim
   useEffect(() => {
     let canli = true;
     void getPushState().then((s) => {
@@ -117,22 +118,8 @@ const BildirimNotu: React.FC<{ yazi: string }> = ({ yazi }) => {
       canli = false;
     };
   }, []);
-  useEffect(() => {
-    if (!sonuc) return;
-    const t = setTimeout(() => setSonuc(null), 6000);
-    return () => clearTimeout(t);
-  }, [sonuc]);
   if (!st || st === 'unsupported' || st === 'not-configured') return null;
-  if (st === 'on') {
-    return sonuc ? (
-      <div className="od-note ok" role="status">
-        <span className="ic">
-          <Check aria-hidden="true" />
-        </span>
-        <span>{sonuc.text}</span>
-      </div>
-    ) : null;
-  }
+  if (st === 'on') return null; // Aşama 353: "açıldı" yazısı ortak bildirimde
   if (gizli) return null;
   const ertele = () => {
     pushOptInErtele();
@@ -164,11 +151,6 @@ const BildirimNotu: React.FC<{ yazi: string }> = ({ yazi }) => {
       </span>
       <span>
         {metin}
-        {sonuc && !sonuc.ok && (
-          <b role="status" style={{ display: 'block', color: 'var(--danger-fg)', fontSize: '0.75rem', marginTop: '0.125rem' }}>
-            {sonuc.text}
-          </b>
-        )}
       </span>
       {st === 'off' && (
         <button type="button" className="ak-btn w-24 primary" id="push-enable" disabled={mesgul} onClick={() => void ac()}>

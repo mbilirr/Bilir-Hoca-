@@ -20,6 +20,7 @@ import {
   sinirKaydet,
   trBugun,
 } from '../../services/dersService';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 231: TATİL GÜNLERİ + VELİYE DEVAMSIZLIK BİLDİRİMİ ZAMANI (Yönetim › Ders programı › Ders saatleri altında)
@@ -65,7 +66,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
   const [veli, setVeli] = useState<VeliBildirim | null>(null);
   const [kayitli, setKayitli] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
-  const [mesaj, setMesaj] = useState<string | null>(null);
+  const setMesaj = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [mesgul, setMesgul] = useState(false);
   const [tumu, setTumu] = useState(false);
   const [form, setForm] = useState({ bas: bugun, bit: bugun, aciklama: '' });
@@ -334,11 +335,6 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
         )}
       </Panel>
 
-      {mesaj && (
-        <p role="status" className="text-xs font-semibold text-fg-2">
-          {mesaj}
-        </p>
-      )}
     </div>
   );
 };

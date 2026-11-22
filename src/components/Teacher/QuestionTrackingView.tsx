@@ -48,7 +48,6 @@ import { dataService } from '../../services/dataService';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { WeeklyTargetModal, TargetFormSaved } from './WeeklyTargetModal';
 import { callMail, describeMailResult } from '../../lib/mailApi';
-import { MailNoticeBar } from './FormParts';
 import { periodOf, targetPeriodText, ownerText } from './TargetListParts';
 import { TargetSummaryTable } from '../Student/TargetSummaryTable';
 import { PlanWallGrid, usePlanWallData } from '../Student/StudentTargetCards';
@@ -81,12 +80,11 @@ import {
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging'; // Aşama 225
-import { basariBildir } from '../../lib/bildirim'; // Aşama 348
+import { basariBildir, useBildirimKanali } from '../../lib/bildirim'; // Aşama 348
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -226,8 +224,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     presetClassId?: string;
   }>({ open: false });
   const [targetUpdateTrigger, setTargetUpdateTrigger] = useState<number>(0);
-  const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
-  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setMailNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Tarih ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -827,7 +824,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
       {/* ========================================================================= */}
       {/* GOOGLE LOOKER STUDIO - EXECUTIVE CONTROL BAR & APP HEADER               */}
       {/* ========================================================================= */}

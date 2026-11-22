@@ -19,6 +19,7 @@ import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import { matchTurkishSearch, turkishCompare } from '../../utils/turkishSearch';
 import { currentAcademicYear } from '../../lib/importNormalize';
 import { useQuickFocus } from '../../lib/quickFocus';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 111: deneme listesi süzgeçleri (herkese aynı; öğretmende seçenekler yalnız görebildiği denemelerden gelir)
 const denemeYear = (e: DenemeExam) => (e.examDate ? currentAcademicYear(new Date(e.examDate + 'T12:00:00')) : '');
@@ -179,7 +180,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
   const [siralamaOpen, setSiralamaOpen] = useState(false); // Aşama 115
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
-  const [aktarMsg, setAktarMsg] = useState<string | null>(null);
+  const setAktarMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const isHead = dataService.isHeadAdmin();
   const [draftExam, setDraftExam] = useState<DenemeExam | null>(null);
   const [loading, setLoading] = useState(true);
@@ -392,11 +393,6 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       )}
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
-      {aktarMsg && tab === 'denemeler' && view.kind === 'list' && (
-        <p role="status" className="text-xs font-semibold text-success-fg bg-success-soft rounded-xl px-3 py-2" id="kurum-aktar-sonuc">
-          {aktarMsg}
-        </p>
-      )}
       {aktarOpen && (
         <Suspense fallback={null}>
           <KurumAktarModal

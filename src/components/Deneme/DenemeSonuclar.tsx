@@ -17,6 +17,7 @@ const kitapListesi = (ch: BChange[]) => Array.from(new Set(ch.map((c) => c.kitap
 import { useHistoryState } from '../../lib/useHistoryState';
 import { usePagedList, ShowMoreBar, useMediaQuery } from '../../lib/listPaging';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 91: A / B anahtarı penceresi yalnızca açılınca yüklenir (deneme ekranı hafif kalır)
 const CevapAnahtariModal = lazy(() => import('./CevapAnahtariModal').then((m) => ({ default: m.CevapAnahtariModal })));
@@ -43,7 +44,7 @@ export const DenemeSonuclar: React.FC<{
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [classFilter, setClassFilter] = useState('');
   const [rawView, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
   const view = limited ? 'list' : rawView;
@@ -387,7 +388,6 @@ export const DenemeSonuclar: React.FC<{
         </button>
       </div>
       )}
-      {notice && <p role="status" className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2">{notice}</p>}
 
       {/* Aşama 289: eski kuralla hesaplanmış deneme (oturuma girmeyen öğrenci 0 net sayılmış) */}
       {!readOnly && eskiOzet && (

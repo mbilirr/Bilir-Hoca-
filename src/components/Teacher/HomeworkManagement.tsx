@@ -12,7 +12,6 @@ import {
   Trash2,
   Paperclip,
   Search,
-  Check,
   Edit3,
   Download,
   Eye,
@@ -34,7 +33,6 @@ import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkFormModal, type HomeworkFormMode, type HomeworkFormSaved } from './HomeworkFormModal';
 import { callMail, describeMailResult } from '../../lib/mailApi';
-import { MailNoticeBar } from './FormParts';
 import { MoreMenu } from '../ui/MoreMenu'; // Aşama 207
 import { HomeworkDetailModal } from './HomeworkDetailModal';
 import {
@@ -45,11 +43,11 @@ import {
 import { useQuickFocus } from '../../lib/quickFocus';
 import { Modal, PageHeader, Segmented } from '../ui/kit'; // Aşama 351: Modal
 import { StudyPlanManager } from './StudyPlanManager';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { normalizeSubject } from '../../lib/subjects';
 import { profilResmi } from '../../lib/profilResmi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 113: ana sayfa ve Etütler ile ortak "Benim / Tümü" kaydı
 const HOME_SCOPE_KEY = 'edu_home_scope_v1';
@@ -83,15 +81,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [selectedClassIdForCheck, setSelectedClassIdForCheck] = useState<string>('');
   const [selectedStudentIdForCheck, setSelectedStudentIdForCheck] = useState<string>('');
   const [studentSearchInput, setStudentSearchInput] = useState<string>('');
-  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
-  useAutoDismiss(saveFeedback, () => setSaveFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const setSaveFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [isSavingChecks, setIsSavingChecks] = useState(false);
-  const showSaveError = (err: any, fallback: string) => {
-    setSaveFeedback(null);
-    setSaveError(err?.message || fallback);
-    setTimeout(() => setSaveError(null), 15000); // Aşama 99: 15 sn
-  };
+  const showSaveError = (err: any, fallback: string) => setSaveFeedback({ tone: 'danger', text: err?.message || fallback }); // Aşama 353
 
   // Taslak / Henüz Kaydedilmemiş Ödev Kontrol Durumları (studentId -> status)
   const [draftCheckStatuses, setDraftCheckStatuses] = useState<Record<string, HomeworkCheckStatus>>({});
@@ -335,12 +327,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setHomeworkForm({ mode, source });
   };
   // Otomatik e-posta sonucu (Aşama 32: 15 sn sonra kendiliğinden kaybolur ya da kapatılır)
-  const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
-  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setMailNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const handleHomeworkSaved = ({ homework: hw, mode, sendMail }: HomeworkFormSaved) => {
     setHomeworkForm(null);
-    setSaveError(null);
     if (mode === 'edit') {
       setSaveFeedback('Ödev güncellendi.');
       return;
@@ -385,7 +375,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       await dataService.updateHomework(editingResourcesHw.id, { resources: finalResources });
       setEditingResourcesHw(null);
       setEditingPendingResource(null);
-      setSaveError(null);
       setSaveFeedback('Ödev materyalleri kaydedildi.');
     } catch (err: any) {
       showSaveError(err, 'Materyaller kaydedilemedi.');
@@ -627,7 +616,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       );
       const count = modifiedStudentIds.length;
       setDraftCheckStatuses({});
-      setSaveError(null);
       setSaveFeedback(`✓ ${count} öğrencinin ödev kontrol durumu başarıyla sisteme kaydedildi!`);
     } catch (err: any) {
       showSaveError(err, 'Ödev kontrol durumları kaydedilemedi.');
@@ -677,20 +665,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           { value: 'plan', label: 'Haftalık Plan', icon: CalendarRange, id: 'btn-tab-plan' },
         ]}
       />
-
-      {saveFeedback && (
-        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-success/10 text-success-fg border border-success/20 rounded-xl text-xs font-semibold animate-in fade-in">
-          <Check className="w-3.5 h-3.5" />
-          <span>{saveFeedback}</span>
-        </div>
-      )}
-      {saveError && (
-        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-danger/10 text-danger-fg border border-danger/30 rounded-xl text-xs font-semibold animate-in fade-in">
-          <AlertCircle className="w-3.5 h-3.5" />
-          <span>{saveError}</span>
-        </div>
-      )}
-      {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
 
       {/* TAB 3: HAFTALIK ÇALIŞMA PLANI (Aşama 19) */}
       {activeTab === 'plan' && <StudyPlanManager students={students} classes={classes} odakOgrenci={planOdak} />}
@@ -808,7 +782,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           });
           try {
             await dataService.saveHomeworkCheckStatuses(currentHw.id, [{ studentId, checkStatus: status }]);
-            setSaveError(null);
           } catch (err: any) {
             showSaveError(err, 'Kontrol durumu kaydedilemedi.');
           }
@@ -830,7 +803,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             setIsSavingChecks(false);
           }
           setDraftCheckStatuses({});
-          setSaveError(null);
           const labels: Record<HomeworkCheckStatus, string> = {
             yapti: 'Yaptı',
             yapmadi: 'Yapmadı',
@@ -1752,7 +1724,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               if (selectedHomeworkId === deletedId) {
                 setSelectedHomeworkId('');
               }
-              setSaveError(null);
               setSaveFeedback('Ödev başarıyla silindi.');
             } catch (err: any) {
               showSaveError(err, 'Ödev silinemedi.');

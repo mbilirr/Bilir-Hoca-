@@ -8,9 +8,9 @@ import {
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { Etut, Student, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { profilResmi } from '../../lib/profilResmi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface EtutAttendanceModalProps {
@@ -63,8 +63,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   // Aşama 16: etüt öğretmenine girişsiz yoklama bağlantısı
   const [linkSending, setLinkSending] = useState(false);
-  const [linkNotice, setLinkNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
-  useAutoDismiss(linkNotice, () => setLinkNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setLinkNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const me = dataService.getCurrentTeacher();
   const etutTeacherIds = etut.teacherIds && etut.teacherIds.length ? etut.teacherIds : etut.teacherId ? [etut.teacherId] : [];
   const hasOtherTeacher = etutTeacherIds.some((id) => !me || id !== me.id);
@@ -239,14 +238,6 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                 <Mail className="w-3.5 h-3.5" />
                 {linkSending ? 'Gönderiliyor…' : 'Bağlantıyı e-postayla gönder'}
               </button>
-            )}
-            {linkNotice && (
-              <p
-                id="etut-attendance-link-notice"
-                className={`w-full text-xs font-semibold ${linkNotice.tone === 'success' ? 'text-success-fg' : linkNotice.tone === 'warning' ? 'text-warning-fg' : 'text-danger-fg'}`}
-              >
-                {linkNotice.text}
-              </p>
             )}
           </div>
         )}

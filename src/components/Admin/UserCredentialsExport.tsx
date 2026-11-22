@@ -2,11 +2,11 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { fetchTeacherContacts, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
 import { birthDateLabel } from '../../lib/teacherImport';
-import { FileSpreadsheet, Download, Info, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react';
+import { FileSpreadsheet, Download, Info, AlertTriangle, KeyRound } from 'lucide-react';
 import { dataService, ADMIN_EMAIL, type InitialCredentialInfo } from '../../services/dataService';
 import type { ClassGroup, Student, Teacher } from '../../types';
-import { Panel, cx } from '../ui/kit';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { Panel } from '../ui/kit';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // Aşama 131: toplu şifre yenileme penceresi yalnız açılınca yüklenir (bölüm hafif kalır)
 const BulkPasswordResetModal = lazy(() => import('./BulkPasswordResetModal').then((m) => ({ default: m.BulkPasswordResetModal })));
@@ -62,9 +62,8 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
   const [confirmFill, setConfirmFill] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
-  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [bulkOpen, setBulkOpen] = useState(false); // Aşama 131
-  useAutoDismiss(msg, () => setMsg(null)); // Aşama 32: 15 sn sonra kaybolur
 
   // Görebileceği kişiler
   const myStudents = useMemo(
@@ -361,15 +360,6 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
       )}
 
       {progress && <p className="text-xs text-muted mb-2">{progress}</p>}
-      {msg && (
-        <p
-          className={cx('text-xs font-semibold flex items-center gap-1.5 mb-3', msg.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg')}
-          role={msg.tone === 'err' ? 'alert' : 'status'}
-        >
-          {msg.tone === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-          {msg.text}
-        </p>
-      )}
 
       <div className="flex flex-wrap justify-end gap-2">
         {/* Aşama 131: seçili sınıfa / öğrencilere toplu yeni şifre */}

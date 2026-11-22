@@ -464,28 +464,3 @@ export const TagInput: React.FC<{ value: string[]; onChange: (v: string[]) => vo
   );
 };
 
-// ----------------------------------------------------------------------------- E-posta sonucu şeridi
-export const MailNoticeBar: React.FC<{
-  notice: { tone: 'success' | 'warning' | 'danger' | 'info'; text: string };
-  onClose: () => void;
-  action?: React.ReactNode;
-}> = ({ notice, onClose, action }) => {
-  const toneCls =
-    notice.tone === 'success'
-      ? 'bg-success-soft text-success-fg border-success/30'
-      : notice.tone === 'warning'
-        ? 'bg-warning-soft text-warning-fg border-warning/30'
-        : notice.tone === 'danger'
-          ? 'bg-danger-soft text-danger-fg border-danger/30'
-          : 'bg-info-soft text-info-fg border-info/30';
-  return (
-    <div role="status" id="mail-notice" className={cx('flex items-start gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold', toneCls)}>
-      <Mail className="w-4 h-4 shrink-0 mt-px" />
-      <span className="flex-1">{notice.text}</span>
-      {action}
-      <button type="button" onClick={onClose} aria-label="Kapat" className="ui-btn-mini">
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-};

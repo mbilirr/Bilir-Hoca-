@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Search, Users, CheckCircle2, AlertCircle, School, Mail, MessageSquare, AlertTriangle, UserRound, GraduationCap } from 'lucide-react';
+import { Send, Search, Users, School, Mail, MessageSquare, AlertTriangle, UserRound, GraduationCap } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { callMail } from '../../lib/mailApi';
 import type { MailResult } from '../../lib/mailApi';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
 import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { ParentChecklist, RelationChips, parentRelations, pickParents, reachableIndexes, type ParentChannel, type ParentSelection } from '../Common/ParentPicker'; // Aşama 134
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
@@ -72,8 +72,7 @@ export const ParentAnnouncements: React.FC = () => {
   const [studentClassFilter, setStudentClassFilter] = useState('all');
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
-  const [feedback, setFeedback] = useState<{ tone: 'success' | 'warning' | 'danger'; lines: string[] } | null>(null);
-  useAutoDismiss(feedback, () => setFeedback(null), 60_000);
+  const setFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Aşama 344: yazılan duyuru taslak olarak tutulur (başka sayfaya geçince ya da oturum boşta kapanınca kaybolmasın)
   type VeliTaslak = {
@@ -322,12 +321,6 @@ export const ParentAnnouncements: React.FC = () => {
   };
 
   const limit = useSms ? SMS_MAX : TEXT_MAX;
-  const toneBox = (tone: string) =>
-    tone === 'success'
-      ? 'bg-success-soft border-success/30 text-success-fg'
-      : tone === 'warning'
-        ? 'bg-warning-soft border-warning/30 text-warning-fg'
-        : 'bg-danger-soft border-danger/30 text-danger-fg';
 
   return (
     <div className="max-w-3xl" id="parent-announcements">
@@ -603,16 +596,6 @@ export const ParentAnnouncements: React.FC = () => {
           )}
         </div>
 
-        {feedback && (
-          <div role="status" className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${toneBox(feedback.tone)}`}>
-            {feedback.tone === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-            <div className="space-y-1 min-w-0">
-              {feedback.lines.map((l, i) => (
-                <p key={i}>{l}</p>
-              ))}
-            </div>
-          </div>
-        )}
 
         {confirming ? (
           <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-brand/40 bg-brand/10 p-3">

@@ -8,7 +8,6 @@ import {
   Award,
   Trash2,
   RotateCcw,
-  CheckCircle2,
   ChevronDown,
   BookOpen,
   Filter,
@@ -20,12 +19,12 @@ import confetti from 'canvas-confetti';
 import { GradeRecord, AttendanceRecord, Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { useQuickFocus } from '../../lib/quickFocus';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal, Segmented } from '../ui/kit'; // Aşama 191 · Aşama 208: Segmented
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
@@ -86,8 +85,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   // Toplu Not Girişi State
   const [batchExamType, setBatchExamType] = useState<string>('1. Yazılı');
   const [batchGradesMap, setBatchGradesMap] = useState<Record<string, { score: string; remarks: string }>>({});
-  const [batchSaveFeedback, setBatchSaveFeedback] = useState<string | null>(null);
-  useAutoDismiss(batchSaveFeedback, () => setBatchSaveFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setBatchSaveFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Grade Modal State
   const [isAddGradeOpen, setIsAddGradeOpen] = useState(false);
@@ -755,12 +753,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               {/* SAYFA ALTI KAYDET BUTONU FOR BATCH GRADES */}
               <div className="p-4 bg-canvas/90 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center space-x-2 text-xs">
-                  {batchSaveFeedback ? (
-                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-success/15 text-success-fg border border-success/30 font-semibold">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-success-fg" />
-                      <span>{batchSaveFeedback}</span>
-                    </span>
-                  ) : batchEnteredCount > 0 ? (
+                  {batchEnteredCount > 0 ? (
                     <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-warning/15 text-warning-fg border border-warning/30 font-semibold animate-pulse">
                       <AlertTriangle className="w-3.5 h-3.5 text-warning-fg" />
                       <span>{batchEnteredCount} öğrenci için not girildi</span>

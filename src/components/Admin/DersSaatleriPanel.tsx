@@ -14,6 +14,7 @@ import {
   dersCanliDinle,
   saatleriDoldur,
 } from '../../services/dersService';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 217: DERS SAATLERİ (kurum ayarı) — günlük ders sayısı (1–10), ders günleri, saatler,
@@ -92,7 +93,7 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
   const [kayitli, setKayitli] = useState<Form | null>(null); // veritabanındaki hali
   const [form, setForm] = useState<Form | null>(null);
   const [yukHata, setYukHata] = useState<string | null>(null);
-  const [mesaj, setMesaj] = useState<{ tip: 'ok' | 'hata'; yazi: string } | null>(null);
+  const setMesaj = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [disaridan, setDisaridan] = useState(false); // düzenlerken başka biri değiştirdi
   const [dolOpen, setDolOpen] = useState(false);
@@ -431,12 +432,9 @@ export const DersSaatleriPanel: React.FC<{ kurumId: string }> = ({ kurumId }) =>
           </label>
         </div>
 
-        {(hataYazi && degisti) || mesaj ? (
-          <p
-            role={mesaj?.tip === 'ok' ? 'status' : 'alert'}
-            className={cx('text-xs font-semibold', mesaj?.tip === 'ok' && !hataYazi ? 'text-success-fg' : 'text-danger-fg')}
-          >
-            {hataYazi && degisti ? hataYazi : mesaj?.yazi}
+        {hataYazi && degisti ? (
+          <p role="alert" className="text-xs font-semibold text-danger-fg">
+            {hataYazi}
           </p>
         ) : null}
       </div>

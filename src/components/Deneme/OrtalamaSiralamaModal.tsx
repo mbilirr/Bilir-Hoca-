@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { FileSpreadsheet, ListOrdered } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
-import { Modal, Segmented, cx } from '../ui/kit';
+import { Modal, Segmented } from '../ui/kit';
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { byUploadOrder, listResultsLite, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { dateTr, pickScope, scopeLabel, type ScopeKey } from '../../lib/deneme/karneModel';
 import { buildSiralama, downloadSiralamaExcel } from '../../lib/deneme/ortalamaSiralama';
 import { gradeOf } from '../../lib/teacherGrades';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 115: Denemeler › "Ortalama sıralama" — Son 3 / Son 5 / seçilen denemelerin ortalamasıyla öğrenci
@@ -33,7 +34,7 @@ export const OrtalamaSiralamaModal: React.FC<{
   const [classId, setClassId] = useState('all');
   const [duzen, setDuzen] = useState<'sinif' | 'toplu'>('sinif');
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   // Aynı pencerede tekrar indirmede aynı denemelerin sonuçları yeniden okunmaz
   const [cache, setCache] = useState<{ key: string; results: DenemeResult[] } | null>(null);
 
@@ -99,11 +100,6 @@ export const OrtalamaSiralamaModal: React.FC<{
       description="Seçilen denemelerin ortalamasıyla sınıf ve genel sıralama"
       footer={
         <>
-          {msg && (
-            <span role="status" id="deneme-siralama-msg" className={cx('mr-auto self-center text-xs font-semibold', msg.ok ? 'text-success-fg' : 'text-danger-fg')}>
-              {msg.text}
-            </span>
-          )}
           <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={onClose}>
             Vazgeç
           </button>

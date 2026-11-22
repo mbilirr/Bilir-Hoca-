@@ -12,6 +12,7 @@ import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { EtutFormModal, type EtutFormSaved } from '../Teacher/EtutFormModal';
 import { LEVEL_TITLE, downloadEtutListeExcel, myBranchSubjectKeys, type EtutLevel } from '../../lib/deneme/etutYonlendirmeExcel';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Etüt yönlendirme (Aşama 47)
@@ -80,7 +81,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [etutSource, setEtutSource] = useState<Etut | null>(null);
 
   const asc = useMemo(() => exams.slice().sort(byUploadOrder), [exams]); // Aşama 51: yükleniş sırası
@@ -543,20 +544,6 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
           <span className="ui-chip ui-chip-success" title={LEVEL_INFO.iyi.advice}>Başarılı %70+</span>
           <span className="text-muted">Başarı = doğru ÷ o konudaki soru (seçili denemelerin toplamı)</span>
         </div>
-        {notice && (
-          <p
-            role="status"
-            className={cx(
-              'text-xs font-semibold rounded-xl px-3 py-2',
-              notice.tone === 'success' && 'bg-success-soft text-success-fg',
-              notice.tone === 'info' && 'bg-info-soft text-info-fg',
-              notice.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-              notice.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-            )}
-          >
-            {notice.text}
-          </p>
-        )}
       </div>
 
       {branchOnly && !subjectList.length && (

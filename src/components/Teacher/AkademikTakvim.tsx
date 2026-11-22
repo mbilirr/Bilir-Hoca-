@@ -54,6 +54,7 @@ import {
 } from '../../services/akademikTakvimService';
 import type { Teacher } from '../../types';
 import { takvimExcelOku, takvimSablonIndir, type OkunanSatir } from '../../lib/akademikTakvimExcel';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 242: AKADEMİK TAKVİM sayfası (kurum bölümü "Akademik takvim" açıksa menüde görünür)
@@ -63,7 +64,6 @@ import { takvimExcelOku, takvimSablonIndir, type OkunanSatir } from '../../lib/a
 // ============================================================================
 
 const BTN = 'ui-btn ui-btn-sm h-8 justify-center';
-type Bildirim = { tone: 'ok' | 'err'; text: string } | null;
 
 // Aşama 327: birkaç gün süren etkinlikte kutuda gün aralığı ("15–19") ve gün sayısı; ay değişiyorsa ilk günün ayı
 const DtKutu: React.FC<{ tarih: string; bitis?: string; ayIcinde?: boolean; vurgu?: boolean }> = ({ tarih, bitis, ayIcinde, vurgu }) => {
@@ -191,7 +191,7 @@ export const AkademikTakvim: React.FC = () => {
   const [kayitlar, setKayitlar] = useState<AktKayit[]>([]);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState<string | null>(null);
-  const [bildirim, setBildirim] = useState<Bildirim>(null);
+  const setBildirim = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [ay, setAy] = useState(0);
   const [fSinif, setFSinif] = useState('');
   const [fZumre, setFZumre] = useState(''); // Aşama 327: zümre süzgeci
@@ -235,11 +235,6 @@ export const AkademikTakvim: React.FC = () => {
     void yukle();
   }, [yukle]);
   useEffect(() => takvimCanliDinle(kurumId, () => void yukle()), [kurumId, yukle]);
-  useEffect(() => {
-    if (!bildirim) return;
-    const t = setTimeout(() => setBildirim(null), 3200);
-    return () => clearTimeout(t);
-  }, [bildirim]);
 
   const hepsi = useMemo(() => etkinlikler(kayitlar), [kayitlar]);
   const bugunS = tarihYaz(bugun());
@@ -395,11 +390,6 @@ export const AkademikTakvim: React.FC = () => {
         }
       />
 
-      {bildirim && (
-        <div role="status" className={cx('rounded-xl px-4 py-2.5 text-xs font-semibold', bildirim.tone === 'ok' ? 'bg-success-soft text-success-fg' : 'bg-danger-soft text-danger-fg')}>
-          {bildirim.text}
-        </div>
-      )}
       {hata && (
         <div role="alert" className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-danger-fg flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" /> {hata}

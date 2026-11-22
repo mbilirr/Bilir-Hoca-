@@ -6,6 +6,7 @@ import { dateTr } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
 import { bookletKey, downloadKeyExcel, hasBMapping, showLetter, type Booklet } from '../../lib/deneme/anahtarCikti';
 import { kitapciklarOf } from '../../lib/deneme/lgs';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
@@ -18,7 +19,7 @@ const BTN = 'ui-btn ui-btn-sm w-28 justify-center';
 export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onClose: () => void }> = ({ exam, open, onClose }) => {
   const [booklet, setBooklet] = useState<Booklet>('A');
   const [busy, setBusy] = useState<'' | 'xlsx' | 'pdf'>('');
-  const [msg, setMsg] = useState<string | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const subs = exam.subjects;
   const qs = exam.questions;
   const mapped = useMemo(() => hasBMapping(subs, qs), [subs, qs]);
@@ -125,11 +126,6 @@ export const CevapAnahtariModal: React.FC<{ exam: DenemeExam; open: boolean; onC
           </div>
         ))}
         <p className="text-xs text-muted flex items-center gap-1">İ: iptal edilen soru (herkese doğru sayılır).<InfoTip text="Excel dosyası yayınevi düzenindedir; başka bir denemeye de yüklenebilir." /></p>
-        {msg && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-lg px-2.5 py-1.5">
-            {msg}
-          </p>
-        )}
       </div>
     </Modal>
   );

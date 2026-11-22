@@ -4,6 +4,7 @@ import { addBook, addBookForStudents, deleteBooks, renameBooks, type StudentBook
 import { cx, Modal } from '../ui/kit';
 import { FieldLabel, inputCls } from './FormParts';
 import { normalizeSubject } from '../../lib/subjects';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Kitap tanımlama penceresi — öğrenci ve sınıf görünümünün ortak penceresi
@@ -39,7 +40,7 @@ export const StudyPlanBooksModal: React.FC<{
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState(restrictToSubjects ? subjectOptions[0] || '' : '');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [busy, setBusy] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -235,11 +236,6 @@ export const StudyPlanBooksModal: React.FC<{
         {error && (
           <div role="alert" id="plan-books-error" className="rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">
             {error}
-          </div>
-        )}
-        {notice && (
-          <div role="status" id="plan-books-notice" className="rounded-xl bg-surface-2 border border-line text-fg-2 px-3 py-2 text-xs font-semibold">
-            {notice}
           </div>
         )}
         {subject && totalCount > entryCount && (

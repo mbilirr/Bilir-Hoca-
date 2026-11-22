@@ -3,7 +3,7 @@ import { MailCheck, School, User, Send, Unlink, Link2, AlertCircle, CheckCircle2
 import { Modal } from '../ui/kit';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { inputCls, FieldLabel, invalidateMailStatus } from './FormParts';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
 // ============================================================================
@@ -18,8 +18,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
   const [gmail, setGmail] = useState('');
   const [appPassword, setAppPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ tone: 'success' | 'danger' | 'warning'; text: string } | null>(null);
-  useAutoDismiss(message, () => setMessage(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setMessage = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const refresh = async () => {
     const r = await callMail('status');
@@ -135,21 +134,6 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
           </div>
         )}
 
-        {message && (
-          <div
-            role="status"
-            id="mail-settings-message"
-            className={
-              message.tone === 'success'
-                ? 'p-3 rounded-xl bg-success-soft text-success-fg text-xs font-semibold'
-                : message.tone === 'warning'
-                  ? 'p-3 rounded-xl bg-warning-soft text-warning-fg text-xs font-semibold'
-                  : 'p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold'
-            }
-          >
-            {message.text}
-          </div>
-        )}
 
         {!serverDown && status && (
           <>

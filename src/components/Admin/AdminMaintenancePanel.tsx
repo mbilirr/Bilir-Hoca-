@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { DatabaseBackup, Download, FolderSync, Loader2, CheckCircle2, AlertTriangle, Search, Info, LockKeyhole, FileLock2 } from 'lucide-react';
+import { DatabaseBackup, Download, FolderSync, Loader2, CheckCircle2, Search, Info, LockKeyhole, FileLock2 } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { supabase } from '../../lib/supabase';
 import {
@@ -14,7 +14,7 @@ import {
 } from '../../services/maintenanceService';
 
 import { BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { yedekParolaHatasi, YEDEK_PAROLA_EN_AZ } from '../../lib/yedekSifre'; // Aşama 345
 import { HataKayitlariPanel } from './HataKayitlariPanel'; // Aşama 293
 import { IkiAdimPanel } from './IkiAdimPanel'; // Aşama 294
@@ -33,8 +33,7 @@ export const AdminMaintenancePanel: React.FC = () => {
   const [lastBackup, setLastBackup] = useState<Date | null | 'unavailable' | undefined>(undefined);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupProgress, setBackupProgress] = useState<string>('');
-  const [backupMsg, setBackupMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(backupMsg, () => setBackupMsg(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setBackupMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   useEffect(() => {
     getLastBackupDate().then(setLastBackup).catch(() => setLastBackup('unavailable'));
@@ -81,8 +80,7 @@ export const AdminMaintenancePanel: React.FC = () => {
   const [acDosya, setAcDosya] = useState<File | null>(null);
   const [acParola, setAcParola] = useState('');
   const [acBusy, setAcBusy] = useState(false);
-  const [acMsg, setAcMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(acMsg, () => setAcMsg(null));
+  const setAcMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const handleOpen = async () => {
     if (acBusy || !acDosya || !acParola) return;
     setAcBusy(true);
@@ -208,19 +206,6 @@ export const AdminMaintenancePanel: React.FC = () => {
           {backupBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LockKeyhole className="w-4 h-4" />}
           {backupBusy ? backupProgress || 'Hazırlanıyor…' : 'Şifreli Yedeği İndir'}
         </button>
-        {backupMsg && (
-          <div
-            role={backupMsg.type === 'err' ? 'alert' : 'status'}
-            className={`p-3 rounded-xl text-xs border flex gap-2 ${
-              backupMsg.type === 'ok'
-                ? 'bg-success-soft border-success/30 text-success-fg'
-                : 'bg-danger-soft border-danger/30 text-danger-fg'
-            }`}
-          >
-            {backupMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-            <span>{backupMsg.text}</span>
-          </div>
-        )}
 
         {/* Aşama 345: şifreli yedeği aç */}
         <div className="pt-3 mt-1 border-t border-line space-y-2" id="yedek-ac">
@@ -266,17 +251,6 @@ export const AdminMaintenancePanel: React.FC = () => {
               Aç
             </button>
           </div>
-          {acMsg && (
-            <div
-              role={acMsg.type === 'err' ? 'alert' : 'status'}
-              className={`p-3 rounded-xl text-xs border flex gap-2 ${
-                acMsg.type === 'ok' ? 'bg-success-soft border-success/30 text-success-fg' : 'bg-danger-soft border-danger/30 text-danger-fg'
-              }`}
-            >
-              {acMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-              <span>{acMsg.text}</span>
-            </div>
-          )}
         </div>
       </section>
 

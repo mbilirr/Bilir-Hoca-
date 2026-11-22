@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { HelpDisclosure } from '../ui/Compact'; // Aşama 187
-import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info, MessageSquareText, Send, RefreshCw, Trash2 } from 'lucide-react';
+import { BellRing, Loader2, Save, RotateCcw, AlertTriangle, Info, MessageSquareText, Send, RefreshCw, Trash2 } from 'lucide-react';
 import { callMail } from '../../lib/mailApi';
 import { supabase } from '../../lib/supabase';
 import { dataService } from '../../services/dataService';
@@ -17,6 +17,7 @@ import {
   type PolicyChannel,
   type PolicyCategory,
 } from '../../lib/notificationPolicy';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 72: Yönetim › Bildirim izinleri
@@ -36,8 +37,7 @@ export const NotificationPolicyPanel: React.FC = () => {
   const [missing, setMissing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [rec, setRec] = useState<PolicyRecipient>('ogrenci');
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(msg, () => setMsg(null));
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   useEffect(() => {
     let alive = true;
@@ -262,18 +262,6 @@ export const NotificationPolicyPanel: React.FC = () => {
           </ul>
           </HelpDisclosure>
 
-          {msg && (
-            <div
-              role="status"
-              className={cx(
-                'p-3 rounded-xl text-xs font-semibold flex items-center gap-2',
-                msg.type === 'ok' ? 'bg-success-soft text-success-fg' : 'bg-danger-soft text-danger-fg'
-              )}
-            >
-              {msg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-              <span>{msg.text}</span>
-            </div>
-          )}
         </div>
       )}
     </Panel>
@@ -332,8 +320,7 @@ const SmsStatusBox: React.FC = () => {
   // Aşama 129: kayıtları listeden kaldırma / takılı gönderimi kapatma
   const [pick, setPick] = useState<Set<number>>(new Set());
   const [logBusy, setLogBusy] = useState(false);
-  const [logMsg, setLogMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(logMsg, () => setLogMsg(null), 15_000);
+  const setLogMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const load = async () => {
     setLoading(true);
@@ -506,7 +493,6 @@ const SmsStatusBox: React.FC = () => {
           {st.recent.length > 0 && !st.canHide && (
             <p className="text-xs text-muted">Kayıtları listeden kaldırmak için Supabase SQL Editor'de sql/129_yillik_plan_ve_sms_kayit.sql dosyasını çalıştırın.</p>
           )}
-          {logMsg && <p className={cx('text-xs font-semibold', logMsg.type === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>{logMsg.text}</p>}
           {st.recent.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-line bg-surface">
               <table className="w-full text-xs min-w-[30rem]">

@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   Save,
-  CheckCircle2,
   AlertCircle,
   Camera,
   Upload,
@@ -21,6 +20,7 @@ import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { profilResmi, ogretmenProfilRol, cizimSecenekleri } from '../../lib/profilResmi'; // Aşama 171
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
@@ -46,7 +46,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
   const [email, setEmail] = useState(teacher.email || '');
   const [phone, setPhone] = useState(teacher.phone || '');
   const [avatar, setAvatar] = useState(teacher.avatar || '');
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const setSuccessMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -192,12 +192,6 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
               </div>
             )}
 
-            {successMsg && (
-              <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successMsg}</span>
-              </div>
-            )}
 
             {/* Profil Fotoğrafı & Öğretmen Emojileri */}
             <div className="p-4 bg-canvas/80 border border-line rounded-2xl space-y-3">
@@ -409,7 +403,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const setSuccessMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Not: React kuralı gereği tüm hook'lar erken "return"den ÖNCE çağrılmalıdır
@@ -499,12 +493,6 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
             </div>
           )}
 
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
 
           {/* Mevcut Şifre */}
           <div>

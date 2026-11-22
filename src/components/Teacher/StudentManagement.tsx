@@ -11,7 +11,6 @@ import {
   Trash2,
   School,
   X,
-  Check,
   FileSpreadsheet,
   Download,
   Upload,
@@ -83,10 +82,10 @@ import {
   sheetSource, // Aşama 154
   gercekAralik, // Aşama 323
 } from '../../lib/importNormalize';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { profilResmi } from '../../lib/profilResmi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { ProfilResmiSecModal } from '../ProfilResmiSecModal'; // Aşama 334
 
 interface StudentManagementProps {
@@ -302,8 +301,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentEmail, setStudentEmail] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
-  const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
-  useAutoDismiss(studentSuccessFeedback, () => setStudentSuccessFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setStudentSuccessFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [studentClassId, setStudentClassId] = useState(studentClassOptions[0]?.id || '');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
@@ -337,8 +335,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Aşama 254 / 262: yöneticinin verdiği son şifre ortak KayitliSifre bileşeninde (yalnız yöneticiler görür)
   const [studentTcRemove, setStudentTcRemove] = useState(false);
   const [studentTcError, setStudentTcError] = useState<string | null>(null);
-  const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
-  useAutoDismiss(quickClassChangeFeedback, () => setQuickClassChangeFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setQuickClassChangeFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Hızlı Sınıf Değiştirme / Aktarma İşleyicisi
   const handleQuickChangeStudentClass = async (student: Student, targetClassId: string) => {
@@ -1344,23 +1341,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   return (
     <div className="space-y-6">
       {/* Success Notification Alert */}
-      {studentSuccessFeedback && (
-        <div className="p-4 bg-success-soft border border-success/40 rounded-2xl flex items-center justify-between text-success-fg text-sm shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-success/20 border border-success/40 flex items-center justify-center text-success-fg shrink-0">
-              <Check className="w-4 h-4" />
-            </div>
-            <span className="font-medium">{studentSuccessFeedback}</span>
-          </div>
-          <button
-            onClick={() => setStudentSuccessFeedback(null)}
-            aria-label="Kapat"
-            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-success-fg"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Sayfa başlığı */}
       <PageHeader
@@ -1521,12 +1501,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           )}
 
           {/* Quick Class Change Feedback Banner */}
-          {quickClassChangeFeedback && (
-            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-success/15 border-2 border-success/30 text-success-fg text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
-              <Check className="w-4 h-4 text-success-fg shrink-0" />
-              <span>{quickClassChangeFeedback}</span>
-            </div>
-          )}
 
           {/* Filter / Search Bar */}
           <div className="p-4 sm:p-5 border-b border-line flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface">

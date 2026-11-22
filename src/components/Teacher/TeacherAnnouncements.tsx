@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Megaphone, StickyNote, Send, Search, Trash2, Users, CheckCircle2, AlertCircle, School } from 'lucide-react';
+import { Megaphone, StickyNote, Send, Search, Trash2, Users, School } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { AnnouncementGroup } from '../../types';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
 import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // DUYURU / NOT GÖNDER (Aşama 28)
@@ -38,8 +38,7 @@ export const TeacherAnnouncements: React.FC = () => {
   const [search, setSearch] = useState('');
   const [studentClassFilter, setStudentClassFilter] = useState('all');
   const [sending, setSending] = useState(false);
-  const [feedback, setFeedback] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
-  useAutoDismiss(feedback, () => setFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Aşama 344: yazılan duyuru taslak olarak tutulur (başka sayfaya geçince ya da oturum boşta kapanınca kaybolmasın)
@@ -309,19 +308,6 @@ export const TeacherAnnouncements: React.FC = () => {
           )}
         </div>
 
-        {feedback && (
-          <div
-            role="status"
-            className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${
-              feedback.tone === 'success'
-                ? 'bg-success-soft border-success/30 text-success-fg'
-                : 'bg-danger-soft border-danger/30 text-danger-fg'
-            }`}
-          >
-            {feedback.tone === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-            <span>{feedback.text}</span>
-          </div>
-        )}
 
         <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
           <span className="text-xs text-muted">

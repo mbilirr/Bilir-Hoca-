@@ -16,6 +16,7 @@ import {
   type PlanItem,
 } from '../../services/studyPlanService';
 import { planGorevIsaretle } from '../../lib/planGorev';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 
 // ============================================================================
@@ -38,25 +39,14 @@ export const StudentTodayPlan: React.FC<{
   const [showWeek, setShowWeek] = useState(false);
   const pending = useRef(new Set<string>());
   // Aşama 46: görevin soruları soru kaydına aktarılır; öğrenci fazlasını çözdüyse sayıyı günceller
-  const [info, setInfo] = useState<string | null>(null);
-  const infoTimer = useRef<number | null>(null);
+  const setInfo = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [editId, setEditId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [, setLogsTick] = useState(0);
   // HIZ (Aşama 226): veri bildirimi acil olmayan çizim olarak işlenir (App ile aynı; açılışta art arda gelen tablolar ekranı dondurmaz)
   useEffect(() => dataService.subscribe(() => startTransition(() => setLogsTick((n) => n + 1)), ['soru']), []) // Aşama 349b;
-  useEffect(
-    () => () => {
-      if (infoTimer.current) window.clearTimeout(infoTimer.current);
-    },
-    []
-  );
-  const showInfo = (msg: string) => {
-    setInfo(msg);
-    if (infoTimer.current) window.clearTimeout(infoTimer.current);
-    infoTimer.current = window.setTimeout(() => setInfo(null), 15000); // Aşama 99: 15 sn
-  };
+  const showInfo = (msg: string) => setInfo(msg); // Aşama 353: ortak bildirim kendi süresiyle kapanır
 
   const refresh = useCallback(async () => {
     try {
@@ -367,11 +357,6 @@ export const StudentTodayPlan: React.FC<{
         </div>
       )}
 
-      {info && (
-        <p role="status" id="student-today-info" className="text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-success-soft text-success-fg">
-          {info}
-        </p>
-      )}
 
       {error && (
         <p role="alert" className="text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-danger-soft text-danger-fg">

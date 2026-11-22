@@ -74,6 +74,7 @@ import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../s
 import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 import { InfoTip } from '../ui/Compact'; // Aşama 215
 
@@ -545,7 +546,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     if (!entryDateTouched) setEntryDate(todayIso);
   }, [todayIso, entryDateTouched]);
   const [entryNotes, setEntryNotes] = useState<string>('');
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
+  const setSaveSuccessMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [submitAttempted, setSubmitAttempted] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -594,7 +595,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const [singleTopic, setSingleTopic] = useState<string>('');
   const [singleEntries, setSingleEntries] = useState<QuestionLogSubjectEntry[]>([]);
   const [singleError, setSingleError] = useState<string>('');
-  const [singleInfo, setSingleInfo] = useState<string>('');
+  const setSingleInfo = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Soru logları aboneliği
   const [allLogs, setAllLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
@@ -779,7 +780,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     if (!text || cur.includes(text)) return cur;
     return (cur ? `${cur}, ${text}` : text).slice(0, 120);
   };
-  const [planInfo, setPlanInfo] = useState('');
+  const setPlanInfo = useBildirimKanali(); // Aşama 353: ortak bildirim
   const transferPlanTasks = (subject: string, tasks: PlanItem[]) => {
     const text = tasks.map(planTaskText).filter(Boolean).join(', ');
     if (!text) return;
@@ -797,7 +798,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       setSingleTopic((cur) => appendTopic(match && sameSubject(singleSubject, match) ? cur : '', text));
     }
     setPlanInfo(`${normalizeSubject(subject)}: plandaki görev konu kutusuna aktarıldı.`);
-    window.setTimeout(() => setPlanInfo(''), 15000); // Aşama 99: 15 sn
   };
 
   // ---------------------------------------------------------------------------
@@ -928,7 +928,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
   const clearMessages = () => {
     setFormError('');
-    if (saveSuccessMsg) setSaveSuccessMsg('');
   };
 
   const updateListRow = (idx: number, field: keyof EntryRow, value: string) => {
@@ -2303,16 +2302,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           </div>
 
-          {saveSuccessMsg && (
-            <div
-              id="qe-success"
-              role="status"
-              className="p-3 bg-success-soft border border-success/30 text-success-fg rounded-xl text-xs font-bold flex items-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{saveSuccessMsg}</span>
-            </div>
-          )}
 
           {/* Tarih Seçimi */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2421,11 +2410,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   );
                 })}
               </div>
-              {planInfo && (
-                <p className="text-xs font-semibold text-brand-fg" role="status">
-                  {planInfo}
-                </p>
-              )}
             </div>
           )}
 
@@ -2797,11 +2781,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 {singleError && (
                   <p id="qe-single-error" role="alert" className="col-span-2 sm:col-span-6 text-xs font-semibold text-danger-fg">
                     {singleError}
-                  </p>
-                )}
-                {singleInfo && !singleError && (
-                  <p id="qe-single-info" className="col-span-2 sm:col-span-6 text-xs font-semibold text-muted">
-                    {singleInfo}
                   </p>
                 )}
               </form>

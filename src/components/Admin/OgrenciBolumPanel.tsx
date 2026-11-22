@@ -14,6 +14,7 @@ import {
   type OgrBolum,
   type OgrBolumAyar,
 } from '../../lib/ogrenciBolum';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 165: ÖĞRENCİ BÖLÜMLERİ — kurum varsayılanı + sınıfa özel ayar
@@ -58,7 +59,7 @@ export const OgrenciBolumPanel: React.FC<{
   const surum = useOgrBolumSurum();
   const [draft, setDraft] = useState<Record<string, Record<OgrBolum, boolean> | null>>({});
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   // Kurum bölümleri (genel yönetici kurumu dışarıdan görüyorsa bir kez okunur)
   const [loadedMods, setLoadedMods] = useState<Record<string, boolean | undefined> | null>(null);
@@ -265,11 +266,6 @@ export const OgrenciBolumPanel: React.FC<{
       {sorted.length === 0 && (
         <p className="flex items-center gap-1.5 text-xs text-muted" id="ogrenci-bolum-sinif-yok">
           <Info className="w-3.5 h-3.5 shrink-0" /> {classesNote || 'Bu alanda sınıf yok; varsayılan bütün öğrencilere uygulanır.'}
-        </p>
-      )}
-      {msg && (
-        <p role={msg.tone === 'danger' ? 'alert' : 'status'} className={cx('text-xs font-semibold', msg.tone === 'danger' ? 'text-danger-fg' : 'text-success-fg')} id="ogrenci-bolum-mesaj">
-          {msg.text}
         </p>
       )}
       {canEdit && (

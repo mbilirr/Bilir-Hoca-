@@ -45,6 +45,7 @@ import {
   type AiProgramItem,
   type AiProvider,
 } from '../../lib/aiApi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Kazanım bankası (Aşama 48)
@@ -54,24 +55,8 @@ import {
 // Bankada kişisel bilgi yoktur.
 // ============================================================================
 
-type Msg = { tone: 'success' | 'warning' | 'danger'; text: string } | null;
 
 const ALL = '__all';
-
-const MsgLine: React.FC<{ msg: Msg }> = ({ msg }) =>
-  msg ? (
-    <p
-      role="status"
-      className={cx(
-        'text-xs font-semibold rounded-xl px-3 py-2',
-        msg.tone === 'success' && 'bg-success-soft text-success-fg',
-        msg.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-        msg.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-      )}
-    >
-      {msg.text}
-    </p>
-  ) : null;
 
 interface ProgFile {
   id: string;
@@ -152,7 +137,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
   const [kfBusy, setKfBusy] = useState(false);
   const [kfAll, setKfAll] = useState(false);
   const [kfProgress, setKfProgress] = useState('');
-  const [kfMsg, setKfMsg] = useState<Msg>(null);
+  const setKfMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [kfApplied, setKfApplied] = useState<string | null>(null);
   const [kfChanges, setKfChanges] = useState<Array<{ code: string; subject: string; text: string; old: string; konu: string; on: boolean }> | null>(null);
   const isHead = dataService.isHeadAdmin();
@@ -180,7 +165,7 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<BankParseResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<Msg>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
@@ -768,7 +753,6 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
               </div>
             </div>
           )}
-          {!manualOpen && <MsgLine msg={msg} />}
         </div>
       </Panel>
 
@@ -860,7 +844,6 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
                     : 'Bankaya kaydet'}
               </button>
             </div>
-            <MsgLine msg={msg} />
             {preview && preview.rows.length > 0 && (
               <div className="rounded-xl border border-line overflow-hidden">
                 <div className="px-3 py-2 bg-surface-2/60 border-b border-line flex flex-wrap items-center gap-2 text-xs">
@@ -908,7 +891,6 @@ export const KazanimBankasi: React.FC<{ grade?: string }> = ({ grade = '8' }) =>
               </button>
             </div>
             {kfProgress && <p className="text-xs text-muted">{kfProgress}</p>}
-            <MsgLine msg={kfMsg} />
             {kfApplied && <p className="text-xs font-semibold rounded-xl px-3 py-2 bg-info-soft text-info-fg">{kfApplied}</p>}
             {kfChanges && kfChanges.length > 0 && (
               <div className="rounded-xl border border-line overflow-hidden">

@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, LockOpen, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Panel, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { girisAyarOku, girisAyarYaz, girisHatalari, girisKilitAc, type GirisAyar, type GirisHataSatiri } from '../../lib/girisGuvenligi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 339: GİRİŞ GÜVENLİĞİ (kurum yöneticisi: Yönetim › Genel; sistem sahibi: Yönetim › Bildirim ve SMS)
@@ -49,8 +49,7 @@ export const GirisGuvenligiPanel: React.FC = () => {
   const [ayarMesgul, setAyarMesgul] = useState<keyof GirisAyar | null>(null);
   const [rows, setRows] = useState<GirisHataSatiri[] | null>(null);
   const [mesgul, setMesgul] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(notice, () => setNotice(null));
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const oku = useCallback(async () => {
     const [a, r] = await Promise.allSettled([girisAyarOku(), girisHatalari()]);
@@ -120,11 +119,6 @@ export const GirisGuvenligiPanel: React.FC = () => {
           ))}
         </ul>
 
-        {notice && (
-          <p role={notice.tone === 'err' ? 'alert' : 'status'} className={cx('text-xs font-semibold rounded-xl px-3 py-2', notice.tone === 'err' ? 'text-danger-fg bg-danger-soft' : 'text-success-fg bg-success-soft')}>
-            {notice.text}
-          </p>
-        )}
 
         <div className="space-y-2">
           <p className="ui-eyebrow">Son 7 gün</p>

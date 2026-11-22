@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Printer,
   Download,
@@ -9,12 +9,12 @@ import {
   FileText,
   Users,
   Paperclip,
-  CheckCircle2,
   Award,
 } from 'lucide-react';
 import { Homework, Student, ClassGroup, HomeworkSubmission } from '../../types';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { dataService } from '../../services/dataService';
+import { basariBildir } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface HomeworkDetailModalProps {
@@ -34,7 +34,6 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
   classes,
   submissions = [],
 }) => {
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   if (!isOpen || !homework) return null;
 
@@ -149,8 +148,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 15000); // Aşama 99: 15 sn
+    basariBildir('Ödev belgesi (.doc) indirildi.'); // Aşama 353: ortak bildirim
   };
 
   const handlePrint = () => {
@@ -173,17 +171,10 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
   const altKisim = (
         <div className="w-full flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-2 text-xs">
-            {downloadSuccess ? (
-              <span className="inline-flex items-center space-x-1.5 text-success-fg font-semibold animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Ödev Belgesi (.DOC) başarıyla indirildi!</span>
-              </span>
-            ) : (
-              <span className="text-muted flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-brand/40"></span>
-                <span>Tüm ödev sayfası ve detayları görüntülendi</span>
-              </span>
-            )}
+            <span className="text-muted flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-brand/40"></span>
+              <span>Tüm ödev sayfası ve detayları görüntülendi</span>
+            </span>
           </div>
 
           <div className="flex items-center space-x-3">

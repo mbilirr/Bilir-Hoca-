@@ -7,6 +7,7 @@ import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { ALL_SUBJECTS, ORTAOKUL_SUBJECTS, LISE_SUBJECTS, subjectsForBranch } from '../../lib/subjects';
 import { inputCls, chipCls, FieldLabel } from './FormParts';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Etüt öğretmenleri (yalnızca yönetici) — Aşama 9, düzen Aşama 12
@@ -74,7 +75,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
   const [draft, setDraft] = useState<Draft | null>(null);
   const [level, setLevel] = useState<Level>('Ortaokul');
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [query, setQuery] = useState('');
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const teachers: Teacher[] = useMemo(() => (open ? dataService.getTeachers().filter((t) => t.status !== 'pending' && t.status !== 'rejected') : []), [open]);
@@ -140,7 +141,6 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
     try {
       await dataService.saveEtutTeacherRow({ ...draft, name: draft.name, subjects: draft.subjects } as any);
       setNotice(draft.id ? 'Öğretmen güncellendi.' : 'Öğretmen eklendi.');
-      setTimeout(() => setNotice(null), 2500);
       // Kaydedilen öğretmenin ders bölümleri açık gelsin
       setOpenGroups((g) => {
         const next = { ...g };
@@ -279,7 +279,6 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
             {error}
           </div>
         )}
-        {notice && <div className="p-2.5 rounded-xl bg-success-soft text-success-fg text-xs font-semibold">{notice}</div>}
 
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />

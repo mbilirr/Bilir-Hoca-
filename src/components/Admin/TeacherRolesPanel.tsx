@@ -24,7 +24,7 @@ import {
   type RoleLogItem,
   type SectionAccess,
 } from '../../lib/teacherRoles';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // UNVANLAR VE ROLLER PANELİ (Aşama 81, 82, 83)
@@ -70,8 +70,7 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState<RoleLogItem[]>([]);
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(notice, () => setNotice(null));
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const [q, setQ] = useState('');
   const [kurumFilter, setKurumFilter] = useState('');
@@ -186,11 +185,6 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
         {rolesOff && <RolesOffWarning id="roles-panel-off-warning" />}
 
         {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={load} />}
-        {notice && (
-          <p role="status" className={cx('text-xs font-semibold', notice.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>
-            {notice.text}
-          </p>
-        )}
 
         <div className={cx('grid grid-cols-1 gap-2', isHead && !locked ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
           <div className="relative">

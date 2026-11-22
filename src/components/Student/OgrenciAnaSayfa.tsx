@@ -18,6 +18,7 @@ import { planGorevIsaretle } from '../../lib/planGorev';
 import { devamsizligim, haftaBasi, ogrenciProgrami, trBugun, type Devamsizligim, type OgrenciProgram } from '../../services/dersService';
 import { AkSheet, AnaSayfaKabuk, akBasHarf, type AkMenuOge } from '../Home/AnaSayfaKabuk';
 import '../Home/kalanAnaSayfa.css';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 253: ÖĞRENCİ ANA SAYFASI (taslak: kalan-roller.html › Öğrenci, 13 Kasım; Odak renkleri, sol menü + hayalet etiket)
@@ -216,7 +217,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
 
   // ================================================================ PLAN (bugünkü görevler)
   const [plan, setPlan] = useState<{ weekStart: string; items: PlanItem[]; sentBy: string } | null>(null);
-  const [planMsg, setPlanMsg] = useState<{ t: string; err?: boolean } | null>(null);
+  const setPlanMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const bekleyen = useRef(new Set<string>());
   const planOku = useCallback(async () => {
     try {
@@ -262,11 +263,6 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       bekleyen.current.delete(it.id);
     }
   };
-  useEffect(() => {
-    if (!planMsg) return;
-    const t = setTimeout(() => setPlanMsg(null), 15_000);
-    return () => clearTimeout(t);
-  }, [planMsg]);
 
   // ================================================================ BANA GELENLER
   const [seen, markSeen] = useSeenIds(`ogr_gelenler_${student.id}`, 600);
@@ -1075,7 +1071,6 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
               ) : (
                 <div className="nil">{plan.items.length ? 'Bugün için plan görevin yok.' : 'Öğretmenin plan gönderince bugünkü görevlerin burada görünür.'}</div>
               )}
-              {planMsg && <div className={'msg' + (planMsg.err ? ' err' : '')}>{planMsg.t}</div>}
               {plan && plan.items.length > 0 && (
                 <div className="rh mt">
                   <span>{geciken ? `Geçen günlerden ${geciken} görev kaldı` : plan.sentBy ? `Plan ${kisaAd(plan.sentBy)} tarafından hazırlandı` : 'Haftalık plan'}</span>

@@ -8,7 +8,6 @@ import {
   Mail,
   Hash,
   AlertCircle,
-  CheckCircle2,
   ShieldCheck,
   Eye,
   EyeOff,
@@ -16,6 +15,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Student } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface StudentProfileEditModalProps {
@@ -36,7 +36,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
   const [phone, setPhone] = useState(student.phone || '');
   const [studentNumber, setStudentNumber] = useState(student.studentNumber || '');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const setSuccessMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -123,12 +123,6 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             </div>
           )}
 
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-fg-2">
@@ -234,7 +228,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const setSuccessMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -334,12 +328,6 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             </div>
           )}
 
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success-fg text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
 
           {(
             <div className="space-y-1.5">

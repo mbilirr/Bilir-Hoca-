@@ -42,6 +42,7 @@ import { TekSayfaView } from './TekSayfaView'; // Aşama 135
 import { sonDeneme, tekOkunacakIds, tekSayfaData } from '../../lib/deneme/tekSayfaKarne';
 import { denemeKarneAdi } from '../../lib/deneme/karneAdi';
 import { bransGelisim, bransGelisimBlocks, bransTumSubeler, type BransSubject } from '../../lib/deneme/bransKarne';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Karneler (Aşama 47): öğrenci, sınıf ve sınıflar arası karşılaştırma.
@@ -184,7 +185,7 @@ const TopluKarneGonder: React.FC<{
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [sendOpen, setSendOpen] = useState<KarneSendKind | null>(null); // Aşama 119: e-posta / SMS alıcı penceresi
   const [progress, setProgress] = useState('');
-  const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [queue, setQueue] = useState<Record<string, QueueState>>({});
   const [open, setOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -491,20 +492,6 @@ const TopluKarneGonder: React.FC<{
           <p className="text-xs text-info-fg" id="karne-toplu-ilerleme">{progress}</p>
         </div>
       )}
-      {notice && (
-        <p
-          role="status"
-          id="karne-toplu-sonuc"
-          className={cx(
-            'text-xs font-semibold rounded-xl px-3 py-2',
-            notice.tone === 'success' && 'bg-success-soft text-success-fg',
-            notice.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-            notice.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-          )}
-        >
-          {notice.text}
-        </p>
-      )}
       <KarneSmsModal
         open={sendOpen !== null}
         kind={sendOpen || 'sms'}
@@ -583,7 +570,7 @@ export const DenemeKarne: React.FC<{
   const [studentId, setStudentId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [fullExams, setFullExams] = useState<DenemeExam[]>([]);
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [target, setTargetState] = useState<number | null>(null);
@@ -1066,19 +1053,6 @@ export const DenemeKarne: React.FC<{
             )}
             {busy && <span className="text-xs text-muted">Hazırlanıyor…</span>}
           </div>
-        )}
-        {notice && (
-          <p
-            role="status"
-            className={cx(
-              'text-xs font-semibold rounded-xl px-3 py-2',
-              notice.tone === 'success' && 'bg-success-soft text-success-fg',
-              notice.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-              notice.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-            )}
-          >
-            {notice.text}
-          </p>
         )}
         {/* Aşama 119: kapsam seçime göre — öğrenci seçiliyse yukarıdaki düğmeler yalnız o öğrenciye; sınıf seçili (öğrenci yok) →
             sınıfa toplu; hiçbiri seçili değil ("Tüm sınıflar") → bütün sınıflara toplu. Öğretmen (yalnız indirme) eskisi gibi sınıfta. */}

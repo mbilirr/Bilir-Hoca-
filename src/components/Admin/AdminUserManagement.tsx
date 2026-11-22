@@ -61,11 +61,10 @@ const StudentWelcomeCredentialsModal = lazyNamed(() => import('../Teacher/Studen
 // Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
 const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
 const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_CODE[r as TeacherRole]?.label || r).join(' / ');
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { Modal } from '../ui/kit'; // Aşama 191 · Aşama 236: Modal
-import { bildir, hataBildir } from '../../lib/bildirim'; // Aşama 348
+import { bildir, hataBildir, useBildirimKanali } from '../../lib/bildirim'; // Aşama 348
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -2238,8 +2237,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [created, setCreated] = useState<{ name: string; username: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [sendMail, setSendMail] = useState(true);
-  const [mailNotice, setMailNotice] = useState<{ tone: string; text: string } | null>(null);
-  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setMailNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
   // Aşama 99b: kurumda açılan hesaba unvan / rol (genel yöneticinin kendi panelinde roller uygulanmadığı için yok)
   const roleUi = !dataService.isHeadAdmin() && dataService.isKurumAdmin() && !!dataService.getMyKurumId();
   const canMudur = dataService.isKurumGecis();
@@ -2352,7 +2350,6 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             ? 'bg-danger-soft text-danger-fg'
             : 'bg-info-soft text-info-fg'
     }`;
-  const mailTone = (t: string) => (t === 'success' ? 'ok' : t === 'danger' ? 'danger' : t === 'warning' ? 'warn' : 'info');
 
   return (
     <Modal
@@ -2424,11 +2421,6 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
           {gradeNote && (
             <div id="teacher-create-grade-note" className={noteCls(gradeNote.ok ? 'info' : 'warn')}>
               {gradeNote.text}
-            </div>
-          )}
-          {mailNotice && (
-            <div id="teacher-create-mail-notice" className={noteCls(mailTone(mailNotice.tone))}>
-              E-posta: {mailNotice.text}
             </div>
           )}
         </div>

@@ -13,6 +13,9 @@
 //      ailenin dışında kalması gereken özel düğme data-serbest="neden" taşır.
 //   6) Aşama 351: elle pencere yok. "fixed inset-0" yalnız ortak kabukta ve pencere olmayan katmanlarda
 //      (açılır menü zemini, alt menü çekmecesi, komut paleti, geçiş perdesi). Yeni pencere = ui/kit Modal.
+//   7) Aşama 353: sayfa içi geçici yazı ("Kaydedildi", "E-posta gönderildi") ortak bildirimdedir:
+//      const setNotice = useBildirimKanali() (lib/bildirim). useAutoDismiss ile kendi şeridini tutmak yasak
+//      (yalnız SMS deneme sonucu gibi uzun teknik çıktı istisna). Formdaki alan hataları yerinde kalır.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -92,6 +95,11 @@ function dugmeDenetimi(rel, metin, hatalar) {
   }
 }
 
+// Aşama 353: kendi geçici şeridini tutmasına izin verilen dosyalar (gerekçeli)
+const GECICI_YAZI_IZINLI = new Set([
+  'src/components/Admin/NotificationPolicyPanel.tsx', // SMS deneme sonucu: ham sağlayıcı yanıtı 90 sn ekranda kalır
+]);
+
 const hatalar = [];
 for (const p of dosyalar(join(KOK, 'src'))) {
   const rel = relative(KOK, p);
@@ -112,6 +120,9 @@ for (const p of dosyalar(join(KOK, 'src'))) {
     if (p.endsWith(".tsx") === false || !/<button/.test(satir)) if (/\bui-btn\b/.test(satir) && BOY_DISI.test(satir) && !/\bsm:h-8\b/.test(satir)) {
       hatalar.push(`${rel}:${i + 1}  düğme boyu: ${satir.match(BOY_DISI)[0]}  → .ui-btn kendi boyunu verir (32 px)`);
     }
+    if (p.endsWith('.tsx') && /\buseAutoDismiss\(/.test(satir) && !GECICI_YAZI_IZINLI.has(rel.split('\\').join('/'))) {
+      hatalar.push(`${rel}:${i + 1}  sayfa içi geçici yazı: useAutoDismiss  → const setNotice = useBildirimKanali() (lib/bildirim)`);
+    }
     if (p.endsWith('.tsx') && /\bfixed inset-0\b/.test(satir) && !PENCERE_IZINLI.has(rel.split('\\').join('/'))) {
       hatalar.push(`${rel}:${i + 1}  elle pencere: fixed inset-0  → ui/kit Modal (ust, baslikSag, footer, govdeClass)`);
     }
@@ -122,4 +133,4 @@ if (hatalar.length) {
   console.error(`Tasarım denetimi: ${hatalar.length} sorun\n` + hatalar.join('\n'));
   process.exit(1);
 }
-console.log('Tasarım denetimi geçti (düğme ailesi tam, elle pencere yok).');
+console.log('Tasarım denetimi geçti (düğme ailesi tam, elle pencere yok, geçici yazılar ortak bildirimde).');

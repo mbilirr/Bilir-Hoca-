@@ -1,4 +1,3 @@
-import { NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Trash2, Undo2, Users, Lock } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
@@ -46,6 +45,7 @@ import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS }
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { OGR_KAPALI_ETIKET, ogrBolumHicKapaliYok, ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Haftalık plan — SINIF görünümü (Aşama 23)
@@ -247,20 +247,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const viewIdSet = useMemo(() => new Set(viewKey ? viewKey.split(',') : []), [viewKey]);
   usePlanCanli(viewIdSet.size > 0, () => void reload(true), { ilgili: (id) => viewIdSet.has(id) });
 
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const noticeTimer = useRef<number | null>(null);
-  // Aşama 99: bütün bildirimler ekranda 15 sn kalır (eski kısa süreler yok sayılır)
-  const say = (n: Notice, _ms?: number) => {
-    setNotice(n);
-    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_HIDE_MS);
-  };
-  useEffect(
-    () => () => {
-      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
-    },
-    []
-  );
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
+  // Aşama 353: süreyi ortak bildirim katmanı yönetir (başarı 4 sn, bilgi 6 sn, hata 10 sn)
+  const say = (n: Notice, _ms?: number) => setNotice(n);
 
   // ---- görevleri birleştir (aynı gün + ders + kitap + açıklama = tek kart)
   const viewSet = useMemo(() => new Set(viewIds), [viewIds]);
@@ -879,24 +868,6 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
 
       {/* Aşama 52: taslak uyarısı ve ikinci "Ödev olarak gönder" düğmesi kaldırıldı (üstteki düğme yeterli) */}
 
-      {notice && (
-        <div
-          role="status"
-          id="plan-notice"
-          className={cx(
-            'flex items-start gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold',
-            notice.tone === 'success' && 'bg-success-soft text-success-fg border-success/30',
-            notice.tone === 'warning' && 'bg-warning-soft text-warning-fg border-warning/30',
-            notice.tone === 'danger' && 'bg-danger-soft text-danger-fg border-danger/30',
-            notice.tone === 'info' && 'bg-info-soft text-info-fg border-info/30'
-          )}
-        >
-          <span className="flex-1">{notice.text}</span>
-          <button type="button" aria-label="Kapat" className="px-1 cursor-pointer" onClick={() => setNotice(null)}>
-            ×
-          </button>
-        </div>
-      )}
       {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={() => reload()} className="px-4 py-3" />}
 
       {classIds.length === 0 ? (

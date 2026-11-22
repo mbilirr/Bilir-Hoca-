@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   AlertCircle,
-  Sparkles,
   Trash2,
   Users,
   Crown,
@@ -10,9 +9,9 @@ import {
 } from 'lucide-react';
 import { Teacher } from '../../types';
 import { dataService, ADMIN_EMAIL } from '../../services/dataService';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface TeacherApprovalModalProps {
@@ -22,8 +21,7 @@ interface TeacherApprovalModalProps {
 
 export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOpen, onClose }) => {
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
-  useAutoDismiss(actionMsg, () => setActionMsg(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setActionMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Aşama 98: her işlem yalnızca değişen öğretmeni kaydeder (dataService içinde). Genel yöneticide kuruma bağlı
@@ -128,12 +126,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         </div>
 
         {/* Feedback Message */}
-        {actionMsg && (
-          <div className="mx-6 mt-3 p-3 rounded-xl bg-brand/20 text-brand-fg border border-brand/40 text-xs font-semibold flex items-center space-x-2 animate-in fade-in shrink-0">
-            <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
-            <span>{actionMsg}</span>
-          </div>
-        )}
 
         </>
       }

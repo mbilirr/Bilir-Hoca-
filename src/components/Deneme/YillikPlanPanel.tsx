@@ -6,6 +6,7 @@ import { dataService } from '../../services/dataService';
 import { deleteYillikPlan, listYillikPlan, saveYillikPlan, type YillikPlanInfo } from '../../services/denemeService';
 import { subjectsForGrade } from '../../lib/deneme/lgs';
 import { PLAN_SUBJECTS, currentSchoolYear, planDateTr, readPlanFile, type PlanParseResult } from '../../lib/deneme/yillikPlan';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // Aşama 129: Yıllık plan yükleme (Fen Bilimleri, Matematik, T.C. İnkılap Tarihi)
@@ -14,14 +15,13 @@ import { PLAN_SUBJECTS, currentSchoolYear, planDateTr, readPlanFile, type PlanPa
 // Kurumsuz hesap (genel yönetici) ORTAK planı yükler; kurum kendi planını yüklerse kendi planı kullanılır.
 // ============================================================================
 
-type Msg = { tone: 'success' | 'warning' | 'danger'; text: string } | null;
 
 export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) => {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<YillikPlanInfo[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ subject: string; r: PlanParseResult } | null>(null);
-  const [msg, setMsg] = useState<Msg>(null);
+  const setMsg = useBildirimKanali(); // Aşama 353: ortak bildirim
   const [year, setYear] = useState(currentSchoolYear());
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pickFor = useRef<string>('');
@@ -203,19 +203,6 @@ export const YillikPlanPanel: React.FC<{ grade?: string }> = ({ grade = '8' }) =
                 </table>
               </div>
             </div>
-          )}
-          {msg && (
-            <p
-              role="status"
-              className={cx(
-                'text-xs font-semibold rounded-xl px-3 py-2',
-                msg.tone === 'success' && 'bg-success-soft text-success-fg',
-                msg.tone === 'warning' && 'bg-warning-soft text-warning-fg',
-                msg.tone === 'danger' && 'bg-danger-soft text-danger-fg'
-              )}
-            >
-              {msg.text}
-            </p>
           )}
           <p className="text-xs text-muted flex items-center gap-1">
             Planın Excel hâlini seçin.

@@ -6,7 +6,6 @@ import { Panel, Modal, cx } from '../ui/kit';
 import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
 import { SelectBox } from '../Teacher/FormParts';
 import { callMail } from '../../lib/mailApi';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import {
   fetchKurumRows,
   setRolesEnabled,
@@ -18,6 +17,7 @@ import {
   imageFileToLogo,
   type KurumRow,
 } from '../../lib/kurumSettings';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 
 // ============================================================================
 // KURUM AYARLARI (Aşama 82)
@@ -77,8 +77,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
   useEffect(() => {
     if (kurumId !== undefined) setSelectedId(kurumId);
   }, [kurumId]);
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(notice, () => setNotice(null));
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   const loadRows = useCallback(async () => {
     if (!isHead) return;
@@ -318,11 +317,6 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
           </div>
         )}
         {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={loadRows} />}
-        {notice && (
-          <p role="status" className={cx('text-xs font-semibold', notice.tone === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>
-            {notice.text}
-          </p>
-        )}
 
         {!kurum ? (
           <p className="text-xs text-muted">{isHead ? 'Ayarlarını görmek için kurum seçiniz.' : 'Kurum bilgisi yükleniyor…'}</p>

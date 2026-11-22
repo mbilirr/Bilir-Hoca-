@@ -1,4 +1,3 @@
-import { NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
@@ -69,6 +68,7 @@ import { usePlanCanli } from '../../lib/planCanli'; // Aşama 277
 import { geriAlGoster } from '../../lib/geriAl'; // Aşama 306
 import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 
 // ============================================================================
@@ -304,20 +304,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
   // Aşama 277: açık duran ekranda da anlık (öğrenci işaretleyince ya da başka öğretmen görev ekleyince sessizce yenilenir)
   usePlanCanli(!!studentId && mode !== 'class', () => void reload(true), { ilgili: (id) => id === studentId });
 
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const noticeTimer = useRef<number | null>(null);
-  // Aşama 99: bütün bildirimler ekranda 15 sn kalır (eski kısa süreler yok sayılır)
-  const say = (n: Notice, _ms?: number) => {
-    setNotice(n);
-    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_HIDE_MS);
-  };
-  useEffect(
-    () => () => {
-      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
-    },
-    []
-  );
+  const setNotice = useBildirimKanali(); // Aşama 353: ortak bildirim
+  // Aşama 353: süreyi ortak bildirim katmanı yönetir (başarı 4 sn, bilgi 6 sn, hata 10 sn)
+  const say = (n: Notice, _ms?: number) => setNotice(n);
 
   // ---- görev ekleme / düzenleme
   const subjectOptions = useMemo(() => {
@@ -726,24 +715,6 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes, odakOgren
 
       {/* Aşama 52: taslak uyarısı ve ikinci "Öğrenciye ödev olarak gönder" düğmesi kaldırıldı (üstteki düğme yeterli) */}
 
-      {notice && (
-        <div
-          role="status"
-          id="plan-notice"
-          className={cx(
-            'flex items-start gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold',
-            notice.tone === 'success' && 'bg-success-soft text-success-fg border-success/30',
-            notice.tone === 'warning' && 'bg-warning-soft text-warning-fg border-warning/30',
-            notice.tone === 'danger' && 'bg-danger-soft text-danger-fg border-danger/30',
-            notice.tone === 'info' && 'bg-info-soft text-info-fg border-info/30'
-          )}
-        >
-          <span className="flex-1">{notice.text}</span>
-          <button type="button" aria-label="Kapat" className="px-1 cursor-pointer" onClick={() => setNotice(null)}>
-            ×
-          </button>
-        </div>
-      )}
       {loadError && <YuklemeHatasi mesaj={loadError} onTekrar={() => reload()} className="px-4 py-3" />}
 
       {/* Haftanın 7 günü — Aşama 52: gün kutuları her ekran genişliğinde kare (en-boy orantılı); sığdığı kadar yan yana (3-4) */}

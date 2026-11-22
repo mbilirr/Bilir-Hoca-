@@ -16,7 +16,7 @@ import {
   createGmailComposeLink,
   createMailtoLink,
 } from '../../lib/emailTemplates';
-import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { Modal } from '../ui/kit'; // Aşama 351: ortak pencere
 
 interface EtutNotificationModalProps {
@@ -35,8 +35,7 @@ export const EtutNotificationModal: React.FC<EtutNotificationModalProps> = ({
   teacherName = 'Öğretmen',
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [dispatchFeedback, setDispatchFeedback] = useState<string | null>(null);
-  useAutoDismiss(dispatchFeedback, () => setDispatchFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
+  const setDispatchFeedback = useBildirimKanali(); // Aşama 353: ortak bildirim
 
   if (!isOpen || !etut) return null;
 
@@ -195,12 +194,6 @@ biliredu`.trim();
           </div>
 
           {/* Feedback message */}
-          {dispatchFeedback && (
-            <div className="p-3 bg-success/15 border border-success/30 rounded-xl flex items-center space-x-2 text-xs text-success-fg animate-in fade-in">
-              <Check className="w-4 h-4 text-success-fg shrink-0" />
-              <span className="font-semibold">{dispatchFeedback}</span>
-            </div>
-          )}
 
           {/* Target Students WhatsApp / Communication List */}
           <div className="space-y-2.5">

@@ -7,7 +7,7 @@
 // React'e bağlı değildir (dataService de kullanır); ekrandaki katman Common/BildirimKatmani.tsx.
 // "Geri al" ayrı çubuktur (lib/geriAl.ts); bildirimler o çubuk açıkken onun üstüne kayar.
 // ============================================================================
-import { useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 export type BildirimTuru = 'basari' | 'hata' | 'bilgi';
 
@@ -45,7 +45,10 @@ export function bildir(b: { tur?: BildirimTuru; baslik: string; ayrinti?: string
     duyur();
     return ayni.no;
   }
-  const yeni: Bildirim = { no: ++sayac, tur, baslik, ayrinti: b.ayrinti?.trim() || undefined, eylem: b.eylem, sure: b.sure ?? BILDIRIM_SURE[tur], tazelendi: 0 };
+  const ayrinti = b.ayrinti?.trim() || undefined;
+  // Aşama 353: uzun yazı okunacak kadar kalır (saniyede ~15 harf), en çok 15 sn; fare üstündeyken zaten durur
+  const okuma = Math.min(15_000, (baslik.length + (ayrinti?.length || 0)) * 70);
+  const yeni: Bildirim = { no: ++sayac, tur, baslik, ayrinti, eylem: b.eylem, sure: b.sure ?? Math.max(BILDIRIM_SURE[tur], okuma), tazelendi: 0 };
   liste = [...liste, yeni].slice(-EN_COK);
   duyur();
   return yeni.no;
@@ -87,4 +90,85 @@ export function useBildirimler(): Bildirim[] {
 export type AkMesaj = { ton: 'ok' | 'hata'; text: string };
 export function akMesaj(m: AkMesaj | null): void {
   if (m) bildir({ tur: m.ton === 'hata' ? 'hata' : 'basari', baslik: m.text });
+}
+
+// ============================================================================
+// Aşama 353: SAYFA İÇİ GEÇİCİ YAZILAR DA ORTAK BİLDİRİMDE.
+// Eskiden her sayfa kendi "Kaydedildi" / "E-posta gönderildi" şeridini tutuyordu (useState + 15 sn sonra silme).
+// Artık o sayfalar useBildirimKanali() kullanır: verilen yazı ortak katmanda çıkar.
+//   - tek yuva: aynı kanaldan yeni yazı gelince eskisi kapanır (eski şerit gibi üst üste binmez)
+//   - null / '' verilirse o kanalın açık bildirimi kapanır
+//   - eski biçimlerin hepsi tanınır: 'yazı', { tone|type|ton|tip, text|yazi|t|lines }, { ok }, { err }
+// Formdaki alan hataları ("Ad zorunlu") bu kanala GİTMEZ; kutunun yanında kalır.
+// ============================================================================
+export type EskiBildirim =
+  | string
+  | null
+  | undefined
+  | false
+  | {
+      tone?: string;
+      type?: string;
+      ton?: string;
+      tip?: string;
+      ok?: boolean;
+      err?: boolean;
+      text?: string;
+      yazi?: string;
+      t?: string;
+      lines?: string[];
+      ayrinti?: string;
+    };
+
+const HATA_TONU = /^(err|error|hata|danger|bad|fail)/i;
+const BILGI_TONU = /^(warn|warning|info|bilgi|uyari)/i;
+const HATA_YAZISI = /^\s*(hata\b|⚠|❌)|(lamadı|lemedi|namadı|nemedi|yamadı|yemedi|başarısız)/i;
+const SURUYOR = /(…|\.\.\.)\s*$/;
+
+/** Uzun yazı (70 harften uzun, birden çok cümle): ilk cümle başlık, kalanı ayrıntı satırı */
+function uzunuBol(yazi: string): { baslik: string; ayrinti?: string } {
+  if (yazi.length <= 70) return { baslik: yazi };
+  const m = yazi.match(/^(.{8,}?[.!?])\s+(\S[\s\S]*)$/);
+  return m ? { baslik: m[1].trim(), ayrinti: m[2].trim() } : { baslik: yazi };
+}
+
+/** Eski geçici yazıyı ortak bildirim biçimine çevirir; boşsa null */
+export function eskiBildirimCevir(m: EskiBildirim): { tur: BildirimTuru; baslik: string; ayrinti?: string } | null {
+  if (!m) return null;
+  if (typeof m === 'string') {
+    const yazi = m.trim();
+    if (!yazi) return null;
+    if (HATA_YAZISI.test(yazi)) return { tur: 'hata', ...hataMetniniBol(yazi) };
+    return { tur: SURUYOR.test(yazi) ? 'bilgi' : 'basari', ...uzunuBol(yazi) };
+  }
+  const satirlar = (m.lines || []).map((x) => String(x || '').trim()).filter(Boolean);
+  const yazi = String(m.text ?? m.yazi ?? m.t ?? satirlar[0] ?? '').trim();
+  if (!yazi) return null;
+  const ayrinti = (m.ayrinti || (m.text || m.yazi || m.t ? satirlar : satirlar.slice(1)).join(' · ')).trim() || undefined;
+  const ton = String(m.tone ?? m.type ?? m.ton ?? m.tip ?? '');
+  const tur: BildirimTuru =
+    m.err === true || m.ok === false || HATA_TONU.test(ton)
+      ? 'hata'
+      : BILGI_TONU.test(ton) || (!ton && m.ok === undefined && SURUYOR.test(yazi))
+        ? 'bilgi'
+        : 'basari';
+  if (tur === 'hata' && !ayrinti) return { tur, ...hataMetniniBol(yazi) };
+  if (!ayrinti) return { tur, ...uzunuBol(yazi) };
+  return { tur, baslik: yazi, ayrinti };
+}
+
+/**
+ * Aşama 353: tek yuvalı bildirim kanalı. Eski `const [notice, setNotice] = useState(null)` yerine
+ * `const setNotice = useBildirimKanali();` yazılır; çağrılar aynı kalır.
+ */
+export function useBildirimKanali(): (m: EskiBildirim, eylem?: BildirimEylemi) => void {
+  const son = useRef(0);
+  return useCallback((m: EskiBildirim, eylem?: BildirimEylemi) => {
+    const b = eskiBildirimCevir(m);
+    if (son.current && (!b || !liste.some((x) => x.no === son.current && x.baslik === b.baslik && x.tur === b.tur))) {
+      bildirimKapat(son.current);
+      son.current = 0;
+    }
+    if (b) son.current = bildir({ ...b, eylem });
+  }, []);
 }
