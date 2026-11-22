@@ -695,8 +695,11 @@ class DataService {
   //  Eskiden her tablo ayrı kanaldan, kurum süzgeci olmadan dinleniyordu. Artık veritabanı tetikleri içeriksiz bir
   //  sinyal yazar (canli_sinyal: kanal, tablo, değişen kimlikler); ekran yalnız KENDİ kanallarını (kurumu, kendisi;
   //  öğrencide yalnız kendisi) tek kanaldan dinler. Sinyal gelince değişen kayıtlar kişinin kendi yetkisiyle okunur ve
-  //  eskisiyle aynı işleyicilere verilir; böylece ekranlar aynen çalışır. sql/349a kurulu değilse ya da kanal
-  //  açılamazsa her şey eski yolla (tablo başına kanal) sürer.
+  //  eskisiyle aynı işleyicilere verilir; böylece ekranlar aynen çalışır. sql/349a kurulu değilse her şey eski yolla
+  //  (tablo başına kanal) sürer.
+  //  Aşama 357: sql/349a kuruluysa eski yola hiç dönülmez (büyük tablolar sql/357 ile yayından çıkar, o kanallar
+  //  artık olay getirmez). Tek kanal açılamazsa kendisi yeniden denenir; o sürede durum 'fallback' olur ve
+  //  30 saniyelik eşitleme ekranları güncel tutar.
   // ===========================================================================
   private static readonly CANLI = 'canli_sinyal';
   /** Tetiği olan tablolar (bunlar tek kanaldan gelir) */
@@ -784,8 +787,11 @@ class DataService {
     void this.ensureRealtime();
   }
 
-  /** null: henüz sorulmadı; []: eski yol (SQL yok / kanal açılamadı) */
+  /** null: henüz sorulmadı; []: kanal yok (SQL yok ya da kişinin kanalı yok) */
   private canliKanallar: string[] | null = null;
+  /** Aşama 357: sql/349a kurulu (canli_kanallarim yanıt verdi): tablo başına eski kanallar açılmaz */
+  private canliSqlVar = false;
+  private canliHataYazildi = false;
   private canliBekleyen = new Map<string, Set<string>>();
   private canliZaman = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -800,6 +806,7 @@ class DataService {
         return [];
       }
       const list = Array.isArray(data) ? data.filter((x: unknown): x is string => typeof x === 'string' && /^[kop]:.+/.test(x)) : [];
+      this.canliSqlVar = Array.isArray(data); // işlev her zaman dizi döndürür
       this.canliKanallar = list;
       return list;
     } catch (e) {
@@ -814,6 +821,8 @@ class DataService {
     const tum = this.realtimeTableConfig();
     const kanallar = this.canliKanallar;
     if (!kanallar || !kanallar.length) {
+      // Aşama 357: SQL kurulu ama kişinin kanalı yok: yalnız küçük sinyal kanalları (büyük tablolar yayında değil)
+      if (this.canliSqlVar) return tum.filter((c) => !DataService.CANLI_TABLOLARI.has(c.table));
       // Aşama 349c: eski yolda ekranların dinlediği ders tabloları (tablo başına tek ortak kanal, kendi kurumu)
       const kurum = this.getMyKurumId();
       const ek: RealtimeTableCfg[] = kurum
@@ -1075,13 +1084,11 @@ class DataService {
       }
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       entry.healthy = false;
-      // Aşama 349a: tek kanal hiç açılamadıysa (yayına eklenmemiş vb.) bu oturumda eski yola dönülür
-      if (table === DataService.CANLI && !entry.everSubscribed && status === 'CHANNEL_ERROR' && !this.realtimeClosing) {
-        console.warn('[Canlı] tek kanal açılamadı; tablo başına kanallara dönülüyor');
-        this.canliKanallar = [];
-        setTimeout(() => void this.ensureRealtime(), 0);
-        this.updateRealtimeHealth();
-        return;
+      // Aşama 357: tek kanal açılamazsa eski yola dönülmez (büyük tablolar yayında değil); aşağıdaki 20 sn'lik
+      // yeniden kurma sürer, bu arada durum 'fallback' olduğu için 30 saniyelik eşitleme çalışır
+      if (table === DataService.CANLI && !entry.everSubscribed && status === 'CHANNEL_ERROR' && !this.canliHataYazildi) {
+        this.canliHataYazildi = true;
+        console.warn('[Canlı] tek kanal açılamadı; yeniden denenecek, bu arada aralıklı eşitleme sürüyor');
       }
       // Aşama 114: isteğe bağlı kanal hiç kurulamadıysa (betik kurulu değil) tekrar denenmez; dakikalık yoklama devrede
       if (optional && !entry.everSubscribed) {
@@ -1132,6 +1139,8 @@ class DataService {
     this.realtimeChannels = {};
     // Aşama 349a: kanal listesi kişiye bağlı; yeni oturumda yeniden sorulur
     this.canliKanallar = null;
+    this.canliSqlVar = false;
+    this.canliHataYazildi = false;
     this.canliBekleyen.clear();
     for (const t of this.canliZaman.values()) clearTimeout(t);
     this.canliZaman.clear();
