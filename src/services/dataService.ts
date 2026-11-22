@@ -594,7 +594,7 @@ class DataService {
           // olabilir; eskisi gibi hemen tam eşitleme yapılır. Kısa geçişlerde anlık kanal yeterlidir.
           const longHidden = this.hiddenAt > 0 && Date.now() - this.hiddenAt >= DataService.LONG_HIDDEN_MS;
           this.hiddenAt = 0;
-          this.revalidateAndSyncAll(true, longHidden);
+          this.donusteEsitle(longHidden);
         } else {
           this.hiddenAt = Date.now();
           this.flushSecureSave(); // Aşama 103
@@ -614,7 +614,7 @@ class DataService {
       });
       window.addEventListener('offline', () => this.updateRealtimeHealth());
       window.addEventListener('focus', () => {
-        this.revalidateAndSyncAll(true);
+        this.donusteEsitle(false);
       });
     }
   }
@@ -3906,6 +3906,22 @@ class DataService {
 
   private fullSyncInFlight: Promise<void> | null = null;
   private lastFullSyncAt = 0;
+
+  /**
+   * Aşama 356 (H4): sekmeye dönüş / pencere odağı. Eskiden anlık kanal sağlıklıyken bile her dönüşte (dakikada bir)
+   * bütün listeler için ~19 paralel istek atılıyordu. Kanal canlıysa ve sekme kısa süre (30 sn'den az) gizli kaldıysa
+   * bu arada hiçbir değişiklik kaçmaz (hepsi kanaldan gelir): yalnız kanal denetlenir ve dakikada bir küçük yoklama
+   * (kurum ayarı, bölüm izni) yapılır. Uzun süre gizli kalındıysa, kanal sorunluysa ya da gönderilmeyi bekleyen kayıt
+   * varsa eskisi gibi eşitlenir. Güvence eşitlemesi (15 dakikada bir) değişmedi.
+   */
+  private donusteEsitle(uzunGizli: boolean): void {
+    if (!uzunGizli && !this.gidenKutusu.length && this.getRealtimeHealth() === 'live') {
+      this.ensureRealtime();
+      this.lightPoll();
+      return;
+    }
+    void this.revalidateAndSyncAll(true, uzunGizli);
+  }
 
   // Tüm verileri buluttan yeniler. Arka plan istekleri (odak, sekmeye dönüş, yedek kontrol) en fazla
   // 15 saniyede bir çalışır; aynı anda ikinci bir tam eşitleme başlatılmaz (çalışan beklenir).

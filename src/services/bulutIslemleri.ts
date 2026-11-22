@@ -7,6 +7,7 @@
 // ============================================================================
 import { supabase, invokeCreateUserEdgeFunction } from '../lib/supabase';
 import type { Etut } from '../types';
+import { keysetIleOku, siralaSutunaGore } from '../lib/sayfaliOkuma'; // Aşama 356
 
 // Aşama 179: etüt yazımında hangi yorum alanlarının yazılacağı (dataService de bunu kullanır)
 export type EtutCommentKey = 'teacherFeedback' | 'notes' | 'attendanceTakenBy';
@@ -26,8 +27,13 @@ export async function deleteRowsVerified(table: string, ids: string[]): Promise<
   return { error: null };
 }
 
-// Supabase bir istekte en fazla 1000 satır döndürür. Büyük tablolar sayfa sayfa (aynı anda 4 sayfa) okunur;
-// yoksa 1000. satırdan sonrası sessizce eksik kalır.
+// Supabase bir istekte en fazla 1000 satır döndürür. Büyük tablolar sayfa sayfa okunur; yoksa 1000. satırdan
+// sonrası sessizce eksik kalır.
+// Aşama 356 (H4): sayfalama "atla-al" (offset) yerine "son kimlikten sonra" (keyset). Eskiden 50.000. satırdaki sayfa
+// için veritabanı önceki 50.000 satırı da tarıyordu (her sayfa bir öncekinden yavaş); okuma sürerken bir satır
+// silinirse sonraki sayfalar bir satır kayıyor ve bir kayıt hiç gelmiyordu. Artık her sayfa kimlik dizininden
+// doğrudan başlar, eklenen / silinen satır başka satırı kaydırmaz. İstenen sıralama (ör. tarihe göre yeniden eskiye)
+// okuma bitince aynı kuralla (sütun, sonra kimlik) cihazda yapılır.
 export async function fetchAllRows(
   table: string,
   build?: (q: any) => any,
@@ -35,17 +41,38 @@ export async function fetchAllRows(
 ): Promise<{ data: any[] | null; error: any }> {
   const PAGE = 1000;
   const max = opts.max ?? 100000;
+  const r = await keysetIleOku(
+    (son) => {
+      let q: any = supabase.from(table).select(opts.columns || '*');
+      if (build) q = build(q);
+      if (son !== null) q = q.gt('id', son);
+      return q.order('id', { ascending: true }).limit(PAGE);
+    },
+    PAGE,
+    max
+  );
+  if (r.error || !r.data) return { data: null, error: r.error };
+  // kimlik sütunu seçilmemişse "son kimlikten sonra" okunamaz: kalan sayfalar eski yolla
+  if (r.eksikKimlik) return offsetIleDevam(table, build, opts, r.data, PAGE, max);
+  return { data: siralaSutunaGore(r.data, opts.order, opts.ascending ?? true), error: null };
+}
+
+/** Kimlik sütunu olmayan seçimler için eski sayfalama (aynı anda 4 sayfa) */
+async function offsetIleDevam(
+  table: string,
+  build: ((q: any) => any) | undefined,
+  opts: { columns?: string; order?: string; ascending?: boolean },
+  out: any[],
+  PAGE: number,
+  max: number
+): Promise<{ data: any[] | null; error: any }> {
   const page = (from: number) => {
     let q: any = supabase.from(table).select(opts.columns || '*');
     if (build) q = build(q);
-    if (opts.order && opts.order !== 'id') q = q.order(opts.order, { ascending: opts.ascending ?? true });
+    // ilk sayfayla aynı sıra (kimlik); istenen sıralama sonda cihazda yapılır
     return q.order('id', { ascending: true }).range(from, from + PAGE - 1);
   };
-  const first = await page(0);
-  if (first.error) return { data: null, error: first.error };
-  const out: any[] = [...(first.data || [])];
-  if (out.length < PAGE) return { data: out, error: null };
-  let from = PAGE;
+  let from = out.length;
   while (from < max) {
     const batch = await Promise.all([0, 1, 2, 3].map((i) => page(from + i * PAGE)));
     let done = false;
@@ -57,9 +84,7 @@ export async function fetchAllRows(
     if (done) break;
     from += 4 * PAGE;
   }
-  // sayfalar arasında eklenen satır yüzünden aynı kayıt iki kez gelebilir
-  const seen = new Set<string>();
-  return { data: out.filter((r) => (r && r.id ? (seen.has(r.id) ? false : (seen.add(r.id), true)) : true)), error: null };
+  return { data: siralaSutunaGore(out, opts.order, opts.ascending ?? true), error: null };
 }
 
 // Supabase Auth oturumu (JWT) gerçekten var mı? Yoksa istekler 'anon' rolüyle gider.

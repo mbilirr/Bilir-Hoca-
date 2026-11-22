@@ -422,7 +422,24 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
 
-    const inactivityInterval = setInterval(performInactivityCheck, 3000);
+    // Aşama 356 (H4): denetim eskiden 3 saniyede bir çalışıyordu (telefon pili ve işlemci boşuna harcanıyordu).
+    // Artık en geç 30 saniyede bir; uyarı anı (son 1 dakika) yaklaşınca tam o ana kurulur, böylece uyarı geç çıkmaz.
+    // Süre dolunca çıkışı uyarı penceresinin kendi sayacı tetikler (onSure); sekmeye dönüş ve odak da anında denetler.
+    let denetimZamani: ReturnType<typeof setTimeout> | null = null;
+    const sonrakiDenetim = () => {
+      if (denetimZamani) clearTimeout(denetimZamani);
+      let bekle = 30000;
+      const limit = getIdleLimitMs();
+      if (dataService.getAuthSession() && Number.isFinite(limit) && !oturumBitisRef.current) {
+        const uyariya = lastActivityRef.current + limit - 60 * 1000 - Date.now();
+        bekle = Math.min(bekle, Math.max(uyariya + 50, 1000));
+      }
+      denetimZamani = setTimeout(() => {
+        performInactivityCheck();
+        sonrakiDenetim();
+      }, bekle);
+    };
+    sonrakiDenetim();
     // Aşama 295: kalıcı oturumdan başka bir sekmede çıkıldıysa bu sekme de giriş ekranına döner
     const acikKalBirak = acikKalDinle(() => window.location.reload());
 
@@ -430,7 +447,7 @@ export default function App() {
       trackedEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
-      clearInterval(inactivityInterval);
+      if (denetimZamani) clearTimeout(denetimZamani);
       acikKalBirak();
       if (kanal) {
         kanal.onmessage = null;
