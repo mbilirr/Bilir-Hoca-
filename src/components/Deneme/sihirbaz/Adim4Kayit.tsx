@@ -6,7 +6,7 @@ import { puanNotu, fmtNet, fmtScore, tamOturum } from '../../../lib/deneme/lgs';
 import { useSihirbazBaglam } from './useSihirbaz';
 
 export function Adim4Kayit() {
-  const { existing, grade, lgs, subjects, scoring, step, left, counts, computed } = useSihirbazBaglam();
+  const { existing, grade, lgs, scoring, step, counts, computed } = useSihirbazBaglam();
   return (
     <>
       {step === 4 && computed && (

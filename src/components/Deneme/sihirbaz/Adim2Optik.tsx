@@ -10,7 +10,7 @@ import { filled, OTO, OTO_AD } from './ortak';
 import { useSihirbazBaglam } from './useSihirbaz';
 
 export function Adim2Optik() {
-  const { grade, subjects, step, name, formats, formatId, setFormatId, fields, setFields, setFmtText, sequential, setSequential, formatName, setFormatName, formatMsg, setFormatMsg, txtFiles, setTxtFiles, txtRef, left, usesEditor, parsed, allRows, parseErrors, fixHints, keySugs, applyShift, editorFile, sampleLine, sinifUyumsuz, onTxt, setFileFmt, otoDuzenle, applyKeyFix, pickFormat, doSaveFormat, doDeleteFormat } = useSihirbazBaglam();
+  const { grade, subjects, step, formats, formatId, setFormatId, fields, setFields, setFmtText, sequential, setSequential, formatName, setFormatName, formatMsg, setFormatMsg, txtFiles, setTxtFiles, txtRef, usesEditor, parsed, allRows, parseErrors, fixHints, keySugs, applyShift, editorFile, sampleLine, sinifUyumsuz, onTxt, setFileFmt, otoDuzenle, applyKeyFix, pickFormat, doSaveFormat, doDeleteFormat } = useSihirbazBaglam();
   return (
     <>
       {step === 2 && (

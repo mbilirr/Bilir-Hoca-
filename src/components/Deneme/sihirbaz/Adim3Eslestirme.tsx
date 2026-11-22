@@ -6,7 +6,7 @@ import { OgrenciSecici } from '../OgrenciSecici';
 import { useSihirbazBaglam } from './useSihirbaz';
 
 export function Adim3Eslestirme() {
-  const { students, grade, step, name, matches, manual, matchFilter, setMatchFilter, matchMsg, flashKey, rowRefs, pairs, pairOpen, setPairOpen, left, studentById, sortedStudents, tcNote, setMatch, counts, duplicateIds, pendingCount, confirmSuggestions, shownMatches, otherRowsOf, jumpToTwin, complementary, pair, askMerge } = useSihirbazBaglam();
+  const { step, matches, manual, matchFilter, setMatchFilter, matchMsg, flashKey, rowRefs, pairs, pairOpen, setPairOpen, studentById, sortedStudents, tcNote, setMatch, counts, duplicateIds, pendingCount, confirmSuggestions, shownMatches, otherRowsOf, jumpToTwin, complementary, askMerge } = useSihirbazBaglam();
   return (
     <>
       {step === 3 && (

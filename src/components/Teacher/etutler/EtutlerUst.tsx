@@ -9,7 +9,7 @@ import { EtutTakipView, DatePreset, DATE_PRESETS, TeacherPicker } from './ortak'
 import { useEtutBaglam } from './useEtutYonetimi';
 
 export function EtutlerUst() {
-  const { etuts, students, classes, viewMode, setViewMode, setViewEtut, setIsSentCommunicationsOpen, setIsReportModalOpen, setIsScheduleExportOpen, setReportSelectedStudentId, isAdminView, wideView, scopeFilter, setScopeFilter, scope, myEtuts, activeEtuts, setListSubject, listSubjects, effectiveListSubject, setListTeacher, subjectScopedEtuts, listTeachers, effectiveListTeacher, missingEtutIdsByTeacher, missingAttendanceByTeacher, ackMissing, blinkingTeachers, datePreset, setDatePreset, rangeFrom, setRangeFrom, rangeTo, setRangeTo, listEtuts, setListTime, timeFilterOn, timeSource, listTimes, effectiveListTime, cardEtuts, calendarEtuts, filtersOn, clearFilters, openEtutForm } = useEtutBaglam();
+  const { etuts, students, classes, viewMode, setViewMode, setViewEtut, setIsSentCommunicationsOpen, setIsReportModalOpen, setIsScheduleExportOpen, setReportSelectedStudentId, isAdminView, wideView, scopeFilter, setScopeFilter, myEtuts, activeEtuts, setListSubject, listSubjects, effectiveListSubject, setListTeacher, subjectScopedEtuts, listTeachers, effectiveListTeacher, missingEtutIdsByTeacher, missingAttendanceByTeacher, ackMissing, blinkingTeachers, datePreset, setDatePreset, rangeFrom, setRangeFrom, rangeTo, setRangeTo, listEtuts, setListTime, timeFilterOn, timeSource, listTimes, effectiveListTime, cardEtuts, calendarEtuts, filtersOn, clearFilters, openEtutForm } = useEtutBaglam();
   return (
     <>
       {/* Sayfa başlığı */}

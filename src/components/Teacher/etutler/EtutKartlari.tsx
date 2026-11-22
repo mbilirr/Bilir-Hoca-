@@ -1,7 +1,7 @@
 // Etütler › Liste görünümü (etüt şeritleri) (Aşama 362: ayrı parça, yalnız gerekince yüklenir)
 import { ExpandableStrip, StripAction } from '../../ui/ExpandableStrip';
 import { ShowMoreBar } from '../../../lib/listPaging';
-import { CalendarDays, Clock, MapPin, Users, CalendarCheck, Trash2, Edit2, CheckCircle2, Mail, MessageCircle, AlertCircle, MessageSquareQuote, Copy, Lock, Eye } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, Users, CalendarCheck, Trash2, Edit2, CheckCircle2, MessageCircle, AlertCircle, MessageSquareQuote, Copy, Lock, Eye } from 'lucide-react';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../../lib/calendar';
 import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../../lib/etutTiming';
 import { MoreMenu } from '../../ui/MoreMenu';

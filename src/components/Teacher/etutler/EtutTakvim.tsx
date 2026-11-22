@@ -3,7 +3,7 @@ import { WeeklyEtutCalendar } from '../WeeklyEtutCalendar';
 import { useEtutBaglam } from './useEtutYonetimi';
 
 export function EtutTakvim() {
-  const { etuts, students, classes, viewMode, setViewMode, setViewEtut, setSelectedAttendanceEtutId, setEtutToDelete, setSelectedEtutForDispatch, setIsDispatchModalOpen, canEditEtut, setListSubject, setListTeacher, setDatePreset, setListTime, calendarEtuts, openEdit, openCopy, handleAddEtutForDate } = useEtutBaglam();
+  const { students, classes, viewMode, setViewMode, setViewEtut, setSelectedAttendanceEtutId, setEtutToDelete, setSelectedEtutForDispatch, setIsDispatchModalOpen, canEditEtut, setListSubject, setListTeacher, setDatePreset, setListTime, calendarEtuts, openEdit, openCopy, handleAddEtutForDate } = useEtutBaglam();
   return (
     <>
       {viewMode === 'calendar' && (

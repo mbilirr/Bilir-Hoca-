@@ -6,7 +6,7 @@ import { SQ_BTN } from './ortak';
 import { useSihirbazBaglam } from './useSihirbaz';
 
 export function SihirbazPencereleri() {
-  const { students, onCancel, grade, name, pairs, pairIdx, pairOpen, setPairOpen, pairStudent, setPairStudent, draftBusy, left, leaveAsk, setLeaveAsk, deleteAsk, setDeleteAsk, studentById, sortedStudents, saveAndLeave, doDeleteDraft, sessionLabel, pair, pairA, pairB, resolvePair } = useSihirbazBaglam();
+  const { onCancel, name, pairs, pairIdx, pairOpen, setPairOpen, pairStudent, setPairStudent, draftBusy, left, leaveAsk, setLeaveAsk, deleteAsk, setDeleteAsk, studentById, sortedStudents, saveAndLeave, doDeleteDraft, sessionLabel, pair, pairA, pairB, resolvePair } = useSihirbazBaglam();
   return (
     <>
       <Modal
