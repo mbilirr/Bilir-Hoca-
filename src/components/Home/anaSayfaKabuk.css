@@ -26,12 +26,18 @@
   grid-template-columns: calc(4.5 * var(--ak-rem)) calc(23.75 * var(--ak-rem)) minmax(0, 1fr);
   min-height: calc(100dvh - var(--ak-top));
 }
-:root[data-theme="dark"] .ak {
-  --paper: #0e1612; --paper-2: #141f1a; --paper-3: #1b2a23; --line: #22332b; --line-2: #2e443a; --ink: #0a1a13; --ink-2: #07130e;
-  --fg: #e7ede9; --fg-2: #c3cfc8; --muted: #8fa399; --subtle: #6c7f75;
+/* Aşama 369: GECE GÖRÜNÜMÜ. Sayfa zemini, kartlar, çizgiler ve yazılar sitenin koyu (Odak) renklerinden gelir: üst menü,
+   sayfa ve alt bilgi tek renk ailesinde, dikiş yok. Koyu yeşil panel ve şerit (yönetici kimliği) açık temadaki gibi
+   zeminden ayrışır; vurgular (bakır, yeşil, kırmızı, mavi) koyuda okunur tonlarda. Yalnız yönetici teması:
+   Odak kabuklu sayfalar (.ak-odak) kendi renklerini kullanır (eskiden bu blok onların çizgi ve yazı rengini eziyordu). */
+:root[data-theme="dark"] .ak:not(.ak-odak) {
+  --paper: var(--color-canvas); --paper-2: var(--color-surface); --paper-3: var(--color-surface-2);
+  --line: var(--color-line); --line-2: var(--color-line-strong);
+  --fg: var(--color-fg); --fg-2: var(--color-fg-2); --muted: var(--color-muted); --subtle: var(--color-subtle);
+  --ink: #10241b; --ink-2: #0c1c15; --ink-line: rgb(255 255 255 / .08);
   --copper-soft: #3a2a18; --copper-fg: #e8b880; --red-soft: #3a1d17; --red: #ef8a74; --green-soft: #15301f; --green: #7fd1a8; --blue-soft: #132a35; --blue: #7cc0de;
-  --btn-dark: #e7ede9; --on-ink-btn: #0e1612;
-  --shadow: 0 calc(0.5 * var(--ak-rem)) calc(1.5 * var(--ak-rem)) calc(-0.625 * var(--ak-rem)) rgb(0 0 0 / .5);
+  --btn-dark: var(--color-fg); --on-ink-btn: var(--color-canvas);
+  --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 calc(0.5 * var(--ak-rem)) calc(1.5 * var(--ak-rem)) calc(-0.625 * var(--ak-rem)) rgb(0 0 0 / .5);
 }
 .ak, .ak *, .ak *::before, .ak *::after { box-sizing: border-box; }
 .ak .tnum { font-variant-numeric: tabular-nums; }
