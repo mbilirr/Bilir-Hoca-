@@ -1,5 +1,6 @@
 // Öğrenciler sayfası › sınıfın öğrenci listesi penceresi (Aşama 354a: ayrı parça, yalnız gerekince yüklenir)
-import { Users, Search, Plus, Edit2, School, AlertTriangle, Eye, UserMinus, ArrowRightLeft } from 'lucide-react';
+import React, { Suspense, useState } from 'react';
+import { Users, Search, Plus, Edit2, School, AlertTriangle, Eye, UserMinus, ArrowRightLeft, Link2 } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
 import { matchTurkishSearch } from '../../../utils/turkishSearch';
 import { formatClassDisplayName } from '../../../constants/schoolConstants';
@@ -7,8 +8,23 @@ import { Modal } from '../../ui/kit';
 import { appConfirm } from '../../../lib/appDialog';
 import { profilResmi } from '../../../lib/profilResmi';
 import { useOgrenciBaglam } from './useOgrenciYonetimi';
+import { lazyNamed } from '../../../lib/lazyLoad';
+import { useVeliDurumum } from '../../../services/veliService';
+
+// Aşama 367: veli bağlantısı pencereleri (yalnız veli görünümü açık ve kişi gönderebiliyorsa, tıklanınca yüklenir)
+const VeliBaglantisiPenceresi = lazyNamed<React.ComponentProps<typeof import('../../Veli/VeliBaglantisiPenceresi').VeliBaglantisiPenceresi>>(
+  () => import('../../Veli/VeliBaglantisiPenceresi'),
+  'VeliBaglantisiPenceresi'
+);
+const VeliSinifPenceresi = lazyNamed<React.ComponentProps<typeof import('../../Veli/VeliSinifPenceresi').VeliSinifPenceresi>>(
+  () => import('../../Veli/VeliSinifPenceresi'),
+  'VeliSinifPenceresi'
+);
 
 export function SinifOgrencileriPenceresi() {
+  const veli = useVeliDurumum();
+  const [veliOgrenci, setVeliOgrenci] = useState<{ id: string; name: string } | null>(null);
+  const [veliSinif, setVeliSinif] = useState(false);
   const { students, setSelectedClassFilter, setActiveTab, setIsAddStudentOpen, setEditingStudent, viewingClassStudents, setViewingClassStudents, classStudentSearch, setClassStudentSearch, setTransferTargetClass, setTransferSearchTerm, setTransferSelectedStudentIds, setStudentSuccessFeedback, setStudentClassId, duplicateStudentGroups, resetStudentForm, openEditStudent } = useOgrenciBaglam();
   return (
     <>
@@ -35,7 +51,9 @@ export function SinifOgrencileriPenceresi() {
             .catch(() => dataService.showToast('Liste kopyalanamadı. Tarayıcı izin vermedi.', 'error'));
         };
 
+        const sinifAdi = formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel);
         return (
+        <>
         <Modal
           open
           onClose={() => setViewingClassStudents(null)}
@@ -115,6 +133,19 @@ export function SinifOgrencileriPenceresi() {
                     <ArrowRightLeft className="w-3.5 h-3.5" />
                     <span>Öğrenci Aktar</span>
                   </button>
+                  )}
+
+                  {veli?.gonderebilir && (
+                    <button
+                      type="button"
+                      onClick={() => setVeliSinif(true)}
+                      disabled={classStudents.length === 0}
+                      className="ui-btn ui-btn-secondary ui-btn-sm min-w-24"
+                      title="Sınıfın velilerine haftalık özet bağlantısı gönder"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>Veliler</span>
+                    </button>
                   )}
 
                   <button
@@ -265,8 +296,14 @@ export function SinifOgrencileriPenceresi() {
                               {std.email || <span className="text-subtle italic">E-posta yok</span>}
                             </td>
                             <td className="py-2.5 px-3 text-right">
-                              {dataService.canManageStudent(std) && (
                               <div className="flex items-center justify-end space-x-1">
+                                {veli?.gonderebilir && (
+                                  <button type="button" onClick={() => setVeliOgrenci({ id: std.id, name: std.name })} className="ui-btn-mini" title="Veli Bağlantısı">
+                                    <Link2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              {dataService.canManageStudent(std) && (
+                              <>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -295,8 +332,9 @@ export function SinifOgrencileriPenceresi() {
                                 >
                                   <UserMinus className="w-3.5 h-3.5" />
                                 </button>
-                              </div>
+                              </>
                               )}
+                              </div>
                             </td>
                           </tr>
                           );
@@ -306,6 +344,22 @@ export function SinifOgrencileriPenceresi() {
                   </div>
                 )}
         </Modal>
+        {veliOgrenci && (
+          <Suspense fallback={null}>
+            <VeliBaglantisiPenceresi ogrenci={veliOgrenci} altBaslik={sinifAdi} layerClass="z-(--z-pencere-ust)" onClose={() => setVeliOgrenci(null)} />
+          </Suspense>
+        )}
+        {veliSinif && (
+          <Suspense fallback={null}>
+            <VeliSinifPenceresi
+              sinifAdi={sinifAdi}
+              ogrenciler={classStudents.map((s) => ({ id: s.id, name: s.name }))}
+              layerClass="z-(--z-pencere-ust)"
+              onClose={() => setVeliSinif(false)}
+            />
+          </Suspense>
+        )}
+        </>
         );
       })()}
     </>

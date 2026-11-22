@@ -47,6 +47,7 @@ const DersYonetimi = lazyNamed(() => import('./DersYonetimi'), 'DersYonetimi'); 
 const IslemGecmisiPanel = lazyNamed(() => import('./IslemGecmisiPanel'), 'IslemGecmisiPanel'); // Aşama 307
 const GirisGuvenligiPanel = lazyNamed(() => import('./GirisGuvenligiPanel'), 'GirisGuvenligiPanel'); // Aşama 339
 const YilDevriPanel = lazyNamed(() => import('./YilDevriPanel'), 'YilDevriPanel'); // Aşama 350
+const VeliAyarPaneli = lazyNamed(() => import('./VeliAyarPaneli'), 'VeliAyarPaneli'); // Aşama 367
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
 type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler' | 'yil' | 'gecmis'; // Aşama 217: dersler · 307: gecmis · 350: yil
@@ -349,6 +350,8 @@ export const YonetimSayfasi: React.FC<{
             classesNote={isHead ? 'Kurumun sınıfları sizin panelinize inmez; sınıfa özel ayar için "Kuruma geç" ile girin.' : undefined}
           />
         )}
+        {/* Aşama 367: veli görünümü ayarları (bölüm açıkken; kurum yöneticisi ya da kuruma geçmiş sistem sahibi) */}
+        {altAktif === 'bolumler' && !isHead && <VeliAyarPaneli key={`va-${kid}`} />}
       </Suspense>
     </div>
   );

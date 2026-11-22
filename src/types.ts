@@ -516,7 +516,8 @@ export type KurumModule =
   | 'manage_students'
   | 'manage_teachers'
   | 'deneme'
-  | 'akademik_takvim'; // Aşama 242: kurum bazlı, varsayılan kapalı
+  | 'akademik_takvim' // Aşama 242: kurum bazlı, varsayılan kapalı
+  | 'veli'; // Aşama 367: veli görünümü (yalnız okunur haftalık özet bağlantısı), varsayılan kapalı
 
 export interface KurumInfo {
   id: string;

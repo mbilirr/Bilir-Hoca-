@@ -4750,6 +4750,297 @@ async function cleanupKarneLinks(deadline) {
   return removed;
 }
 
+// ----------------------------------------------------------------------------- Aşama 367: veli görünümü
+// Okul (yönetici; ayara göre rehberlik / öğretmenler) öğrencinin kayıtlı velisine girişsiz, yalnız okunur haftalık özet
+// bağlantısı gönderir. Yetki veritabanında: veli_durumum() (bölüm açık mı, kişi gönderebilir mi) + öğrencinin çağıranın
+// kendi oturumuyla görünmesi. Bağlantı tablosu yalnız sunucu anahtarıyla okunur. Telefon / e-posta yalnız sunucuda okunur.
+let veliModCache;
+async function veliMod() {
+  if (veliModCache === undefined) {
+    try {
+      veliModCache = await import('./_veli.js');
+    } catch (err) {
+      console.error('[mail] api/_veli.js yüklenemedi:', err && err.message);
+      veliModCache = null;
+    }
+  }
+  return veliModCache;
+}
+const VELI_EN_COK_OGRENCI = 60;
+const veliKey = (vm) => {
+  const e = env();
+  return vm.linkKey(e.secretKey || e.service);
+};
+
+async function veliYetki(caller) {
+  let d;
+  try {
+    d = await rest('rpc/veli_durumum', { token: caller.token, method: 'POST', body: {} });
+  } catch (err) {
+    if (rpcMissing(err)) throw new HttpError(400, 'Veli görünümü için 367 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
+    throw err;
+  }
+  if (!d || !d.acik) throw new HttpError(403, 'Veli görünümü bu kurumda kapalı.', { fatal: true });
+  if (!d.gonderebilir) throw new HttpError(403, 'Veli bağlantısı göndermek için yetkiniz yok.', { fatal: true });
+  return { kurumId: String(d.kurum_id), ayar: d.ayar || {} };
+}
+
+/** Çağıranın kendi oturumuyla görebildiği, kurumdaki etkin öğrenciler (veritabanı kuralları süzer) */
+async function veliOgrencileri(caller, kurumId, ids) {
+  const list = [...new Set((Array.isArray(ids) ? ids : []).map((x) => String(x || '')).filter((x) => x && x.length <= 120))].slice(0, VELI_EN_COK_OGRENCI);
+  if (!list.length) throw new HttpError(400, 'Öğrenci seçilmedi.');
+  const rows = (await rest(`students?select=id,name,class_name,status,kurum_id&id=in.${inList(list)}`, { token: caller.token })) || [];
+  return rows.filter((s) => String(s.kurum_id || '') === kurumId && (!s.status || s.status === 'active'));
+}
+
+async function veliBaglantiSatirlari(ids) {
+  if (!ids.length) return [];
+  return (
+    (await rest(
+      `veli_baglantilari?select=id,student_id,veli_sira,created_at,expires_at,revoked_at,son_gonderim_at,son_kanal,acilma,son_acilis_at&student_id=in.${inList(ids)}&order=created_at.desc&limit=2000`,
+      { token: 'service' }
+    )) || []
+  );
+}
+const veliAcikMi = (b) => !!b && !b.revoked_at && Date.parse(b.expires_at) > Date.now();
+
+/** Bağlantıları açar (açık olan varsa onu kullanır); döner: Map("öğrenci|sıra" → { id, url, bitis }) */
+async function veliBaglantiAc(vm, caller, kurumId, ayar, ciftler, yenile, req) {
+  const key = veliKey(vm);
+  const liste = ciftler.map((c) => {
+    const id = crypto.randomUUID();
+    return { student_id: c.studentId, veli_sira: c.sira, id, hash: vm.hashToken(vm.linkToken(key, id)) };
+  });
+  const bitis = vm.bitisTarihi(ayar.sure).toISOString();
+  const r = liste.length
+    ? (await rest('rpc/veli_baglanti_ac', { token: 'service', method: 'POST', body: { p_kurum: kurumId, p_liste: liste, p_bitis: bitis, p_olusturan: caller.authId || null, p_yenile: !!yenile } })) || []
+    : [];
+  const out = new Map();
+  const ids = r.map((x) => String(x.id));
+  const bitisler = new Map();
+  if (ids.length) for (const b of (await rest(`veli_baglantilari?select=id,expires_at&id=in.${inList(ids)}`, { token: 'service' })) || []) bitisler.set(String(b.id), b.expires_at);
+  for (const x of r) {
+    const id = String(x.id);
+    out.set(`${x.student_id}|${x.veli_sira}`, { id, url: `${appUrl(req)}/v/${vm.linkToken(key, id)}`, bitis: bitisler.get(id) || bitis });
+  }
+  return out;
+}
+async function veliGonderildi(ids, kanal) {
+  if (!ids.length) return;
+  await rest(`veli_baglantilari?id=in.${inList(ids)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { son_gonderim_at: new Date().toISOString(), son_kanal: kanal } });
+}
+/** Gönderimden sonra yalnız GERÇEKTEN giden bağlantılar işaretlenir (kayıt defterinden: e-posta mail_log, SMS sms_log).
+ *  Yarıda kalan (sınır, süre) bir gönderimde kalanlar "gönderilmedi" kalır; sonraki tur yalnız onları gönderir. */
+async function veliGidenleriIsaretle(linkIds, kanal, basIso) {
+  const giden = new Set();
+  const tablo = kanal === 'sms' ? 'sms_log' : 'mail_log';
+  for (let i = 0; i < linkIds.length; i += 50) {
+    const refs = linkIds.slice(i, i + 50).map((id) => `veli-${id}`);
+    const rows = await rest(
+      `${tablo}?select=ref_id&event=eq.veli-gorunum&status=eq.sent&ref_id=in.${inList(refs)}&created_at=gte.${encodeURIComponent(basIso)}`,
+      { token: 'service' },
+    );
+    for (const r of rows || []) giden.add(String(r.ref_id).slice(5));
+  }
+  await veliGonderildi([...giden], kanal);
+  return giden.size;
+}
+/** "Eksiklere gönder"de dolmasına bu kadar gün kalan açık bağlantı yenilenip yeniden gönderilir
+ *  (7 günlük geçerlilikte 2 gün; yoksa yeni gönderilen bağlantı da hemen "doluyor" sayılırdı) */
+const veliYenileGun = (ayar) => (String((ayar && ayar.sure) || '30') === '7' ? 2 : 7);
+
+async function actionVeli(caller, body, req, deadline) {
+  const vm = await veliMod();
+  if (!vm) throw new HttpError(503, "Sunucu dosyası eksik (api/_veli.js). Dosyayı GitHub'da api klasörüne yükleyin.", { fatal: true });
+  if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).', { fatal: true });
+  const { kurumId, ayar } = await veliYetki(caller);
+  const op = String(body.op || '');
+  const ids = op === 'kopya' || (op === 'iptal' && body.studentId) ? [body.studentId] : body.studentIds;
+  const ogrenciler = await veliOgrencileri(caller, kurumId, ids);
+  const idList = ogrenciler.map((s) => String(s.id));
+  if (!idList.length) throw new HttpError(404, 'Öğrenci bulunamadı ya da bu öğrenciyi göremiyorsunuz.');
+  const iletisim = await studentParentsMap(idList);
+  const veliler = (id) => vm.veliListesi((iletisim.get(id) || {}).parents);
+  const sira = Number.isInteger(body.veliSira) && body.veliSira >= 0 && body.veliSira <= 2 ? body.veliSira : null;
+
+  if (op === 'durum') {
+    const satirlar = await veliBaglantiSatirlari(idList);
+    const sonGelen = new Map();
+    for (const b of satirlar) {
+      const k = `${b.student_id}|${b.veli_sira}`;
+      if (!sonGelen.has(k)) sonGelen.set(k, b); // en yenisi önce
+    }
+    return {
+      ok: true,
+      sure: String(ayar.sure || '30'),
+      yenileGun: veliYenileGun(ayar),
+      smsHazir: !!(await smsMod())?.smsConfigured?.(),
+      ogrenciler: ogrenciler.map((s) => ({
+        id: String(s.id),
+        veliler: veliler(String(s.id)).map((p, i) => {
+          const b = sonGelen.get(`${s.id}|${i}`);
+          return {
+            sira: i,
+            yakinlik: clean(p.relation || '').slice(0, 30),
+            ad: clean(p.name || '').slice(0, 80),
+            tel: vm.telMaske(p.phone),
+            eposta: isEmail(String(p.email || '')) ? vm.epostaMaske(p.email) : '',
+            baglanti: b
+              ? {
+                  durum: veliAcikMi(b) ? 'acik' : b.revoked_at ? 'iptal' : 'dolmus',
+                  bitis: b.expires_at,
+                  acilma: b.acilma || 0,
+                  sonAcilis: b.son_acilis_at || null,
+                  sonGonderim: b.son_gonderim_at || null,
+                  sonKanal: b.son_kanal || null,
+                }
+              : null,
+          };
+        }),
+      })),
+    };
+  }
+
+  if (op === 'iptal') {
+    let q = `veli_baglantilari?student_id=in.${inList(idList)}&kurum_id=eq.${encodeURIComponent(kurumId)}&revoked_at=is.null`;
+    if (sira !== null) q += `&veli_sira=eq.${sira}`;
+    const rows = await rest(q, { token: 'service', method: 'PATCH', prefer: 'return=representation', body: { revoked_at: new Date().toISOString() } });
+    return { ok: true, revoked: (rows || []).length };
+  }
+
+  if (op === 'kopya') {
+    const sid = idList[0];
+    if (sira === null || !veliler(sid)[sira]) throw new HttpError(400, 'Veli seçilmedi.');
+    const m = await veliBaglantiAc(vm, caller, kurumId, ayar, [{ studentId: sid, sira }], false, req);
+    const l = m.get(`${sid}|${sira}`);
+    if (!l) throw new HttpError(500, 'Bağlantı açılamadı.');
+    await veliGonderildi([l.id], 'kopya');
+    return { ok: true, url: l.url, bitis: l.bitis };
+  }
+
+  if (op !== 'gonder') throw new HttpError(400, 'Bilinmeyen işlem.');
+  const kanal = body.kanal === 'eposta' ? 'eposta' : body.kanal === 'sms' ? 'sms' : '';
+  if (!kanal) throw new HttpError(400, 'Gönderim yolu seçilmedi.');
+  const sm = kanal === 'sms' ? await smsMod() : null;
+  if (kanal === 'sms' && (!sm || !sm.smsConfigured())) throw new HttpError(400, 'SMS ayarları eksik: Vercel ortam değişkenlerinde SMS sağlayıcı bilgileri tanımlı değil.', { fatal: true });
+  // yalnız eksikler: açık bağlantısı olup daha önce gönderilmiş veliler atlanır; dolmasına veliYenileGun günden az
+  // kalanlar yenilenip yeniden gönderilir (öbürleri yenilenmez)
+  const onceki = body.yalnizEksik ? await veliBaglantiSatirlari(idList) : [];
+  const yakinSinir = Date.now() + veliYenileGun(ayar) * 86400000;
+  const gitti = new Set();
+  const dolacak = new Set();
+  for (const b of onceki) {
+    if (!veliAcikMi(b) || !b.son_gonderim_at) continue;
+    const k = `${b.student_id}|${b.veli_sira}`;
+    if (Date.parse(b.expires_at) <= yakinSinir) dolacak.add(k);
+    else gitti.add(k);
+  }
+  const ciftler = [];
+  let iletisimYok = 0;
+  let atlandi = 0;
+  for (const s of ogrenciler) {
+    const sid = String(s.id);
+    veliler(sid).forEach((p, i) => {
+      if (idList.length === 1 && Array.isArray(body.veliSira) && !body.veliSira.includes(i)) return;
+      if (gitti.has(`${sid}|${i}`)) return void atlandi++;
+      const var_ = kanal === 'sms' ? !!sm.normPhone(p.phone) : isEmail(String(p.email || '').trim());
+      if (!var_) return void iletisimYok++;
+      ciftler.push({ studentId: sid, sira: i, ad: s.name, veli: p });
+    });
+  }
+  if (!ciftler.length) return { ok: true, sent: 0, failed: 0, dry: 0, skipped: 0, limited: 0, atlandi, iletisimYok, errors: [] };
+  const basIso = new Date(Date.now() - 5000).toISOString();
+  const yenilenecek = ciftler.filter((c) => !!body.yenile || dolacak.has(`${c.studentId}|${c.sira}`));
+  const kalan = ciftler.filter((c) => !yenilenecek.includes(c));
+  const linkler = new Map([
+    ...(await veliBaglantiAc(vm, caller, kurumId, ayar, yenilenecek, true, req)),
+    ...(await veliBaglantiAc(vm, caller, kurumId, ayar, kalan, false, req)),
+  ]);
+  const hedef = ciftler.map((c) => ({ ...c, l: linkler.get(`${c.studentId}|${c.sira}`) })).filter((c) => c.l);
+
+  if (kanal === 'sms') {
+    const r = await sm.dispatchSms(
+      rest,
+      hedef.map((c) => ({ event: 'veli-gorunum', refId: `veli-${c.l.id}`, once: false, role: 'veli', phone: c.veli.phone, text: vm.smsMetni(c.l.url, c.l.bitis) }))
+    );
+    if (r.errors.length) console.error('[sms] veli', r.errors.join(' | '));
+    await veliGidenleriIsaretle(hedef.map((c) => c.l.id), 'sms', basIso);
+    return { ok: true, sent: r.sent, dry: r.dry, skipped: r.skipped, limited: r.limited, failed: r.failed, atlandi, iletisimYok, errors: r.errors.slice(0, 2) };
+  }
+
+  const items = hedef.map((c) => {
+    const ad = clean(c.ad);
+    const bitis = vm.bitisYazi(c.l.bitis);
+    const { html, text } = layout({
+      heading: 'Haftalık okul özeti',
+      greeting: 'Değerli Velimiz,',
+      intro: `${ad} öğrencimizin devam, ödev, soru çözümü, etüt ve deneme bilgilerini içeren haftalık özetine aşağıdaki bağlantıdan ulaşabilirsiniz. Sayfa her açılışta güncel kayıtlardan hazırlanır; giriş gerekmez.`,
+      buttonLabel: 'Özeti aç',
+      url: c.l.url,
+      footer: `Bu bağlantı ${bitis} tarihine kadar geçerlidir ve yalnızca öğrencinin kayıtlı velisine gönderilmiştir; lütfen başkasıyla paylaşmayın.`,
+    });
+    return {
+      event: 'veli-gorunum',
+      refId: `veli-${c.l.id}`,
+      to: String(c.veli.email || '').trim(),
+      toName: `${clean(c.veli.name) || 'Sayın Veli'} (${ad} velisi)`.slice(0, 120),
+      role: 'veli',
+      studentId: c.studentId,
+      noVeliCopy: true,
+      repeatLimit: 3,
+      subject: `[Veli] ${ad} · haftalık okul özeti`.slice(0, 250),
+      html,
+      text,
+    };
+  });
+  const sender = await resolveSender(caller);
+  const summary = await deliver(sender, caller, items, deadline);
+  await veliGidenleriIsaretle(hedef.map((c) => c.l.id), 'eposta', basIso);
+  return { ok: true, ...summary, atlandi, iletisimYok };
+}
+
+/** /v/<kod>: velinin sayfası (giriş gerektirmez) */
+async function veliSayfaAc(req, res, token) {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  const vm = await veliMod();
+  if (!vm) return res.status(503).send('Sayfa şu an açılamıyor.');
+  if (!env().service || !vm.isTokenShape(token)) return res.status(410).send(vm.bilgiSayfasi('', vm.GECERSIZ_YAZI));
+  const now = Date.now();
+  const h = vm.haftalar(vm.istanbulYmd(now));
+  let v;
+  try {
+    v = await rest('rpc/veli_sayfa_verisi', {
+      token: 'service',
+      method: 'POST',
+      body: { p_token_hash: vm.hashToken(token), p_bas: h.gecen.bas, p_bit: h.bu.bit, p_say: !vm.onizlemeBotu(req.headers && req.headers['user-agent']) },
+    });
+  } catch (err) {
+    console.error('[veli] sayfa verisi okunamadı', err && err.message);
+    return res.status(503).send(vm.bilgiSayfasi('', 'Sayfa şu an hazırlanamadı. Lütfen biraz sonra yeniden deneyin.'));
+  }
+  if (!v || v.durum === 'yok') return res.status(410).send(vm.bilgiSayfasi('', vm.GECERSIZ_YAZI));
+  if (v.durum === 'kapali') return res.status(410).send(vm.bilgiSayfasi(v.kurum, vm.KAPALI_YAZI));
+  return res.status(200).send(vm.veliSayfasi(v, now));
+}
+
+/** Günlük görev: süresi dolalı ya da iptal edileli 30 gün geçen bağlantılar silinir */
+async function cleanupVeliBaglantilari() {
+  const sinir = new Date(Date.now() - 30 * 86400000).toISOString();
+  try {
+    const rows = await rest(`veli_baglantilari?or=(expires_at.lt.${encodeURIComponent(sinir)},revoked_at.lt.${encodeURIComponent(sinir)})`, {
+      token: 'service',
+      method: 'DELETE',
+      prefer: 'return=representation',
+    });
+    return (rows || []).length;
+  } catch (err) {
+    if (!/veli_baglantilari/i.test(String(err && err.message))) console.error('[veli] temizlik', err && err.message);
+    return 0; // 367 SQL'i kurulmadıysa sessizce geçilir
+  }
+}
+
 // ----------------------------------------------------------------------------- İşaretleme sayfası (giriş gerektirmez)
 async function loadPlanByToken(token) {
   const { planId, studentId } = readPlanToken(token);
@@ -5113,6 +5404,9 @@ export default async function handler(req, res) {
       // Aşama 101: SMS'teki karne linki (/k/<kod> → /api/mail?k=<kod>; giriş gerektirmez)
       const karneK = (req.query && req.query.k) || new URL(req.url, 'http://x').searchParams.get('k');
       if (karneK) return await karneLinkOpen(res, String(karneK));
+      // Aşama 367: velinin haftalık özet sayfası (/v/<kod> → /api/mail?v=<kod>; giriş gerektirmez)
+      const veliV = (req.query && req.query.v) || new URL(req.url, 'http://x').searchParams.get('v');
+      if (veliV) return await veliSayfaAc(req, res, String(veliV));
       // Aşama 156: e-posta başlığındaki kurum logosu
       const logoK = (req.query && req.query.logo) || new URL(req.url, 'http://x').searchParams.get('logo');
       if (logoK) return await kurumLogoOpen(res, String(logoK));
@@ -5217,9 +5511,17 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] karne linki temizliği hatası', err && err.message);
       }
+      // Aşama 367: eski veli bağlantıları
+      let veliCleaned = 0;
+      try {
+        veliCleaned = await cleanupVeliBaglantilari();
+      } catch (err) {
+        console.error('[mail] veli bağlantısı temizliği hatası', err && err.message);
+      }
       // Zamanlanmış görev yanıtında kişi/ödev adı verilmez (yalnızca sayılar)
       return res.status(200).json({
         karneCleaned,
+        veliCleaned,
         noAttendance: na ? na.sent : 0,
         akademikTakvim: at ? at.sent : 0,
         etutSent: er ? er.sent : 0,
@@ -5312,6 +5614,9 @@ export default async function handler(req, res) {
         break;
       case 'karne-link-revoke':
         result = await actionKarneLinkRevoke(caller, body);
+        break;
+      case 'veli': // Aşama 367: veli görünümü bağlantısı (durum / gönder / kopyala / iptal)
+        result = await actionVeli(caller, body, req, deadline);
         break;
       case 'credentials-send': // Aşama 142
         result = await actionCredentialsSend(caller, body, req, deadline);

@@ -1,6 +1,7 @@
 // Öğrenciler sayfası › öğrenci ekle / düzenle penceresi (Aşama 354a: ayrı parça, yalnız gerekince yüklenir)
+import React, { Suspense, useState } from 'react';
 import { KayitliSifre } from '../../ui/KayitliSifre';
-import { Users, Plus, AlertCircle, Eye, EyeOff, Key, UserPlus, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Users, Plus, AlertCircle, Eye, EyeOff, Key, UserPlus, ShieldCheck, RefreshCw, Link2 } from 'lucide-react';
 import { MAX_PARENTS, PARENT_RELATIONS, hasParentInfo } from '../../../lib/parents';
 import { dataService } from '../../../services/dataService';
 import { bugunTarih, yasHesapla } from '../../../lib/dogumTarihi';
@@ -13,8 +14,18 @@ import { profilResmi } from '../../../lib/profilResmi';
 import { ProfilResmiSecModal } from '../../ProfilResmiSecModal';
 import { SF } from './ortak';
 import { useOgrenciBaglam } from './useOgrenciYonetimi';
+import { lazyNamed } from '../../../lib/lazyLoad';
+import { useVeliDurumum } from '../../../services/veliService';
+
+// Aşama 367: kayıtlı öğrencide Veliler başlığından açılır (bağlantı KAYITLI veli bilgisine gider)
+const VeliBaglantisiPenceresi = lazyNamed<React.ComponentProps<typeof import('../../Veli/VeliBaglantisiPenceresi').VeliBaglantisiPenceresi>>(
+  () => import('../../Veli/VeliBaglantisiPenceresi'),
+  'VeliBaglantisiPenceresi'
+);
 
 export function OgrenciFormPenceresi() {
+  const veli = useVeliDurumum();
+  const [veliAcik, setVeliAcik] = useState(false);
   const { classes, canAddStudents, studentClassOptions, NO_CLASS, isNoBranchClass, gradeNumOf, PENDING_GRADE, pendingNoBranchGrades, isAddStudentOpen, setIsAddStudentOpen, editingStudent, isSavingStudent, studentName, setStudentName, studentEmail, setStudentEmail, studentPassword, setStudentPassword, showStudentPassword, setShowStudentPassword, studentClassId, setStudentClassId, studentNumber, setStudentNumber, studentPhone, setStudentPhone, studentAvatar, setStudentAvatar, studentGender, setStudentGender, genderTouchedRef, studentBirthDate, setStudentBirthDate, resimAcik, setResimAcik, studentFormError, studentEmailError, setStudentEmailError, studentPhoneError, setStudentPhoneError, parents, setParents, parentErrors, setParentErrors, setParentField, canTc, studentTc, setStudentTc, studentTcSaved, tcEditOpen, setTcEditOpen, pwEditOpen, setPwEditOpen, studentTcRemove, setStudentTcRemove, studentTcError, setStudentTcError, handleSaveStudent } = useOgrenciBaglam();
   return (
     <>
@@ -222,16 +233,29 @@ export function OgrenciFormPenceresi() {
                 <Users className="w-4 h-4 text-brand-fg" />
                 Veliler <span className="font-normal text-muted">(isteğe bağlı, en çok {MAX_PARENTS})</span>
               </span>
-              {parents.length < MAX_PARENTS && (
-                <button
-                  type="button"
-                  id="student-form-parent-add"
-                  className="ui-btn ui-btn-secondary ui-btn-sm"
-                  onClick={() => setParents((list) => [...list, {}].slice(0, MAX_PARENTS))}
-                >
-                  <Plus className="w-3.5 h-3.5" /> Veli ekle
-                </button>
-              )}
+              <span className="flex flex-wrap items-center gap-2">
+                {editingStudent && veli?.gonderebilir && (
+                  <button
+                    type="button"
+                    id="student-form-veli-baglanti"
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                    onClick={() => setVeliAcik(true)}
+                    title="Kayıtlı velilere haftalık özet bağlantısı (değişikliği önce kaydedin)"
+                  >
+                    <Link2 className="w-3.5 h-3.5" /> Veli Bağlantısı
+                  </button>
+                )}
+                {parents.length < MAX_PARENTS && (
+                  <button
+                    type="button"
+                    id="student-form-parent-add"
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                    onClick={() => setParents((list) => [...list, {}].slice(0, MAX_PARENTS))}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Veli ekle
+                  </button>
+                )}
+              </span>
             </div>
             <datalist id="parent-relation-options">
               {PARENT_RELATIONS.map((r) => (
@@ -496,6 +520,16 @@ export function OgrenciFormPenceresi() {
           </div>
         </form>
       </Modal>
+      {veliAcik && editingStudent && (
+        <Suspense fallback={null}>
+          <VeliBaglantisiPenceresi
+            ogrenci={{ id: editingStudent.id, name: editingStudent.name }}
+            altBaslik={classes.find((c) => c.id === editingStudent.classId)?.name}
+            layerClass="z-(--z-pencere-ust)"
+            onClose={() => setVeliAcik(false)}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

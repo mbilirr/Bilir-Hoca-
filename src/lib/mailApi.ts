@@ -31,6 +31,7 @@ export type MailAction =
   | 'kurum-mail-status' // Aşama 82: kurum gönderim hesabı
   | 'kurum-mail-connect'
   | 'kurum-mail-disconnect'
+  | 'veli' // Aşama 367: veli görünümü bağlantıları (durum / gönder / kopyala / iptal)
   | 'reminders';
 
 export interface MailResult {
@@ -95,6 +96,9 @@ async function postOnce(action: MailAction, payload: Record<string, any>): Promi
   if (!res.ok) return { ok: false, ...data, error: data.error || `E-posta servisi hata verdi (${res.status}).` };
   return data as MailResult;
 }
+
+/** Aşama 367: tek çağrı (yeniden deneme yükü çağıranda: aynı yükle tekrar istemek yanlış olabilir) */
+export const callMailOnce = postOnce;
 
 // Çok sayıda alıcı varsa sunucu bir çağrıda bir kısmını gönderir ("remaining"); bitene kadar tekrar çağrılır.
 export async function callMail(action: MailAction, payload: Record<string, any> = {}): Promise<MailResult> {

@@ -83,6 +83,10 @@
       "destination": "/api/mail?k=:t"
     },
     {
+      "source": "/v/:t",
+      "destination": "/api/mail?v=:t"
+    },
+    {
       "source": "/apple-touch-icon.png",
       "destination": "/api/icon?s=180"
     },

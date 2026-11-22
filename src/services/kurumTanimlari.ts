@@ -20,6 +20,8 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   { key: 'deneme', title: 'Deneme Analizi', description: 'Kurum yöneticisi optik sonuçlarını yükler, karne ve kazanım analizi çıkarır (yalnızca kurum yöneticileri)' },
   // Aşama 242: yalnız açıldığı kurumda menüde ve ana sayfada görünür (Müdür / Müdür Yrd. yükler, herkes okur)
   { key: 'akademik_takvim', title: 'Akademik takvim', description: 'Yıllık öğrenci ve veli etkinlikleri (Excel ile yüklenir); ana sayfada haftanın faaliyetleri' },
+  // Aşama 367: kapatınca bütün açık veli bağlantıları hemen geçersiz olur (veritabanı tetiği)
+  { key: 'veli', title: 'Veli görünümü', description: 'Velilere yalnız okunur haftalık özet bağlantısı (SMS / e-posta); kapatınca açık bağlantılar geçersiz olur' },
 ];
 /** Aşama 258: bireysel hesapta veritabanının sabit tuttuğu bölümler (öğretmen yönetimi kapalı, öğrenci yönetimi açık) */
 const BIREYSEL_SABIT_MODULLER: KurumModule[] = ['manage_teachers', 'manage_students'];
