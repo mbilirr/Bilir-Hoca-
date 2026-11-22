@@ -13,6 +13,9 @@ export const MIN_PASSWORD_LENGTH = 6;
 export const kilitMesaji = (dakika: number): string =>
   `Bu hesapta çok fazla hatalı giriş yapıldı. Güvenlik için hesap kilitlendi; ${Math.max(1, dakika || 15)} dakika sonra tekrar deneyin.`;
 
+// Aşama 350: mezun öğrencinin girişi (veritabanı kancası BILIREDU_MEZUN döner)
+export const MEZUN_MESAJI = 'Mezun olduğunuz için hesabınız kapatıldı. Hesabın yeniden açılması için okul yönetimiyle görüşün.';
+
 // Supabase giriş hatalarını kullanıcıya anlaşılır mesaja çevirir.
 // null: kullanıcı adı/şifre hatalı (çağıran genel mesaj gösterir)
 export function loginErrorMessage(err: any, role: 'teacher' | 'student'): string | null {
@@ -21,6 +24,7 @@ export function loginErrorMessage(err: any, role: 'teacher' | 'student'): string
   // Bu bir "şifre yanlış" değildir: hatalı giriş olarak sayılmaz, diğer adaylar denenmez.
   const kilit = /biliredu_kilit:(\d+)/.exec(m);
   if (kilit) return kilitMesaji(Number(kilit[1]));
+  if (m.includes('biliredu_mezun')) return MEZUN_MESAJI; // Aşama 350: şifre doğru da olsa giriş yok
   if (m.includes('banned')) {
     return role === 'student'
       ? 'Hesabınız şu anda kapalı: kayıt başvurunuz henüz onaylanmamış olabilir veya hesabınız askıya alınmıştır. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.'

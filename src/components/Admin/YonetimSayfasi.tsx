@@ -46,9 +46,10 @@ const OgrenciBolumPanel = lazyNamed(() => import('./OgrenciBolumPanel'), 'Ogrenc
 const DersYonetimi = lazyNamed(() => import('./DersYonetimi'), 'DersYonetimi'); // Aşama 217
 const IslemGecmisiPanel = lazyNamed(() => import('./IslemGecmisiPanel'), 'IslemGecmisiPanel'); // Aşama 307
 const GirisGuvenligiPanel = lazyNamed(() => import('./GirisGuvenligiPanel'), 'GirisGuvenligiPanel'); // Aşama 339
+const YilDevriPanel = lazyNamed(() => import('./YilDevriPanel'), 'YilDevriPanel'); // Aşama 350
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
-type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler' | 'gecmis'; // Aşama 217: dersler · 307: gecmis
+type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler' | 'yil' | 'gecmis'; // Aşama 217: dersler · 307: gecmis · 350: yil
 
 const STORE_KEY = 'edu_yonetim_v1';
 interface Saved {
@@ -116,7 +117,7 @@ export const YonetimSayfasi: React.FC<{
   // Aşama 245: kurum yöneticisinin ana sayfasından kurumun alt sekmesi (Öğretmenler, Öğrenciler, Roller, Ders programı…)
   useQuickFocus(['yonetim'], (f) => {
     if (isHead && (['kurumlar', 'bildirim', 'yedek', 'kendi'] as string[]).includes(f.id)) setUst(f.id as UstSekme);
-    else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler', 'gecmis'] as string[]).includes(f.id)) {
+    else if ((['genel', 'ogretmen', 'ogrenci', 'roller', 'bolumler', 'dersler', 'yil', 'gecmis'] as string[]).includes(f.id)) {
       if (isHead) setUst('kurumlar');
       setAlt(f.id as KurumSekme);
     }
@@ -190,9 +191,10 @@ export const YonetimSayfasi: React.FC<{
     { value: 'roller', label: 'Roller ve yetkiler', id: 'yonetim-alt-roller' },
     { value: 'bolumler', label: 'Bölümler ve sınıflar', id: 'yonetim-alt-bolumler' },
     { value: 'dersler', label: 'Ders programı', id: 'yonetim-alt-dersler' }, // Aşama 217
+    { value: 'yil', label: 'Eğitim yılı', id: 'yonetim-alt-yil' }, // Aşama 350
     { value: 'gecmis', label: 'İşlem geçmişi', id: 'yonetim-alt-gecmis' }, // Aşama 307
   ];
-  const BIREYSEL_SEKMELER: KurumSekme[] = ['genel', 'ogrenci', 'bolumler'];
+  const BIREYSEL_SEKMELER: KurumSekme[] = ['genel', 'ogrenci', 'bolumler', 'yil'];
   const altSekmeler = bireysel ? tumAltSekmeler.filter((x) => BIREYSEL_SEKMELER.includes(x.value)) : tumAltSekmeler;
   // Kayıtlı / kısayoldan gelen sekme bu hesapta yoksa Öğrenciler açılır
   const altAktif: KurumSekme = altSekmeler.some((x) => x.value === alt) ? alt : 'ogrenci';
@@ -308,6 +310,18 @@ export const YonetimSayfasi: React.FC<{
             </div>
           ) : (
             <DersYonetimi key={`d-${kid}`} kurumId={kid} classes={classes} />
+          ))}
+        {altAktif === 'yil' &&
+          // Aşama 350: yeni eğitim yılına geçiş kurumun içinden yapılır (kurum yöneticisi)
+          (isHead ? (
+            <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-yil-gecis">
+              <Info className="w-5 h-5 text-info-fg shrink-0" />
+              <p className="text-xs text-fg-2 flex-1">
+                <b>{kurumName}</b> için yeni eğitim yılına geçişi kurumun yöneticisi yapar.
+              </p>
+            </div>
+          ) : (
+            <YilDevriPanel key={`y-${kid}`} />
           ))}
         {altAktif === 'gecmis' &&
           // Aşama 307: kurumun kaydı kurumun içinden okunur (kurum ayrımı); sistem sahibi kuruma geçince görür

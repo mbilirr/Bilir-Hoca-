@@ -149,7 +149,7 @@ import {
 } from './hataMetinleri'; // Aşama 318
 export { geriAlYalnizDokunulan }; // Aşama 318: eski içe aktarma yolu çalışmaya devam etsin
 import { parseKurumRpc, kurumStateFrom, kurumAccessKey } from './kurumTanimlari'; // Aşama 319
-import { isMissingGenderColumn, isMissingBirthColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage } from './hataMetinleri'; // Aşama 319
+import { isMissingGenderColumn, isMissingBirthColumn, isMissingParentColumn, isMissingDescriptionColumn, isMissingNotifTable, duplicateClassMessage, MEZUN_MESAJI } from './hataMetinleri'; // Aşama 319 · 350
 import { canonicalAuthEmail, trLoginFold, generatePasswordOnce, signInWithCandidates, purgeSavedPasswords, girisIpucuOku, girisIpucuYaz, girisHatasiniBildir, girisKilidiDenetle, girisKilidiniUygula } from './girisYardimci'; // Aşama 319, 332, 339
 import {
   deleteRowsVerified,
@@ -1213,6 +1213,15 @@ class DataService {
 
       const row = payload.new;
       if (!row || !row.id || this.deletedStudentIds.has(row.id)) return;
+      // Aşama 350: mezun öğrenci etkin listelerde yer almaz (Yönetim › Eğitim Yılı › Geçmiş Yıllar'da görünür)
+      if (row.status === 'mezun') {
+        if (this.students.some((s) => s.id === row.id)) {
+          this.students = this.students.filter((s) => s.id !== row.id);
+          saveData(STORAGE_KEYS.STUDENTS, this.students);
+          this.notify();
+        }
+        return;
+      }
 
       const cleanRemoteEmail = cleanStudentEmail(row.email);
       const existingIdx = this.students.findIndex((s) => s.id === row.id);
@@ -1284,6 +1293,15 @@ class DataService {
 
       const row = payload.new;
       if (!row || !row.id || this.deletedClassIds.has(row.id)) return;
+      // Aşama 350: geçen yılın arşivdeki sınıfı etkin listelerde yer almaz
+      if (row.arsiv === true) {
+        if (this.classes.some((c) => c.id === row.id)) {
+          this.classes = this.classes.filter((c) => c.id !== row.id);
+          saveData(STORAGE_KEYS.CLASSES, this.classes);
+          this.notify();
+        }
+        return;
+      }
 
       const normName = (row.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
       if (!normName || normName === 'sinif' || normName === 'atanmadi' || normName === 'tanimsiz') return;
@@ -2459,6 +2477,7 @@ class DataService {
       if (remoteStudents && Array.isArray(remoteStudents)) {
         remoteStudents.forEach((rs: any) => {
           if (!rs.id || this.deletedStudentIds.has(rs.id)) return;
+          if (rs.status === 'mezun') return; // Aşama 350: mezun öğrenci
           remoteStudentMap.set(rs.id, rs);
         });
       }
@@ -6715,6 +6734,7 @@ class DataService {
           : 'Öğrenci kaydınız bulunamadı. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.'
       );
     }
+    if (row.status === 'mezun') throw new Error(MEZUN_MESAJI); // Aşama 350 (kanca kurulu değilse de giriş durur)
     if (row.status === 'suspended') {
       throw new Error('Hesabınız askıya alınmıştır. Lütfen öğretmeninize veya okul yöneticinize başvurunuz.');
     }
@@ -7458,6 +7478,7 @@ class DataService {
       if (remoteClasses && Array.isArray(remoteClasses)) {
         remoteClasses.forEach((rc: any) => {
           if (!rc.id || this.deletedClassIds.has(rc.id)) return;
+          if (rc.arsiv === true) return; // Aşama 350: arşivdeki (geçen yılın) sınıf
           const normRcName = (rc.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
           if (!normRcName || normRcName === 'sinif' || normRcName === 'atanmadi' || normRcName === 'tanimsiz') return;
 
