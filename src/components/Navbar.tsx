@@ -194,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <button
       type="button"
       onClick={() => (hesapSecimi ? setHesapPencere(true) : portallar.length > 1 ? setPortalPencere(true) : goTab('home'))}
-      title={hesapSecimi ? 'Hesap değiştir' : portallar.length > 1 ? 'Portal değiştir' : 'Ana Sayfa'}
+      title={hesapSecimi ? (portallar.length > 1 ? 'Hesap ve portal değiştir' : 'Hesap değiştir') : portallar.length > 1 ? 'Portal değiştir' : 'Ana Sayfa'}
       className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors min-w-0"
     >
       {brandLogo ? (
@@ -214,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {hesapSecimi && <HesapSecPencere open={hesapPencere} onClose={() => setHesapPencere(false)} />}
+      {hesapSecimi && <HesapSecPencere open={hesapPencere} onClose={() => setHesapPencere(false)} onPortal={() => goTab('home')} />}
       {bagYonetimi && <BagliHesaplarPencere open={bagliYonet} onClose={() => setBagliYonet(false)} />}
       {portallar.length > 1 && (
         <PortalDegistirPencere open={portalPencere} onClose={() => setPortalPencere(false)} onSec={() => goTab('home')} />

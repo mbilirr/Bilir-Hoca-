@@ -19,7 +19,7 @@ const SATIR =
 const gradyan = (h: number) => ({ backgroundImage: `linear-gradient(135deg, hsl(${h} 68% 56%), hsl(${(h + 18) % 360} 72% 40%))` });
 
 // Aşama 254c: satırlar giriş ekranında ve logoya basınca açılan değişim penceresinde ortak
-const PortalKartlari: React.FC<{ onSec: (p: PortalKod) => void; aktif?: PortalKod | null }> = ({ onSec, aktif = null }) => {
+export const PortalKartlari: React.FC<{ onSec: (p: PortalKod) => void; aktif?: PortalKod | null }> = ({ onSec, aktif = null }) => {
   const portallar = dataService.getPortallar();
   return (
     <ul className="space-y-2" aria-label="Portallar">

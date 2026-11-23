@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Crown, GraduationCap, LogOut, Check, ChevronRight, Repeat, Link2, Trash2, Building2, Eye } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
+import { PortalKartlari } from './PortalSecimi'; // Aşama 374
+import { dataService, type PortalKod } from '../../services/dataService';
 import {
   bagliHesabaGec,
   bagliHesaplar,
@@ -253,7 +255,9 @@ export const HesapSecimi: React.FC<{ ad?: string; liste: BagliHesap[]; onSahip: 
 };
 
 /** İçeride logodan açılan seçim penceresi */
-export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+// Aşama 374: bağlı hesabı olan kişide logo hesap penceresini açar; kişinin kurumda birden çok portalı varsa (ör. İdare +
+// Öğretmen) portal seçimi de aynı pencerede, hesapların altında görünür. Böylece logo iki işi birden görür.
+export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void; onPortal?: (p: PortalKod) => void }> = ({ open, onClose, onPortal }) => {
   const [liste, setListe] = useState<BagliHesap[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -276,6 +280,14 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
   useEffect(() => {
     if (!open) setSifreHedef(null);
   }, [open]);
+  // Aşama 374: portal seçimi (hatırlama tercihi değişmez; hesap menüsündeki ve portal penceresindeki ile aynı kural)
+  const portalVar = dataService.getPortallar().length > 1;
+  const portalSec = (p: PortalKod) => {
+    if (busy) return;
+    dataService.setPortal(p, dataService.portalHatirlaniyor());
+    onClose();
+    onPortal?.(p);
+  };
   const sec = async (id: string, sifre?: string) => {
     setErr(null);
     if (id !== SAHIP && !sifre && (liste || []).some((h) => h.authUserId === id && h.head)) {
@@ -293,9 +305,23 @@ export const HesapSecPencere: React.FC<{ open: boolean; onClose: () => void }> =
     }
   };
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} id="hesap-degistir" icon={Repeat} title="Hesap değiştir" description="Çalışmak istediğiniz hesabı seçin.">
+    <Modal
+      open={open}
+      onClose={() => !busy && onClose()}
+      id="hesap-degistir"
+      icon={Repeat}
+      title={portalVar ? 'Hesap ve portal' : 'Hesap değiştir'}
+      description={portalVar ? 'Çalışmak istediğiniz hesabı ya da portalı seçin.' : 'Çalışmak istediğiniz hesabı seçin.'}
+    >
+      {portalVar && <p className="ui-eyebrow px-1 pb-2">Hesap</p>}
       {liste ? <HesapKartlari liste={liste} aktif={aktif} busy={busy} onSec={(id) => void sec(id)} /> : <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-16 rounded-2xl bg-surface-2 animate-pulse" />)}</div>}
       {sifreHedef && <SahipSifre busy={!!busy} onGir={(p) => void sec(sifreHedef, p)} onVazgec={() => setSifreHedef(null)} />}
+      {portalVar && (
+        <div className="mt-4 pt-4 border-t border-line">
+          <p className="ui-eyebrow px-1 pb-2">Portal</p>
+          <PortalKartlari onSec={portalSec} aktif={dataService.getPortal()} />
+        </div>
+      )}
       {err && (
         <p role="alert" className="mt-3 text-center text-sm font-semibold text-danger-fg">
           {err}
