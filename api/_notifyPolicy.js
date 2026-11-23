@@ -37,6 +37,8 @@ export const MAIL_EVENT_CATEGORY = {
   'plan-report': 'plan',
   'deneme-karne': 'deneme',
   'akademik-takvim': 'takvim', // Aşama 328
+  'akademik-durum-sor': 'takvim', // Aşama 375: etkinlik yapıldı mı?
+  'akademik-durum': 'takvim', // Aşama 375: durum zümre başkanı + idareye
 };
 
 function defaultValue(cat, rec, ch) {

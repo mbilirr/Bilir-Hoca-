@@ -3,6 +3,7 @@ import { CalendarRange } from 'lucide-react';
 import { Modal } from '../ui/kit';
 import { dataService } from '../../services/dataService';
 import { setQuickFocus } from '../../lib/quickFocus';
+import { DurumBolumu } from '../Teacher/takvim/DurumBolumu'; // Aşama 375
 import { adParca, baslik, gunAraligiYazi, siniflarYazi, type AktEtkinlik } from '../../services/akademikTakvimService';
 
 // ============================================================================
@@ -42,6 +43,7 @@ export const AktEtkinlikPencere: React.FC<{ etkinlik: AktEtkinlik | null; onClos
           {etkinlik.salon ? ' · konferans salonu' : ''}
         </Satir>
       </dl>
+      <DurumBolumu etkinlik={etkinlik} />
     </Modal>
   );
 };

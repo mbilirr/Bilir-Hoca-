@@ -38,6 +38,10 @@ import {
   yilAdi,
   yilAraligi,
   type AktEtkinlik,
+  DURUM_AD, // Aşama 375
+  durumBul,
+  soruGunu,
+  type AktDurumKod,
   type AktKademe,
   type AktKapsam,
   type AktKayit,
@@ -46,6 +50,12 @@ import {
 import { takvimSablonIndir } from '../../lib/akademikTakvimExcel';
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { BTN, DtKutu, gunleri, SecKutusu, Kutu, KutuSecenek, ODAK_ADI, type Odak } from './takvim/ortak';
+import { useAktDurumlar } from './takvim/useAktDurumlar'; // Aşama 375
+import { DurumCip } from './takvim/DurumBolumu';
+import { AktEtkinlikPencere } from '../Home/AktEtkinlikPencere';
+
+// Aşama 375: durum düğmesinin rengi
+const DURUM_BTN: Record<AktDurumKod, string> = { yapildi: 'ui-btn-success', yapilmadi: 'ui-btn-danger-soft', ertelendi: 'ui-btn-warning', iptal: 'ui-btn-secondary' };
 
 // ============================================================================
 // Aşama 242: AKADEMİK TAKVİM sayfası (kurum bölümü "Akademik takvim" açıksa menüde görünür)
@@ -67,6 +77,8 @@ export const AkademikTakvim: React.FC = () => {
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState<string | null>(null);
   const setBildirim = useBildirimKanali(); // Aşama 353: ortak bildirim
+  const durumlar = useAktDurumlar(!!kurumId); // Aşama 375
+  const [durumAc, setDurumAc] = useState<AktEtkinlik | null>(null);
   const [ay, setAy] = useState(0);
   const [fSinif, setFSinif] = useState('');
   const [fZumre, setFZumre] = useState(''); // Aşama 327: zümre süzgeci
@@ -510,6 +522,24 @@ export const AkademikTakvim: React.FC = () => {
                         ) : (
                           <div className="flex items-center gap-3 min-w-0 flex-1">{icerik}</div>
                         )}
+                        {(() => {
+                          // Aşama 375: zümre etkinliğinin durumu (Yapıldı / Yapılmadı / Ertelendi / İptal edildi)
+                          if (!g.zumre) return null;
+                          const dr = durumBul(durumlar, g).durum;
+                          if (!dr && soruGunu(g) > bugunS) return null;
+                          if (!yonetir) return dr ? <DurumCip durum={dr.durum} className="shrink-0" /> : null;
+                          return (
+                            <button
+                              type="button"
+                              id={`akt-durum-ac-${g.ids[0]}`}
+                              onClick={() => setDurumAc(g)}
+                              className={cx(BTN, 'w-28 shrink-0', dr ? DURUM_BTN[dr.durum] : 'ui-btn-secondary')}
+                              title={dr ? `Durum: ${DURUM_AD[dr.durum]}${dr.isaretleyen ? ` (${dr.isaretleyen})` : ''}` : 'Durumu işaretlenmedi'}
+                            >
+                              {dr ? DURUM_AD[dr.durum] : 'Durum ?'}
+                            </button>
+                          );
+                        })()}
                         {yonetir ? (
                           <button
                             type="button"
@@ -550,6 +580,7 @@ export const AkademikTakvim: React.FC = () => {
           />
         </Suspense>
       )}
+      <AktEtkinlikPencere etkinlik={durumAc} onClose={() => setDurumAc(null)} />
       {yonetir && excelVar && (
         <Suspense fallback={null}>
           <ExcelPenceresi acik={excelAcik} yil={yil} kayitlar={kayitlar} onClose={() => setExcelAcik(false)} onYazildi={yukle} />

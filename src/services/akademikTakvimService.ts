@@ -417,6 +417,7 @@ export function takvimCanliDinle(kurumId: string | null | undefined, onChange: (
     kanal = supabase
       .channel(`akademik-takvim-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'akademik_takvim', filter: `kurum_id=eq.${kurumId}` }, () => tetik())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'akademik_takvim_durum', filter: `kurum_id=eq.${kurumId}` }, () => tetik()) // Aşama 375
       .subscribe(durum);
   } catch {
     kanal = null;
@@ -435,4 +436,117 @@ export function takvimCanliDinle(kurumId: string | null | undefined, onChange: (
       }
     }
   };
+}
+
+// ---------------------------------------------------------------- Aşama 375: etkinlik durumu (sql/375)
+// Zümresi yazılı etkinlik bitince zümreye "yapıldı mı?" sorulur (ay içinde: ayın son günü · tek gün: ertesi gün · birkaç gün:
+// son günün ertesi). Zümre üyesi ya da idare işaretler; zümre başkanı + idareye bildirilir (api/mail.js).
+export type AktDurumKod = 'yapildi' | 'yapilmadi' | 'ertelendi' | 'iptal';
+export const DURUMLAR: readonly AktDurumKod[] = ['yapildi', 'yapilmadi', 'ertelendi', 'iptal'];
+export const DURUM_AD: Record<AktDurumKod, string> = { yapildi: 'Yapıldı', yapilmadi: 'Yapılmadı', ertelendi: 'Ertelendi', iptal: 'İptal edildi' };
+export const DURUM_TON: Record<AktDurumKod, string> = { yapildi: 'success', yapilmadi: 'danger', ertelendi: 'warning', iptal: 'neutral' };
+
+export interface AktDurum {
+  tarih: string;
+  ad: string;
+  zumre: string;
+  durum: AktDurumKod;
+  yeniTarih: string;
+  yeniBitis: string;
+  aciklama: string;
+  isaretleyen: string;
+  zaman: string;
+}
+const DURUM_SQL_EKSIK = "Etkinlik durumu için Supabase SQL Editor'de 375 numaralı SQL dosyasını çalıştırın.";
+const tabloYok = (e: { message?: string; code?: string } | null | undefined) =>
+  !!e && (e.code === '42P01' || e.code === 'PGRST205' || e.code === 'PGRST202' || e.code === '42883' || /could not find|does not exist|schema cache/i.test(e.message || ''));
+
+const durumCevir = (r: any): AktDurum => ({
+  tarih: String(r.tarih || '').slice(0, 10),
+  ad: String(r.ad || ''),
+  zumre: String(r.zumre || ''),
+  durum: (DURUMLAR as readonly string[]).includes(r.durum) ? r.durum : 'yapildi',
+  yeniTarih: String(r.yeni_tarih || '').slice(0, 10),
+  yeniBitis: String(r.yeni_bitis || '').slice(0, 10),
+  aciklama: String(r.aciklama || ''),
+  isaretleyen: String(r.isaretleyen || ''),
+  zaman: String(r.updated_at || ''),
+});
+const DURUM_ALAN = 'tarih,ad,zumre,durum,yeni_tarih,yeni_bitis,aciklama,isaretleyen,updated_at';
+
+/** Kurumun bu tarihten sonraki etkinlik durumları (RLS: idare hepsini, öğretmen kendi zümresini görür). 375 kurulu değilse boş. */
+export async function durumListesi(kurumId: string, bas: string): Promise<AktDurum[]> {
+  const { data, error } = await supabase
+    .from('akademik_takvim_durum')
+    .select(DURUM_ALAN)
+    .eq('kurum_id', kurumId)
+    .or(`tarih.gte.${bas},yeni_tarih.gte.${bas}`)
+    .limit(3000);
+  if (error) {
+    if (tabloYok(error)) return [];
+    throw hata(error);
+  }
+  return (data || []).map(durumCevir);
+}
+
+/** Tek etkinliğin durumu (pencere açılınca) */
+export async function etkinlikDurumu(kurumId: string, g: Pick<AktEtkinlik, 'tarih' | 'ad' | 'zumre'>): Promise<{ durum: AktDurum | null; ertelendiden: AktDurum | null; kurulu: boolean }> {
+  const { data, error } = await supabase
+    .from('akademik_takvim_durum')
+    .select(DURUM_ALAN)
+    .eq('kurum_id', kurumId)
+    .eq('ad', g.ad)
+    .or(`tarih.eq.${g.tarih},yeni_tarih.eq.${g.tarih}`)
+    .limit(20);
+  if (error) {
+    if (tabloYok(error)) return { durum: null, ertelendiden: null, kurulu: false };
+    throw hata(error);
+  }
+  const m = durumHaritasi((data || []).map(durumCevir));
+  return { ...durumBul(m, g), kurulu: true };
+}
+
+export async function durumKaydet(ids: string[], durum: AktDurumKod, yeniTarih = '', yeniBitis = '', aciklama = ''): Promise<void> {
+  const { error } = await supabase.rpc('akademik_takvim_durum_kaydet', {
+    p_ids: ids,
+    p_durum: durum,
+    p_yeni_tarih: yeniTarih || null,
+    p_yeni_bitis: yeniBitis || null,
+    p_aciklama: aciklama.trim().slice(0, 300),
+  });
+  if (error) throw tabloYok(error) ? new Error(DURUM_SQL_EKSIK) : hata(error);
+}
+
+/** Oturumdaki öğretmenin zümreleri (büyük harf) */
+export async function benimZumrelerim(): Promise<Set<string>> {
+  const { data, error } = await supabase.rpc('akademik_benim_zumrelerim');
+  if (error) return new Set();
+  return new Set(((data || []) as unknown[]).map((z) => buyuk(z)));
+}
+
+const durumKey = (tarih: string, ad: string, zumre: string) => `${tarih}|${buyuk(ad)}|${buyuk(zumre)}`;
+export interface DurumHaritasi {
+  dogrudan: Map<string, AktDurum>;
+  ertelenen: Map<string, AktDurum>; // yeni tarih → eski kayıt ("12 Kasım'dan ertelendi")
+}
+export function durumHaritasi(list: AktDurum[]): DurumHaritasi {
+  const dogrudan = new Map<string, AktDurum>();
+  const ertelenen = new Map<string, AktDurum>();
+  for (const d of list) {
+    dogrudan.set(durumKey(d.tarih, d.ad, d.zumre), d);
+    if (d.durum === 'ertelendi' && d.yeniTarih) ertelenen.set(durumKey(d.yeniTarih, d.ad, d.zumre), d);
+  }
+  return { dogrudan, ertelenen };
+}
+export function durumBul(m: DurumHaritasi | null, g: Pick<AktEtkinlik, 'tarih' | 'ad' | 'zumre'>): { durum: AktDurum | null; ertelendiden: AktDurum | null } {
+  if (!m) return { durum: null, ertelendiden: null };
+  const k = durumKey(g.tarih, g.ad, g.zumre);
+  return { durum: m.dogrudan.get(k) || null, ertelendiden: m.ertelenen.get(k) || null };
+}
+
+/** "Yapıldı mı?" sorusunun günü: ay içinde → ayın son günü · birkaç gün → son günün ertesi · tek gün → ertesi gün */
+export function soruGunu(g: Pick<AktEtkinlik, 'tarih' | 'bitis' | 'ayIcinde'>): string {
+  const a = tarihCoz(g.tarih);
+  if (g.ayIcinde) return g.bitis || tarihYaz(new Date(a.getFullYear(), a.getMonth() + 1, 0));
+  return tarihYaz(gunEkle(g.bitis ? tarihCoz(g.bitis) : a, 1));
 }

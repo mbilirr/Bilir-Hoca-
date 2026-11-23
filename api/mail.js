@@ -69,7 +69,7 @@ const dailyLimitFor = (addr) => {
   if (Number.isFinite(n) && n > 0) return Math.floor(n);
   return /@(gmail|googlemail)\.com$/i.test(String(addr || '')) ? 450 : 1800;
 };
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet', 'ders-devamsizlik-ders', 'ders-devamsizlik-sinir', 'ders-devamsizlik-sinir-idare', 'akademik-takvim']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet · Aşama 231: ders-devamsizlik-ders · Aşama 232: sınır · Aşama 328: akademik-takvim
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet', 'ders-devamsizlik-ders', 'ders-devamsizlik-sinir', 'ders-devamsizlik-sinir-idare', 'akademik-takvim', 'akademik-durum-sor']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet · Aşama 231: ders-devamsizlik-ders · Aşama 232: sınır · Aşama 328: akademik-takvim
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -1344,6 +1344,7 @@ async function sendPolicySms(items, policy) {
   for (const it of items) {
     // Aşama 101: karne SMS'i artık ayrı "Tümüne SMS" düğmesiyle (kişiye özel link) gider; e-postayla ikinci SMS gitmez
     if (it.event === 'deneme-karne') continue;
+    if (it.smsYok) continue; // Aşama 375: yalnız e-posta (ör. takvim durumu "Yapıldı")
     const cat = MAIL_EVENT_CATEGORY[it.event];
     if (!cat) continue;
     const role = it.role === 'ogrenci' ? 'ogrenci' : 'ogretmen';
@@ -3638,6 +3639,174 @@ async function actionAkademikTakvimHatirlat(req, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 375: akademik takvim etkinlik durumu
+// (1) Zümresi yazılı etkinlik bitince zümre öğretmenlerine "yapıldı mı?" sorusu: ay olarak verilen ayın son günü, tek gün
+//     ertesi gün, birkaç gün / hafta son günün ertesi; işaretlenmezse 2 gün sonra bir kez daha (akademik_durum_sor_tara).
+// (2) Öğretmen işaretleyince zümre başkanı + idareye e-posta; SMS yalnız Ertelendi ve İptal edildi'de (akademik_durum_bildir_tara).
+const AKT_DURUM_AD = { yapildi: 'Yapıldı', yapilmadi: 'Yapılmadı', ertelendi: 'Ertelendi', iptal: 'İptal edildi' };
+const istSaat = () => new Date(Date.now() + 3 * 3600000).getUTCHours();
+async function aktRpc(fn, body) {
+  try {
+    return await rest(`rpc/${fn}`, { token: 'service', method: 'POST', body });
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === 'PGRST202' || err.code === '42883' || err.code === '42P01')) return null; // 375 kurulu değil
+    throw err;
+  }
+}
+function aktAlicilar(list) {
+  const out = [];
+  const goruldu = new Set();
+  for (const a of Array.isArray(list) ? list : []) {
+    const em = String((a && a.email) || '').trim().toLowerCase();
+    if (!isEmail(em) || goruldu.has(em)) continue;
+    goruldu.add(em);
+    out.push({ email: em, ad: clean(a.ad), baskan: !!a.baskan });
+  }
+  return out;
+}
+/** Kurum adına gönderir; tamamı gittiyse true (gitmeyen olursa işaretlenmez, sonraki turda yeniden denenir; gidenler tekrar gitmez) */
+async function aktGonder(kurumId, items, deadline, out) {
+  const owner = { authId: null, name: '', email: '', kurumId };
+  const sender = await resolveSender(owner);
+  const summary = await deliver(sender, owner, items, deadline);
+  if (!summary) return true;
+  out.sent += summary.sent || 0;
+  out.failed += summary.failed || 0;
+  out.skipped += summary.skipped || 0;
+  return !(summary.notConfigured || (summary.remaining || 0) > 0 || (summary.failed || 0) > 0);
+}
+async function actionAkademikDurumSor(req, deadline) {
+  const out = { kurum: 0, etkinlik: 0, sent: 0, failed: 0, skipped: 0 };
+  if (istSaat() < AKT_SABAH_SAAT) return out;
+  const list = await aktRpc('akademik_durum_sor_tara', {});
+  const url = appUrl(req);
+  const durumUrl = `${String(url).replace(/\/+$/, '')}/?akt-durum=1`;
+  for (const k of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const kurumId = String((k && k.kurum_id) || '');
+    if (!KURUM_ID_RE.test(kurumId)) continue;
+    const items = [];
+    const isaret = [];
+    for (const ev of Array.isArray(k.etkinlikler) ? k.etkinlikler : []) {
+      const anahtar = String((ev && ev.anahtar) || '');
+      const tarih = String((ev && ev.tarih) || '');
+      if (!/^[a-f0-9]{32}$/.test(anahtar) || !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) continue;
+      const kez = ev.kez === 2 ? 2 : 1;
+      const ad = clean(ev.ad).slice(0, 200);
+      const zumre = clean(ev.zumre).slice(0, 80);
+      const neKisa = aktTarihYazi(ev, true);
+      const siniflar = (Array.isArray(ev.siniflar) ? ev.siniflar : []).map(clean).filter(Boolean).join(', ');
+      const subject = (kez === 1 ? `Etkinlik yapıldı mı? ${ad} – ${neKisa}` : `Hatırlatma: ${ad} etkinliğinin durumu bekleniyor`).slice(0, 160);
+      const smsText = `${ad.slice(0, 60)} (${neKisa}) yapıldı mı? Durumu akademik takvimde işaretleyin: ${url}`.slice(0, 300);
+      const alicilar = aktAlicilar(ev.alicilar);
+      if (!alicilar.length) continue;
+      out.etkinlik++;
+      for (const a of alicilar) {
+        items.push({
+          event: 'akademik-durum-sor',
+          refId: `${kurumId}|${anahtar}|${kez}`,
+          refTitle: subject,
+          to: a.email,
+          toName: a.ad,
+          role: 'ogretmen',
+          subject,
+          smsText,
+          ...layout({
+            heading: kez === 1 ? 'Etkinlik yapıldı mı?' : 'Etkinliğin durumu bekleniyor',
+            greeting: a.ad ? `Merhaba ${a.ad},` : 'Merhaba,',
+            intro: `${zumre} zümresinin etkinliğinin süresi doldu. Lütfen sitede ana sayfanızdaki akademik takvim satırından Yapıldı, Yapılmadı, Ertelendi ya da İptal edildi olarak işaretleyin. İşaretlediğinizde zümre başkanına ve idareye bildirilir.`,
+            rows: [
+              ['Etkinlik', ad],
+              ['Tarih', aktTarihYazi(ev, false)],
+              ['Yer', ev.yer === 'dis' ? 'Okul dışı' : 'Okul içi'],
+              ['Sınıf', siniflar],
+              ['Zümre', zumre],
+            ],
+            buttonLabel: 'Durumu işaretle',
+            url: durumUrl,
+            footer: 'Ay olarak verilen etkinlik ayın son günü, tek günlük etkinlik ertesi gün, birkaç günlük etkinlik son günün ertesi sorulur. Zümreden biri işaretleyince soru kapanır; işaretlenmezse 2 gün sonra bir kez daha hatırlatılır.',
+          }),
+        });
+      }
+      isaret.push({ anahtar, tarih, kez });
+    }
+    if (!items.length) continue;
+    out.kurum++;
+    if (await aktGonder(kurumId, items, deadline, out)) await aktRpc('akademik_durum_sor_isaretle', { p_kurum: kurumId, p_kayitlar: isaret });
+  }
+  return out;
+}
+async function actionAkademikDurumBildir(req, deadline) {
+  const out = { kurum: 0, durum: 0, sent: 0, failed: 0, skipped: 0 };
+  const saat = istSaat();
+  if (saat < 7 || saat >= 22) return out; // gece SMS / e-posta gitmez; sabah ilk turda gider
+  const list = await aktRpc('akademik_durum_bildir_tara', {});
+  const url = appUrl(req);
+  for (const k of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const kurumId = String((k && k.kurum_id) || '');
+    if (!KURUM_ID_RE.test(kurumId)) continue;
+    const items = [];
+    const isaret = [];
+    for (const d of Array.isArray(k.durumlar) ? k.durumlar : []) {
+      const anahtar = String((d && d.anahtar) || '');
+      const zaman = String((d && d.zaman) || '');
+      const durum = String((d && d.durum) || '');
+      if (!/^[a-f0-9]{32}$/.test(anahtar) || !zaman || !AKT_DURUM_AD[durum]) continue;
+      isaret.push({ anahtar, zaman });
+      const alicilar = aktAlicilar(d.alicilar);
+      if (!alicilar.length) continue;
+      out.durum++;
+      const ad = clean(d.ad).slice(0, 200);
+      const zumre = clean(d.zumre).slice(0, 80);
+      const kim = clean(d.isaretleyen).slice(0, 80) || 'Zümre öğretmeni';
+      const yeni = d.yeni_tarih ? aktTarihYazi({ tarih: d.yeni_tarih, bitis: d.yeni_bitis }, false) : '';
+      const ne = AKT_DURUM_AD[durum];
+      const subject = `${ne}: ${ad}`.slice(0, 160);
+      const smsYok = durum !== 'ertelendi' && durum !== 'iptal';
+      const smsText =
+        durum === 'iptal'
+          ? `${zumre}: ${ad.slice(0, 60)} etkinliği iptal edildi. ${url}`.slice(0, 300)
+          : `${zumre}: ${ad.slice(0, 60)} etkinliği ${yeni ? `${yeni} tarihine` : 'ileri bir tarihe'} ertelendi. ${url}`.slice(0, 300);
+      for (const a of alicilar) {
+        items.push({
+          event: 'akademik-durum',
+          refId: `${kurumId}|${anahtar}|${Date.parse(zaman) || 0}`,
+          refTitle: subject,
+          to: a.email,
+          toName: a.ad,
+          role: 'ogretmen',
+          subject,
+          smsText,
+          smsYok,
+          ...layout({
+            heading: `Etkinlik: ${ne}`,
+            greeting: a.ad ? `Merhaba ${a.ad},` : 'Merhaba,',
+            intro: `${kim}, ${zumre} zümresinin etkinliğini "${ne}" olarak işaretledi.`,
+            rows: [
+              ['Etkinlik', ad],
+              ['Tarih', trDate(String(d.tarih || '').slice(0, 10))],
+              ['Durum', ne],
+              ['Yeni tarih', yeni],
+              ['Not', clean(d.aciklama).slice(0, 300)],
+              ['Zümre', zumre],
+              ['İşaretleyen', kim],
+            ],
+            buttonLabel: 'Akademik takvimi aç',
+            url,
+            footer: 'Bu bildirim zümre başkanına ve idareye (Müdür, Müdür Yrd., kurum yöneticisi) gider. SMS yalnız Ertelendi ve İptal edildi durumunda, Bildirim ayarları › Akademik takvim › SMS açıksa gönderilir.',
+          }),
+        });
+      }
+    }
+    if (!isaret.length) continue;
+    out.kurum++;
+    const ok = items.length ? await aktGonder(kurumId, items, deadline, out) : true;
+    if (ok) await aktRpc('akademik_durum_bildir_isaretle', { p_kurum: kurumId, p_kayitlar: isaret });
+  }
+  return out;
+}
+
 async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
@@ -5532,7 +5701,16 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('[mail] akademik takvim hatırlatması hatası', err && err.message);
         }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0, veliDevamsizlik: dv ? dv.sent : 0, veliDersSonu: dd ? dd.sent : 0, devamsizlikSinir: ds ? ds.sent : 0, akademikTakvim: at ? at.sent : 0 });
+        // Aşama 375: etkinlik durumu — işaretlenen durumun zümre başkanı + idareye bildirimi ve "yapıldı mı?" sorusu
+        let ad = null;
+        try {
+          const ab = await actionAkademikDurumBildir(req, cronDeadline);
+          const as = await actionAkademikDurumSor(req, cronDeadline);
+          ad = { sent: (ab ? ab.sent : 0) + (as ? as.sent : 0) };
+        } catch (err) {
+          console.error('[mail] akademik takvim durum hatası', err && err.message);
+        }
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0, veliDevamsizlik: dv ? dv.sent : 0, veliDersSonu: dd ? dd.sent : 0, devamsizlikSinir: ds ? ds.sent : 0, akademikTakvim: at ? at.sent : 0, akademikDurum: ad ? ad.sent : 0 });
       }
       const r = await actionReminders(req, cronDeadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
@@ -5561,6 +5739,15 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] günlük akademik takvim hatırlatması hatası', err && err.message);
       }
+      // Aşama 375: 10 dakikalık zamanlayıcı kurulmadıysa durum bildirimi / sorusu günlük görevde gider
+      let ad = null;
+      try {
+        const ab = await actionAkademikDurumBildir(req, cronDeadline);
+        const as = await actionAkademikDurumSor(req, cronDeadline);
+        ad = { sent: (ab ? ab.sent : 0) + (as ? as.sent : 0) };
+      } catch (err) {
+        console.error('[mail] günlük akademik takvim durum hatası', err && err.message);
+      }
       // Aşama 101: süresi dolan karne linkleri ve PDF'leri
       let karneCleaned = 0;
       try {
@@ -5581,6 +5768,7 @@ export default async function handler(req, res) {
         veliCleaned,
         noAttendance: na ? na.sent : 0,
         akademikTakvim: at ? at.sent : 0,
+        akademikDurum: ad ? ad.sent : 0,
         etutSent: er ? er.sent : 0,
         planReports: pr ? pr.sent : 0,
         ok: r.ok,

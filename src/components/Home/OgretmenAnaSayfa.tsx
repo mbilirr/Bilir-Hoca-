@@ -25,6 +25,7 @@ import { Selamlama } from './ogretmenAna/Selamlama';
 import { SimdiKarti } from './ogretmenAna/SimdiKarti';
 import { AnaIzgara } from './ogretmenAna/AnaIzgara';
 import { BuHafta } from './ogretmenAna/BuHafta';
+import { AktDurumBekleyen } from './ogretmenAna/AktDurumBekleyen'; // Aşama 375
 
 export const OgretmenAnaSayfa: React.FC<Props> = (props) => {
   const s = useOgretmenAnaSayfa(props);
@@ -32,6 +33,7 @@ export const OgretmenAnaSayfa: React.FC<Props> = (props) => {
     <OgretmenAnaBaglam.Provider value={s}>
       <AnaSayfaKabuk currentTeacher={s.currentTeacher} unreadMessages={s.unreadMessages} onNavigate={s.onNavigateTab} tema="odak" sinif="ak-ogrt" overlay={s.katman}>
         <Selamlama />
+        <AktDurumBekleyen />
         <SimdiKarti />
         <AnaIzgara />
         <BuHafta />

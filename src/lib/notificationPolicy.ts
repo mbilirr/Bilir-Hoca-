@@ -96,7 +96,7 @@ export const POLICY_CATEGORIES: {
   {
     id: 'takvim',
     label: 'Akademik takvim',
-    hint: 'Yaklaşan zümre etkinliği hatırlatması (okul dışı 12 gün, okul içi 6 gün önce); üyeler Akademik takvim › Zümreler',
+    hint: 'Yaklaşan zümre etkinliği hatırlatması (okul dışı 12 gün, okul içi 6 gün önce), bitince "yapıldı mı?" sorusu ve işaretlenen durumun zümre başkanı + idareye bildirimi (SMS yalnız Ertelendi / İptal); üyeler Akademik takvim › Zümreler',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'sms'] },
   },
 ];
