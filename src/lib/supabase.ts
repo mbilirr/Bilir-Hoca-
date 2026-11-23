@@ -8,7 +8,7 @@ const DEFAULT_FALLBACK_ANON_KEY =
 
 export const SUPABASE_URL =
   (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ||
-  'https://zzdchsxfjzedgciejuxd.supabase.co';
+  'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 
 const rawAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 
@@ -23,7 +23,7 @@ export const SUPABASE_ANON_KEY = isSupabaseConfigured
   : DEFAULT_FALLBACK_ANON_KEY;
 
 export const SUPABASE_CONFIG = {
-  projectId: 'zzdchsxfjzedgciejuxd',
+  projectId: 'ikkmlahnsnzzuagmaxqg',
   url: SUPABASE_URL,
   anonKey: isSupabaseConfigured ? SUPABASE_ANON_KEY : '',
   restApi: `${SUPABASE_URL}/rest/v1/`,

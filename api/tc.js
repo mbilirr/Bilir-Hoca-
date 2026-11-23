@@ -22,7 +22,7 @@ import { createHmac } from 'node:crypto';
 
 export const config = { maxDuration: 20 };
 
-const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 const MAX_ITEMS = 3000;
 const PER_MINUTE_LIMIT = 30;
 

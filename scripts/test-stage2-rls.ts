@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://zzdchsxfjzedgciejuxd.supabase.co';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 const ANON_KEY =
   process.env.VITE_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6ZGNoc3hmanplZGdjaWVqdXhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MjI2MjgsImV4cCI6MjEwMzI5ODYyOH0.1eWzEPZr9oyWQgPZWdKM9i09b-mZfIOELdZQjJZDBto';

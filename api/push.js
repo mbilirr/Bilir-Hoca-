@@ -43,7 +43,7 @@ async function policyMod() {
   return policyModCache;
 }
 
-const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 
 export function pushEnv() {

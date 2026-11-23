@@ -29,7 +29,7 @@
 // Aşama 162: Fluid Compute açıkken Hobby planda en çok 300 sn. (vercel.json'daki değerle aynı olmalı)
 export const config = { maxDuration: 300 };
 
-const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 const PROVIDER_TIMEOUT_MS = 90000; // Aşama 162: bir modele en çok 90 sn; yanıt gelmezse sıradaki modele geçilir
 const REQUEST_BUDGET_MS = 280000; // Aşama 162: isteğin toplam süresi (300 sn sınırından önce düzgün yanıt dönsün)
 const MIN_TRY_MS = 12000; // kalan süre bundan azsa yeni model denenmez

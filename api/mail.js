@@ -52,7 +52,7 @@ async function smsMod() {
 
 export const config = { maxDuration: 60 };
 
-const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
 // Aşama 109: genel yönetici e-postası bu dosyada tek yerde (veritabanındaki is_admin kuralıyla aynı olmalı)
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta gönderilir, kalanlar sonraki çağrıya kalır
