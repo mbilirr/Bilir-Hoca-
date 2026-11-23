@@ -2100,10 +2100,16 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
   protected async runFullSync(isBackground: boolean): Promise<void> {
     const versionBefore = this.dataVersion;
     try {
-      if (this.secureRestore) await this.secureRestore; // Aşama 103
-      this.ensureRealtime();
-      this.startPeriodicSync();
+      // Aşama 372 (HIZ): şifreli cihaz önbelleğinin anahtarı üretilirken (telefonda ~0,1–0,2 sn) yalnız şifreli üç liste
+      // (yoklama, not, mesaj) ve canlı kanal bekler; kurum bilgisi ve diğer listeler hemen başlar. (Aşama 103)
+      const kilit: Promise<void> = this.secureRestore || Promise.resolve();
+      const kilitSonra = (f: () => Promise<unknown>) => kilit.then(f);
+      const kanal = kilit.then(() => {
+        this.ensureRealtime();
+        this.startPeriodicSync();
+      });
       await Promise.allSettled([
+        kanal,
         this.syncTombstonesFromCloud(),
         this.syncClassesFromSupabase(isBackground),
         this.syncStudentsFromSupabase(isBackground),
@@ -2111,9 +2117,9 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
         this.syncHomeworksFromSupabase(isBackground),
         this.syncSubmissionsFromSupabase(isBackground),
         // yoklama ve notlar arka planda en fazla 10 dakikada bir yenilenir (anlık değişiklikler kanaldan gelir)
-        this.backgroundDue('attendance', isBackground) ? this.syncAttendanceFromSupabase(isBackground) : Promise.resolve(),
-        this.backgroundDue('grades', isBackground) ? this.syncGradesFromSupabase(isBackground) : Promise.resolve(),
-        this.syncMessagesFromSupabase(isBackground),
+        this.backgroundDue('attendance', isBackground) ? kilitSonra(() => this.syncAttendanceFromSupabase(isBackground)) : Promise.resolve(),
+        this.backgroundDue('grades', isBackground) ? kilitSonra(() => this.syncGradesFromSupabase(isBackground)) : Promise.resolve(),
+        kilitSonra(() => this.syncMessagesFromSupabase(isBackground)),
         this.syncQuestionLogsAndTargetsFromSupabase(isBackground),
         this.syncTeacherDocumentsFromSupabase(isBackground),
         this.syncTeachersFromSupabase(isBackground),

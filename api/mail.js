@@ -5460,12 +5460,13 @@ export default async function handler(req, res) {
       // Aşama 101: SMS'teki karne linki (/k/<kod> → /api/mail?k=<kod>; giriş gerektirmez)
       const karneK = (req.query && req.query.k) || new URL(req.url, 'http://x').searchParams.get('k');
       if (karneK) return await karneLinkOpen(res, String(karneK));
+      // Aşama 156: e-posta başlığındaki kurum logosu. Aşama 372: veli sayfasından ÖNCE bakılır; logo adresi de
+      // "v=<logo özeti>" taşıdığı için 367'den beri veli sayfasına düşüyordu (e-postalarda logo görünmüyordu).
+      const logoK = (req.query && req.query.logo) || new URL(req.url, 'http://x').searchParams.get('logo');
+      if (logoK) return await kurumLogoOpen(res, String(logoK));
       // Aşama 367: velinin haftalık özet sayfası (/v/<kod> → /api/mail?v=<kod>; giriş gerektirmez)
       const veliV = (req.query && req.query.v) || new URL(req.url, 'http://x').searchParams.get('v');
       if (veliV) return await veliSayfaAc(req, res, String(veliV));
-      // Aşama 156: e-posta başlığındaki kurum logosu
-      const logoK = (req.query && req.query.logo) || new URL(req.url, 'http://x').searchParams.get('logo');
-      if (logoK) return await kurumLogoOpen(res, String(logoK));
       const task = (req.query && req.query.task) || new URL(req.url, 'http://x').searchParams.get('task');
       const isCron = /vercel-cron/i.test(String(req.headers['user-agent'] || ''));
       if (task !== 'reminders' && task !== 'etut-reminders' && !isCron) return res.status(200).json({ ok: true, service: 'mail' });

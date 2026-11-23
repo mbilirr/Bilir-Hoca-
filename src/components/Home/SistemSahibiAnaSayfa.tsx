@@ -99,6 +99,10 @@ export const SistemSahibiAnaSayfa: React.FC<Props> = ({ currentTeacher, unreadMe
   useEffect(() => {
     void kurumOku();
   }, [kurumOku, ogretmenAnahtari]);
+  // Aşama 372 (HIZ): kurum kartları görünürken sunucu önceden uyandırılır; "Kuruma geç" soğuk başlangıç beklemez
+  useEffect(() => {
+    void import('../../lib/kurumGecis').then((m) => m.gozuSunucuIsit()).catch(() => {});
+  }, []);
 
   // ---- SMS, e-posta, yedek (açılışta, sekmeye dönünce ve dakikada bir)
   const [sms, setSms] = useState<Yuk<SmsDurum>>({ s: 'yukleniyor' });

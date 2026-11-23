@@ -133,8 +133,8 @@ const yazFn = (e) => async (path, method, body, prefer) => {
   const r = await fetch(`${e.url}/rest/v1/${path}`, { method, headers: { ...serviceHeaders(e), ...(prefer ? { Prefer: prefer } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!r.ok) throw new Error(`izin ${r.status}`);
 };
-async function izinliOturum(e, kurumId, authUserId, email, ad) {
-  const kapali = await dondurma.kurumDondurulmus(okuFn(e), kurumId);
+async function izinliOturum(e, kurumId, authUserId, email, ad, kapaliOn = null) {
+  const kapali = await (kapaliOn || dondurma.kurumDondurulmus(okuFn(e), kurumId)); // Aşama 372: önceden başlatılmış denetim varsa o beklenir
   if (!kapali) return magicSession(e, email, ad);
   await dondurma.gecisIzniVer(yazFn(e), authUserId);
   try {
@@ -144,32 +144,51 @@ async function izinliOturum(e, kurumId, authUserId, email, ad) {
   }
 }
 
-async function actionEnter(e, body) {
+// Aşama 372 (HIZ): kuruma geçişte okumalar yetki denetimiyle AYNI ANDA başlar (yalnız okuma; sonuç ancak denetim geçerse
+// kullanılır). Böylece yetki, kurum + yönetici, giriş hesabı ve dondurma denetimi arka arkaya değil birlikte beklenir.
+function enterOn(e, body) {
+  const kurumId = String(body.kurumId || '');
+  if (!UUID.test(kurumId)) return null;
+  const kapaliOn = dondurma.kurumDondurulmus(okuFn(e), kurumId);
+  kapaliOn.catch(() => {}); // kullanılmazsa ya da hata verirse işlenmemiş hata olmaz; hata asıl kullanımda yine fırlar
+  const okuma = (async () => {
+    // Aşama 251: kurum ve yöneticileri aynı anda okunur (sırayla değil)
+    const [kurumlar, admins] = await Promise.all([
+      rest(e, `kurumlar?select=id,name&id=eq.${kurumId}`),
+      // Kurumun onaylı yöneticisi (birden çoksa en eskisi)
+      rest(
+        e,
+        `teachers?select=id,name,status,auth_user_id,created_at&kurum_id=eq.${kurumId}&is_admin=is.true&auth_user_id=not.is.null&order=created_at.asc`
+      ),
+    ]);
+    const kurum = kurumlar[0];
+    const target = admins.find((t) => !t.status || t.status === 'approved');
+    let authUser = null;
+    let hesapOk = false;
+    if (kurum && target) {
+      // Hedef hesabın giriş adresi
+      const ur = await fetch(`${e.url}/auth/v1/admin/users/${target.auth_user_id}`, { headers: serviceHeaders(e) });
+      authUser = await readJson(ur);
+      hesapOk = ur.ok;
+    }
+    return { kurum, target, authUser, hesapOk };
+  })();
+  okuma.catch(() => {});
+  return { kurumId, kapaliOn, okuma };
+}
+
+async function actionEnter(e, body, on) {
   const kurumId = String(body.kurumId || '');
   if (!UUID.test(kurumId)) throw new HttpError(400, 'Geçersiz kurum.');
-  // Aşama 251: kurum ve yöneticileri aynı anda okunur (sırayla değil)
-  const [kurumlar, admins] = await Promise.all([
-    rest(e, `kurumlar?select=id,name&id=eq.${kurumId}`),
-    // Kurumun onaylı yöneticisi (birden çoksa en eskisi)
-    rest(
-      e,
-      `teachers?select=id,name,status,auth_user_id,created_at&kurum_id=eq.${kurumId}&is_admin=is.true&auth_user_id=not.is.null&order=created_at.asc`
-    ),
-  ]);
-  const kurum = kurumlar[0];
+  const { kurum, target, authUser, hesapOk } = await (on || enterOn(e, body)).okuma;
   if (!kurum) throw new HttpError(404, 'Kurum bulunamadı.');
-  const target = admins.find((t) => !t.status || t.status === 'approved');
   if (!target) throw new HttpError(409, `"${kurum.name}" kurumunun onaylı bir yöneticisi yok. Önce kuruma yönetici atayın.`);
-
-  // Hedef hesabın giriş adresi
-  const ur = await fetch(`${e.url}/auth/v1/admin/users/${target.auth_user_id}`, { headers: serviceHeaders(e) });
-  const authUser = await readJson(ur);
-  if (!ur.ok || !authUser || !authUser.email) throw new HttpError(502, 'Kurum yöneticisinin giriş hesabı okunamadı.');
+  if (!hesapOk || !authUser || !authUser.email) throw new HttpError(502, 'Kurum yöneticisinin giriş hesabı okunamadı.');
   if ((authUser.email || '').toLowerCase() === HEAD_ADMIN_EMAIL) throw new HttpError(400, 'Geçersiz hedef.');
   if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) throw new HttpError(409, 'Kurum yöneticisinin hesabı askıya alınmış.');
 
   // Tek kullanımlık bağlantı kodu üretilir (e-posta GÖNDERİLMEZ) ve hemen oturuma çevrilir
-  const session = await izinliOturum(e, kurum.id, target.auth_user_id, authUser.email, 'Kuruma geçiş oturumu'); // Aşama 368
+  const session = await izinliOturum(e, kurum.id, target.auth_user_id, authUser.email, 'Kuruma geçiş oturumu', on ? on.kapaliOn : null); // Aşama 368
 
   const sid = sessionIdOf(session.access_token);
   if (!UUID.test(sid)) throw new HttpError(502, 'Kuruma geçiş oturumu tanınamadı.');
@@ -509,6 +528,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     // Aşama 252b: kişi araması yetki denetimiyle AYNI ANDA başlar (sırayla değil); sonuç yalnız denetim geçerse döner
     const arama = body.action === 'kisiAra' ? actionKisiAra(e, body).then((v) => ({ v }), (err) => ({ err })) : null;
+    const enterOnYukle = body.action === 'enter' ? enterOn(e, body) : null; // Aşama 372: aynı anda başlar, yetki geçerse kullanılır
     const user = await getAuthUser(e, token);
     if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
     if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ); // Aşama 294
@@ -529,7 +549,7 @@ export default async function handler(req, res) {
       return res.status(200).json(await actionGozuBagKaldir(e, body, owner, sid));
     }
     if ((user.email || '').toLowerCase() !== HEAD_ADMIN_EMAIL) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
-    if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body));
+    if (body.action === 'enter') return res.status(200).json(await actionEnter(e, body, enterOnYukle));
     if (arama) {
       const sonuc = await arama;
       if (sonuc.err) throw sonuc.err;

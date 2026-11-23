@@ -447,8 +447,14 @@ export async function gozuKisiAra(q: string, kurumId: string, signal?: AbortSign
   }
 }
 
-/** Aşama 252c: "Bak" düğmesi beklemesin diye sunucu panel açılınca uyandırılır (sonucu kullanılmaz) */
+/** Aşama 252c: "Bak" düğmesi beklemesin diye sunucu panel açılınca uyandırılır (sonucu kullanılmaz).
+ *  Aşama 372: kurum seçme menüsü / kurum kartları açılınca da çağrılır ("Kuruma geç" soğuk başlangıç beklemesin);
+ *  sunucu birkaç dakika sıcak kaldığı için 3 dakikada bir en çok bir kez gider. */
+let sonIsitma = 0;
 export function gozuSunucuIsit(): void {
+  const simdi = Date.now();
+  if (simdi - sonIsitma < 180000) return;
+  sonIsitma = simdi;
   supabase.auth
     .getSession()
     .then(({ data }) => (data.session ? kurumApi(data.session.access_token, { action: 'kisiAra', q: '', kurumId: '' }) : null))

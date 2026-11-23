@@ -177,10 +177,18 @@ export function girisKilidiDenetle(session: any): Promise<GirisKilit> {
   return girisApi({ action: 'basari' }, token);
 }
 
-/** Kilit sürüyorsa bu sekmedeki oturumu kapatır ve kilit mesajıyla hata fırlatır. */
+/**
+ * Aşama 372 (HIZ): giriş düğmesi artık bu yanıtı BEKLEMEZ. Hesap kilidini 342'den beri veritabanı kancası zaten uygular:
+ * kilitli hesap oturum anahtarı alamaz. Bu çağrı yalnız sayacı sıfırlar; arkada çalışır. Kancanın kurulu olmadığı
+ * olağan dışı durumda kilit sürüyorsa yanıt geç de olsa gelince bu sekmenin oturumu kapatılır.
+ */
 export async function girisKilidiniUygula(p: Promise<GirisKilit>): Promise<void> {
-  const k = await p;
-  if (!k.kilitli) return;
-  await supabase.auth.signOut({ scope: 'local' });
-  throw new Error(kilitMesaji(k.dakika));
+  void p
+    .then(async (k) => {
+      if (k.kilitli) {
+        await supabase.auth.signOut({ scope: 'local' });
+        if (typeof window !== 'undefined') window.location.reload();
+      }
+    })
+    .catch(() => {});
 }

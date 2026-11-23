@@ -367,24 +367,76 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
     }
   }
 
-  /** true = bilgi logosuz okunup uygulandı; false = tam okuma gerekir */
+  // Aşama 372 (HIZ): logo ana sayfayı BEKLETMEZ. Kurum bilgisi (rol, bölüm, modül) logosuz gelir ve ekran hemen açılır;
+  // logo, tarayıcının saklayabildiği ayrı adresten (e-postalardaki aynı adres, adres logo özetini taşır) arka planda yüklenir.
+  // Adres açılmazsa eski yol (my_kurum) arka planda çalışır. Görünen bilgi aynıdır, yalnız logo biraz sonra gelir.
+  protected kurumLogoIstegi = '';
+
+  protected async kurumLogoYukle(kurumId: string, hash: string): Promise<void> {
+    const anahtar = `${kurumId}:${hash}`;
+    if (this.kurumLogoIstegi === anahtar) return;
+    this.kurumLogoIstegi = anahtar;
+    let logo = '';
+    try {
+      const r = await fetch(`/api/mail?logo=${encodeURIComponent(kurumId)}&v=${encodeURIComponent(hash.slice(0, 16))}`);
+      if (r.ok) {
+        const blob = await r.blob();
+        logo = await new Promise<string>((ok) => {
+          const fr = new FileReader();
+          fr.onload = () => ok(typeof fr.result === 'string' ? fr.result : '');
+          fr.onerror = () => ok('');
+          fr.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      /* ağ ya da adres sorunu: eski yol aşağıda */
+    }
+    if (!logo) {
+      try {
+        const { data, error } = await supabase.rpc('my_kurum');
+        if (!error) {
+          const d = parseKurumRpc(data, 'my_kurum');
+          if (typeof d.logo === 'string') logo = d.logo;
+        }
+      } catch {
+        /* bir sonraki eşitlemede tekrar denenir */
+      }
+    }
+    if (!logo || this.myKurum.kurumId !== kurumId) {
+      this.kurumLogoIstegi = '';
+      return;
+    }
+    this.kurumLogoHashCache = { logo, hash }; // sunucunun özeti güvenilir sayılır; her eşitlemede yeniden indirilmez
+    this.setMyKurum({ ...this.myKurumRaw, logo });
+  }
+
+  /** true = bilgi logosuz okunup uygulandı (logo gerekirse arka planda gelir); false = tam okuma gerekir */
   protected async syncMyKurumLight(): Promise<boolean> {
-    if (!this.kurumStateLightOk || !this.myKurum.loaded || !this.myKurum.supported) return false;
+    if (!this.kurumStateLightOk || !this.myKurum.supported) return false;
+    const ilk = !this.myKurum.loaded; // Aşama 372: ilk açılışta da logosuz okunur
     const { data, error } = await supabase.rpc('my_kurum_state');
     if (error) {
       if (error.code === 'PGRST202' || error.code === '42883' || /my_kurum_state/.test(error.message || '')) this.kurumStateLightOk = false;
       return false;
     }
     const d = parseKurumRpc(data, 'my_kurum_state');
+    let logo = this.myKurum.logo || '';
+    let yukle: string | null = null;
     if (typeof d.logo_hash === 'string') {
-      // kurum değiştiyse ya da logo değiştiyse logo tam okunur
-      if ((d.kurum_id || null) !== this.myKurum.kurumId) return false;
-      const cur = await this.kurumLogoHash(this.myKurum.logo || '');
-      if (!cur || cur !== d.logo_hash) return false;
+      // kurum değiştiyse tam okuma (eski yol); aynı kurumda logo değiştiyse ya da ilk açılışsa logo arka planda gelir
+      if (!ilk && (d.kurum_id || null) !== this.myKurum.kurumId) return false;
+      const cur = ilk ? null : await this.kurumLogoHash(this.myKurum.logo || '');
+      if (!cur || cur !== d.logo_hash) {
+        if (ilk) logo = '';
+        if (d.kurum_id) yukle = String(d.logo_hash);
+      }
+    } else {
+      logo = '';
     }
-    const next = kurumStateFrom(d, typeof d.logo_hash === 'string' ? this.myKurum.logo || '' : '');
+    const next = kurumStateFrom(d, logo);
     this.setMyKurum(next);
     if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
+    if (yukle && next.kurumId) void this.kurumLogoYukle(next.kurumId, yukle);
     return true;
   }
 
@@ -394,6 +446,12 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
    *  null döner ve eski yol (açılışta okuma) çalışır. Bilgi yeni hesabın kendi oturumuyla okunur. */
   public async kurumOnOku(): Promise<string | null> {
     try {
+      // Aşama 372: logosuz hafif okuma; logo yenilenen sayfada arka planda gelir. İşlev yoksa eski tam okuma.
+      if (this.kurumStateLightOk) {
+        const hafif = await supabase.rpc('my_kurum_state');
+        if (!hafif.error) return JSON.stringify(kurumStateFrom(parseKurumRpc(hafif.data, 'my_kurum_state'), ''));
+        if (hafif.error.code === 'PGRST202' || hafif.error.code === '42883') this.kurumStateLightOk = false;
+      }
       const { data, error } = await supabase.rpc('my_kurum');
       if (error) return null;
       const d = parseKurumRpc(data, 'my_kurum');

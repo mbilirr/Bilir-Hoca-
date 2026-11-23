@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, ArrowLeftRight, Loader2 } from 'lucide-react';
 import { cx } from '../ui/kit';
-import { canUseKurumSecici, enterKurum, exitKurum, gecisKurumlari, readGecis, type GecisKurum } from '../../lib/kurumGecis';
+import { canUseKurumSecici, enterKurum, exitKurum, gecisKurumlari, gozuSunucuIsit, readGecis, type GecisKurum } from '../../lib/kurumGecis';
 
 // ============================================================================
 // Aşama 97: üst menüde kurum seçici (yalnızca genel yönetici) ve kurumdayken görünen uyarı şeridi.
@@ -26,6 +26,7 @@ export const KurumSecici: React.FC = () => {
 
   const load = () => {
     if (kurumlar) return;
+    gozuSunucuIsit(); // Aşama 372: "Kuruma geç" tıklanınca sunucu soğuk başlangıç yapmasın
     gecisKurumlari()
       .then(setKurumlar)
       .catch(() => setKurumlar([]));
