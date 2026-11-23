@@ -1,4 +1,5 @@
 // Aşama 375: öğretmen ana sayfası › süresi dolan zümre etkinliği için "yapıldı mı?" satırı (tek satır, sabit boy).
+// Aşama 375b: yalnız SORUMLU öğretmende (etkinliğin sınıf düzeyine giren zümre üyesi; veritabanı seçer).
 // Kendi zümresinin etkinliği bitince (ay içinde: ayın son günü · tek gün: ertesi gün · birkaç gün: son günün ertesi)
 // ve durumu işaretlenmediyse görünür; "İşaretle" ilk bekleyen etkinliğin penceresini açar. E-postadaki bağlantı
 // (?akt-durum=1) sayfa açılınca pencereyi kendiliğinden açar.
@@ -6,33 +7,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { useOgretmenAnaBaglam } from './useOgretmenAnaSayfa';
 import { useAktDurumlar } from '../../Teacher/takvim/useAktDurumlar';
-import { baslik, benimZumrelerim, bugun, buyuk, durumBul, etkinlikler, gunEkle, soruGunu, tarihYaz } from '../../../services/akademikTakvimService';
-
-const GERI_GUN = 30; // bu kadar gün önce sorulmuş ve hâlâ işaretlenmemiş olanlar da listede kalır
+import { baslik, durumBekleyenlerim, durumKey, etkinlikler } from '../../../services/akademikTakvimService';
 
 export function AktDurumBekleyen() {
   const { can, takvimKayit, setAktSecili } = useOgretmenAnaBaglam();
   const harita = useAktDurumlar(!!can.takvim);
-  const [zumrelerim, setZumrelerim] = useState<Set<string> | null>(null);
+  // hangi etkinlikler bende bekliyor: veritabanı söyler (durum ya da takvim değişince yeniden sorulur)
+  const [anahtarlar, setAnahtarlar] = useState<Set<string> | null>(null);
   useEffect(() => {
-    if (!can.takvim) return;
+    if (!can.takvim || !harita || !takvimKayit) return;
     let canli = true;
-    void benimZumrelerim().then((z) => canli && setZumrelerim(z));
+    void durumBekleyenlerim().then((k) => canli && setAnahtarlar(k));
     return () => {
       canli = false;
     };
-  }, [can.takvim]);
+  }, [can.takvim, harita, takvimKayit]);
 
   const bekleyen = useMemo(() => {
-    if (!harita || !zumrelerim || !zumrelerim.size || !takvimKayit) return [];
-    const bugunS = tarihYaz(bugun());
-    const enEski = tarihYaz(gunEkle(bugun(), -GERI_GUN));
-    return etkinlikler(takvimKayit).filter((g) => {
-      if (!g.zumre || !zumrelerim.has(buyuk(g.zumre))) return false;
-      const s = soruGunu(g);
-      return s <= bugunS && s >= enEski && !durumBul(harita, g).durum;
-    });
-  }, [harita, zumrelerim, takvimKayit]);
+    if (!anahtarlar || !anahtarlar.size || !takvimKayit) return [];
+    return etkinlikler(takvimKayit).filter((g) => anahtarlar.has(durumKey(g.tarih, g.ad, g.zumre)));
+  }, [anahtarlar, takvimKayit]);
 
   // e-postadaki "Durumu işaretle" bağlantısı
   const acildi = useRef(false);

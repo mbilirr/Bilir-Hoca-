@@ -524,7 +524,20 @@ export async function benimZumrelerim(): Promise<Set<string>> {
   return new Set(((data || []) as unknown[]).map((z) => buyuk(z)));
 }
 
-const durumKey = (tarih: string, ad: string, zumre: string) => `${tarih}|${buyuk(ad)}|${buyuk(zumre)}`;
+export const durumKey = (tarih: string, ad: string, zumre: string) => `${tarih}|${buyuk(ad)}|${buyuk(zumre)}`;
+
+// Aşama 375b: soru ve işaretleme yalnız SORUMLU öğretmende (etkinliğin sınıf düzeyine giren zümre üyesi) ya da idarede
+/** Oturumdaki öğretmenin işaretlemesi beklenen etkinlikler (durumKey kümesi) */
+export async function durumBekleyenlerim(): Promise<Set<string>> {
+  const { data, error } = await supabase.rpc('akademik_durum_bekleyenlerim');
+  if (error) return new Set();
+  return new Set(((data || []) as any[]).map((r) => durumKey(String(r?.tarih || '').slice(0, 10), String(r?.ad || ''), String(r?.zumre || ''))));
+}
+/** Bu etkinliğin durumunu işaretleyebilir miyim (375b kurulu değilse false: düğmeler görünmez) */
+export async function durumIsaretleyebilir(ids: string[]): Promise<boolean> {
+  const { data, error } = await supabase.rpc('akademik_durum_isaretleyebilir', { p_ids: ids });
+  return !error && data === true;
+}
 export interface DurumHaritasi {
   dogrudan: Map<string, AktDurum>;
   ertelenen: Map<string, AktDurum>; // yeni tarih → eski kayıt ("12 Kasım'dan ertelendi")
