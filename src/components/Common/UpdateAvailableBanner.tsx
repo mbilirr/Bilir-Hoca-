@@ -87,13 +87,16 @@ export const UpdateAvailableBanner: React.FC = () => {
       role="status"
       aria-live="polite"
       id="update-available-banner"
-      className="fixed z-(--z-bildirim) left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-brand/40 bg-brand text-white shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+      className="fixed z-(--z-bildirim) left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-xl rounded-2xl border border-line bg-surface text-fg shadow-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3"
     >
       <div className="flex items-start gap-2.5 flex-1 min-w-0">
-        <RefreshCw className="w-5 h-5 shrink-0 mt-0.5" />
+        {/* Aşama 376: açık ve koyu temada aynı sakin kart (eskiden koyu temada soluk mor zemin + okunmayan yazı) */}
+        <span className="w-8 h-8 shrink-0 rounded-full bg-brand-soft text-brand-fg grid place-items-center">
+          <RefreshCw className="w-4 h-4" aria-hidden />
+        </span>
         <div className="min-w-0">
-          <p className="text-sm font-bold">Yeni sürüm yayınlandı</p>
-          <p className="text-xs text-brand-fg">
+          <p className="text-sm font-bold text-fg">Yeni sürüm yayınlandı</p>
+          <p className="text-xs text-muted mt-0.5">
             Sistemin doğru çalışması için sayfayı yenileyin. Yarım kalan bir formunuz varsa önce kaydedin.
           </p>
         </div>
@@ -105,7 +108,7 @@ export const UpdateAvailableBanner: React.FC = () => {
             snoozeUntilRef.current = Date.now() + SNOOZE_MS;
             setVisible(false);
           }}
-          className="ui-btn ui-btn-sm text-brand-fg hover:bg-brand-hover min-w-24"
+          className="ui-btn ui-btn-sm ui-btn-secondary w-28 justify-center"
         >
           <X className="w-3.5 h-3.5" />
           Sonra
@@ -113,9 +116,9 @@ export const UpdateAvailableBanner: React.FC = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="ui-btn ui-btn-sm bg-surface text-brand-fg hover:bg-brand-soft shadow-sm min-w-24"
+          className="ui-btn ui-btn-sm ui-btn-primary w-28 justify-center"
         >
-          Şimdi Yenile
+          Şimdi yenile
         </button>
       </div>
     </div>
