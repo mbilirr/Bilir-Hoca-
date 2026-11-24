@@ -915,10 +915,10 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
     if (roles.includes('mudur') || roles.includes('mudur_yardimcisi')) return true; // Aşama 337: idare bütün bölümleri açar (role_section_ok ile aynı)
     const allowed = new Set<TeacherTabType>();
     const add = (...tabs: TeacherTabType[]) => tabs.forEach((t) => allowed.add(t));
-    if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim');
+    if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim', 'oyunlar');
     if (roles.includes('olcme_degerlendirme')) add('home', 'students', 'messages', 'archive', 'deneme', 'akademik_takvim');
     if (roles.includes('ogretmen') || roles.includes('zumre_baskani'))
-      add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim'); // 242: takvim okunur
+      add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme', 'akademik_takvim', 'oyunlar'); // 242: takvim okunur · 380: oyunlar
     if (roles.includes('etut_ogretmeni')) add('etuts');
     return allowed.has(tab);
   }
@@ -1075,6 +1075,7 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
     if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü
     if (tab === 'deneme') return this.canUseDeneme();
     if (tab === 'akademik_takvim') return this.akademikTakvimSayfasi(); // Aşama 242 · 337: ayrı sayfa yalnız idare, Rehberlik, Ölçme
+    if (tab === 'oyunlar') return this.oyunAcik(); // Aşama 380: yalnız bölümü açılan kurumda
     return mod ? this.canUseModule(mod) : true;
   }
 
@@ -1085,6 +1086,18 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
    */
   public akademikTakvimAcik(): boolean {
     return this.myKurum.supported && !!this.getMyKurumId() && this.myKurum.modules?.akademik_takvim === true;
+  }
+  /**
+   * Aşama 380: Oyunlar yalnız kurum içinde ve genel yöneticinin bölümü AÇTIĞI kurumda çalışır (varsayılan kapalı).
+   * Veritabanı da aynı kuralı uygular (sql/380: oyun_acik / oyun_yetkili). Öğrenciye bu aşamada açılmaz.
+   */
+  public oyunAcik(): boolean {
+    return this.myKurum.supported && !!this.getMyKurumId() && this.myKurum.modules?.oyun === true;
+  }
+  /** Aşama 380: bankadaki bütün soruları düzenleyip silebilen kişi (kurum yöneticisi, Müdür, Müdür Yrd.; veritabanında ders_yonetici).
+   *  Öteki öğretmenler yalnız kendi yazdıkları soruyu düzenler. */
+  public oyunTumunuYonetir(): boolean {
+    return this.oyunAcik() && (this.isKurumAdmin() || this.hasRole('mudur') || this.hasRole('mudur_yardimcisi'));
   }
   /** Aşama 337: takvimin bütününü gören idare (kurum yöneticisi, Müdür, Müdür Yrd.). Veritabanı aynı kuralı uygular (sql/337);
    *  öğretmen yalnız üyesi olduğu zümrenin ve zümresi yazılmamış okul geneli etkinliklerini okur. */

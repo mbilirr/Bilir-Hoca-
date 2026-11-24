@@ -13,6 +13,7 @@ export type TeacherTabType =
   | 'question_tracking'
   | 'deneme' // Aşama 47: Deneme Analizi (genel yönetici + izinli kurum yöneticileri)
   | 'akademik_takvim' // Aşama 242: Akademik takvim (yalnız bölümü açık kurumda)
+  | 'oyunlar' // Aşama 380: Oyunlar (kazanıma bağlı soru bankası; yalnız bölümü açık kurumda)
   | 'user_management';
 
 export interface Teacher {
@@ -517,7 +518,8 @@ export type KurumModule =
   | 'manage_teachers'
   | 'deneme'
   | 'akademik_takvim' // Aşama 242: kurum bazlı, varsayılan kapalı
-  | 'veli'; // Aşama 367: veli görünümü (yalnız okunur haftalık özet bağlantısı), varsayılan kapalı
+  | 'veli' // Aşama 367: veli görünümü (yalnız okunur haftalık özet bağlantısı), varsayılan kapalı
+  | 'oyun'; // Aşama 380: Oyunlar (soru bankası ve sınıf oyunları), varsayılan kapalı
 
 export interface KurumInfo {
   id: string;

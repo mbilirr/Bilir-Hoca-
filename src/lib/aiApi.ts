@@ -175,6 +175,31 @@ export function aiKonular(input: {
   return post({ action: 'konular', ...input });
 }
 
+/** Aşama 380: Oyunlar soru bankası için kazanıma bağlı soru önerisi (yalnız kazanım metni gider; öğrenci bilgisi yok) */
+export interface AiOyunSoru {
+  kod: string;
+  konu: string;
+  tur: 'coktan' | 'kelime';
+  metin: string;
+  siklar: string[];
+  dogru: number;
+  cevap: string;
+  aciklama: string;
+  zorluk: 'kolay' | 'orta' | 'zor';
+}
+export function aiOyunSoru(input: {
+  provider: AiProvider;
+  subject: { name: string };
+  items: Array<{ kod: string; konu: string; kazanim: string; alt?: string[] }>;
+  tur: 'coktan' | 'kelime' | 'karisik';
+  sayi: number;
+  zorluk?: 'kolay' | 'orta' | 'zor' | '';
+  avoid?: string[];
+  grade?: string;
+}): Promise<AiResult> {
+  return post({ action: 'oyunSoru', ...input });
+}
+
 /** Biçimi tanınmayan cevap anahtarı dosyasını çözer (yalnızca dosyanın hücre metni gider) */
 export function aiReadKey(input: {
   provider: AiProvider;

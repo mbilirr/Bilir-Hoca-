@@ -62,6 +62,7 @@ const PAGE_LOADERS = {
   question_tracking: () => import('./components/Teacher/QuestionTrackingView'),
   deneme: () => import('./components/Deneme/DenemeAnalizi'),
   akademik_takvim: () => import('./components/Teacher/AkademikTakvim'), // Aşama 242
+  oyunlar: () => import('./components/Teacher/oyunlar/OyunlarSayfasi'), // Aşama 380
 } as const;
 const STUDENT_LOADERS = [
   () => import('./components/Student/StudentPortal'),
@@ -77,6 +78,7 @@ const DerslerSayfasi = lazyNamed(PAGE_LOADERS.grades, 'DerslerSayfasi'); // Aşa
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
 const AkademikTakvim = lazyNamed(PAGE_LOADERS.akademik_takvim, 'AkademikTakvim'); // Aşama 242
+const OyunlarSayfasi = lazyNamed(PAGE_LOADERS.oyunlar, 'OyunlarSayfasi'); // Aşama 380
 // Aşama 244: yeni tasarımlı ana sayfalar (sol menü + hayalet etiket). Hangisinin açılacağı anaSayfaTuru() ile seçilir.
 const SistemSahibiAnaSayfa = lazyNamed(() => import('./components/Home/SistemSahibiAnaSayfa'), 'SistemSahibiAnaSayfa');
 const KurumYoneticisiAnaSayfa = lazyNamed(() => import('./components/Home/KurumYoneticisiAnaSayfa'), 'KurumYoneticisiAnaSayfa'); // Aşama 245
@@ -1065,6 +1067,8 @@ export default function App() {
                   {teacherTab === 'deneme' && <DenemeAnalizi students={students} classes={classes} />}
 
                   {teacherTab === 'akademik_takvim' && <AkademikTakvim />}
+
+                  {teacherTab === 'oyunlar' && <OyunlarSayfasi />}
 
                   {/* Aşama 143: Yönetim sayfası bölümlere ayrıldı (Kurumlar · Bildirim ve SMS · Yedek ve bakım · Kendi alanım) */}
                   {teacherTab === 'user_management' && (

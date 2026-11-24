@@ -15,6 +15,8 @@
 // Yetki: Yalnızca Deneme Analizi'ni kullanabilen kişiler (genel yönetici ve bölümü açılmış kurum
 // yöneticileri) çağırabilir. Yetki, kişinin kendi oturumuyla veritabanındaki deneme_can_manage()
 // işleviyle denetlenir.
+// Aşama 380: "oyunSoru" işlemi (Oyunlar soru bankası için soru önerisi) bunun yerine oyun_yetkili() ile denetlenir
+// (bölümü açık kurumun öğretmen / idare hesapları); öteki işlemler eskisi gibi yalnız deneme_can_manage() ister.
 //
 // Vercel ortam değişkenleri (Settings > Environment Variables):
 //   GEMINI_API_KEY   (ana seçenek)  aistudio.google.com > Get API key
@@ -69,7 +71,7 @@ class HttpError extends Error {
 }
 
 // ----------------------------------------------------------------------------- Yetki
-async function getCaller(req) {
+async function getCaller(req, rpcs = ['deneme_can_manage']) {
   const e = env();
   if (!e.anon) throw new HttpError(503, 'Sunucu ayarları eksik (VITE_SUPABASE_ANON_KEY).');
   const auth = String(req.headers.authorization || '');
@@ -91,19 +93,24 @@ async function getCaller(req) {
   } catch (err) {
     if (err instanceof HttpError) throw err;
   }
-  // Deneme Analizi yetkisi: kişinin kendi oturumuyla veritabanı işlevi
-  const cr = await fetch(`${e.url}/rest/v1/rpc/deneme_can_manage`, {
-    method: 'POST',
-    headers: { apikey: e.anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
+  // Yetki: kişinin kendi oturumuyla veritabanı işlevi (Deneme Analizi: deneme_can_manage · Aşama 380 Oyunlar: oyun_yetkili)
   let can = false;
-  try {
-    can = cr.ok && (await cr.json()) === true;
-  } catch {
-    can = false;
+  for (const fn of rpcs) {
+    const cr = await fetch(`${e.url}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      headers: { apikey: e.anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    try {
+      if (cr.ok && (await cr.json()) === true) {
+        can = true;
+        break;
+      }
+    } catch {
+      /* bu işlev yetki vermedi; sıradakine bakılır */
+    }
   }
-  if (!can) throw new HttpError(403, 'Bu işlem için Deneme Analizi yetkiniz yok.');
+  if (!can) throw new HttpError(403, rpcs.includes('deneme_can_manage') ? 'Bu işlem için Deneme Analizi yetkiniz yok.' : 'Bu işlem için Oyunlar bölümü yetkiniz yok.');
   return { id: user.id };
 }
 
@@ -812,6 +819,105 @@ async function actionKonular(body) {
   return { ok: true, provider, model, items: out, exhausted };
 }
 
+// ----------------------------------------------------------------------------- 7) Aşama 380: Oyunlar için soru önerisi (yalnız kazanım metni gider)
+const oyunSoruSystem = (g, tur) =>
+  [
+    `Sen MEB ${g}. sınıf programını çok iyi bilen deneyimli bir öğretmensin ve sınıf oyunları için kısa, net sorular yazıyorsun.`,
+    gradeNote(g),
+    'Sana bir dersin kazanımları (kod | konu | kazanım) verilir. Görevin bu kazanımlara bağlı, öğrencinin kazanımı gerçekten ölçen sorular yazmak.',
+    'Kurallar:',
+    '- Yalnızca verilen kazanım kodlarını kullan; her soru tek bir kazanıma bağlıdır ("kod" alanına listedeki kodu aynen yaz).',
+    '- Bilgi yanlış, tartışmalı ya da birden fazla doğru cevaplı olmasın; emin olmadığın soruyu yazma.',
+    '- Sorular Türkçe, o sınıfın seviyesine uygun, tek cümle ya da kısa paragraf olsun; öğrenci adı, okul adı gibi kişisel bilgi KULLANMA.',
+    tur !== 'kelime'
+      ? '- "coktan" (çoktan seçmeli): "metin" en çok 300 karakter; "siklar" tam 4 farklı şık (her biri en çok 80 karakter); "dogru" doğru şıkkın sırası (0-3); yalnızca bir şık doğru olsun; çeldiriciler makul olsun; "Hepsi", "Hiçbiri", "A ve B" gibi şıklar YAZMA; "aciklama" doğru cevabın kısa gerekçesi (en çok 200 karakter).'
+      : '',
+    tur !== 'coktan'
+      ? '- "kelime" (bulmaca ve çark): "metin" bir İPUCU cümlesidir (en çok 200 karakter) ve cevabın kendisini içermez; "cevap" harflerden oluşan TEK bir kelimedir (2-15 harf; boşluk, tire, rakam, kısaltma yok); "aciklama" kısa bilgi notu (en çok 200 karakter).'
+      : '',
+    '- "zorluk": kolay, orta ya da zor.',
+    '- Kazanımları mümkün olduğunca dengeli dağıt.',
+    '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"kod":"","tur":"coktan","metin":"","siklar":["","","",""],"dogru":0,"cevap":"","aciklama":"","zorluk":"orta"}]}',
+    '  (kelime sorusunda "siklar" boş liste, "dogru" -1; çoktan seçmelide "cevap" boş yazı).',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+const trFold = (v) =>
+  String(v || '')
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'ı')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+
+async function actionOyunSoru(body) {
+  const name = clean(body.subject && body.subject.name, 80);
+  if (!name) throw new HttpError(400, 'Ders bilgisi eksik.');
+  const g = gradeOf(body);
+  const tur = body.tur === 'coktan' || body.tur === 'kelime' ? body.tur : 'karisik';
+  const sayi = Math.max(1, Math.min(10, parseInt(clean(body.sayi, 3), 10) || 5));
+  const zorluk = ['kolay', 'orta', 'zor'].includes(body.zorluk) ? body.zorluk : '';
+  const items = (Array.isArray(body.items) ? body.items.slice(0, 5) : [])
+    .map((k) => ({
+      kod: clean(k && k.kod, 60),
+      konu: clean(k && k.konu, 160),
+      kazanim: clean(k && k.kazanim, 400),
+      alt: (Array.isArray(k && k.alt) ? k.alt.slice(0, 6) : []).map((a) => clean(a, 200)).filter(Boolean),
+    }))
+    .filter((k) => k.kod && k.kazanim);
+  if (!items.length) throw new HttpError(400, 'En az bir kazanım seçin.');
+  const prompt = [
+    `Ders: ${name}`,
+    `İstenen soru sayısı: ${sayi}`,
+    `Tür: ${tur === 'coktan' ? 'yalnız çoktan seçmeli (coktan)' : tur === 'kelime' ? 'yalnız kelime (kelime)' : 'çoktan seçmeli ve kelime karışık'}`,
+    zorluk ? `Zorluk: ${zorluk}` : 'Zorluk: kolay, orta ve zor karışık',
+    '',
+    'Kazanımlar (kod | konu | kazanım):',
+    items.map((k) => `${k.kod} | ${k.konu || '-'} | ${k.kazanim}${k.alt.length ? ` (açıklamalar: ${k.alt.join('; ')})` : ''}`).join('\n'),
+  ].join('\n');
+  const { provider, model, parsed, exhausted } = await ask(body, oyunSoruSystem(g, tur), prompt, [], 'normal');
+  const byCode = new Map(items.map((k) => [codeKey(k.kod), k]));
+  const out = [];
+  const gorulen = new Set();
+  for (const q of Array.isArray(parsed.sorular) ? parsed.sorular.slice(0, sayi * 2) : []) {
+    if (out.length >= sayi) break;
+    const k = byCode.get(codeKey(q && q.kod));
+    const t = q && q.tur === 'kelime' ? 'kelime' : q && q.tur === 'coktan' ? 'coktan' : '';
+    const metin = clean(q && q.metin, t === 'kelime' ? 200 : 300);
+    if (!k || !t || metin.length < 3 || (tur !== 'karisik' && t !== tur)) continue;
+    const kay = trFold(metin);
+    if (gorulen.has(kay)) continue;
+    const zor = ['kolay', 'orta', 'zor'].includes(q.zorluk) ? q.zorluk : zorluk || 'orta';
+    const aciklama = clean(q.aciklama, 200);
+    if (t === 'coktan') {
+      const siklar = (Array.isArray(q.siklar) ? q.siklar : []).slice(0, 4).map((x) => clean(x, 80));
+      const dogru = Number(q.dogru);
+      if (siklar.length !== 4 || siklar.some((x) => !x) || new Set(siklar.map(trFold)).size !== 4) continue;
+      if (!Number.isInteger(dogru) || dogru < 0 || dogru > 3) continue;
+      // doğru şıkkın yeri yapay zekâda sık sık aynı olur: şıklar karıştırılır, doğru şıkkın sırası yeniden bulunur
+      const sira = [0, 1, 2, 3];
+      for (let i = sira.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [sira[i], sira[j]] = [sira[j], sira[i]];
+      }
+      gorulen.add(kay);
+      out.push({ kod: k.kod, konu: k.konu, tur: t, metin, siklar: sira.map((i) => siklar[i]), dogru: sira.indexOf(dogru), cevap: '', aciklama, zorluk: zor });
+    } else {
+      const cevap = clean(q.cevap, 20).replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr-TR');
+      if (!/^[A-ZÇĞİÖŞÜ]{2,15}$/.test(cevap)) continue;
+      if (trFold(metin).includes(trFold(cevap))) continue; // ipucu cevabı söylüyor
+      gorulen.add(kay);
+      out.push({ kod: k.kod, konu: k.konu, tur: t, metin, siklar: [], dogru: -1, cevap, aciklama, zorluk: zor });
+    }
+  }
+  return { ok: true, provider, model, items: out, exhausted };
+}
+
 export default async function handler(req, res) {
   const started = Date.now();
   res.setHeader('Cache-Control', 'no-store');
@@ -829,7 +935,8 @@ export default async function handler(req, res) {
     }
     body = body && typeof body === 'object' ? body : {};
     body._deadline = started + REQUEST_BUDGET_MS; // Aşama 162: isteğin süre bütçesi (tarayıcıdan gelen değer yok sayılır)
-    const caller = await getCaller(req);
+    // Aşama 380: Oyunlar soru önerisi oyun_yetkili() ile; durum sorgusu iki bölümden birinin yetkisini kabul eder
+    const caller = await getCaller(req, body.action === 'oyunSoru' ? ['oyun_yetkili'] : body.action === 'status' ? ['deneme_can_manage', 'oyun_yetkili'] : ['deneme_can_manage']);
     if (body.action === 'status') {
       const e = env();
       return res.status(200).json({ ok: true, gemini: !!e.gemini, mistral: !!e.mistral });
@@ -842,6 +949,7 @@ export default async function handler(req, res) {
     if (body.action === 'key') return res.status(200).json(await actionKey(body));
     if (body.action === 'konular') return res.status(200).json(await actionKonular(body));
     if (body.action === 'sorular') return res.status(200).json(await actionSorular(body));
+    if (body.action === 'oyunSoru') return res.status(200).json(await actionOyunSoru(body));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;

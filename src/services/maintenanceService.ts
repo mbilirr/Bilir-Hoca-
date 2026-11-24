@@ -124,6 +124,7 @@ const BACKUP_TABLES: BackupTableDef[] = [
   { table: 'ders_yoklama_oturum', sheet: 'Ders Yoklama Oturumları' },
   { table: 'ders_yoklama', sheet: 'Ders Yoklaması' },
   { table: 'akademik_takvim', sheet: 'Akademik Takvim' },
+  { table: 'oyun_sorulari', sheet: 'Oyun Soruları' }, // Aşama 380
 ];
 
 // Excel'de bir sayfa en çok bu kadar satır alır (dosya şişip açılmaz olmasın); tamamı .json dosyasındadır

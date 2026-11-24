@@ -1,4 +1,4 @@
-import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck, BarChart3, CalendarRange } from 'lucide-react';
+import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck, BarChart3, CalendarRange, Gamepad2 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { TeacherTabType } from '../../types';
 import type { Tone } from '../ui/kit';
@@ -27,6 +27,8 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   // Aşama 47: yalnızca genel yönetici ve izinli kurum yöneticileri görür (dataService.canUseTab)
   // Aşama 242: yalnız "Akademik takvim" bölümü açık kurumda görünür (dataService.canUseTab)
   { id: 'akademik_takvim', title: 'Akademik Takvim', description: 'Yıllık öğrenci ve veli etkinlikleri', icon: CalendarRange, tone: 'brand', keywords: 'akademik takvim etkinlik yıllık gezi veli sergi excel' },
+  // Aşama 380: yalnız "Oyunlar" bölümü açık kurumda görünür (dataService.canUseTab)
+  { id: 'oyunlar', title: 'Oyunlar', description: 'Kazanıma bağlı soru bankası ve sınıf oyunları', icon: Gamepad2, tone: 'info', keywords: 'oyun soru bankası kazanım quiz bulmaca yarışma' },
   { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, puan ve kazanım analizi (5-8. sınıf)', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },
   {
     id: 'user_management',

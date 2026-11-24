@@ -21,6 +21,7 @@ export const SAYFA_KONULARI: Readonly<Record<string, readonly VeriKonusu[]>> = {
   'sekme:question_tracking': ['hedef', 'soru'],
   'sekme:deneme': ['etut', 'hedef'],
   'sekme:akademik_takvim': [],
+  'sekme:oyunlar': [],
   'sekme:user_management': [],
   // Ana sayfalar
   'ana:sistem': [],

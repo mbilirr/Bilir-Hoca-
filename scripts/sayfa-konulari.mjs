@@ -135,6 +135,7 @@ const SAYFA = {
   'sekme:question_tracking': ['components/Teacher/QuestionTrackingView.tsx', 'QuestionTrackingView'],
   'sekme:deneme': ['components/Deneme/DenemeAnalizi.tsx', 'DenemeAnalizi'],
   'sekme:akademik_takvim': ['components/Teacher/AkademikTakvim.tsx', 'AkademikTakvim'],
+  'sekme:oyunlar': ['components/Teacher/oyunlar/OyunlarSayfasi.tsx', 'OyunlarSayfasi'],
   'sekme:user_management': ['components/Admin/YonetimSayfasi.tsx', 'YonetimSayfasi'],
   'ana:sistem': ['components/Home/SistemSahibiAnaSayfa.tsx', 'SistemSahibiAnaSayfa'],
   'ana:kurum': ['components/Home/KurumYoneticisiAnaSayfa.tsx', 'KurumYoneticisiAnaSayfa'],

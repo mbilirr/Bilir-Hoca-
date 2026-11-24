@@ -26,6 +26,7 @@ const SAYFA_HARF: Partial<Record<TeacherTabType, string[]>> = {
   question_tracking: ['s'],
   deneme: ['n'],
   akademik_takvim: ['t'],
+  oyunlar: ['u'],
   archive: ['r'],
   user_management: ['y'],
 };

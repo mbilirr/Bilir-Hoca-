@@ -21,6 +21,8 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   // Aşama 242: yalnız açıldığı kurumda menüde ve ana sayfada görünür (Müdür / Müdür Yrd. yükler, herkes okur)
   { key: 'akademik_takvim', title: 'Akademik takvim', description: 'Yıllık öğrenci ve veli etkinlikleri (Excel ile yüklenir); ana sayfada haftanın faaliyetleri' },
   // Aşama 367: kapatınca bütün açık veli bağlantıları hemen geçersiz olur (veritabanı tetiği)
+  // Aşama 380: ders bağımsız; kazanıma bağlı soru bankası ve sınıf oyunları (varsayılan kapalı)
+  { key: 'oyun', title: 'Oyunlar', description: 'Kazanıma bağlı soru bankası ve sınıf oyunları (öğretmen ve idare hazırlar)' },
   { key: 'veli', title: 'Veli görünümü', description: 'Velilere yalnız okunur haftalık özet bağlantısı (SMS / e-posta); kapatınca açık bağlantılar geçersiz olur' },
 ];
 /** Aşama 258: bireysel hesapta veritabanının sabit tuttuğu bölümler (öğretmen yönetimi kapalı, öğrenci yönetimi açık) */

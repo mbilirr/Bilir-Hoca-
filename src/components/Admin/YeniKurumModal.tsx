@@ -37,7 +37,7 @@ const toUsername = (name: string) =>
     .slice(0, 30);
 
 // Aşama 367: veli görünümü yeni kurumda da kapalı başlar (kurum hazır olunca açılır)
-const KAPALI_BASLAR: KurumModule[] = ['veli'];
+const KAPALI_BASLAR: KurumModule[] = ['veli', 'oyun']; // Aşama 380: oyun da kapalı başlar
 const allModules = (): Partial<Record<KurumModule, boolean>> => Object.fromEntries(KURUM_MODULES.map((m) => [m.key, !KAPALI_BASLAR.includes(m.key)]));
 // Aşama 258: bireysel (koçluk) hesabında başlangıçta açık bölümler: ödev, etüt, soru takibi, mesaj (öğrenci yönetimi her zaman açık)
 const BIREYSEL_ACIK: KurumModule[] = ['homework', 'etut', 'questions', 'messages'];
