@@ -13,6 +13,8 @@ export type OyunKapsam = 'sinif' | 'kisisel';
 export type OyunDurum = 'acik' | 'kapali' | 'doldu';
 
 export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
+/** Aşama 386: canlı sinyal tabloları (sql/386; useTabloSurumu ile dinlenir) */
+export const OYUN_TABLOLARI = ['oyun_oyunlari', 'oyun_denemeleri'] as const;
 /** soru yarışında "soru", kelime oyunlarında "kelime" */
 export const birimAd = (mod: OyunMod) => (mod === 'quiz' ? 'soru' : 'kelime');
 export const KAPSAM_AD: Record<OyunKapsam, string> = { sinif: 'Sınıf bağlantısı (QR)', kisisel: 'Kişisel bağlantılar' };
@@ -80,6 +82,7 @@ export interface OyunGirdi {
 const SQL_EKSIK = "Oyun oturumları veritabanında henüz kurulu değil. Supabase SQL Editor'de 381 numaralı SQL dosyasını çalıştırın.";
 function hata(e: { message?: string; code?: string } | null | undefined): Error {
   const m = e?.message || 'İşlem yapılamadı.';
+  if (/soru_sayisi/.test(m)) return new Error("Oyunlar güncellemesi veritabanında eksik. Supabase SQL Editor'de 385 numaralı SQL dosyasını çalıştırın."); // Aşama 386
   if (e?.code === 'PGRST202' || e?.code === '42883' || e?.code === '42P01' || e?.code === 'PGRST205' || /could not find|does not exist|schema cache/i.test(m)) return new Error(SQL_EKSIK);
   if (/Failed to fetch|NetworkError|network/i.test(m)) return new Error('Bağlantı yok. İnternetinizi kontrol edip tekrar deneyin.');
   return new Error(m);
@@ -98,7 +101,7 @@ const oyunCevir = (r: any): OyunKaydi => {
     olusturan: String(r.olusturan || ''),
     olusturanAd: String(r.olusturan_ad || ''),
     soruSn: Number(r.soru_sn) || SORU_SN.varsayilan,
-    soruSayisi: Array.isArray(r.sorular) ? r.sorular.length : 0,
+    soruSayisi: Number(r.soru_sayisi) || 0,
     bitis: String(r.bitis || ''),
     kapaliAt: r.kapali_at ? String(r.kapali_at) : null,
     createdAt: String(r.created_at || ''),
@@ -109,7 +112,8 @@ const oyunCevir = (r: any): OyunKaydi => {
 export async function listOyunlar(): Promise<OyunKaydi[]> {
   const { data, error } = await supabase
     .from('oyun_oyunlari')
-    .select('id,ad,mod,kapsam,class_id,class_ad,olusturan,olusturan_ad,soru_sn,sorular,bitis,kapali_at,created_at')
+    // Aşama 386: soruların kendisi (cevaplarıyla) listeye çekilmez; sayı veritabanında hesaplanır (sql/385)
+    .select('id,ad,mod,kapsam,class_id,class_ad,olusturan,olusturan_ad,soru_sn,soru_sayisi,bitis,kapali_at,created_at')
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) throw hata(error);

@@ -7,8 +7,9 @@ import { lazyNamed } from '../../../lib/lazyLoad';
 import { EmptyState, Panel, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
-import { DURUM_AD, MOD_AD, birimAd, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
-import { tarihYaz } from './ortak';
+import { DURUM_AD, MOD_AD, OYUN_TABLOLARI, birimAd, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
+import { useTabloSurumu } from '../../../lib/tabloSurumu';
+import { MOD_SIMGE, tarihYaz } from './ortak';
 
 const OyunHazirla = lazyNamed<React.ComponentProps<typeof import('./OyunHazirla').OyunHazirla>>(() => import('./OyunHazirla'), 'OyunHazirla');
 const OyunDetay = lazyNamed<React.ComponentProps<typeof import('./OyunDetay').OyunDetay>>(() => import('./OyunDetay'), 'OyunDetay');
@@ -27,9 +28,11 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
       setHata(e instanceof Error ? e.message : 'Oyunlar yüklenemedi.');
     }
   }, []);
+  // Aşama 386: oyun hazırlanınca / kapatılınca / öğrenci başlayınca ya da bitirince liste kendiliğinden tazelenir (sql/386)
+  const surum = useTabloSurumu(OYUN_TABLOLARI);
   useEffect(() => {
     void yukle();
-  }, [yukle]);
+  }, [yukle, surum]);
 
   const secili = liste?.find((o) => o.id === acik) || null;
 
@@ -55,8 +58,8 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
               {liste.map((o) => (
                 <li key={o.id}>
                   <button type="button" onClick={() => setAcik(o.id)} className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-3.5 text-left transition-colors hover:bg-surface-2">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-fg">
-                      <Gamepad2 className="w-4 h-4" aria-hidden />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-fg" title={MOD_AD[o.mod]}>
+                      {React.createElement(MOD_SIMGE[o.mod], { className: 'w-4 h-4', 'aria-hidden': true })}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-fg">{o.ad}</span>

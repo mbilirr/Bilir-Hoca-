@@ -3,7 +3,7 @@
 // kapat / aç / süreyi uzat / sil. Sonuçları RLS ile oyunu hazırlayan ve kurum yöneticisi / Müdür / Müdür Yrd. görür.
 // ============================================================================
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Gamepad2, Link2, Lock, LockOpen, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+import { Copy, Link2, Lock, LockOpen, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { Modal, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
@@ -14,6 +14,7 @@ import {
   DURUM_AD,
   GUN_SECENEKLERI,
   MOD_AD,
+  OYUN_TABLOLARI,
   birimAd,
   acOyun,
   kapatOyun,
@@ -32,7 +33,8 @@ import {
 import { QrKod } from './QrKod';
 import type { OyunBaslangic } from './OyunHazirla';
 import { panoyaKopyala } from './kopya';
-import { tarihYaz } from './ortak';
+import { MOD_SIMGE, tarihYaz } from './ortak';
+import { useTabloSurumu } from '../../../lib/tabloSurumu';
 
 const saatYaz = (iso: string) => {
   const d = new Date(iso);
@@ -67,6 +69,24 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
   useEffect(() => {
     void yukle();
   }, [yukle]);
+
+  // Aşama 386: öğrenci oyuna başlayınca / bitirince sonuçlar ve kazanım başarısı kendiliğinden tazelenir (sql/386).
+  // Bağlantılar yeniden istenmez (değişmezler).
+  const surum = useTabloSurumu(OYUN_TABLOLARI);
+  useEffect(() => {
+    if (!surum) return;
+    let iptal = false;
+    Promise.all([listDenemeler(oyun.id), listKazanimSonuclari(oyun.id)])
+      .then(([d, k]) => {
+        if (iptal) return;
+        setDenemeler(d);
+        setKazanimlar(k);
+      })
+      .catch(() => undefined); // tazeleme olmazsa ekrandaki sonuçlar kalır
+    return () => {
+      iptal = true;
+    };
+  }, [surum, oyun.id]);
 
   const kopyala = async (metin: string, ad = 'Bağlantı') => {
     if (await panoyaKopyala(metin)) basariBildir(`${ad} kopyalandı`);
@@ -128,7 +148,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
   const gorunenKisiler = kisiler.filter((k) => !arama.trim() || k.ad.toLocaleLowerCase('tr-TR').includes(arama.trim().toLocaleLowerCase('tr-TR')));
 
   return (
-    <Modal open onClose={onClose} icon={Gamepad2} title={oyun.ad} description={`${MOD_AD[oyun.mod]} · ${oyun.classAd} · ${oyun.soruSayisi} ${birimAd(oyun.mod)}`} size="lg">
+    <Modal open onClose={onClose} icon={MOD_SIMGE[oyun.mod]} title={oyun.ad} description={`${MOD_AD[oyun.mod]} · ${oyun.classAd} · ${oyun.soruSayisi} ${birimAd(oyun.mod)}`} size="lg">
       <div className="space-y-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
           <span className={cx('rounded-lg px-2 py-1 font-semibold', durum === 'acik' ? 'bg-success-soft text-success-fg' : durum === 'doldu' ? 'bg-warning-soft text-warning-fg' : 'bg-surface-2 text-fg-2')}>{DURUM_AD[durum]}</span>
@@ -150,7 +170,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
                 <QrKod metin={baglanti.sinif} boyut={176} />
               </div>
               <div className="w-full min-w-0 space-y-2.5">
-                <p className="text-xs text-muted">QR kodu tahtaya yansıt ya da bağlantıyı gönder. Öğrenci listeden adını seçip oynar; her öğrenci bir kez oynar.</p>
+                <p className="text-xs text-muted">QR kodu tahtaya yansıt ya da bağlantıyı gönder; öğrenci listeden adını seçer. Öğrenci kendi ana sayfasından (Bana gelenler › Oyun) da oynayabilir; her öğrenci bir kez oynar.</p>
                 <div className="flex items-center gap-2">
                   <input readOnly aria-label="Sınıf bağlantısı" value={baglanti.sinif} onFocus={(e) => e.currentTarget.select()} className="ui-field min-w-0 flex-1" />
                   <Button variant="secondary" leftIcon={<Copy className="w-3.5 h-3.5" />} onClick={() => void kopyala(baglanti.sinif!)}>

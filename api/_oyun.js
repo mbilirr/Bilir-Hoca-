@@ -414,6 +414,32 @@ const durumYazi = {
   gecersiz: 'Oyun bağlantısı geçersiz. Bağlantıyı eksiksiz açtığınızdan emin olun.',
 };
 
+// ----------------------------------------------------------------------------- HIZ SINIRI (Aşama 386)
+/**
+ * Herkese açık oyun isteği için dakikalık sayaç (sunucu örneğinin belleğinde). Bir döngüye giren ya da kötü niyetli
+ * istemcinin Vercel / Supabase kotasını tüketmesini önler; gerçek oyunda (öğrenci saniyede en çok bir iki tıklar)
+ * sınıra yaklaşılmaz. Sayaç örnek başınadır: Vercel yeni örnek açarsa sayaç sıfırdan başlar (kaba bir fren, kilit değil).
+ */
+export const OYUN_HIZ = {
+  pencereMs: 60_000,
+  ogrenci: 150, // bir öğrenci + bir bağlantı: dakikada en çok (çarkta harf, bulmacada ipucu dahil)
+  adres: 1500, // bir IP adresi: okulda bütün sınıf aynı adresten çıkar
+};
+export function hizSayaci(pencereMs = OYUN_HIZ.pencereMs, enCokAnahtar = 20_000) {
+  const m = new Map();
+  return function say(anahtar, sinir, now = Date.now()) {
+    let k = m.get(anahtar);
+    if (!k || now - k.bas >= pencereMs) {
+      if (m.size >= enCokAnahtar) for (const [a, v] of m) if (now - v.bas >= pencereMs) m.delete(a);
+      if (m.size >= enCokAnahtar) m.delete(m.keys().next().value); // en eski anahtar
+      k = { bas: now, n: 0 };
+      m.set(anahtar, k);
+    }
+    k.n += 1;
+    return k.n <= sinir;
+  };
+}
+
 export function oyunApi(deps) {
   const { rest, env, HttpError, inList, appUrl, clean } = deps;
   const key = () => {
@@ -534,7 +560,18 @@ export function oyunApi(deps) {
     return { tur: 'cark', tahta: carkGorunum(d, o.sorular), puan: dn.puan };
   }
 
-  async function play(body) {
+  const hiz = hizSayaci();
+  /** Aşama 386: oyun isteği hız sınırı (adres + bağlantı/öğrenci); aşılırsa 429 */
+  function hizDenetle(body, ip) {
+    const adres = String(ip || '-').slice(0, 64);
+    const bag = `${adres}|${String(body.token || '').slice(-24)}|${String(body.studentId || '').slice(0, 64)}`;
+    if (!hiz('a:' + adres, OYUN_HIZ.adres) || !hiz('b:' + bag, OYUN_HIZ.ogrenci)) {
+      throw new HttpError(429, 'Çok hızlı istek gönderildi. Birkaç saniye bekleyip tekrar dene.', { code: 'hiz' });
+    }
+  }
+
+  async function play(body, ip) {
+    hizDenetle(body, ip);
     const op = String(body.op || '');
     const now = Date.now();
     if (op === 'bilgi') {

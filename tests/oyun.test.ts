@@ -447,3 +447,30 @@ test('öğrenci: bölüm kapalıysa sekme yok; süresi dolan oyun yalnız oynad�
   assert.equal(l[0].deneme.puan, 220);
   assert.equal(l[0].token, undefined);
 });
+
+// ----------------------------------------------------------------------------- Aşama 386: hız sınırı
+test('hız sınırı: dakikada sınırı aşan istek reddedilir, pencere dolunca yeniden açılır', () => {
+  const say = o.hizSayaci(60_000, 3);
+  const t0 = 1_000_000;
+  assert.equal(say('x', 2, t0), true);
+  assert.equal(say('x', 2, t0 + 10), true);
+  assert.equal(say('x', 2, t0 + 20), false);
+  assert.equal(say('y', 2, t0 + 20), true, 'başka anahtar etkilenmez');
+  assert.equal(say('x', 2, t0 + 60_000), true, 'yeni pencere');
+  // anahtar sayısı tavanda kalır (bellek büyümez)
+  for (let i = 0; i < 10; i++) say('k' + i, 5, t0 + 60_001);
+  assert.equal(say('k9', 5, t0 + 60_002), true);
+});
+
+test('sunucu: aynı öğrenciden döngüyle gelen oyun isteği 429 alır', async () => {
+  const { api } = sahteSunucu(oyunSatiri('quiz', 'kisisel'));
+  const token = o.makeToken(key, OYUN, 's1');
+  let red: any = null;
+  for (let i = 0; i < o.OYUN_HIZ.ogrenci + 5 && !red; i++) {
+    await api.play({ op: 'bilgi', token }, '10.0.0.1').catch((e: any) => (red = e));
+  }
+  assert.equal(red?.status, 429);
+  // başka adresten gelen öğrenci etkilenmez
+  const b = await api.play({ op: 'bilgi', token }, '10.0.0.2');
+  assert.equal(b.ok, true);
+});

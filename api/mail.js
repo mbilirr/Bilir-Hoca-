@@ -5836,7 +5836,9 @@ export default async function handler(req, res) {
     // Aşama 381: bağlantıyla oynanan oyun (giriş gerektirmez; imzalı bağlantı denetlenir)
     if (body.action === 'oyun-play') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
-      return res.status(200).json(await (await oyunApiGet()).play(body));
+      // Aşama 386: istemci adresi hız sınırı için (Vercel x-forwarded-for'un ilk değeri gerçek istemcidir)
+      const ip = String((req.headers && req.headers['x-forwarded-for']) || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '';
+      return res.status(200).json(await (await oyunApiGet()).play(body, ip));
     }
     // Aşama 385: öğrencinin kendi oturumuyla açık oyunları (ana sayfa › Bana gelenler › Oyun)
     if (body.action === 'oyun-ogrenci') {
