@@ -13,8 +13,10 @@ export type OyunKapsam = 'sinif' | 'kisisel';
 export type OyunDurum = 'acik' | 'kapali' | 'doldu';
 
 export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
-/** Aşama 386: canlı sinyal tabloları (sql/386; useTabloSurumu ile dinlenir) */
-export const OYUN_TABLOLARI = ['oyun_oyunlari', 'oyun_denemeleri'] as const;
+/** Aşama 386: canlı sinyal tabloları (sql/386; useTabloSurumu ile dinlenir).
+ *  Aşama 387 (HIZ): liste yalnız oyun değişimini, ayrıntı yalnız sonuç değişimini dinler (sınıf oynarken liste boşuna okunmaz). */
+export const OYUN_LISTE_TABLOSU = ['oyun_oyunlari'] as const;
+export const OYUN_SONUC_TABLOSU = ['oyun_denemeleri'] as const;
 /** soru yarışında "soru", kelime oyunlarında "kelime" */
 export const birimAd = (mod: OyunMod) => (mod === 'quiz' ? 'soru' : 'kelime');
 export const KAPSAM_AD: Record<OyunKapsam, string> = { sinif: 'Sınıf bağlantısı (QR)', kisisel: 'Kişisel bağlantılar' };

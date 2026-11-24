@@ -5306,8 +5306,12 @@ async function getOgrenciCaller(req) {
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ);
-  if (await dondurma.kisiDondurulmus(okuServis, user.id, token)) throw new HttpError(403, dondurma.DONDURMA_MESAJ, { code: 'donduruldu' });
-  const r = await rest(`students?select=id,name,class_id,kurum_id,status&auth_user_id=eq.${encodeURIComponent(user.id)}`, { token: 'service' });
+  // Aşama 387 (HIZ): dondurma denetimi ve öğrenci kaydı aynı anda okunur
+  const [donmus, r] = await Promise.all([
+    dondurma.kisiDondurulmus(okuServis, user.id, token),
+    rest(`students?select=id,name,class_id,kurum_id,status&auth_user_id=eq.${encodeURIComponent(user.id)}`, { token: 'service' }),
+  ]);
+  if (donmus) throw new HttpError(403, dondurma.DONDURMA_MESAJ, { code: 'donduruldu' });
   const s = r && r[0];
   if (!s) throw new HttpError(403, 'Bu işlem yalnız öğrenci hesabıyla yapılır.');
   if (s.status && s.status !== 'active') throw new HttpError(403, 'Öğrenci hesabı etkin değil.');

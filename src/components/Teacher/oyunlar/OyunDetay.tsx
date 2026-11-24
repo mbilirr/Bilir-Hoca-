@@ -14,7 +14,7 @@ import {
   DURUM_AD,
   GUN_SECENEKLERI,
   MOD_AD,
-  OYUN_TABLOLARI,
+  OYUN_SONUC_TABLOSU,
   birimAd,
   acOyun,
   kapatOyun,
@@ -72,7 +72,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
 
   // Aşama 386: öğrenci oyuna başlayınca / bitirince sonuçlar ve kazanım başarısı kendiliğinden tazelenir (sql/386).
   // Bağlantılar yeniden istenmez (değişmezler).
-  const surum = useTabloSurumu(OYUN_TABLOLARI);
+  const surum = useTabloSurumu(OYUN_SONUC_TABLOSU);
   useEffect(() => {
     if (!surum) return;
     let iptal = false;

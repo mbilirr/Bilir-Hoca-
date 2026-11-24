@@ -7,7 +7,7 @@ import { lazyNamed } from '../../../lib/lazyLoad';
 import { EmptyState, Panel, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
-import { DURUM_AD, MOD_AD, OYUN_TABLOLARI, birimAd, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
+import { DURUM_AD, MOD_AD, OYUN_LISTE_TABLOSU, birimAd, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
 import { useTabloSurumu } from '../../../lib/tabloSurumu';
 import { MOD_SIMGE, tarihYaz } from './ortak';
 
@@ -28,8 +28,8 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
       setHata(e instanceof Error ? e.message : 'Oyunlar yüklenemedi.');
     }
   }, []);
-  // Aşama 386: oyun hazırlanınca / kapatılınca / öğrenci başlayınca ya da bitirince liste kendiliğinden tazelenir (sql/386)
-  const surum = useTabloSurumu(OYUN_TABLOLARI);
+  // Aşama 386: oyun hazırlanınca / kapatılınca / uzatılınca / silinince liste kendiliğinden tazelenir (sql/386)
+  const surum = useTabloSurumu(OYUN_LISTE_TABLOSU);
   useEffect(() => {
     void yukle();
   }, [yukle, surum]);

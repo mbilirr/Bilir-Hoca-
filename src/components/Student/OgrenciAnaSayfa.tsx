@@ -40,6 +40,9 @@ import { Modal } from '../ui/kit';
 // ============================================================================
 
 // Aşama 385: oyun, bağlantıyla açılan sayfanın aynısıyla tam ekran pencerede oynanır
+// Aşama 387: kurumda Oyunlar kapalı çıktıysa bu sayfa açıkken sunucuya bir daha sorulmaz (sayfa yenilenince yeniden bakılır)
+let oyunlarKapali = false;
+const OYUN_TAZE_MS = 60_000; // sekmeye dönüşte en sık bu aralıkla tazelenir
 const OyunOynaPage = lazyNamed<React.ComponentProps<typeof import('../Public/OyunOynaPage').OyunOynaPage>>(() => import('../Public/OyunOynaPage'), 'OyunOynaPage');
 const StudentTodayPlan = lazyNamed<React.ComponentProps<typeof import('./StudentTodayPlan').StudentTodayPlan>>(() => import('./StudentTodayPlan'), 'StudentTodayPlan');
 
@@ -356,14 +359,32 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   // Öğretmen önizlemesinde istenmez (öğretmen oturumu öğrencinin listesini alamaz).
   const [oyunVeri, setOyunVeri] = useState<OgrenciOyunlari | null>(null);
   const [oyunAcik, setOyunAcik] = useState<OgrenciOyun | null>(null);
+  const oyunSonOkuma = useRef(0);
   const oyunYukle = useCallback(() => {
-    if (preview) return;
+    if (preview || oyunlarKapali) return;
+    oyunSonOkuma.current = Date.now();
     ogrenciOyunlari()
-      .then(setOyunVeri)
+      .then((v) => {
+        if (!v.acik) oyunlarKapali = true;
+        setOyunVeri(v);
+      })
       .catch(() => undefined); // okunamazsa sekme önceki haliyle kalır
   }, [preview]);
-  // yeni bildirim (ör. "Yeni oyun") gelince liste tazelenir
-  useEffect(oyunYukle, [oyunYukle, unreadNotifs]);
+  useEffect(oyunYukle, [oyunYukle]);
+  // Aşama 387 (senkron): yeni bildirim (ör. "Yeni oyun") gelince — okundu işaretinde değil — liste tazelenir
+  const oncekiOkunmamis = useRef(unreadNotifs);
+  useEffect(() => {
+    if (unreadNotifs > oncekiOkunmamis.current) oyunYukle();
+    oncekiOkunmamis.current = unreadNotifs;
+  }, [unreadNotifs, oyunYukle]);
+  // öğretmen oyunu kapatır / uzatır / bildirimsiz açarsa: sekmeye dönüşte (en sık dakikada bir) tazelenir
+  useEffect(() => {
+    const gorunur = () => {
+      if (document.visibilityState === 'visible' && Date.now() - oyunSonOkuma.current >= OYUN_TAZE_MS) oyunYukle();
+    };
+    document.addEventListener('visibilitychange', gorunur);
+    return () => document.removeEventListener('visibilitychange', gorunur);
+  }, [oyunYukle]);
   const oyunlar = useMemo(() => (oyunVeri?.acik ? [...oyunVeri.oyunlar].sort(oyunSirasi) : []), [oyunVeri]);
   const oynanabilir = oyunlar.filter((o) => !!o.token).length;
   const oyunKapat = () => {
@@ -736,7 +757,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
               const yeniMi = yeni.oyun.includes(`o:${o.id}`);
               const bitti = o.deneme?.durum === 'bitti';
               const chip = bitti
-                ? { c: 'ok', t: 'Bitti' }
+                ? { c: 'ok', t: `${o.deneme!.dogru}/${o.deneme!.toplam} doğru` }
                 : !o.acik
                   ? { c: '', t: 'Süresi doldu' }
                   : { c: o.deneme ? 'warn' : 'info', t: `${kalanYazi(o.bitis) || '1 dk'} kaldı` };

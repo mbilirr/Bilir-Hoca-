@@ -423,7 +423,7 @@ const durumYazi = {
 export const OYUN_HIZ = {
   pencereMs: 60_000,
   ogrenci: 150, // bir öğrenci + bir bağlantı: dakikada en çok (çarkta harf, bulmacada ipucu dahil)
-  adres: 1500, // bir IP adresi: okulda bütün sınıf aynı adresten çıkar
+  adres: 6000, // bir IP adresi: okulda bütün sınıflar aynı adresten çıkar (Aşama 387: birkaç sınıf aynı anda oynasa da yetsin)
 };
 export function hizSayaci(pencereMs = OYUN_HIZ.pencereMs, enCokAnahtar = 20_000) {
   const m = new Map();
@@ -715,32 +715,40 @@ export function oyunApi(deps) {
   async function ogrenci(st, body) {
     const op = String(body.op || 'liste');
     if (op !== 'liste') throw new HttpError(400, 'Bilinmeyen işlem.');
-    const kurumAcik = async (ids) => {
+    // Aşama 387 (HIZ): kurum bölümleri ve oyunlar aynı anda okunur; kurumlar tablosu en çok bir kez daha okunur
+    const modulAcik = (k) => !!(k && k.modules && k.modules.oyun === true);
+    const kurumlariOku = async (ids) => {
       const l = [...new Set(ids.filter(Boolean).map(String))];
-      if (!l.length) return new Set();
-      const kr = (await rest(`kurumlar?select=id,modules&id=in.${inList(l)}`, sv)) || [];
-      return new Set(kr.filter((k) => k.modules && k.modules.oyun === true).map((k) => String(k.id)));
+      return l.length ? (await rest(`kurumlar?select=id,modules&id=in.${inList(l)}`, sv)) || [] : [];
     };
-    // öğrencinin kendi kurumunda bölüm kapalıysa sekme hiç çıkmaz
-    const kendi = st.kurum_id ? await kurumAcik([st.kurum_id]) : new Set();
-    if (!st.class_id || (st.kurum_id && !kendi.size)) return { ok: true, acik: false, oyunlar: [] };
+    if (!st.class_id) return { ok: true, acik: false, oyunlar: [] };
     const sinir = new Date(Date.now() - OGRENCI_GECMIS_GUN * 86400000).toISOString();
+    let kendiKurum;
     let oyunlar;
     try {
-      oyunlar =
-        (await rest(
+      [kendiKurum, oyunlar] = await Promise.all([
+        st.kurum_id ? kurumlariOku([st.kurum_id]) : Promise.resolve([]),
+        rest(
           `oyun_oyunlari?select=id,kurum_id,ad,mod,class_ad,bitis,soru_sayisi,olusturan_ad,created_at&class_id=eq.${encodeURIComponent(String(st.class_id))}&kapali_at=is.null&bitis=gt.${encodeURIComponent(sinir)}&order=created_at.desc&limit=30`,
           sv
-        )) || [];
+        ).then((r) => r || []),
+      ]);
     } catch (err) {
       if (/soru_sayisi/.test(String(err && err.message))) throw new HttpError(400, 'Oyunlar için 385 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
       throw err;
     }
-    const acikKurum = await kurumAcik(oyunlar.map((o) => o.kurum_id));
-    oyunlar = oyunlar.filter((o) => acikKurum.has(String(o.kurum_id)));
-    const dn = oyunlar.length
-      ? (await rest(`oyun_denemeleri?select=oyun_id,durum,puan,dogru,toplam&student_id=eq.${encodeURIComponent(String(st.id))}&oyun_id=in.${inList(oyunlar.map((o) => o.id))}`, sv)) || []
-      : [];
+    // öğrencinin kendi kurumunda bölüm kapalıysa sekme hiç çıkmaz
+    if (st.kurum_id && !kendiKurum.some(modulAcik)) return { ok: true, acik: false, oyunlar: [] };
+    const bilinen = new Map(kendiKurum.map((k) => [String(k.id), k]));
+    const eksik = oyunlar.map((o) => String(o.kurum_id)).filter((id) => !bilinen.has(id));
+    const [ekKurum, dn] = await Promise.all([
+      kurumlariOku(eksik),
+      oyunlar.length
+        ? rest(`oyun_denemeleri?select=oyun_id,durum,puan,dogru,toplam&student_id=eq.${encodeURIComponent(String(st.id))}&oyun_id=in.${inList(oyunlar.map((o) => o.id))}`, sv).then((r) => r || [])
+        : Promise.resolve([]),
+    ]);
+    for (const k of ekKurum) bilinen.set(String(k.id), k);
+    oyunlar = oyunlar.filter((o) => modulAcik(bilinen.get(String(o.kurum_id))));
     const dm = new Map(dn.map((d) => [String(d.oyun_id), d]));
     const k = key();
     const simdi = Date.now();
