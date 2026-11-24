@@ -3,6 +3,7 @@
 // Kurumun öğretmenleri ve idaresi ortak bir soru bankası kurar (elle ya da yapay zekâ önerisiyle). Soruyu yazan
 // kendisininkini, kurum yöneticisi / Müdür / Müdür Yrd. hepsini düzenler ve siler. Öğrenci bu bankayı görmez.
 // Yalnız genel yöneticinin "Kurum bölümleri"nden Oyunlar'ı açtığı kurumda görünür.
+// Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Edit3, Gamepad2, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
@@ -16,6 +17,8 @@ import { basariBildir, hataBildir } from '../../../lib/bildirim';
 import { dataService } from '../../../services/dataService';
 import { SIK_HARF, TUR_AD, ZORLUK_AD, listOyunSorulari, silOyunSorulari, type OyunSoru, type OyunSoruTur } from '../../../services/oyunService';
 import { OYUN_SINIFLARI, tarihYaz } from './ortak';
+
+const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./OyunlarimPaneli').OyunlarimPaneli>>(() => import('./OyunlarimPaneli'), 'OyunlarimPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
 const AiOneriPenceresi = lazyNamed<React.ComponentProps<typeof import('./AiOneriPenceresi').AiOneriPenceresi>>(() => import('./AiOneriPenceresi'), 'AiOneriPenceresi');
@@ -33,6 +36,8 @@ export const OyunlarSayfasi: React.FC = () => {
   const [fBenim, setFBenim] = useState(false);
   const [ara, setAra] = useState('');
   const [adet, setAdet] = useState(SAYFA);
+  const [sekme, setSekme] = useState<'oyunlarim' | 'banka'>('oyunlarim');
+  const [yeniOyun, setYeniOyun] = useState(false);
   const [form, setForm] = useState<OyunSoru | 'yeni' | null>(null);
   const [aiAcik, setAiAcik] = useState(false);
   const formVar = useEverTrue(form !== null);
@@ -100,23 +105,44 @@ export const OyunlarSayfasi: React.FC = () => {
         icon={Gamepad2}
         tone="info"
         title="Oyunlar"
-        description="Kazanıma bağlı, kurumunuzun ortak soru bankası"
+        description="Soru bankasından oyun hazırla, bağlantıyı öğrencilerine ver"
         actions={
-          <>
-            <Button variant="secondary" leftIcon={<Sparkles className="w-3.5 h-3.5" />} onClick={() => setAiAcik(true)}>
-              Yapay zekâ ile öner
+          sekme === 'banka' ? (
+            <>
+              <Button variant="secondary" leftIcon={<Sparkles className="w-3.5 h-3.5" />} onClick={() => setAiAcik(true)}>
+                Yapay zekâ ile öner
+              </Button>
+              <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
+                Yeni soru
+              </Button>
+            </>
+          ) : (
+            <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setYeniOyun(true)}>
+              Yeni oyun
             </Button>
-            <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
-              Yeni soru
-            </Button>
-          </>
+          )
         }
       />
 
-      {hata && <YuklemeHatasi mesaj={hata} onTekrar={yukle} />}
-      {!hata && liste === null && <Yukleniyor satir={5} metin="Sorular yükleniyor…" />}
+      <Segmented<'oyunlarim' | 'banka'>
+        items={[
+          { value: 'oyunlarim', label: 'Oyunlarım' },
+          { value: 'banka', label: 'Soru bankası' },
+        ]}
+        value={sekme}
+        onChange={setSekme}
+      />
 
-      {liste && (
+      {sekme === 'oyunlarim' && (
+        <Suspense fallback={<Yukleniyor satir={4} metin="Oyunlar yükleniyor…" />}>
+          <OyunlarimPaneli yeniAc={yeniOyun} onYeniKapandi={() => setYeniOyun(false)} />
+        </Suspense>
+      )}
+
+      {sekme === 'banka' && hata && <YuklemeHatasi mesaj={hata} onTekrar={yukle} />}
+      {sekme === 'banka' && !hata && liste === null && <Yukleniyor satir={5} metin="Sorular yükleniyor…" />}
+
+      {sekme === 'banka' && liste && (
         <Panel
           title="Soru bankası"
           description={`${liste.length} soru · ${coktan} çoktan seçmeli · ${kelime} kelime`}

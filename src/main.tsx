@@ -92,7 +92,16 @@ const planToken = (() => {
   }
 })();
 const PlanMarkPage = lazyNamed(() => import('./components/Public/PlanMarkPage'), 'PlanMarkPage');
-const isPublicPage = !!(attendanceToken || planToken);
+// Aşama 381: öğretmenin oyun bağlantısı (…/?oyun=…) öğrencinin giriş yapmadan oynadığı sayfayı açar
+const oyunToken = (() => {
+  try {
+    return attendanceToken || planToken ? null : new URLSearchParams(window.location.search).get('oyun');
+  } catch {
+    return null;
+  }
+})();
+const OyunOynaPage = lazyNamed(() => import('./components/Public/OyunOynaPage'), 'OyunOynaPage');
+const isPublicPage = !!(attendanceToken || planToken || oyunToken);
 
 // Aşama 124: uygulama dosyaları (/assets) cihazda tutulsun diye servis çalışanı açılışta (boşta) kaydedilir.
 // Bildirim izni İSTEMEZ; yalnız kayıt. Sayfanın kendisi (index.html) her zaman sunucudan gelir.
@@ -122,6 +131,10 @@ const ciz = () =>
       ) : planToken ? (
         <Suspense fallback={null}>
           <PlanMarkPage token={planToken} />
+        </Suspense>
+      ) : oyunToken ? (
+        <Suspense fallback={null}>
+          <OyunOynaPage token={oyunToken} />
         </Suspense>
       ) : (
         <App />

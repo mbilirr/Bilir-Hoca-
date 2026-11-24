@@ -5279,6 +5279,24 @@ async function actionPlanMark(body) {
   return { ok: true, itemId, doneAt: rows[0].done_at || null };
 }
 
+// ----------------------------------------------------------------------------- Aşama 381: Oyunlar (api/_oyun.js)
+// Herkese açık oyun işlemleri ('oyun-play': imzalı bağlantıyla; cevap ve puan sunucuda) ve öğretmen işlemleri ('oyun':
+// oyun hazırla, bağlantılar, kapat / aç / uzat / sil / sıfırla; yetki oyun_yetkili() + çağıranın kendi oturumuyla okuma).
+let oyunApiCache;
+async function oyunApiGet() {
+  if (!oyunApiCache) {
+    let m;
+    try {
+      m = await import('./_oyun.js');
+    } catch (err) {
+      console.error('[mail] api/_oyun.js yüklenemedi:', err && err.message);
+      throw new HttpError(503, "Sunucu dosyası eksik (api/_oyun.js). Dosyayı GitHub'da api klasörüne yükleyin.", { fatal: true });
+    }
+    oyunApiCache = m.oyunApi({ rest, env, HttpError, inList, appUrl, clean });
+  }
+  return oyunApiCache;
+}
+
 // ----------------------------------------------------------------------------- Öğretmene rapor (son akşam 20:00)
 const pctOf = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
 const pctColor = (p) => (p >= 80 ? '#047857' : p >= 50 ? '#b45309' : '#b91c1c');
@@ -5798,6 +5816,11 @@ export default async function handler(req, res) {
       const r = body.action === 'plan-get' ? await actionPlanGet(body) : await actionPlanMark(body);
       return res.status(200).json(r);
     }
+    // Aşama 381: bağlantıyla oynanan oyun (giriş gerektirmez; imzalı bağlantı denetlenir)
+    if (body.action === 'oyun-play') {
+      if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
+      return res.status(200).json(await (await oyunApiGet()).play(body));
+    }
     if (body.action === 'attendance-get' || body.action === 'attendance-save') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
       const r = body.action === 'attendance-get' ? await actionAttendanceGet(body) : await actionAttendanceSave(body);
@@ -5861,6 +5884,9 @@ export default async function handler(req, res) {
         break;
       case 'karne-link-revoke':
         result = await actionKarneLinkRevoke(caller, body);
+        break;
+      case 'oyun': // Aşama 381: Oyunlar (öğretmen işlemleri)
+        result = await (await oyunApiGet()).ogretmen(caller, body, req);
         break;
       case 'veli': // Aşama 367: veli görünümü bağlantısı (durum / gönder / kopyala / iptal)
         result = await actionVeli(caller, body, req, deadline);
