@@ -36,11 +36,13 @@ interface Props {
   baslangic?: { ders?: string; sinif?: number | null };
   /** Aşama 393: PDF'den kesilen görsel (yeni soru); açılınca yazısı yapay zekâyla okunur */
   gorselBaslangic?: string;
+  /** Aşama 394: yeni soruda "Kaydet, sıradakini ekle": kayıttan sonra ders / sınıf / kazanım kalır, form temizlenir */
+  onEklendi?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, onClose, onSaved }) => {
+export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, onEklendi, onClose, onSaved }) => {
   const [tur, setTur] = useState<OyunSoruTur>(soru?.tur || 'coktan');
   const [ders, setDers] = useState(soru?.ders || baslangic?.ders || varsayilanDers());
   const [sinif, setSinif] = useState<number | null>(soru ? soru.sinif : (baslangic?.sinif ?? null));
@@ -177,7 +179,7 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, o
     gorselId: tur === 'coktan' ? gorselId : null,
   });
 
-  const kaydet = async () => {
+  const kaydet = async (devam = false) => {
     const g = girdi();
     const h = soruHatasi(g);
     if (h) return setHata(h);
@@ -193,7 +195,21 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, o
       }
       await kaydetOyunSoru(g);
       basariBildir(soru ? 'Soru güncellendi' : 'Soru eklendi');
-      onSaved();
+      if (devam && onEklendi) {
+        // ders, sınıf, zorluk, kazanım ve konu kalır; yalnız soru alanları temizlenir
+        okumaIptal.current = true;
+        setOkuma('yok');
+        setMetin('');
+        setSiklar(['', '', '', '']);
+        setDogru(null);
+        setCevap('');
+        setAciklama('');
+        setGorselId(null);
+        setYeniGorsel(null);
+        setKayitliGorsel(null);
+        onEklendi();
+        window.setTimeout(() => document.getElementById('oy-metin')?.focus(), 50);
+      } else onSaved();
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Soru kaydedilemedi.');
     } finally {
@@ -214,6 +230,11 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, o
           <Button variant="secondary" onClick={onClose} disabled={kaydediyor}>
             Vazgeç
           </Button>
+          {!soru && onEklendi && (
+            <Button variant="secondary" onClick={() => void kaydet(true)} disabled={kaydediyor}>
+              Kaydet, sıradakini ekle
+            </Button>
+          )}
           <Button onClick={() => void kaydet()} isLoading={kaydediyor} loadingText="Kaydediliyor…">
             {soru ? 'Kaydet' : 'Soruyu ekle'}
           </Button>

@@ -208,6 +208,18 @@ export function aiOyunGorselOku(input: { provider: AiProvider; image: AiImage })
   return post({ action: 'oyunGorselOku', ...input });
 }
 
+/** Aşama 394: yapıştırılan metni çoktan seçmeli sorulara ayırır (doğru cevap metinde yazılı değilse dogru = -1) */
+export interface AiAyrilanSoru {
+  metin: string;
+  siklar: string[];
+  dogru: number;
+  aciklama: string;
+}
+export const OYUN_YAPISTIR_EN_COK = 12000;
+export function aiOyunMetinCoz(input: { provider: AiProvider; metin: string }): Promise<AiResult> {
+  return post({ action: 'oyunMetinCoz', ...input });
+}
+
 /** Aşama 388: ders notu sınırları (karakter); sunucuda da aynı (api/ai.js) */
 export const OYUN_NOT_EN_COK = 24000;
 export const OYUN_NOT_EN_AZ = 200;

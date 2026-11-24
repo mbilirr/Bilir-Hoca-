@@ -46,9 +46,11 @@ function sigan(sayfalar: string[], bas: number): number {
 
 export const AiOneriPenceresi: React.FC<{
   baslangic?: { ders?: string; sinif?: number | null };
+  /** Aşama 394: "Notumdan üret" kartı ders notu kaynağıyla açar */
+  baslangicKaynak?: 'kazanim' | 'not';
   onClose: () => void;
   onSaved: () => void;
-}> = ({ baslangic, onClose, onSaved }) => {
+}> = ({ baslangic, baslangicKaynak, onClose, onSaved }) => {
   const [ders, setDers] = useState(baslangic?.ders || varsayilanDers());
   const [sinif, setSinif] = useState<number | null>(baslangic?.sinif ?? null);
   const [kodlar, setKodlar] = useState<string[]>([]);
@@ -61,7 +63,7 @@ export const AiOneriPenceresi: React.FC<{
   const [oneriler, setOneriler] = useState<Oneri[] | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [kaydediyor, setKaydediyor] = useState(false);
-  const [kaynak, setKaynak] = useState<KaynakSecim>('kazanim');
+  const [kaynak, setKaynak] = useState<KaynakSecim>(baslangicKaynak || 'kazanim');
   const [not, setNot] = useState<DersNotu | null>(null);
   const [aralik, setAralik] = useState({ bas: 1, son: 1 });
   const [notOkunuyor, setNotOkunuyor] = useState<string | null>(null);

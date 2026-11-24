@@ -6,10 +6,11 @@
 // Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
 // Aşama 389: üçüncü sekme Turnuvalar (birkaç oyunun toplam puanıyla sıralama).
+// Aşama 394: tek "Soru ekle" girişi (elle, PDF'den kes, metin yapıştır, yapay zekâ, ders notu).
 // Aşama 393: "PDF'den soru" (sayfada soruyu kesip görselli soru ekleme); görselli sorularda "Görselli" etiketi.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Gamepad2, Image as ImageIcon, Plus, Presentation, Scissors, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
+import { Edit3, Gamepad2, Image as ImageIcon, Plus, Presentation, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
 import { lazyNamed, useEverTrue } from '../../../lib/lazyLoad';
 import { EmptyState, PageHeader, Panel, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
@@ -26,6 +27,8 @@ const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./Oyunlari
 const TurnuvalarPaneli = lazyNamed<React.ComponentProps<typeof import('./TurnuvalarPaneli').TurnuvalarPaneli>>(() => import('./TurnuvalarPaneli'), 'TurnuvalarPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
+const SoruEkleSecici = lazyNamed<React.ComponentProps<typeof import('./SoruEkleSecici').SoruEkleSecici>>(() => import('./SoruEkleSecici'), 'SoruEkleSecici');
+const TopluYapistir = lazyNamed<React.ComponentProps<typeof import('./TopluYapistir').TopluYapistir>>(() => import('./TopluYapistir'), 'TopluYapistir');
 const PdfSoruKesici = lazyNamed<React.ComponentProps<typeof import('./PdfSoruKesici').PdfSoruKesici>>(() => import('./PdfSoruKesici'), 'PdfSoruKesici');
 const AiOneriPenceresi = lazyNamed<React.ComponentProps<typeof import('./AiOneriPenceresi').AiOneriPenceresi>>(() => import('./AiOneriPenceresi'), 'AiOneriPenceresi');
 
@@ -50,6 +53,11 @@ export const OyunlarSayfasi: React.FC = () => {
   const [form, setForm] = useState<OyunSoru | 'yeni' | null>(null);
   const [aiAcik, setAiAcik] = useState(false);
   const [pdfAcik, setPdfAcik] = useState(false);
+  const [ekleAcik, setEkleAcik] = useState(false);
+  const [yapistirAcik, setYapistirAcik] = useState(false);
+  const [aiKaynak, setAiKaynak] = useState<'kazanim' | 'not'>('kazanim');
+  const ekleVar = useEverTrue(ekleAcik);
+  const yapistirVar = useEverTrue(yapistirAcik);
   const pdfVar = useEverTrue(pdfAcik);
   const formVar = useEverTrue(form !== null);
   const aiVar = useEverTrue(aiAcik);
@@ -103,6 +111,7 @@ export const OyunlarSayfasi: React.FC = () => {
   const kaydedildi = () => {
     setForm(null);
     setAiAcik(false);
+    setYapistirAcik(false);
     void yukle();
   };
 
@@ -119,17 +128,9 @@ export const OyunlarSayfasi: React.FC = () => {
         description="Soru bankasından oyun hazırla, bağlantıyı öğrencilerine ver"
         actions={
           sekme === 'banka' ? (
-            <>
-              <Button variant="secondary" leftIcon={<Sparkles className="w-3.5 h-3.5" />} onClick={() => setAiAcik(true)}>
-                Yapay zekâ ile öner
-              </Button>
-              <Button variant="secondary" leftIcon={<Scissors className="w-3.5 h-3.5" />} onClick={() => setPdfAcik(true)}>
-                PDF'den soru
-              </Button>
-              <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
-                Yeni soru
-              </Button>
-            </>
+            <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setEkleAcik(true)}>
+              Soru ekle
+            </Button>
           ) : sekme === 'turnuva' ? (
             <Button leftIcon={<Trophy className="w-3.5 h-3.5" />} onClick={() => setYeniTurnuva(true)}>
               Yeni turnuva
@@ -187,10 +188,10 @@ export const OyunlarSayfasi: React.FC = () => {
             <EmptyState
               icon={Gamepad2}
               title="Soru bankası boş"
-              description="İlk soruyu elle yazın, PDF'ten kesin ya da bir kazanım seçip yapay zekâdan öneri isteyin."
+              description="İlk soruyu elle yazın, PDF'ten kesin, metin yapıştırın ya da yapay zekâdan öneri isteyin."
               action={
-                <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
-                  Yeni soru
+                <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setEkleAcik(true)}>
+                  Soru ekle
                 </Button>
               }
             />
@@ -310,10 +311,26 @@ export const OyunlarSayfasi: React.FC = () => {
       )}
 
       <Suspense fallback={null}>
-        {formVar && form !== null && <SoruFormu key={form === 'yeni' ? 'yeni' : form.id} soru={form === 'yeni' ? null : form} baslangic={baslangic} onClose={() => setForm(null)} onSaved={kaydedildi} />}
+        {ekleVar && ekleAcik && (
+          <SoruEkleSecici
+            onClose={() => setEkleAcik(false)}
+            onSec={(y) => {
+              setEkleAcik(false);
+              if (y === 'yaz') setForm('yeni');
+              else if (y === 'pdf') setPdfAcik(true);
+              else if (y === 'yapistir') setYapistirAcik(true);
+              else {
+                setAiKaynak(y === 'not' ? 'not' : 'kazanim');
+                setAiAcik(true);
+              }
+            }}
+          />
+        )}
+        {yapistirVar && yapistirAcik && <TopluYapistir baslangic={baslangic} onClose={() => setYapistirAcik(false)} onSaved={kaydedildi} />}
+        {formVar && form !== null && <SoruFormu key={form === 'yeni' ? 'yeni' : form.id} soru={form === 'yeni' ? null : form} baslangic={baslangic} onEklendi={() => void yukle()} onClose={() => setForm(null)} onSaved={kaydedildi} />}
         {tahtaVar && tahta && <TahtaKurulum onClose={() => setTahta(false)} />}
         {pdfVar && pdfAcik && <PdfSoruKesici baslangic={baslangic} onClose={() => setPdfAcik(false)} onEklendi={() => void yukle()} />}
-        {aiVar && aiAcik && <AiOneriPenceresi baslangic={baslangic} onClose={() => setAiAcik(false)} onSaved={kaydedildi} />}
+        {aiVar && aiAcik && <AiOneriPenceresi baslangic={baslangic} baslangicKaynak={aiKaynak} onClose={() => setAiAcik(false)} onSaved={kaydedildi} />}
       </Suspense>
     </div>
   );
