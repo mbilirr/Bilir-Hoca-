@@ -196,9 +196,15 @@ export function aiOyunSoru(input: {
   zorluk?: 'kolay' | 'orta' | 'zor' | '';
   avoid?: string[];
   grade?: string;
+  /** Aşama 388: ders notu metni (PDF tarayıcıda okunur; yalnız seçilen sayfaların metni gider) */
+  kaynak?: string;
 }): Promise<AiResult> {
   return post({ action: 'oyunSoru', ...input });
 }
+
+/** Aşama 388: ders notu sınırları (karakter); sunucuda da aynı (api/ai.js) */
+export const OYUN_NOT_EN_COK = 24000;
+export const OYUN_NOT_EN_AZ = 200;
 
 /** Biçimi tanınmayan cevap anahtarı dosyasını çözer (yalnızca dosyanın hücre metni gider) */
 export function aiReadKey(input: {

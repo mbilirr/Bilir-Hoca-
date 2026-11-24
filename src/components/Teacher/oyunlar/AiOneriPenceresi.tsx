@@ -2,26 +2,47 @@
 // Aşama 380: Oyunlar — yapay zekâ ile soru önerisi
 // Kazanımları (en çok 5) seçersiniz; yapay zekâ o kazanımlara bağlı sorular önerir. Önerileri okuyup beğendiklerinizi
 // seçersiniz; yalnız seçilenler soru bankasına eklenir. Yapay zekâya yalnız kazanım metni gider (öğrenci bilgisi yok).
+// Aşama 388: Kaynak "Ders notu (PDF)" seçilirse PDF tarayıcıda okunur, seçilen sayfaların METNİ kazanımlarla birlikte gider;
+// sorular yalnız o nottaki bilgiye dayanır. Dosya hiçbir yere yüklenmez. Taranmış (metinsiz) PDF kabul edilmez.
 // ============================================================================
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Check, Sparkles } from 'lucide-react';
+import { AlertCircle, Check, FileText, Sparkles, X } from 'lucide-react';
 import { Modal, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { FieldLabel, SelectBox } from '../FormParts';
 import { KazanimDurumu, KazanimSecici, dersKazanimlari, useKazanimBankasi } from './KazanimSecici';
 import { bankSubjectKey } from '../../../lib/deneme/kazanimBank';
 import { basariBildir } from '../../../lib/bildirim';
-import { aiCall, aiOyunSoru, aiStatus, newAiState, type AiOyunSoru, type AiProvider } from '../../../lib/aiApi';
+import { OYUN_NOT_EN_AZ, OYUN_NOT_EN_COK, aiCall, aiOyunSoru, aiStatus, newAiState, type AiOyunSoru, type AiProvider } from '../../../lib/aiApi';
+import { extractPdfText } from '../../../lib/deneme/kitapcik';
 import { SIK_HARF, TOPLU_EN_COK, ZORLUKLAR, topluEkleOyunSorulari, type OyunSoruGirdi, type OyunZorluk } from '../../../services/oyunService';
 import { OYUN_DERSLERI, varsayilanDers } from './ortak';
 
 type TurSecim = 'coktan' | 'kelime' | 'karisik';
+type KaynakSecim = 'kazanim' | 'not';
+interface DersNotu {
+  ad: string;
+  sayfalar: string[];
+}
 interface Oneri extends AiOyunSoru {
   no: number;
   secili: boolean;
 }
 
 const SAYILAR = [3, 5, 8, 10];
+const sayiYaz = (n: number) => n.toLocaleString('tr-TR');
+
+/** Baştan başlayıp sınıra sığan son sayfa (en az 1) */
+function sigan(sayfalar: string[], bas: number): number {
+  let top = 0;
+  let son = bas;
+  for (let i = bas - 1; i < sayfalar.length; i++) {
+    top += sayfalar[i].length + 2;
+    if (top > OYUN_NOT_EN_COK && i > bas - 1) break;
+    son = i + 1;
+  }
+  return son;
+}
 
 export const AiOneriPenceresi: React.FC<{
   baslangic?: { ders?: string; sinif?: number | null };
@@ -40,8 +61,48 @@ export const AiOneriPenceresi: React.FC<{
   const [oneriler, setOneriler] = useState<Oneri[] | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [kaydediyor, setKaydediyor] = useState(false);
+  const [kaynak, setKaynak] = useState<KaynakSecim>('kazanim');
+  const [not, setNot] = useState<DersNotu | null>(null);
+  const [aralik, setAralik] = useState({ bas: 1, son: 1 });
+  const [notOkunuyor, setNotOkunuyor] = useState<string | null>(null);
+  const dosyaRef = useRef<HTMLInputElement>(null);
   const durdur = useRef(false);
   const { bank, hata: bankHata } = useKazanimBankasi();
+
+  const notMetni = useMemo(() => (not ? not.sayfalar.slice(aralik.bas - 1, aralik.son).join('\n\n').trim() : ''), [not, aralik]);
+  const notUzun = notMetni.length > OYUN_NOT_EN_COK;
+  const notKisa = !!not && notMetni.length < OYUN_NOT_EN_AZ;
+  const notHazir = kaynak === 'kazanim' || (!!not && !notUzun && !notKisa);
+
+  const notSec = async (file: File | undefined) => {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') return setHata('Yalnız PDF dosyası seçin.');
+    setHata(null);
+    setOneriler(null);
+    setNotOkunuyor('PDF okunuyor…');
+    try {
+      const sayfalar = await extractPdfText(file, (n, t) => setNotOkunuyor(`PDF okunuyor… ${n} / ${t} sayfa`));
+      if (!sayfalar.some((x) => x.length > 20)) {
+        setNot(null);
+        setHata('Bu PDF\'te okunabilir metin yok (taranmış ya da resim). Metin içeren bir PDF seçin.');
+        return;
+      }
+      setNot({ ad: file.name, sayfalar });
+      setAralik({ bas: 1, son: sigan(sayfalar, 1) });
+    } catch (e) {
+      setNot(null);
+      setHata(e instanceof Error ? e.message : 'PDF okunamadı.');
+    } finally {
+      setNotOkunuyor(null);
+    }
+  };
+
+  const aralikDegis = (alan: 'bas' | 'son', deger: number) => {
+    if (!not) return;
+    const n = not.sayfalar.length;
+    const v = Math.max(1, Math.min(n, Math.round(deger) || 1));
+    setAralik((a) => (alan === 'bas' ? { bas: v, son: Math.max(v, Math.min(a.son, n)) } : { bas: Math.min(a.bas, v), son: v }));
+  };
 
   useEffect(() => {
     let canli = true;
@@ -67,7 +128,7 @@ export const AiOneriPenceresi: React.FC<{
   };
 
   const oner = async () => {
-    if (!ai || ai === 'yok' || !secilenSatirlar.length) return;
+    if (!ai || ai === 'yok' || !secilenSatirlar.length || !notHazir) return;
     setHata(null);
     setOneriler(null);
     setCalisiyor(true);
@@ -87,6 +148,7 @@ export const AiOneriPenceresi: React.FC<{
             zorluk,
             avoid,
             grade,
+            ...(kaynak === 'not' ? { kaynak: notMetni } : {}),
           }),
         { stop: () => durdur.current, onWait: (w) => setBekleme(w) }
       );
@@ -96,7 +158,12 @@ export const AiOneriPenceresi: React.FC<{
         return;
       }
       const liste = ((r.items || []) as AiOyunSoru[]).map((x, i) => ({ ...x, no: i + 1, secili: true }));
-      if (!liste.length) setHata('Yapay zekâ kullanılabilir soru üretemedi. Kazanımı değiştirip ya da sayıyı azaltıp tekrar deneyin.');
+      if (!liste.length)
+        setHata(
+          kaynak === 'not'
+            ? 'Ders notunda seçilen kazanımlara uygun bilgi bulunamadı. Kazanımı ya da sayfa aralığını değiştirip tekrar deneyin.'
+            : 'Yapay zekâ kullanılabilir soru üretemedi. Kazanımı değiştirip ya da sayıyı azaltıp tekrar deneyin.'
+        );
       else setOneriler(liste);
     } finally {
       if (!durdur.current) {
@@ -148,7 +215,11 @@ export const AiOneriPenceresi: React.FC<{
       size="lg"
       icon={Sparkles}
       title="Yapay zekâ ile soru öner"
-      description="Kazanımı seçin; öneriler soru bankasına siz onaylayınca eklenir. Yapay zekâya yalnız kazanım metni gider."
+      description={
+        kaynak === 'not'
+          ? 'Sorular ders notunuzdan hazırlanır. Dosya yüklenmez; yapay zekâya yalnız kazanım ve seçtiğiniz sayfaların metni gider.'
+          : 'Kazanımı seçin; öneriler soru bankasına siz onaylayınca eklenir. Yapay zekâya yalnız kazanım metni gider.'
+      }
       footer={
         <div className="w-full flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted">{oneriler ? `${secilenSayi} / ${oneriler.length} soru seçili` : ''}</span>
@@ -161,7 +232,7 @@ export const AiOneriPenceresi: React.FC<{
                 Seçilenleri ekle
               </Button>
             ) : (
-              <Button onClick={() => void oner()} isLoading={calisiyor} loadingText="Hazırlanıyor…" disabled={!aiHazir || !secilenSatirlar.length}>
+              <Button onClick={() => void oner()} isLoading={calisiyor} loadingText="Hazırlanıyor…" disabled={!aiHazir || !secilenSatirlar.length || !notHazir || !!notOkunuyor}>
                 Soru öner
               </Button>
             )}
@@ -178,6 +249,97 @@ export const AiOneriPenceresi: React.FC<{
 
         {!oneriler && (
           <>
+            <div>
+              <FieldLabel>Kaynak</FieldLabel>
+              <Segmented<KaynakSecim>
+                items={[
+                  { value: 'kazanim', label: 'Kazanım' },
+                  { value: 'not', label: 'Ders notu (PDF)' },
+                ]}
+                value={kaynak}
+                onChange={(v) => {
+                  setKaynak(v);
+                  setHata(null);
+                }}
+              />
+            </div>
+
+            {kaynak === 'not' && (
+              <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-3">
+                <input
+                  ref={dosyaRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    void notSec(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+                {!not ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="secondary" size="sm" leftIcon={<FileText className="w-3.5 h-3.5" aria-hidden />} onClick={() => dosyaRef.current?.click()} disabled={!!notOkunuyor}>
+                      PDF seç
+                    </Button>
+                    <span className="text-xs text-muted">{notOkunuyor || 'Metin içeren ders notu, konu özeti ya da çalışma kâğıdı.'}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText className="w-4 h-4 shrink-0 text-muted" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-fg" title={not.ad}>
+                        {not.ad}
+                      </span>
+                      <span className="shrink-0 text-2xs text-muted">{not.sayfalar.length} sayfa</span>
+                      <Button variant="ghost" ikon aria-label="PDF'i kaldır" onClick={() => setNot(null)} className="shrink-0">
+                        <X className="w-4 h-4" aria-hidden />
+                      </Button>
+                    </div>
+                    {not.sayfalar.length > 1 && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="w-24">
+                          <FieldLabel htmlFor="ai-not-bas">İlk sayfa</FieldLabel>
+                          <input
+                            id="ai-not-bas"
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={not.sayfalar.length}
+                            value={aralik.bas}
+                            onChange={(e) => aralikDegis('bas', Number(e.target.value))}
+                            className="ui-field w-full tabular-nums"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <FieldLabel htmlFor="ai-not-son">Son sayfa</FieldLabel>
+                          <input
+                            id="ai-not-son"
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={not.sayfalar.length}
+                            value={aralik.son}
+                            onChange={(e) => aralikDegis('son', Number(e.target.value))}
+                            className="ui-field w-full tabular-nums"
+                          />
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => dosyaRef.current?.click()} disabled={!!notOkunuyor}>
+                          Başka PDF
+                        </Button>
+                      </div>
+                    )}
+                    <p className={cx('text-2xs', notUzun || notKisa ? 'font-semibold text-warning-fg' : 'text-muted')}>
+                      {notUzun
+                        ? `Seçilen sayfalar çok uzun (${sayiYaz(notMetni.length)} karakter). En çok ${sayiYaz(OYUN_NOT_EN_COK)} karakter: aralığı daraltın.`
+                        : notKisa
+                          ? 'Seçilen sayfalarda yeterli metin yok. Aralığı genişletin ya da başka PDF seçin.'
+                          : `${aralik.son - aralik.bas + 1} sayfa · ${sayiYaz(notMetni.length)} karakter gönderilecek`}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <FieldLabel htmlFor="ai-ders">Ders</FieldLabel>
