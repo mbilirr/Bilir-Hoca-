@@ -99,7 +99,7 @@ function dugmeDenetimi(rel, metin, hatalar) {
 
 // Aşama 353: kendi geçici şeridini tutmasına izin verilen dosyalar (gerekçeli)
 const GECICI_YAZI_IZINLI = new Set([
-  'src/components/Admin/NotificationPolicyPanel.tsx', // SMS deneme sonucu: ham sağlayıcı yanıtı 90 sn ekranda kalır
+  'src/components/Admin/bildirim/SmsKutusu.tsx', // Aşama 377 (eski NotificationPolicyPanel) SMS deneme sonucu: ham sağlayıcı yanıtı 90 sn ekranda kalır
 ]);
 
 const hatalar = [];

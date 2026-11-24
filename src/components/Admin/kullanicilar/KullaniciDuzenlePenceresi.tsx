@@ -1,6 +1,6 @@
 // Kullanıcı yönetimi › bilgi ve şifre güncelleme penceresi (Aşama 354d: ayrı parça, yalnız gerekince yüklenir)
 import React from 'react';
-import { RefreshCw, Edit, Key, Copy, Check, Eye, EyeOff, BadgeCheck } from 'lucide-react';
+import { RefreshCw, Edit, Key, Copy, Check, Eye, EyeOff, BadgeCheck, LayoutGrid } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
 import { CompactRow } from '../../ui/Compact';
 import { KayitliSifre } from '../../ui/KayitliSifre';
@@ -12,7 +12,7 @@ import { ProfilResmiSecModal, isTeacherAccount } from './ortak';
 import { useKullaniciBaglam } from './useKullaniciYonetimi';
 
 export function KullaniciDuzenlePenceresi() {
-  const { currentAdmin, classes, setYetkiTeacherId, editModalUser, setEditModalUser, editFormData, setEditFormData, resimAcik, setResimAcik, showPassword, setShowPassword, editPwOpen, setEditPwOpen, copiedPassword, setCopiedPassword, notifyTeacher, setNotifyTeacher, unvanlar, handleSaveEdit, handleGeneratePassword, handleCopyPassword } = useKullaniciBaglam();
+  const { currentAdmin, classes, setYetkiTeacherId, setSinifDersUser, editModalUser, setEditModalUser, editFormData, setEditFormData, resimAcik, setResimAcik, showPassword, setShowPassword, editPwOpen, setEditPwOpen, copiedPassword, setCopiedPassword, notifyTeacher, setNotifyTeacher, unvanlar, handleSaveEdit, handleGeneratePassword, handleCopyPassword } = useKullaniciBaglam();
   return (
     <>
       {editModalUser && (
@@ -33,12 +33,24 @@ export function KullaniciDuzenlePenceresi() {
           }
           baslikSag={
             <>
+                {/* Aşama 377: girdiği ve gördüğü sınıflar, sınıf öğretmenliği (ders programıyla aynı kayıt) */}
+                {editModalUser.role !== 'student' && !!editModalUser.kurumId && editModalUser.kurumId === dataService.getMyKurumId() && (
+                  <button
+                    type="button"
+                    onClick={() => setSinifDersUser(editModalUser)}
+                    className="ui-btn ui-btn-primary ui-btn-sm h-8 w-40 justify-center"
+                    id="edit-siniflar-btn"
+                    title="Derse girdiği ve gördüğü sınıflar, sınıf öğretmenliği"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" /> Sınıflar ve dersler
+                  </button>
+                )}
                 {/* Aşama 143: aynı Yetkiler penceresi (unvan, bölümler, işlem izinleri) */}
                 {editModalUser.role !== 'student' && !!editModalUser.kurumId && editModalUser.id !== currentAdmin?.id && (
                   <button
                     type="button"
                     onClick={() => setYetkiTeacherId(editModalUser.id)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center"
                     id="edit-yetkiler-btn"
                     title="Unvan, bölümler ve işlem izinleri"
                   >

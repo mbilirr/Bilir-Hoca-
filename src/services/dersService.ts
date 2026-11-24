@@ -300,6 +300,54 @@ export async function sinifDersOgretmenCikar(classId: string, ders: string, teac
   return Number(r?.kapanan_saat) || 0;
 }
 
+// ---------------------------------------------------------------- Aşama 377: sınıflar ve dersler (öğretmen düzenleme)
+const SQL_EKSIK_377 = "Sınıflar ve dersler veritabanında henüz kurulu değil. Supabase SQL Editor'de 377 numaralı SQL dosyasını çalıştırın.";
+
+export type SubeDurum = 'yok' | 'gorur' | 'ders';
+
+/** Şube → sınıf öğretmeni (teachers.id). SQL 377 kurulmamışsa kurulu:false, boş liste. */
+export async function sinifOgretmenleri(kurumId: string): Promise<{ kurulu: boolean; harita: Record<string, string> }> {
+  const { data, error } = await supabase.from('sinif_ogretmeni').select('class_id,teacher_id').eq('kurum_id', kurumId);
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205' || /sinif_ogretmeni|schema cache|does not exist/i.test(error.message || '')) {
+      return { kurulu: false, harita: {} };
+    }
+    throw hata(error);
+  }
+  const harita: Record<string, string> = {};
+  for (const r of (data || []) as any[]) harita[String(r.class_id)] = String(r.teacher_id);
+  return { kurulu: true, harita };
+}
+
+export interface OgretmenSiniflariIstek {
+  teacherId: string;
+  ders: string;
+  /** yalnız değişen şubeler */
+  siniflar: Array<{ classId: string; durum: SubeDurum }>;
+  /** "Değiştir" seçilen şubeler: dersin diğer öğretmenleri çıkar (diğerlerinde ders ortak olur) */
+  degistir: string[];
+  sinifOgretmeni: Array<{ classId: string; on: boolean }>;
+  /** null: kademe değişmedi */
+  kademe: { grades: number[]; all: boolean } | null;
+}
+
+/** Hepsi tek işlemde (bir şube hata verirse hiçbiri yazılmaz). */
+export async function ogretmenSiniflariKaydet(i: OgretmenSiniflariIstek): Promise<void> {
+  try {
+    await rpc('ogretmen_siniflari_kaydet', {
+      p_teacher_id: i.teacherId,
+      p_ders: i.ders,
+      p_siniflar: i.siniflar.map((x) => ({ class_id: x.classId, durum: x.durum })),
+      p_degistir: i.degistir,
+      p_sinif_ogretmeni: i.sinifOgretmeni.map((x) => ({ class_id: x.classId, on: x.on })),
+      p_kademeler: i.kademe ? i.kademe.grades : null,
+      p_tum_kademe: i.kademe ? i.kademe.all : false,
+    });
+  } catch (e: any) {
+    throw e?.message === SQL_EKSIK ? new Error(SQL_EKSIK_377) : e;
+  }
+}
+
 // ---------------------------------------------------------------- program (Aşama 219)
 /**
  * Yürürlükteki (ileriye dönük) program: bitiş tarihi olmayan satırlar (yönetici düzenleme ekranı).

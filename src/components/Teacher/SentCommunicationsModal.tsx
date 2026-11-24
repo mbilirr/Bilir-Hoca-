@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Modal, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { chipCls } from './FormParts';
+import { olayAdi, olayGrubu } from '../../lib/gonderimOlaylari';
 
 // ============================================================================
 // Giden e-postalar (Aşama 9): sunucunun gerçekten gönderdiği / gönderemediği e-postaların kaydı.
@@ -25,38 +26,22 @@ interface MailLogRow {
   error: string | null;
 }
 
-const EVENT_LABEL: Record<string, string> = {
-  'homework-created': 'Yeni ödev',
-  'homework-reminder': 'Ödev hatırlatma',
-  'etut-created': 'Yeni etüt',
-  'question-target': 'Soru hedefi',
-  'teacher-created': 'Öğretmen hesabı açıldı',
-  'teacher-updated': 'Öğretmen bilgileri',
-  'teacher-access': 'Öğretmen yetkileri',
-  'teacher-role': 'Öğretmen rolü',
-  'teacher-status': 'Öğretmen hesap durumu',
-  'teacher-email-changed': 'E-posta değişikliği',
-  'etut-assigned': 'Etüt atandı',
-  'etut-changed': 'Etüt değişti',
-  'etut-cancelled': 'Etüt iptal',
-  'etut-unassigned': 'Etüt başkasına verildi',
-  'etut-attendance': 'Etüt yoklama bağlantısı',
-  'etut-scheduled': 'Etüt hatırlatması',
-  'etut-no-attendance': 'Yoklama alınmadı uyarısı',
-  test: 'Deneme',
-};
-type Filter = 'all' | 'homework' | 'etut' | 'failed';
+// Aşama 377: bütün olayların Türkçesi ortak listede (lib/gonderimOlaylari); Takvim ve Gönderilen süzgeci
+export type GidenFiltre = 'all' | 'sent' | 'homework' | 'etut' | 'takvim' | 'failed';
+type Filter = GidenFiltre;
 
 interface SentCommunicationsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Aşama 377: açılışta seçili süzgeç (ör. sayı kartından "ulaşmadı") */
+  filtre?: GidenFiltre;
 }
 
-export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = ({ isOpen, onClose }) => {
+export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = ({ isOpen, onClose, filtre: ilkFiltre = 'all' }) => {
   const [rows, setRows] = useState<MailLogRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>(ilkFiltre);
 
   const load = async () => {
     setError(null);
@@ -70,14 +55,20 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
     setRows((data || []) as MailLogRow[]);
   };
   useEffect(() => {
-    if (isOpen) load();
+    if (isOpen) {
+      setFilter(ilkFiltre);
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const list = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr-TR');
     return (rows || []).filter((r) => {
-      if (filter === 'homework' && !r.event.startsWith('homework')) return false;
-      if (filter === 'etut' && !r.event.startsWith('etut')) return false;
+      if (filter === 'sent' && r.status !== 'sent') return false;
+      if (filter === 'homework' && olayGrubu(r.event) !== 'odev') return false;
+      if (filter === 'etut' && olayGrubu(r.event) !== 'etut') return false;
+      if (filter === 'takvim' && olayGrubu(r.event) !== 'takvim') return false;
       if (filter === 'failed' && r.status !== 'failed') return false;
       if (!q) return true;
       return [r.recipient, r.recipient_name, r.subject, r.ref_title, r.sender_name].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR').includes(q);
@@ -94,7 +85,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
       tone="brand"
       size="lg"
       title="Giden E-postalar"
-      description="Sistemin otomatik gönderdiği ödev ve etüt e-postaları (son 300)"
+      description="Sistemin gönderdiği ve gönderemediği e-postalar (son 300)"
       footer={
         <>
           <button type="button" className="ui-btn ui-btn-secondary" onClick={load}>
@@ -114,15 +105,17 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Alıcı, konu veya ödev/etüt adı ara"
+              placeholder="Alıcı, konu ya da başlık ara"
               className="ui-field w-full pl-9 pr-3"
             />
           </div>
           {(
             [
               ['all', 'Tümü'],
+              ['sent', 'Gönderilen'],
               ['homework', 'Ödev'],
               ['etut', 'Etüt'],
+              ['takvim', 'Takvim'],
               ['failed', `Gönderilemeyen${failedCount ? ` (${failedCount})` : ''}`],
             ] as Array<[Filter, string]>
           ).map(([k, label]) => (
@@ -137,7 +130,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
             <Yukleniyor satir={4} />
           </div>
         ) : list.length === 0 ? (
-          <p className="text-xs text-muted py-8 text-center">Henüz gönderilmiş e-posta yok.</p>
+          <p className="text-xs text-muted py-8 text-center">{rows.length ? 'Bu süzgece uyan e-posta yok.' : 'Henüz gönderilmiş e-posta yok.'}</p>
         ) : (
           <ul className="divide-y divide-line rounded-xl border border-line" id="sent-mails-list">
             {list.map((r) => (
@@ -151,7 +144,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-sm font-semibold text-fg truncate">{r.recipient_name || r.recipient}</span>
                     <span className="text-xs text-muted truncate">{r.recipient}</span>
-                    <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-2 text-fg-2">{EVENT_LABEL[r.event] || r.event}</span>
+                    <span className="text-2xs font-semibold px-1.5 py-px rounded bg-surface-2 text-fg-2">{olayAdi(r.event)}</span>
                     {r.recipient_role === 'ogretmen' && <span className="text-2xs font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">öğretmen</span>}
                   </div>
                   <p className="text-xs text-fg-2 truncate">{r.subject}</p>

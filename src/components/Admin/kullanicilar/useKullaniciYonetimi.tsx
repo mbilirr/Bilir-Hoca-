@@ -43,6 +43,7 @@ export function useKullaniciYonetimi({
   const [deleteModalUser, setDeleteModalUser] = useState<UnifiedUser | null>(null);
   const [suspendModalUser, setSuspendModalUser] = useState<UnifiedUser | null>(null);
   const [authModalTeacher, setAuthModalTeacher] = useState<UnifiedUser | null>(null);
+  const [sinifDersUser, setSinifDersUser] = useState<UnifiedUser | null>(null); // Aşama 377: Sınıflar ve dersler
   const [selectedAuthClassIds, setSelectedAuthClassIds] = useState<string[]>([]);
   const [selectedAuthStudentIds, setSelectedAuthStudentIds] = useState<string[]>([]);
   const [authStudentSearch, setAuthStudentSearch] = useState('');
@@ -580,6 +581,8 @@ export function useKullaniciYonetimi({
     setSuspendModalUser,
     authModalTeacher,
     setAuthModalTeacher,
+    sinifDersUser,
+    setSinifDersUser,
     selectedAuthClassIds,
     setSelectedAuthClassIds,
     selectedAuthStudentIds,

@@ -21,11 +21,13 @@ const yukle = {
   duzenle: () => import('./kullanicilar/KullaniciDuzenlePenceresi'),
   rol: () => import('./kullanicilar/RolPenceresi'),
   erisim: () => import('./kullanicilar/ErisimPenceresi'),
+  sinifDers: () => import('./kullanicilar/SiniflarVeDerslerPenceresi'), // Aşama 377
   yeniOgretmen: () => import('./kullanicilar/YeniOgretmenParcasi'),
 };
 const KullaniciDuzenlePenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/KullaniciDuzenlePenceresi').default>>(yukle.duzenle, 'default');
 const RolPenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/RolPenceresi').default>>(yukle.rol, 'default');
 const ErisimPenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/ErisimPenceresi').default>>(yukle.erisim, 'default');
+const SiniflarVeDerslerPenceresi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/SiniflarVeDerslerPenceresi').default>>(yukle.sinifDers, 'default');
 const YeniOgretmenParcasi = lazyNamed<React.ComponentProps<typeof import('./kullanicilar/YeniOgretmenParcasi').default>>(yukle.yeniOgretmen, 'default');
 
 export const AdminUserManagement: React.FC<AdminUserManagementProps> = (props) => {
@@ -56,6 +58,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = (props) =
         {s.roleModalUser && <Suspense fallback={null}><RolPenceresi /></Suspense>}
         <OnayPencereleri />
         {s.authModalTeacher && <Suspense fallback={null}><ErisimPenceresi /></Suspense>}
+        {s.sinifDersUser && <Suspense fallback={null}><SiniflarVeDerslerPenceresi /></Suspense>}
         {s.isCreateTeacherOpen && <Suspense fallback={null}><YeniOgretmenParcasi /></Suspense>}
         <KullaniciPencereleri />
       </div>

@@ -36,7 +36,7 @@ import { KurumOzetKartlari } from './KurumOzetKartlari'; // Aşama 336
 
 const KurumManagement = lazyNamed(() => import('./KurumManagement'), 'KurumManagement');
 const AdminMaintenancePanel = lazyNamed(() => import('./AdminMaintenancePanel'), 'AdminMaintenancePanel');
-const NotificationPolicyPanel = lazyNamed(() => import('./NotificationPolicyPanel'), 'NotificationPolicyPanel');
+const BildirimVeSms = lazyNamed(() => import('./bildirim/BildirimVeSms'), 'BildirimVeSms'); // Aşama 377: sayılar + SMS/E-posta + izinler
 const TeacherRolesPanel = lazyNamed(() => import('./TeacherRolesPanel'), 'TeacherRolesPanel');
 const KurumSettingsPanel = lazyNamed(() => import('./KurumSettingsPanel'), 'KurumSettingsPanel');
 const AdminUserManagement = lazyNamed(() => import('./AdminUserManagement'), 'AdminUserManagement');
@@ -450,7 +450,7 @@ export const YonetimSayfasi: React.FC<{
       )}
 
       <Suspense fallback={<PageLoading />}>
-        {ust === 'bildirim' && <NotificationPolicyPanel />}
+        {ust === 'bildirim' && <BildirimVeSms />}
         {/* Aşama 339: sistem sahibinin kendi alanı (kurumsuz hesaplar) ve kendi hesabı */}
         {ust === 'bildirim' && <GirisGuvenligiPanel />}
         {ust === 'yedek' && <AdminMaintenancePanel />}

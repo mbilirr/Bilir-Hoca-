@@ -1,16 +1,16 @@
 // Kullanıcı yönetimi › öğretmen sınıf ve öğrenci erişim penceresi (Aşama 354d: ayrı parça, yalnız gerekince yüklenir)
-import { ShieldCheck, GraduationCap, Search, Check, School, Shield, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, GraduationCap, Search, Check, School, Shield, LayoutGrid } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
 import { InfoTip } from '../../ui/Compact';
 import { MailOptIn } from '../../Teacher/FormParts';
-import { GradeTicks } from '../GradeTicks';
+import { gradesLabel } from '../../../lib/teacherGrades';
 import { matchTurkishSearch } from '../../../utils/turkishSearch';
 import { Modal } from '../../ui/kit';
 import { wideRoleText } from './ortak';
 import { useKullaniciBaglam } from './useKullaniciYonetimi';
 
 export function ErisimPenceresi() {
-  const { classes, authModalTeacher, setAuthModalTeacher, selectedAuthClassIds, setSelectedAuthClassIds, selectedAuthStudentIds, setSelectedAuthStudentIds, authStudentSearch, setAuthStudentSearch, authGrades, setAuthGrades, authGradesMissing, notifyTeacher, setNotifyTeacher, authGradeOptions, gradeCovered, authWideRoles, kurumRolesOn, roleSeesAll, authExtraRoleNote, handleSaveAuthModal } = useKullaniciBaglam();
+  const { classes, authModalTeacher, setAuthModalTeacher, setSinifDersUser, selectedAuthClassIds, selectedAuthStudentIds, setSelectedAuthStudentIds, authStudentSearch, setAuthStudentSearch, authGrades, notifyTeacher, setNotifyTeacher, gradeCovered, authWideRoles, kurumRolesOn, roleSeesAll, authExtraRoleNote, handleSaveAuthModal } = useKullaniciBaglam();
   return (
     <>
       {authModalTeacher && (
@@ -51,15 +51,15 @@ export function ErisimPenceresi() {
               {/* Aşama 184: tek satır, ayrıntı ⓘ içinde */}
               <div className="px-3 py-2 bg-brand-soft border border-brand/30 rounded-xl text-xs text-brand-fg flex items-center gap-2">
                 <Shield className="w-4 h-4 text-brand-fg shrink-0" />
-                <span className="flex-1">Öğretmen yalnız burada işaretlenen sınıf ve öğrencileri görür.</span>
-                <InfoTip text="Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiç listelenmez. Kademe yetkisi verilirse o kademedeki bütün sınıflar da görünür." />
+                <span className="flex-1">Öğretmen yalnız verilen sınıfları ve burada işaretlenen öğrencileri görür.</span>
+                <InfoTip text="Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiç listelenmez. Sınıflar (kademe dahil) Sınıflar ve dersler penceresinden verilir; burada sınıfı dışında tek tek öğrenci izni verilir." />
               </div>
 
-              {/* Aşama 102: Görebileceği kademeler */}
+              {/* Aşama 377: kademe ve sınıf seçimi "Sınıflar ve dersler" penceresine taşındı (ders programıyla tek kayıt) */}
               <div className="space-y-1.5">
                 {authWideRoles.length > 0 && !kurumRolesOn && (
                   <p className="p-2.5 rounded-xl border text-xs font-semibold bg-warning-soft text-warning-fg border-warning/30" id="teacher-access-role-off">
-                    Kurumda "Rol yetkileri" kapalı: {wideRoleText(authWideRoles)} rolü şu an etkin değil; bu kişi yalnızca aşağıda işaretli sınıfları görür. Anahtar Kurum Ayarları'nda.
+                    Kurumda "Rol yetkileri" kapalı: {wideRoleText(authWideRoles)} rolü şu an etkin değil; bu kişi yalnızca verilen sınıfları görür. Anahtar Kurum Ayarları'nda.
                   </p>
                 )}
                 {authExtraRoleNote && (
@@ -67,100 +67,30 @@ export function ErisimPenceresi() {
                     {authExtraRoleNote}
                   </p>
                 )}
-                <GradeTicks
-                  id="teacher-access-grades"
-                  options={authGradeOptions}
-                  value={authGrades}
-                  onChange={setAuthGrades}
-                  roleNote={roleSeesAll ? `${wideRoleText(authWideRoles)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; işaretlemek gerekmez.` : undefined}
-                />
-                {authGradesMissing && (
-                  <p className="text-xs font-semibold text-warning-fg" id="teacher-access-grades-missing">
-                    Kademe için önce Supabase'de sql/102_ogretmen_kademe.sql çalıştırılmalı.
-                  </p>
-                )}
-              </div>
-
-              {/* 1. Sınıf Yetkilendirmeleri */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-fg-2 flex items-center space-x-2">
-                    <School className="w-4 h-4 text-brand-fg" />
-                    <span>Sınıf Erişim Yetkileri ({roleSeesAll ? classes.length : new Set([...selectedAuthClassIds, ...gradeCovered]).size}/{classes.length} Sınıf Seçili)</span>
-                  </h4>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAuthClassIds(classes.map((c) => c.id))}
-                      className="px-2 py-0.5 rounded text-brand-fg hover:bg-brand-soft font-medium cursor-pointer"
-                    >
-                      Tümünü Seç
-                    </button>
-                    <span className="text-subtle">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAuthClassIds([])}
-                      className="px-2 py-0.5 rounded text-danger-fg hover:bg-danger-soft font-medium cursor-pointer"
-                    >
-                      Temizle
-                    </button>
+                <div className="ui-card ui-card-pad flex flex-wrap items-center gap-3" id="teacher-access-classes">
+                  <School className="w-4 h-4 text-brand-fg shrink-0" aria-hidden />
+                  <div className="flex-1 min-w-40">
+                    <p className="text-sm font-semibold text-fg">Sınıflar</p>
+                    <p className="text-xs text-muted">
+                      {roleSeesAll
+                        ? `${wideRoleText(authWideRoles)} rolü gereği bütün sınıfları görür.`
+                        : `${new Set([...selectedAuthClassIds, ...gradeCovered]).size}/${classes.length} sınıfı görür${authGrades.all || authGrades.grades.length ? ` · kademe: ${gradesLabel(authGrades)}` : ''}. Derse girdiği ve gördüğü sınıflar Sınıflar ve dersler penceresinden seçilir.`}
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    id="teacher-access-siniflar"
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center"
+                    title="Bu pencere kapanır; öğrenci değişikliklerini önce kaydedin"
+                    onClick={() => {
+                      const t = authModalTeacher;
+                      setAuthModalTeacher(null);
+                      setSinifDersUser(t);
+                    }}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" /> Sınıflar ve dersler
+                  </button>
                 </div>
-
-                {classes.length === 0 ? (
-                  <p className="text-xs text-muted italic">Sistemde henüz kayıtlı sınıf bulunmuyor.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {classes.map((cls) => {
-                      const viaRole = roleSeesAll;
-                      const viaGrade = !viaRole && gradeCovered.has(cls.id);
-                      const locked = viaRole || viaGrade;
-                      const isChecked = locked || selectedAuthClassIds.includes(cls.id);
-                      return (
-                        <label
-                          key={cls.id}
-                          title={viaRole ? 'Rolünden açık; rol değişince kendiliğinden güncellenir' : viaGrade ? 'Kademeden açık; kapatmak için yukarıdan kademeyi kaldırın' : undefined}
-                          className={`p-3 rounded-xl border flex items-center justify-between transition ${locked ? 'cursor-default' : 'cursor-pointer'} ${
-                            isChecked
-                              ? 'bg-brand/15 border-brand/50 text-fg'
-                              : 'bg-canvas/80 border-line text-muted hover:border-line'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={locked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedAuthClassIds([...selectedAuthClassIds, cls.id]);
-                                } else {
-                                  setSelectedAuthClassIds(selectedAuthClassIds.filter((id) => id !== cls.id));
-                                }
-                              }}
-                              className="rounded bg-surface border-line text-brand-fg focus:ring-0 w-4 h-4 cursor-pointer"
-                            />
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold block truncate text-fg">
-                                {cls.name}
-                              </span>
-                              <span className="text-2xs text-muted block truncate">
-                                {cls.gradeLevel || cls.schoolLevel || cls.branch || 'Genel'}
-                              </span>
-                            </div>
-                          </div>
-                          {viaRole ? (
-                            <span className="ui-chip ui-chip-info shrink-0 ml-2 text-2xs">Rolünden</span>
-                          ) : viaGrade ? (
-                            <span className="ui-chip ui-chip-brand shrink-0 ml-2 text-2xs">Kademeden</span>
-                          ) : (
-                            isChecked && <CheckCircle2 className="w-4 h-4 text-brand-fg shrink-0 ml-2" />
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
               {/* 2. Bireysel Öğrenci Yetkilendirmeleri */}
