@@ -1,18 +1,19 @@
 // ============================================================================
 // Aşama 394: Oyunlar — "Soru ekle" tek giriş
 // Soru eklemenin bütün yolları tek pencerede, büyük kartlarla: elle yaz, yapay zekâya ürettir, ders notundan üret,
-// PDF'den kes, metin yapıştır. Seçim ilgili pencereyi açar; bu pencere kapanır.
+// PDF'den kes, metin yapıştır, Excel ile yükle (Aşama 395). Seçim ilgili pencereyi açar; bu pencere kapanır.
 // ============================================================================
 import React from 'react';
-import { ClipboardPaste, FileText, PenLine, Plus, Scissors, Sparkles, type LucideIcon } from 'lucide-react';
+import { ClipboardPaste, FileSpreadsheet, FileText, PenLine, Plus, Scissors, Sparkles, type LucideIcon } from 'lucide-react';
 import { Modal } from '../../ui/kit';
 
-export type SoruEkleYolu = 'yaz' | 'ai' | 'not' | 'pdf' | 'yapistir';
+export type SoruEkleYolu = 'yaz' | 'ai' | 'not' | 'pdf' | 'yapistir' | 'excel';
 
 const KARTLAR: Array<{ yol: SoruEkleYolu; ad: string; acik: string; simge: LucideIcon }> = [
   { yol: 'yaz', ad: 'Elle yaz', acik: 'Soruyu ve şıkları kendin yaz. Art arda eklerken ayarlar kalır.', simge: PenLine },
   { yol: 'pdf', ad: "PDF'den kes", acik: 'Test kitabından ya da fotoğraftan soruyu çerçevele; görselli soru olur.', simge: Scissors },
   { yol: 'yapistir', ad: 'Metin yapıştır', acik: 'Word ya da kitaptan soruları yapıştır; yapay zekâ soru ve şıklara ayırsın.', simge: ClipboardPaste },
+  { yol: 'excel', ad: 'Excel ile yükle', acik: 'Şablonu indir, sorularını doldur, tek seferde yükle.', simge: FileSpreadsheet },
   { yol: 'ai', ad: 'Yapay zekâ üretsin', acik: 'Kazanımı seç, sorular önerilsin; beğendiklerini ekle.', simge: Sparkles },
   { yol: 'not', ad: 'Ders notumdan üret', acik: 'Ders notu PDF’ini ver; sorular yalnız o nottan hazırlansın.', simge: FileText },
 ];
@@ -20,8 +21,8 @@ const KARTLAR: Array<{ yol: SoruEkleYolu; ad: string; acik: string; simge: Lucid
 export const SoruEkleSecici: React.FC<{ onSec: (y: SoruEkleYolu) => void; onClose: () => void }> = ({ onSec, onClose }) => (
   <Modal open onClose={onClose} size="md" icon={Plus} title="Soru ekle" description="Soruyu nasıl eklemek istersin?">
     <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-      {KARTLAR.map((k, i) => (
-        <li key={k.yol} className={i === 0 ? 'sm:col-span-2' : undefined}>
+      {KARTLAR.map((k) => (
+        <li key={k.yol}>
           <button
             type="button"
             onClick={() => onSec(k.yol)}

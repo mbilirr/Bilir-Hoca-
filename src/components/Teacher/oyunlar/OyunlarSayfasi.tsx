@@ -6,7 +6,7 @@
 // Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
 // Aşama 389: üçüncü sekme Turnuvalar (birkaç oyunun toplam puanıyla sıralama).
-// Aşama 394: tek "Soru ekle" girişi (elle, PDF'den kes, metin yapıştır, yapay zekâ, ders notu).
+// Aşama 394: tek "Soru ekle" girişi (elle, PDF'den kes, metin yapıştır, yapay zekâ, ders notu); 395: Excel ile yükle.
 // Aşama 393: "PDF'den soru" (sayfada soruyu kesip görselli soru ekleme); görselli sorularda "Görselli" etiketi.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -28,6 +28,7 @@ const TurnuvalarPaneli = lazyNamed<React.ComponentProps<typeof import('./Turnuva
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
 const SoruEkleSecici = lazyNamed<React.ComponentProps<typeof import('./SoruEkleSecici').SoruEkleSecici>>(() => import('./SoruEkleSecici'), 'SoruEkleSecici');
+const ExcelSoruYukle = lazyNamed<React.ComponentProps<typeof import('./ExcelSoruYukle').ExcelSoruYukle>>(() => import('./ExcelSoruYukle'), 'ExcelSoruYukle');
 const TopluYapistir = lazyNamed<React.ComponentProps<typeof import('./TopluYapistir').TopluYapistir>>(() => import('./TopluYapistir'), 'TopluYapistir');
 const PdfSoruKesici = lazyNamed<React.ComponentProps<typeof import('./PdfSoruKesici').PdfSoruKesici>>(() => import('./PdfSoruKesici'), 'PdfSoruKesici');
 const AiOneriPenceresi = lazyNamed<React.ComponentProps<typeof import('./AiOneriPenceresi').AiOneriPenceresi>>(() => import('./AiOneriPenceresi'), 'AiOneriPenceresi');
@@ -55,6 +56,8 @@ export const OyunlarSayfasi: React.FC = () => {
   const [pdfAcik, setPdfAcik] = useState(false);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [yapistirAcik, setYapistirAcik] = useState(false);
+  const [excelAcik, setExcelAcik] = useState(false);
+  const excelVar = useEverTrue(excelAcik);
   const [aiKaynak, setAiKaynak] = useState<'kazanim' | 'not'>('kazanim');
   const ekleVar = useEverTrue(ekleAcik);
   const yapistirVar = useEverTrue(yapistirAcik);
@@ -112,6 +115,7 @@ export const OyunlarSayfasi: React.FC = () => {
     setForm(null);
     setAiAcik(false);
     setYapistirAcik(false);
+    setExcelAcik(false);
     void yukle();
   };
 
@@ -319,6 +323,7 @@ export const OyunlarSayfasi: React.FC = () => {
               if (y === 'yaz') setForm('yeni');
               else if (y === 'pdf') setPdfAcik(true);
               else if (y === 'yapistir') setYapistirAcik(true);
+              else if (y === 'excel') setExcelAcik(true);
               else {
                 setAiKaynak(y === 'not' ? 'not' : 'kazanim');
                 setAiAcik(true);
@@ -326,6 +331,7 @@ export const OyunlarSayfasi: React.FC = () => {
             }}
           />
         )}
+        {excelVar && excelAcik && <ExcelSoruYukle baslangic={baslangic} onClose={() => setExcelAcik(false)} onSaved={kaydedildi} />}
         {yapistirVar && yapistirAcik && <TopluYapistir baslangic={baslangic} onClose={() => setYapistirAcik(false)} onSaved={kaydedildi} />}
         {formVar && form !== null && <SoruFormu key={form === 'yeni' ? 'yeni' : form.id} soru={form === 'yeni' ? null : form} baslangic={baslangic} onEklendi={() => void yukle()} onClose={() => setForm(null)} onSaved={kaydedildi} />}
         {tahtaVar && tahta && <TahtaKurulum onClose={() => setTahta(false)} />}
