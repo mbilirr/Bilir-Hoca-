@@ -28,6 +28,10 @@ export interface QuizSoru {
   sureSn: number;
   kalanMs: number;
 }
+/** Aşama 396: Çalışma modu sorusu (süre yok); tekrar = turun sonunda yeniden sorulan yanlış soru */
+export interface CalismaSoru extends QuizSoru {
+  tekrar: boolean;
+}
 export interface CarkTahta {
   no: number;
   toplam: number;
@@ -68,6 +72,7 @@ export interface OyunOzet {
 }
 export type OyunEkrani =
   | { tur: 'quiz'; soru: QuizSoru; puan: number }
+  | { tur: 'calisma'; soru: CalismaSoru; puan: number; dogru: number }
   | { tur: 'cark'; tahta: CarkTahta; puan: number }
   | { tur: 'bulmaca'; bulmaca: BulmacaTahta; puan: number }
   | { tur: 'bitti'; sonuc: OyunOzet };

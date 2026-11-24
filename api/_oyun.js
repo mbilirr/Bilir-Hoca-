@@ -22,7 +22,18 @@ export const CARK_DILIMLERI = [100, 150, 200, 250, 300, 400, 500, 'IFLAS'];
 export const OGRENCI_GECMIS_GUN = 7; // Aşama 385: süresi dolan oyun öğrencinin listesinde bu kadar gün kalır (oynadıysa)
 /** Aşama 389: öğrencinin ana sayfasında gösterilen turnuva en çok bu kadar gün öncesinden olabilir */
 const TURNUVA_GECMIS_GUN = 45;
-export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
+// Aşama 396: öğrencinin kendi oyunu
+export const SERBEST_MODLAR = ['calisma', 'quiz', 'cark', 'bulmaca'];
+export const SERBEST_SAYI = {
+  calisma: { en_az: 3, en_cok: 20, varsayilan: 10 },
+  quiz: { en_az: 3, en_cok: 20, varsayilan: 10 },
+  cark: { en_az: 1, en_cok: 10, varsayilan: 5 },
+  bulmaca: { en_az: 2, en_cok: 12, varsayilan: 8 },
+};
+const SERBEST_GUNLUK = 80;
+const SERBEST_SAKLA_GUN = 30;
+const SERBEST_SORU_SN = 20;
+export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', calisma: 'Çalışma' };
 export const HARFLER = Array.from('ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ');
 const TR_BUYUK = /^[A-ZÇĞİÖŞÜ]{2,15}$/;
 
@@ -132,6 +143,48 @@ export function quizCevapla(d, sorular, no, secim, sureSn, now) {
     durum: { ...d, i: d.i + 1, servis: null },
     sonuc: { dogru, dogruSik: perm.indexOf(s.dogru), aciklama: s.aciklama || '', kazanilan },
     kayit: { soruId: s.id, kazanim: s.kazanim_kodu || null, dogru, puan: kazanilan, sureMs: Math.min(Math.max(0, Math.round(gecen)), 3600000) },
+  };
+}
+
+// ----------------------------------------------------------------------------- ÇALIŞMA (Aşama 396)
+// Öğrencinin kendi başına oynadığı süresiz tur: yanlışta doğru şık ve açıklama gösterilir, yanlış soru turun sonunda
+// bir kez daha sorulur. Sonuç (doğru sayısı) yalnız İLK cevaplardan sayılır; tekrar sorusu kayda geçmez.
+export function calismaBaslat(sorular, rnd = Math.random) {
+  return { ...quizBaslat(sorular, rnd), mod: 'calisma', tekrar: [] };
+}
+export function calismaSoru(d, sorular, now) {
+  if (quizBitti(d)) return { durum: d, soru: null };
+  const s = sorular.find((x) => x.id === d.sira[d.i]);
+  const yeni = d.servis ? d : { ...d, servis: now };
+  return {
+    durum: yeni,
+    soru: {
+      no: d.i + 1,
+      toplam: d.sira.length,
+      metin: s.metin,
+      gorselId: s.gorsel_id || null,
+      siklar: d.sik[s.id].map((k) => s.siklar[k]),
+      sureSn: 0,
+      kalanMs: 0,
+      tekrar: d.i >= sorular.length,
+    },
+  };
+}
+/** secim: gösterilen sıradaki şık (0-3) ya da null ("Bilmiyorum") */
+export function calismaCevapla(d, sorular, no, secim) {
+  if (quizBitti(d)) return { hata: 'Oyun bitti.' };
+  if (Number(no) !== d.i + 1) return { hata: 'Soru sırası eşleşmedi, sayfayı yenileyin.' };
+  if (!d.servis) return { hata: 'Soru henüz açılmadı, sayfayı yenileyin.' };
+  if (secim !== null && !(Number.isInteger(secim) && secim >= 0 && secim <= 3)) return { hata: 'Geçersiz şık.' };
+  const s = sorular.find((x) => x.id === d.sira[d.i]);
+  const perm = d.sik[s.id];
+  const dogru = secim !== null && perm[secim] === s.dogru;
+  const ilk = d.i < sorular.length;
+  const tekrarla = !dogru && ilk && !d.tekrar.includes(s.id);
+  return {
+    durum: { ...d, i: d.i + 1, servis: null, sira: tekrarla ? [...d.sira, s.id] : d.sira, tekrar: tekrarla ? [...d.tekrar, s.id] : d.tekrar },
+    sonuc: { dogru, dogruSik: perm.indexOf(s.dogru), aciklama: s.aciklama || '', kazanilan: 0, tekrarlanacak: tekrarla },
+    kayit: ilk ? { soruId: s.id, kazanim: s.kazanim_kodu || null, dogru, puan: 0, sureMs: 0 } : null,
   };
 }
 
@@ -478,6 +531,8 @@ export function oyunApi(deps) {
       const sid = t.studentId || clean(body.studentId || '').slice(0, 120);
       if (!sid) throw new HttpError(400, 'Önce adınızı seçin.');
       if (o.kapsam === 'kisisel' && t.studentId !== sid) throw new HttpError(403, durumYazi.gecersiz);
+      // Aşama 396: serbest oyun yalnız sahibinin kendi bağlantısıyla oynanır
+      if (o.kapsam === 'serbest' && (t.studentId !== sid || String(o.student_id) !== sid)) throw new HttpError(403, durumYazi.gecersiz);
       const r = await rest(`students?select=id,name,class_id,class_name,status&id=eq.${encodeURIComponent(sid)}`, sv);
       const s = r && r[0];
       // sınıf kuruma açılmış (genel yöneticinin) sınıfı olabilir: kurum eşleşmesi aranmaz, sınıf eşleşmesi aranır
@@ -494,7 +549,7 @@ export function oyunApi(deps) {
     let r = await rest(q, sv);
     if (r && r[0]) return r[0];
     if (!olustur) return null;
-    const durum = o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : quizBaslat(o.sorular);
+    const durum = o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : o.mod === 'calisma' ? calismaBaslat(o.sorular) : quizBaslat(o.sorular);
     await rest('oyun_denemeleri?on_conflict=oyun_id,student_id', {
       ...sv,
       method: 'POST',
@@ -559,6 +614,10 @@ export function oyunApi(deps) {
     if (o.mod === 'quiz') {
       const r = quizSoru(d, o.sorular, o.soru_sn, now);
       return { tur: 'quiz', soru: r.soru, puan: dn.puan, yeniDurum: r.durum };
+    }
+    if (o.mod === 'calisma') {
+      const r = calismaSoru(d, o.sorular, now);
+      return { tur: 'calisma', soru: r.soru, puan: dn.puan, dogru: dn.dogru, yeniDurum: r.durum };
     }
     if (o.mod === 'bulmaca') return { tur: 'bulmaca', bulmaca: bulmacaGorunum(d, o.sorular, bulmacaKur(o.sorular, o.id)), puan: dn.puan };
     return { tur: 'cark', tahta: carkGorunum(d, o.sorular), puan: dn.puan };
@@ -629,6 +688,14 @@ export function oyunApi(deps) {
       await cevapYaz(o, dn, r.kayit);
       dn = await denemeYaz(dn, r.durum, dn.puan + r.sonuc.kazanilan, dn.dogru + (r.sonuc.dogru ? 1 : 0), bitti);
       return { ok: true, sonuc: r.sonuc, puan: dn.puan, bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
+    }
+    if (o.mod === 'calisma' && op === 'cevap') {
+      const r = calismaCevapla(d, o.sorular, body.no, body.secim === null || body.secim === undefined ? null : Number(body.secim));
+      if (r.hata) throw new HttpError(409, r.hata);
+      const bitti = quizBitti(r.durum);
+      if (r.kayit) await cevapYaz(o, dn, r.kayit);
+      dn = await denemeYaz(dn, r.durum, dn.puan, dn.dogru + (r.kayit && r.kayit.dogru ? 1 : 0), bitti);
+      return { ok: true, sonuc: r.sonuc, puan: dn.puan, dogru: dn.dogru, bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
     }
     if (o.mod === 'cark' && (op === 'cevir' || op === 'harf' || op === 'coz')) {
       const r = op === 'cevir' ? carkCevir(d) : op === 'harf' ? carkHarf(d, o.sorular, body.harf) : carkCoz(d, o.sorular, body.tahmin);
@@ -731,6 +798,9 @@ export function oyunApi(deps) {
    */
   async function ogrenci(st, body) {
     const op = String(body.op || 'liste');
+    if (op === 'serbest-bilgi') return serbestBilgi(st);
+    if (op === 'serbest-baslat') return serbestBaslat(st, body);
+    if (op === 'serbest-sonuc') return serbestSonuc(st, body);
     if (op !== 'liste') throw new HttpError(400, 'Bilinmeyen işlem.');
     // Aşama 387 (HIZ): kurum bölümleri ve oyunlar aynı anda okunur; kurumlar tablosu en çok bir kez daha okunur
     const modulAcik = (k) => !!(k && k.modules && k.modules.oyun === true);
@@ -746,7 +816,7 @@ export function oyunApi(deps) {
       [kendiKurum, oyunlar] = await Promise.all([
         st.kurum_id ? kurumlariOku([st.kurum_id]) : Promise.resolve([]),
         rest(
-          `oyun_oyunlari?select=id,kurum_id,ad,mod,class_ad,bitis,soru_sayisi,olusturan_ad,created_at&class_id=eq.${encodeURIComponent(String(st.class_id))}&kapali_at=is.null&bitis=gt.${encodeURIComponent(sinir)}&order=created_at.desc&limit=30`,
+          `oyun_oyunlari?select=id,kurum_id,ad,mod,class_ad,bitis,soru_sayisi,olusturan_ad,created_at&class_id=eq.${encodeURIComponent(String(st.class_id))}&kapsam=neq.serbest&kapali_at=is.null&bitis=gt.${encodeURIComponent(sinir)}&order=created_at.desc&limit=30`,
           sv
         ).then((r) => r || []),
       ]);
@@ -791,7 +861,184 @@ export function oyunApi(deps) {
       })
       // oynanmamış süresi dolmuş oyun listede kalabalık yapmaz
       .filter((o) => o.acik || o.deneme);
-    return { ok: true, acik: true, oyunlar: liste, turnuva };
+    return { ok: true, acik: true, oyunlar: liste, turnuva, serbest: await serbestVarMi(st) };
+  }
+
+  // --------------------------------------------------------------------------- öğrenci kendi oynar (Aşama 396)
+  /**
+   * Serbest oyun: öğrenci ders / konu / zorluk / sayı seçer, sorular kurumun soru bankasından SUNUCUDA seçilir
+   * (öğrenci soru tablosunu okuyamaz; doğru cevap oyun sırasında tarayıcıya gitmez). Oyun öğrencinin kendi adına
+   * imzalı bağlantıyla, öğretmen oyunlarıyla aynı motorda oynanır. Öğretmen bu oyunları listelerinde görmez.
+   * Seri ve rekor oyun bitince veritabanı tetikleyicisiyle yazılır (oyun_ogrenci_ozet).
+   */
+  const serbestSql = (err) => {
+    if (/oyun_serbest|oyun_ogrenci_ozet|student_id|oyo396/.test(String(err && err.message))) throw new HttpError(400, 'Kendin oyna için 396 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
+    throw err;
+  };
+  /** öğrencinin kurumu oyunlara açık mı; açıksa sınıf düzeyi (soru bankası süzgeci) */
+  async function serbestBaglam(st) {
+    if (!st.kurum_id || !st.class_id) throw new HttpError(403, 'Kendin oynamak için bir sınıfa kayıtlı olmalısın.', { code: 'kapali' });
+    const [kr, sr] = await Promise.all([
+      rest(`kurumlar?select=modules&id=eq.${encodeURIComponent(String(st.kurum_id))}`, sv),
+      rest(`classes?select=name,level&id=eq.${encodeURIComponent(String(st.class_id))}`, sv),
+    ]);
+    if (!kr || !kr[0] || !kr[0].modules || kr[0].modules.oyun !== true) throw new HttpError(403, 'Oyunlar bu okulda şu an kapalı.', { code: 'kapali' });
+    const c = (sr && sr[0]) || {};
+    const lv = Number(c.level) || Number((/\d+/.exec(String(c.name || '')) || [])[0]) || null;
+    return { sinif: lv && lv >= 1 && lv <= 12 ? lv : null, sinifAd: clean(c.name || '').slice(0, 60) };
+  }
+  async function serbestVarMi(st) {
+    if (!st.kurum_id) return false;
+    try {
+      const r = await rest(`oyun_sorulari?select=id&kurum_id=eq.${encodeURIComponent(String(st.kurum_id))}&limit=1`, sv);
+      return !!(r && r.length);
+    } catch {
+      return false;
+    }
+  }
+  async function serbestBilgi(st) {
+    const b = await serbestBaglam(st);
+    let r;
+    try {
+      r = await rest('rpc/oyun_serbest_bilgi', { ...sv, method: 'POST', body: { p_kurum: st.kurum_id, p_student: String(st.id), p_sinif: b.sinif } });
+    } catch (err) {
+      serbestSql(err);
+    }
+    return { ok: true, ...(r || {}) };
+  }
+
+  async function serbestBaslat(st, body) {
+    const b = await serbestBaglam(st);
+    const sid = String(st.id);
+    let mod;
+    let sorular;
+    let ayar;
+    try {
+      // kötüye kullanım freni: bir günde en çok SERBEST_GUNLUK oyun
+      const gun = new Date(Date.now() - 86400000).toISOString();
+      const say = (await rest(`oyun_oyunlari?select=id&kapsam=eq.serbest&student_id=eq.${encodeURIComponent(sid)}&created_at=gt.${encodeURIComponent(gun)}&limit=${SERBEST_GUNLUK + 1}`, sv)) || [];
+      if (say.length >= SERBEST_GUNLUK) throw new HttpError(429, 'Bugünlük bu kadar yeter! Yarın yeniden oynayabilirsin.', { code: 'hiz' });
+
+      if (body.tekrarOyunId) {
+        // "Yanlışları tekrar": kendi bitmiş serbest oyunundaki yanlışlar; çoktan seçmeli → Çalışma, kelime → Kelime çarkı
+        const eski = await serbestOyunum(sid, body.tekrarOyunId);
+        const yanlis = new Set(
+          ((await rest(`oyun_cevaplari?select=soru_id&oyun_id=eq.${eski.id}&student_id=eq.${encodeURIComponent(sid)}&dogru=eq.false`, sv)) || []).map((x) => String(x.soru_id))
+        );
+        sorular = eski.sorular.filter((x) => yanlis.has(String(x.id))).slice(0, CARK_KELIME.en_cok);
+        if (!sorular.length) throw new HttpError(400, 'Bu oyunda yanlışın yok.');
+        mod = sorular[0].tur === 'kelime' ? 'cark' : 'calisma';
+        ayar = { ...(eski.ayar || {}), tekrar: true };
+      } else {
+        mod = SERBEST_MODLAR.includes(body.mod) ? body.mod : '';
+        if (!mod) throw new HttpError(400, 'Oyun türünü seç.');
+        const ders = clean(body.ders || '').slice(0, 80);
+        if (ders.length < 2) throw new HttpError(400, 'Dersi seç.');
+        const konu = clean(body.konu || '').slice(0, 300);
+        const zorluk = ['kolay', 'orta', 'zor'].includes(body.zorluk) ? body.zorluk : '';
+        const lim = SERBEST_SAYI[mod];
+        const adet = Math.max(lim.en_az, Math.min(lim.en_cok, Math.round(Number(body.adet) || lim.varsayilan)));
+        const tur = mod === 'cark' || mod === 'bulmaca' ? 'kelime' : 'coktan';
+        const secilen =
+          (await rest('rpc/oyun_serbest_sec', {
+            ...sv,
+            method: 'POST',
+            body: { p_kurum: st.kurum_id, p_student: sid, p_sinif: b.sinif, p_ders: ders, p_konu: konu, p_zorluk: zorluk, p_tur: tur, p_adet: adet },
+          })) || [];
+        if (secilen.length < lim.en_az) {
+          throw new HttpError(400, tur === 'kelime' ? `Bu seçimde yeterli kelime yok (en az ${lim.en_az}). Konuyu ya da zorluğu değiştir.` : `Bu seçimde yeterli soru yok (en az ${lim.en_az}). Konuyu ya da zorluğu değiştir.`);
+        }
+        sorular = secilen.map((s) => ({
+          id: s.id,
+          tur: s.tur,
+          metin: s.metin,
+          siklar: s.tur === 'coktan' ? s.siklar : [],
+          dogru: s.tur === 'coktan' ? s.dogru : null,
+          cevap: s.tur === 'kelime' ? s.cevap : '',
+          aciklama: s.aciklama || '',
+          kazanim_kodu: s.kazanim_kodu || null,
+          ...(s.tur === 'coktan' && s.gorsel_id ? { gorsel_id: s.gorsel_id } : {}),
+        }));
+        ayar = { ders, konu, zorluk, adet, mod };
+      }
+      const ad = clean(`${ayar.ders || 'Oyun'} · ${ayar.tekrar ? 'Yanlışlarım' : ayar.konu || 'Karışık'}`).slice(0, 80);
+      const kayit = await rest('oyun_oyunlari', {
+        ...sv,
+        method: 'POST',
+        prefer: 'return=representation',
+        body: {
+          kurum_id: st.kurum_id,
+          olusturan: null,
+          olusturan_ad: '',
+          ad: ad.length >= 2 ? ad : 'Oyun',
+          mod,
+          kapsam: 'serbest',
+          student_id: sid,
+          ayar,
+          class_id: String(st.class_id),
+          class_ad: b.sinifAd,
+          sorular,
+          soru_sn: SERBEST_SORU_SN,
+          bitis: new Date(Date.now() + 86400000).toISOString(),
+        },
+      });
+      const o = kayit && kayit[0];
+      if (!o) throw new HttpError(500, 'Oyun hazırlanamadı. Biraz sonra tekrar dene.');
+      // son ayar ("Tekrar oyna") ve eski serbest oyunların temizliği oyunu bekletmez; hata oyunu bozmaz
+      await Promise.all([
+        ayar.tekrar
+          ? null
+          : rest('oyun_ogrenci_ozet?on_conflict=student_id', {
+              ...sv,
+              method: 'POST',
+              prefer: 'resolution=merge-duplicates,return=minimal',
+              body: { student_id: sid, kurum_id: st.kurum_id, son_ayar: ayar },
+            }).catch((e) => console.error('[oyun] son ayar yazılamadı:', e && e.message)),
+        rest(`oyun_oyunlari?kapsam=eq.serbest&student_id=eq.${encodeURIComponent(sid)}&created_at=lt.${encodeURIComponent(new Date(Date.now() - SERBEST_SAKLA_GUN * 86400000).toISOString())}`, {
+          ...sv,
+          method: 'DELETE',
+          prefer: 'return=minimal',
+        }).catch((e) => console.error('[oyun] eski serbest oyunlar silinemedi:', e && e.message)),
+      ]);
+      return { ok: true, oyun: { id: String(o.id), ad: o.ad, mod: o.mod, soruSayisi: sorular.length }, token: makeToken(key(), o.id, sid) };
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      return serbestSql(err);
+    }
+  }
+
+  async function serbestOyunum(sid, id) {
+    if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) throw new HttpError(400, 'Oyun bulunamadı.');
+    const r = await rest(`oyun_oyunlari?select=id,mod,ad,ayar,sorular,student_id,kapsam&id=eq.${id}&kapsam=eq.serbest&student_id=eq.${encodeURIComponent(sid)}`, sv);
+    if (!r || !r[0]) throw new HttpError(404, 'Oyun bulunamadı.');
+    return r[0];
+  }
+
+  /** Oyun bitince sonuç ekranı: puan, rekor, seri ve yanlışların doğru cevabı (oyun bittiği için artık gösterilebilir) */
+  async function serbestSonuc(st, body) {
+    const sid = String(st.id);
+    const o = await serbestOyunum(sid, body.oyunId);
+    const [dr, cr, zr] = await Promise.all([
+      rest(`oyun_denemeleri?select=id,puan,dogru,toplam,durum&oyun_id=eq.${o.id}&student_id=eq.${encodeURIComponent(sid)}`, sv),
+      rest(`oyun_cevaplari?select=soru_id,dogru&oyun_id=eq.${o.id}&student_id=eq.${encodeURIComponent(sid)}`, sv),
+      rest(`oyun_ogrenci_ozet?select=seri,en_uzun_seri,rekor&student_id=eq.${encodeURIComponent(sid)}`, sv),
+    ]);
+    const dn = dr && dr[0];
+    if (!dn || dn.durum !== 'bitti') throw new HttpError(409, 'Oyun henüz bitmedi.');
+    const yanlisIds = new Set((cr || []).filter((c) => !c.dogru).map((c) => String(c.soru_id)));
+    const yanlislar = o.sorular
+      .filter((s) => yanlisIds.has(String(s.id)))
+      .map((s) => ({ metin: s.metin, dogru: s.tur === 'kelime' ? s.cevap : (s.siklar || [])[s.dogru] || '', gorselli: !!s.gorsel_id }));
+    const z = (zr && zr[0]) || { seri: 0, en_uzun_seri: 0, rekor: {} };
+    const rk = (z.rekor || {})[`${o.mod}:${dn.toplam}`] || null;
+    return {
+      ok: true,
+      oyun: { id: String(o.id), ad: o.ad, mod: o.mod, ayar: o.ayar || null },
+      sonuc: { puan: dn.puan, dogru: dn.dogru, toplam: dn.toplam },
+      rekor: rk ? { enIyi: Number(rk.p) || 0, yeni: String(rk.d) === String(dn.id), onceki: rk.o === null || rk.o === undefined ? null : Number(rk.o) } : null,
+      seri: Number(z.seri) || 0,
+      yanlislar,
+    };
   }
 
   /**

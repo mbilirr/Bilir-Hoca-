@@ -43,6 +43,8 @@ import { Modal } from '../ui/kit';
 // Aşama 387: kurumda Oyunlar kapalı çıktıysa bu sayfa açıkken sunucuya bir daha sorulmaz (sayfa yenilenince yeniden bakılır)
 let oyunlarKapali = false;
 const OYUN_TAZE_MS = 60_000; // sekmeye dönüşte en sık bu aralıkla tazelenir
+// Aşama 396: öğrenci kendi oynar (okulun soru bankasından)
+const KendinOyna = lazyNamed<React.ComponentProps<typeof import('./oyna/KendinOyna').KendinOyna>>(() => import('./oyna/KendinOyna'), 'KendinOyna');
 const OyunOynaPage = lazyNamed<React.ComponentProps<typeof import('../Public/OyunOynaPage').OyunOynaPage>>(() => import('../Public/OyunOynaPage'), 'OyunOynaPage');
 const StudentTodayPlan = lazyNamed<React.ComponentProps<typeof import('./StudentTodayPlan').StudentTodayPlan>>(() => import('./StudentTodayPlan'), 'StudentTodayPlan');
 
@@ -388,7 +390,10 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   const oyunlar = useMemo(() => (oyunVeri?.acik ? [...oyunVeri.oyunlar].sort(oyunSirasi) : []), [oyunVeri]);
   const oynanabilir = oyunlar.filter((o) => !!o.token).length;
   const turnuva = oyunVeri?.acik ? oyunVeri.turnuva : null; // Aşama 389
-  const oyunVar = oyunlar.length > 0 || !!turnuva;
+  const serbestAcik = !preview && !!oyunVeri?.acik && oyunVeri.serbest; // Aşama 396: "Kendin oyna"
+  const [kendinAcik, setKendinAcik] = useState(false);
+  const oyunVar = oyunlar.length > 0 || !!turnuva || serbestAcik;
+  const oyunSinir = 4 - (turnuva ? 1 : 0) - (serbestAcik ? 1 : 0);
   const oyunKapat = () => {
     setOyunAcik(null);
     oyunYukle();
@@ -773,7 +778,23 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
                 </span>
               </div>
             )}
-            {oyunlar.slice(0, turnuva ? 3 : 4).map((o) => {
+            {serbestAcik && (
+              <div className="kl-hw" key="kendin-oyna">
+                <span className="bar hi" />
+                <div>
+                  <b>
+                    <Gamepad2 aria-hidden />
+                    <span>Kendin oyna</span>
+                  </b>
+                  <small>Çalışma · Meydan okuma · Kelime çarkı · Bulmaca</small>
+                </div>
+                <span className="when kl-chip">Okulun soru bankası</span>
+                <button type="button" className="ak-btn sm dark" data-yazma onClick={() => setKendinAcik(true)} id="kendin-oyna-ac">
+                  Oyna
+                </button>
+              </div>
+            )}
+            {oyunlar.slice(0, oyunSinir).map((o) => {
               const yeniMi = yeni.oyun.includes(`o:${o.id}`);
               const bitti = o.deneme?.durum === 'bitti';
               const chip = bitti
@@ -804,10 +825,10 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
                 </div>
               );
             })}
-            {oyunlar.length > (turnuva ? 3 : 4) && <div className="kl-more">+{oyunlar.length - (turnuva ? 3 : 4)} oyun daha</div>}
+            {oyunlar.length > oyunSinir && <div className="kl-more">+{oyunlar.length - oyunSinir} oyun daha</div>}
           </div>
           <div className="kl-foot">
-            <span>{oynanabilir ? <>Oynanacak <b>{oynanabilir} oyun</b> · her oyun bir kez oynanır</> : 'Bütün oyunlarını oynadın'}</span>
+            <span>{oynanabilir ? <>Oynanacak <b>{oynanabilir} oyun</b> · her oyun bir kez oynanır</> : oyunlar.length ? 'Bütün oyunlarını oynadın' : 'Öğretmenin oyun gönderince burada çıkar'}</span>
           </div>
         </div>
       )}
@@ -1199,6 +1220,13 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       {(hubKart || programKart) && <div className={'kl-grid2' + (hubKart && programKart ? '' : ' n1')}>{hubKart}{programKart}</div>}
       {(haftaKart || denemeKart) && <div className={'kl-grid2' + (haftaKart && denemeKart ? '' : ' n1')}>{haftaKart}{denemeKart}</div>}
       {ek}
+      {kendinAcik && (
+        <Modal open onClose={() => setKendinAcik(false)} tamEkran closeOnBackdrop={false} icon={Gamepad2} title="Kendin oyna" description="Okulunun soru bankasından, istediğin kadar" id="ogr-kendin-pencere">
+          <Suspense fallback={null}>
+            <KendinOyna studentId={String(student.id)} onKapat={() => setKendinAcik(false)} />
+          </Suspense>
+        </Modal>
+      )}
       {oyunAcik?.token && (
         <Modal
           open
