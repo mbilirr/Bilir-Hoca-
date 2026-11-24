@@ -5,7 +5,8 @@
 //   * Doğru cevap tarayıcıya HİÇBİR ZAMAN soru sorulurken gitmez; cevap sunucuda denetlenir, puan ve süre sunucuda
 //     hesaplanır (tarayıcıdan gelen süre / puan yok sayılır). Şıkların sırası her öğrenci için ayrı karıştırılır.
 //   * Modlar: "quiz" (çoktan seçmeli, soru başına süre, hız bonuslu), "cark" (kelime çarkı: çevir, harf seç, çöz),
-//     "bulmaca" (Aşama 382: kelime sorularından çengel bulmaca; tahmin, harf ipucu, bitir).
+//     "bulmaca" (Aşama 382: kelime sorularından çengel bulmaca; tahmin, harf ipucu, bitir),
+//     "hafiza" (Aşama 398: kelime sorularından eşleştirme; ipucu kartı ile kelime kartı, kartlar sunucuda açılır).
 // Buradaki oyun kuralları saf işlevdir (tests/oyun.test.ts sınar); veritabanı işleri oyunApi() içindedir.
 // ============================================================================
 import crypto from 'node:crypto';
@@ -23,17 +24,21 @@ export const OGRENCI_GECMIS_GUN = 7; // Aşama 385: süresi dolan oyun öğrenci
 /** Aşama 389: öğrencinin ana sayfasında gösterilen turnuva en çok bu kadar gün öncesinden olabilir */
 const TURNUVA_GECMIS_GUN = 45;
 // Aşama 396: öğrencinin kendi oyunu
-export const SERBEST_MODLAR = ['calisma', 'quiz', 'cark', 'bulmaca'];
+export const SERBEST_MODLAR = ['calisma', 'quiz', 'cark', 'bulmaca', 'hafiza'];
 export const SERBEST_SAYI = {
   calisma: { en_az: 3, en_cok: 20, varsayilan: 10 },
   quiz: { en_az: 3, en_cok: 20, varsayilan: 10 },
   cark: { en_az: 1, en_cok: 10, varsayilan: 5 },
   bulmaca: { en_az: 2, en_cok: 12, varsayilan: 8 },
+  hafiza: { en_az: 3, en_cok: 8, varsayilan: 6 },
 };
 const SERBEST_GUNLUK = 80;
 const SERBEST_SAKLA_GUN = 30;
 const SERBEST_SORU_SN = 20;
-export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', calisma: 'Çalışma' };
+export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', calisma: 'Çalışma', hafiza: 'Hafıza' };
+/** Aşama 398: türün soru tipi ve birimi (tek yerden) */
+export const MOD_TUR = { quiz: 'coktan', calisma: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime' };
+export const modBirim = (mod) => (MOD_TUR[mod] === 'kelime' ? 'kelime' : 'soru');
 export const HARFLER = Array.from('ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ');
 const TR_BUYUK = /^[A-ZÇĞİÖŞÜ]{2,15}$/;
 
@@ -464,6 +469,82 @@ export function bulmacaBitir(d, sorular) {
   return { durum: { ...d, sonuc }, kayitlar: kalan.map((s) => kayitYap(s, false, 0)) };
 }
 
+// ----------------------------------------------------------------------------- HAFIZA (Aşama 398)
+// Her kelime sorusu iki kart olur: ipucu kartı (soru metni) ve kelime kartı (cevap). Kartlar kapalı gelir; bir kartın
+// yazısı yalnız öğrenci onu açınca sunucudan gelir. İkinci kart açılınca eşleşme sunucuda denetlenir.
+// Puan: eşleşen her çift 100; o çiftin kartlarıyla yapılan her yanlış eşleştirme 20 düşer (en az 20). Bir çiftte en çok
+// bir yanlış yapıldıysa o kelime "bilindi" sayılır (konu istatistiği için).
+export const HAFIZA_CIFT = { en_az: 3, en_cok: 8 };
+export const HAFIZA_PUAN = 100;
+export const HAFIZA_YANLIS = 20;
+export const HAFIZA_TABAN = 20;
+
+export function hafizaBaslat(sorular, rnd = Math.random) {
+  const kartlar = karistir(
+    sorular.flatMap((s) => [`${s.id}|i`, `${s.id}|k`]),
+    rnd
+  );
+  return { mod: 'hafiza', kartlar, eslesen: [], secili: null, yanlis: {}, hamle: 0 };
+}
+export const hafizaBitti = (d, sorular) => d.eslesen.length >= sorular.length;
+const hafizaKart = (d, sorular, k) => {
+  const [sid, y] = d.kartlar[k].split('|');
+  const s = sorular.find((x) => String(x.id) === sid);
+  return { k, tur: y === 'k' ? 'kelime' : 'ipucu', metin: y === 'k' ? trUpper(s.cevap) : s.metin };
+};
+const hafizaSid = (d, k) => d.kartlar[k].split('|')[0];
+/** Tahta: eşleşen kartlar ve seçili (açık) kart yazılı, diğerleri kapalı */
+export function hafizaGorunum(d, sorular) {
+  const eslesen = new Set(d.eslesen);
+  return {
+    kartlar: d.kartlar.map((_, k) => {
+      if (eslesen.has(hafizaSid(d, k))) return { ...hafizaKart(d, sorular, k), durum: 'eslesti' };
+      if (d.secili === k) return { ...hafizaKart(d, sorular, k), durum: 'acik' };
+      return { k, durum: 'kapali' };
+    }),
+    cift: sorular.length,
+    eslesen: d.eslesen.length,
+    hamle: d.hamle,
+  };
+}
+/** Kart aç: ilk kart açık kalır; ikinci kartta eşleşme denetlenir */
+export function hafizaAc(d, sorular, k) {
+  const n = Number(k);
+  if (!Number.isInteger(n) || n < 0 || n >= d.kartlar.length) return { hata: 'Kart bulunamadı.' };
+  if (d.eslesen.includes(hafizaSid(d, n))) return { hata: 'Bu kart zaten eşleşti.' };
+  if (d.secili === n) return { hata: 'Bu kart zaten açık.' };
+  if (d.secili === null || d.secili === undefined) {
+    return { durum: { ...d, secili: n }, olay: { tur: 'ilk', kart: hafizaKart(d, sorular, n) } };
+  }
+  const a = d.secili;
+  const ka = hafizaKart(d, sorular, a);
+  const kb = hafizaKart(d, sorular, n);
+  const sa = hafizaSid(d, a);
+  const sb = hafizaSid(d, n);
+  const hamle = d.hamle + 1;
+  if (sa === sb) {
+    const hata = d.yanlis[sa] || 0;
+    const puan = Math.max(HAFIZA_TABAN, HAFIZA_PUAN - hata * HAFIZA_YANLIS);
+    const s = sorular.find((x) => String(x.id) === sa);
+    return {
+      durum: { ...d, secili: null, hamle, eslesen: [...d.eslesen, sa] },
+      olay: { tur: 'eslesti', kartlar: [ka, kb], kazanilan: puan },
+      kayit: kayitYap(s, hata <= 1, puan),
+    };
+  }
+  const yanlis = { ...d.yanlis, [sa]: (d.yanlis[sa] || 0) + 1, [sb]: (d.yanlis[sb] || 0) + 1 };
+  return { durum: { ...d, secili: null, hamle, yanlis }, olay: { tur: 'yanlis', kartlar: [ka, kb] } };
+}
+/** Oyunu bitir: eşleşmemiş çiftler bilinmemiş sayılır */
+export function hafizaBitir(d, sorular) {
+  const eslesen = new Set(d.eslesen);
+  const kalan = sorular.filter((s) => !eslesen.has(String(s.id)));
+  return { durum: { ...d, secili: null, eslesen: [...d.eslesen, ...kalan.map((s) => String(s.id))] }, kayitlar: kalan.map((s) => kayitYap(s, false, 0)) };
+}
+
+/** Öğretmenin hazırlayabildiği türler ve soru sınırları */
+export const OGRETMEN_LIM = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT };
+
 // ----------------------------------------------------------------------------- veritabanı işleri
 const durumYazi = {
   kapali: 'Bu oyun öğretmen tarafından kapatıldı.',
@@ -549,7 +630,8 @@ export function oyunApi(deps) {
     let r = await rest(q, sv);
     if (r && r[0]) return r[0];
     if (!olustur) return null;
-    const durum = o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : o.mod === 'calisma' ? calismaBaslat(o.sorular) : quizBaslat(o.sorular);
+    const durum =
+      o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : o.mod === 'calisma' ? calismaBaslat(o.sorular) : o.mod === 'hafiza' ? hafizaBaslat(o.sorular) : quizBaslat(o.sorular);
     await rest('oyun_denemeleri?on_conflict=oyun_id,student_id', {
       ...sv,
       method: 'POST',
@@ -620,6 +702,7 @@ export function oyunApi(deps) {
       return { tur: 'calisma', soru: r.soru, puan: dn.puan, dogru: dn.dogru, yeniDurum: r.durum };
     }
     if (o.mod === 'bulmaca') return { tur: 'bulmaca', bulmaca: bulmacaGorunum(d, o.sorular, bulmacaKur(o.sorular, o.id)), puan: dn.puan };
+    if (o.mod === 'hafiza') return { tur: 'hafiza', hafiza: hafizaGorunum(d, o.sorular), puan: dn.puan };
     return { tur: 'cark', tahta: carkGorunum(d, o.sorular), puan: dn.puan };
   }
 
@@ -733,6 +816,27 @@ export function oyunApi(deps) {
       dn = await denemeYaz(dn, r.durum, puan, dogru, bitti);
       return { ok: true, olay: r.olay, puan: dn.puan, bulmaca: bulmacaGorunum(r.durum, o.sorular, duzen), bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
     }
+    if (o.mod === 'hafiza' && (op === 'ac' || op === 'bitir')) {
+      let r;
+      if (op === 'bitir') {
+        const b = hafizaBitir(d, o.sorular);
+        r = { durum: b.durum, olay: { tur: 'bitti' }, kayitlar: b.kayitlar };
+      } else {
+        r = hafizaAc(d, o.sorular, body.k);
+        if (r.hata) throw new HttpError(409, r.hata);
+        r.kayitlar = r.kayit ? [r.kayit] : [];
+      }
+      let puan = dn.puan;
+      let dogru = dn.dogru;
+      for (const k of r.kayitlar) {
+        await cevapYaz(o, dn, k);
+        puan += k.puan;
+        dogru += k.dogru ? 1 : 0;
+      }
+      const bitti = hafizaBitti(r.durum, o.sorular);
+      dn = await denemeYaz(dn, r.durum, puan, dogru, bitti);
+      return { ok: true, olay: r.olay, puan: dn.puan, hafiza: hafizaGorunum(r.durum, o.sorular), bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
+    }
     throw new HttpError(400, 'Bilinmeyen oyun işlemi.');
   }
 
@@ -765,7 +869,7 @@ export function oyunApi(deps) {
 
   /** Aşama 385: yeni oyun bildirimi (yazma sunucu anahtarıyla; bildirim kimliği oyun + öğrenciye bağlı, tekrar yazılmaz) */
   async function ogrencilereBildir(o, ogr, caller, gun) {
-    const birim = o.mod === 'quiz' ? 'soru' : 'kelime';
+    const birim = modBirim(o.mod);
     const satirlar = ogr
       .map((s) => String(s.id))
       .filter((sid) => sid.length <= 80)
@@ -939,7 +1043,7 @@ export function oyunApi(deps) {
         const zorluk = ['kolay', 'orta', 'zor'].includes(body.zorluk) ? body.zorluk : '';
         const lim = SERBEST_SAYI[mod];
         const adet = Math.max(lim.en_az, Math.min(lim.en_cok, Math.round(Number(body.adet) || lim.varsayilan)));
-        const tur = mod === 'cark' || mod === 'bulmaca' ? 'kelime' : 'coktan';
+        const tur = MOD_TUR[mod];
         const secilen =
           (await rest('rpc/oyun_serbest_sec', {
             ...sv,
@@ -1102,7 +1206,7 @@ export function oyunApi(deps) {
     await yetki(caller);
     const op = String(body.op || '');
     if (op === 'olustur') {
-      const mod = ['quiz', 'cark', 'bulmaca'].includes(body.mod) ? body.mod : '';
+      const mod = Object.prototype.hasOwnProperty.call(OGRETMEN_LIM, body.mod) ? body.mod : '';
       if (!mod) throw new HttpError(400, 'Oyun türünü seçin.');
       const kapsam = body.kapsam === 'kisisel' ? 'kisisel' : 'sinif';
       const ad = clean(body.ad || '').slice(0, 80);
@@ -1112,14 +1216,14 @@ export function oyunApi(deps) {
       const gun = Number(body.gun);
       if (!GUN_SECENEKLERI.includes(gun)) throw new HttpError(400, 'Geçerlilik süresi seçin.');
       const ids = [...new Set((Array.isArray(body.soruIds) ? body.soruIds : []).map((x) => String(x || '')).filter((x) => /^[0-9a-f-]{36}$/i.test(x)))];
-      const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
+      const lim = OGRETMEN_LIM[mod];
       if (ids.length < lim.en_az || ids.length > lim.en_cok) throw new HttpError(400, `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
       // Sorular ve sınıf çağıranın KENDİ oturumuyla okunur: göremediği sınıf / soru işe yaramaz
       const sorular = (await rest(`oyun_sorulari?select=id,tur,metin,siklar,dogru,cevap,aciklama,kazanim_kodu,ders,konu,zorluk,gorsel_id&id=in.${inList(ids)}`, { token: caller.token })) || [];
       if (sorular.length !== ids.length) throw new HttpError(404, 'Seçilen sorulardan bazıları bulunamadı (silinmiş olabilir).');
-      const uygun = mod === 'quiz' ? 'coktan' : 'kelime';
-      if (sorular.some((s) => s.tur !== uygun)) throw new HttpError(400, mod === 'quiz' ? 'Soru yarışında yalnız çoktan seçmeli sorular kullanılır.' : 'Kelime çarkı ve bulmacada yalnız kelime soruları kullanılır.');
-      if (mod === 'bulmaca' && new Set(sorular.map((s) => trUpper(s.cevap))).size !== sorular.length) throw new HttpError(400, 'Bulmacada aynı cevap iki kez kullanılamaz.');
+      const uygun = MOD_TUR[mod];
+      if (sorular.some((s) => s.tur !== uygun)) throw new HttpError(400, uygun === 'coktan' ? `${MOD_ADI[mod]} oyununda yalnız çoktan seçmeli sorular kullanılır.` : `${MOD_ADI[mod]} oyununda yalnız kelime soruları kullanılır.`);
+      if ((mod === 'bulmaca' || mod === 'hafiza') && new Set(sorular.map((s) => trUpper(s.cevap))).size !== sorular.length) throw new HttpError(400, `${MOD_ADI[mod]} oyununda aynı cevap iki kez kullanılamaz.`);
       const sinif = ((await rest(`classes?select=id,name&id=eq.${encodeURIComponent(String(body.classId || ''))}`, { token: caller.token })) || [])[0];
       if (!sinif) throw new HttpError(404, 'Sınıf bulunamadı ya da bu sınıfı görme yetkiniz yok.');
       const ogr = ((await rest(`students?select=id,status&class_id=eq.${encodeURIComponent(String(sinif.id))}&limit=400`, { token: caller.token })) || []).filter((s) => !s.status || s.status === 'active');

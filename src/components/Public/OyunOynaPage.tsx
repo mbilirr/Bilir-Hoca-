@@ -15,8 +15,9 @@ import { OyunHatasi, kalanYazi, oyunCagri, type OyunBilgi, type OyunEkrani, type
 const QuizOyunu = React.lazy(() => import('./oyun/QuizOyunu').then((m) => ({ default: m.QuizOyunu })));
 const CarkOyunu = React.lazy(() => import('./oyun/CarkOyunu').then((m) => ({ default: m.CarkOyunu })));
 const BulmacaOyunu = React.lazy(() => import('./oyun/BulmacaOyunu').then((m) => ({ default: m.BulmacaOyunu })));
+const HafizaOyunu = React.lazy(() => import('./oyun/HafizaOyunu').then((m) => ({ default: m.HafizaOyunu }))); // Aşama 398
 
-const MOD_AD = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' } as const;
+const MOD_AD = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza' } as const;
 const secimAnahtari = (token: string) => `oyun-ogrenci:${token.slice(0, 40)}`;
 const okuSecim = (token: string) => {
   try {
@@ -181,6 +182,13 @@ export const OyunOynaPage: React.FC<{ token: string; onKapat?: () => void }> = (
       </React.Suspense>
     );
   }
+  if (ekran?.tur === 'hafiza' && ogrenciId) {
+    return kapsayici(
+      <React.Suspense fallback={null}>
+        <HafizaOyunu token={token} studentId={ogrenciId} ilk={ekran} onBitti={bitir} />
+      </React.Suspense>
+    );
+  }
   if (ekran?.tur === 'cark' && ogrenciId) {
     return kapsayici(
       <React.Suspense fallback={null}>
@@ -195,6 +203,8 @@ export const OyunOynaPage: React.FC<{ token: string; onKapat?: () => void }> = (
       ? `${bilgi.soruSayisi} soru · her soru için ${bilgi.sureSn} sn · hızlı doğru cevap daha çok puan`
       : bilgi.mod === 'bulmaca'
         ? `${bilgi.soruSayisi} kelimelik bulmaca · ipuçlarından kelimeleri bul, gerekirse harf al`
+        : bilgi.mod === 'hafiza'
+          ? `${bilgi.soruSayisi * 2} kart · ipucunu kelimesiyle eşleştir, az hamlede bitir`
         : `${bilgi.soruSayisi} kelime · çarkı çevir, harf seç, kelimeyi bul`;
 
   // kişisel bağlantı: tek düğme

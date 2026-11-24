@@ -8,17 +8,21 @@ import { supabase } from '../lib/supabase';
 import { callMailOnce } from '../lib/mailApi';
 import { notifyPush } from '../lib/push'; // Aşama 385
 
-export type OyunMod = 'quiz' | 'cark' | 'bulmaca';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza';
 export type OyunKapsam = 'sinif' | 'kisisel';
 export type OyunDurum = 'acik' | 'kapali' | 'doldu';
 
-export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
+export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza' };
+/** Aşama 398: türün soru tipi (tek yerden) */
+export const MOD_TUR: Record<OyunMod, 'coktan' | 'kelime'> = { quiz: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime' };
 /** Aşama 386: canlı sinyal tabloları (sql/386; useTabloSurumu ile dinlenir).
  *  Aşama 387 (HIZ): liste yalnız oyun değişimini, ayrıntı yalnız sonuç değişimini dinler (sınıf oynarken liste boşuna okunmaz). */
 export const OYUN_LISTE_TABLOSU = ['oyun_oyunlari'] as const;
 export const OYUN_SONUC_TABLOSU = ['oyun_denemeleri'] as const;
 /** soru yarışında "soru", kelime oyunlarında "kelime" */
-export const birimAd = (mod: OyunMod) => (mod === 'quiz' ? 'soru' : 'kelime');
+export const birimAd = (mod: OyunMod) => (MOD_TUR[mod] === 'kelime' ? 'kelime' : 'soru');
+/** "10 sorudan" / "6 kelimeden" */
+export const birimDan = (mod: OyunMod) => (MOD_TUR[mod] === 'kelime' ? 'kelimeden' : 'sorudan');
 export const KAPSAM_AD: Record<OyunKapsam, string> = { sinif: 'Sınıf bağlantısı (QR)', kisisel: 'Kişisel bağlantılar' };
 export const DURUM_AD: Record<OyunDurum, string> = { acik: 'Açık', kapali: 'Kapalı', doldu: 'Süresi doldu' };
 export const GUN_SECENEKLERI = [
@@ -32,6 +36,9 @@ export const GUN_SECENEKLERI = [
 export const QUIZ_SORU = { en_az: 3, en_cok: 30 };
 export const CARK_KELIME = { en_az: 1, en_cok: 10 };
 export const BULMACA_KELIME = { en_az: 2, en_cok: 12 };
+export const HAFIZA_CIFT = { en_az: 3, en_cok: 8 }; // Aşama 398 (sunucuyla aynı)
+/** türün seçilebilir soru sayısı */
+export const MOD_LIM: Record<OyunMod, { en_az: number; en_cok: number }> = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT };
 export const SORU_SN = { en_az: 5, en_cok: 120, varsayilan: 20 };
 
 export interface OyunKaydi {
@@ -96,7 +103,7 @@ const oyunCevir = (r: any): OyunKaydi => {
   const o = {
     id: String(r.id),
     ad: String(r.ad || ''),
-    mod: (r.mod === 'cark' || r.mod === 'bulmaca' ? r.mod : 'quiz') as OyunMod,
+    mod: (r.mod in MOD_AD ? r.mod : 'quiz') as OyunMod,
     kapsam: (r.kapsam === 'kisisel' ? 'kisisel' : 'sinif') as OyunKapsam,
     classId: String(r.class_id || ''),
     classAd: String(r.class_ad || ''),

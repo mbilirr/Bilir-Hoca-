@@ -1,5 +1,5 @@
 // Aşama 381: herkese açık oyun sayfasının sunucu çağrıları (giriş gerektirmez; her istekte bağlantı imzası denetlenir)
-export type OyunMod = 'quiz' | 'cark' | 'bulmaca';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza';
 
 export interface OyunBilgi {
   ad: string;
@@ -64,6 +64,19 @@ export interface BulmacaTahta {
   hak: number;
   kelimeler: BulmacaKelime[];
 }
+/** Aşama 398: hafıza kartı; yazı yalnız açık / eşleşmiş kartta gelir */
+export interface HafizaKart {
+  k: number;
+  durum: 'kapali' | 'acik' | 'eslesti';
+  tur?: 'ipucu' | 'kelime';
+  metin?: string;
+}
+export interface HafizaTahta {
+  kartlar: HafizaKart[];
+  cift: number;
+  eslesen: number;
+  hamle: number;
+}
 export interface OyunOzet {
   puan: number;
   dogru: number;
@@ -75,6 +88,7 @@ export type OyunEkrani =
   | { tur: 'calisma'; soru: CalismaSoru; puan: number; dogru: number }
   | { tur: 'cark'; tahta: CarkTahta; puan: number }
   | { tur: 'bulmaca'; bulmaca: BulmacaTahta; puan: number }
+  | { tur: 'hafiza'; hafiza: HafizaTahta; puan: number }
   | { tur: 'bitti'; sonuc: OyunOzet };
 
 /** Sunucunun anlamlı hata yanıtı: kod 'kapali' | 'doldu' ise oyun artık oynanamaz */

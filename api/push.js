@@ -858,7 +858,7 @@ async function tickDersYoklama(now, deadline) {
       await sendToUsers(
         tch,
         { title: 'Ders yoklaması bekliyor', body: `${dersSatiri(d)} yoklaması bekliyor.`, url: '/#/teacher/grades', tag: `ders-${d.class_id}-${d.tarih}-${d.sira}` },
-        { dedupe: `ders-hatirlat:${d.class_id}|${d.tarih}|${d.sira}`, deadline, policy: ['devamsizlik', 'ogretmen'] } // Aşama 391: Ders yoklaması izni
+        { dedupe: `ders-hatirlat:${d.class_id}|${d.tarih}|${d.sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
       )
     );
   }
@@ -889,7 +889,7 @@ async function dersHatirlatElle(caller, body, deadline) {
   const r = await sendToUsers(
     tch,
     { title: 'Ders yoklaması bekliyor', body: `${dersSatiri({ ...d, sira })} yoklamasını alın (idare hatırlattı).`, url: '/#/teacher/grades', tag: `ders-${classId}-${tarih}-${sira}` },
-    { dedupe: `ders-hatirlat-elle:${classId}|${tarih}|${sira}`, deadline, policy: ['devamsizlik', 'ogretmen'] } // Aşama 391: Ders yoklaması izni
+    { dedupe: `ders-hatirlat-elle:${classId}|${tarih}|${sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
   );
   if (r.sent > 0) return { ok: true, ...r, message: 'Öğretmene bildirim gönderildi.' };
   if (r.devices > 0 && r.users === 0) return { ok: true, ...r, already: true, message: 'Bugün zaten hatırlatıldı.' };
@@ -1006,7 +1006,7 @@ export async function notifyOyunYeni(caller, body, deadline) {
   if (o.kapali_at || Date.parse(o.bitis) <= Date.now()) return { users: 0, sent: 0 };
   const ogr = (await rest(`students?select=id,status&class_id=eq.${encodeURIComponent(String(o.class_id))}&limit=400`, { token: 'service' })) || [];
   const users = await studentAuthIds(ogr.filter((s) => !s.status || s.status === 'active').map((s) => s.id));
-  const tur = o.mod === 'quiz' ? 'Soru yarışı' : o.mod === 'bulmaca' ? 'Bulmaca' : 'Kelime çarkı';
+  const tur = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza' }[o.mod] || 'Oyun'; // Aşama 398
   return sendToUsers(
     users,
     { title: `Yeni oyun: ${o.ad || 'Oyun'}`, body: `${tur}${o.class_ad ? ` · ${o.class_ad}` : ''} · ana sayfandan oyna`, url: '/#/student', tag: `oyun-${o.id}` },

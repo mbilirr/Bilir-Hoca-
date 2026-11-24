@@ -16,6 +16,7 @@ import {
   MOD_AD,
   OYUN_SONUC_TABLOSU,
   birimAd,
+  birimDan,
   acOyun,
   kapatOyun,
   listDenemeler,
@@ -235,7 +236,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-fg">{d.ad}</span>
                       <span className="block text-2xs text-muted">
-                        {d.durum === 'bitti' ? `${d.toplam} ${birimAd(oyun.mod)}dan ${d.dogru} doğru` : 'Oyun sürüyor'}
+                        {d.durum === 'bitti' ? `${d.toplam} ${birimDan(oyun.mod)} ${d.dogru} doğru` : 'Oyun sürüyor'}
                         {d.bitisAt ? ` · ${saatYaz(d.bitisAt)}` : ''}
                       </span>
                     </span>

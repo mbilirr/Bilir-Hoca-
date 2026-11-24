@@ -1,11 +1,11 @@
 // Aşama 380: Oyunlar — ortak tanımlar (ders ve sınıf listeleri, varsayılan ders)
 import { ALL_SUBJECTS, subjectsForBranch } from '../../../lib/subjects';
 import { dataService } from '../../../services/dataService';
-import { Disc3, Grid3x3, ListChecks, type LucideIcon } from 'lucide-react';
+import { Brain, Disc3, Grid3x3, ListChecks, type LucideIcon } from 'lucide-react';
 import type { OyunMod } from '../../../services/oyunOturumService';
 
 /** Aşama 386: oyun türü simgesi (listede türler ilk bakışta ayrılsın) */
-export const MOD_SIMGE: Record<OyunMod, LucideIcon> = { quiz: ListChecks, cark: Disc3, bulmaca: Grid3x3 };
+export const MOD_SIMGE: Record<OyunMod, LucideIcon> = { quiz: ListChecks, cark: Disc3, bulmaca: Grid3x3, hafiza: Brain };
 
 /** Soru bankasında seçilebilen dersler (Rehberlik ve "Genel" soru dersi değildir) */
 export const OYUN_DERSLERI = ALL_SUBJECTS.filter((d) => d !== 'Rehberlik' && d !== 'Genel');

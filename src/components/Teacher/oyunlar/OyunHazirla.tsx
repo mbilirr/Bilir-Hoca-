@@ -12,7 +12,15 @@ import { FieldLabel, SelectBox } from '../FormParts';
 import { dataService } from '../../../services/dataService';
 import { listOyunSorulari, type OyunSoru } from '../../../services/oyunService';
 import { SoruSecici } from './SoruSecici';
-import { BULMACA_KELIME, CARK_KELIME, GUN_SECENEKLERI, MOD_AD, QUIZ_SORU, SORU_SN, olusturOyun, type OyunKapsam, type OyunMod } from '../../../services/oyunOturumService';
+import { GUN_SECENEKLERI, MOD_AD, MOD_LIM, MOD_TUR, SORU_SN, olusturOyun, type OyunKapsam, type OyunMod } from '../../../services/oyunOturumService';
+
+/** Aşama 398: tür açıklamaları */
+const MOD_NOT: Record<OyunMod, string> = {
+  quiz: 'Her soruda 4 şık ve geri sayım var; hızlı doğru cevap daha çok puan kazandırır.',
+  cark: 'İpucundan kelimeyi bulma oyunu: çark çevrilir, harf seçilir, kelime tahmin edilir.',
+  bulmaca: 'Kelimeler çengel bulmaca olarak dizilir; öğrenci ipuçlarından kelimeleri yazar, gerekirse harf ipucu alır.',
+  hafiza: 'Her kelimenin ipucu ve kelime kartı kapalı dizilir; öğrenci iki kart açarak eşleştirir. Az hamle, çok puan.',
+};
 
 const SURELER = [10, 15, 20, 30, 45, 60];
 
@@ -52,8 +60,8 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
     void yukle();
   }, []);
 
-  const tur = mod === 'quiz' ? 'coktan' : 'kelime';
-  const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
+  const tur = MOD_TUR[mod];
+  const lim = MOD_LIM[mod];
   // tür değişince önceki türün soruları seçili kalmasın
   useEffect(() => setSecili([]), [mod]);
 
@@ -70,9 +78,9 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   }, [kazanimSorulari]);
 
   const sinif = siniflar.find((c) => c.id === classId);
-  // bulmacada aynı cevap iki kez olamaz (iki kelime aynı yere düşer)
+  // bulmacada ve hafızada aynı cevap iki kez olamaz (bulmacada iki kelime aynı yere düşer, hafızada çift karışır)
   const tekrarVar = useMemo(() => {
-    if (mod !== 'bulmaca' || !bank) return false;
+    if ((mod !== 'bulmaca' && mod !== 'hafiza') || !bank) return false;
     const cevaplar = secili.map((id) => bank.find((s) => s.id === id)?.cevap.toLocaleUpperCase('tr-TR') || id);
     return new Set(cevaplar).size !== cevaplar.length;
   }, [mod, bank, secili]);
@@ -81,7 +89,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   const kaydet = async () => {
     setHata(null);
     if (!gecerli) {
-      setHata(ad.trim().length < 2 ? 'Oyuna bir ad verin.' : !classId ? 'Sınıf seçin.' : tekrarVar ? 'Bulmacada aynı cevap iki kez kullanılamaz.' : `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
+      setHata(ad.trim().length < 2 ? 'Oyuna bir ad verin.' : !classId ? 'Sınıf seçin.' : tekrarVar ? `${MOD_AD[mod]} oyununda aynı cevap iki kez kullanılamaz.` : `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
       return;
     }
     setKaydediyor(true);
@@ -126,17 +134,12 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
               { value: 'quiz', label: MOD_AD.quiz },
               { value: 'cark', label: MOD_AD.cark },
               { value: 'bulmaca', label: MOD_AD.bulmaca },
+              { value: 'hafiza', label: MOD_AD.hafiza },
             ]}
             value={mod}
             onChange={setMod}
           />
-          <p className="text-xs text-muted">
-            {mod === 'quiz'
-              ? 'Her soruda 4 şık ve geri sayım var; hızlı doğru cevap daha çok puan kazandırır.'
-              : mod === 'cark'
-                ? 'İpucundan kelimeyi bulma oyunu: çark çevrilir, harf seçilir, kelime tahmin edilir.'
-                : 'Kelimeler çengel bulmaca olarak dizilir; öğrenci ipuçlarından kelimeleri yazar, gerekirse harf ipucu alır.'}
-          </p>
+          <p className="text-xs text-muted">{MOD_NOT[mod]}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

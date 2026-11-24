@@ -414,6 +414,34 @@ test('sunucu: bulmaca uçtan uca; oyun bitince sonuç kaydedilir', async () => {
   await assert.rejects(() => api.play({ op: 'kelime', token, studentId: 's1', k: 0, tahmin: 'X' }), /tamamlandı/);
 });
 
+test('sunucu: hafıza uçtan uca; kart yazısı açılmadan gelmez, eşleşme kaydedilir, bitir', async () => {
+  const sorular = BS.slice(0, 3);
+  const { api, denemeler, cevaplar } = sahteSunucu({ ...oyunSatiri('cark', 'kisisel'), mod: 'hafiza', sorular });
+  const token = o.makeToken(key, OYUN, 's1');
+  const b = await api.play({ op: 'basla', token, studentId: 's1' });
+  assert.equal(b.tur, 'hafiza');
+  assert.equal(b.hafiza.kartlar.length, 6);
+  for (const s of sorular) assert.ok(!JSON.stringify(b).includes(s.metin) && !JSON.stringify(b).toUpperCase().includes(String(s.cevap).toUpperCase()));
+  // kartları tek tek açarak ilk kartın eşini bul
+  let r = await api.play({ op: 'ac', token, studentId: 's1', k: 0 });
+  assert.equal(r.olay.tur, 'ilk');
+  const ilk = r.olay.kart;
+  let eslesti = false;
+  for (let k = 1; k < 6 && !eslesti; k++) {
+    r = await api.play({ op: 'ac', token, studentId: 's1', k });
+    eslesti = r.olay.tur === 'eslesti';
+    if (!eslesti) r = await api.play({ op: 'ac', token, studentId: 's1', k: 0 });
+  }
+  assert.ok(eslesti, ilk.metin);
+  assert.equal(cevaplar.length, 1);
+  await assert.rejects(() => api.play({ op: 'ac', token, studentId: 's1', k: 0 }), /eşleşti/);
+  r = await api.play({ op: 'bitir', token, studentId: 's1' });
+  assert.equal(r.bitti, true);
+  assert.equal(r.ozet.toplam, 3);
+  assert.equal(denemeler[0].durum, 'bitti');
+  assert.equal(cevaplar.length, 3);
+});
+
 // ----------------------------------------------------------------------------- Aşama 385: öğrencinin kendi listesi
 test('öğrenci: kendi sınıfının açık oyunları kendi adına bağlantıyla gelir; bitince bağlantı verilmez', async () => {
   const { api } = sahteSunucu(oyunSatiri('quiz', 'sinif'));

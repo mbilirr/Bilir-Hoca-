@@ -22,6 +22,7 @@ import {
   serbestKonular,
   serbestSayi,
   serbestSonuc,
+  serbestTur,
   type SerbestAyar,
   type SerbestBilgi,
   type SerbestMod,
@@ -33,6 +34,7 @@ const Gelisimim = React.lazy(() => import('./Gelisimim').then((m) => ({ default:
 const QuizOyunu = React.lazy(() => import('../../Public/oyun/QuizOyunu').then((m) => ({ default: m.QuizOyunu })));
 const CarkOyunu = React.lazy(() => import('../../Public/oyun/CarkOyunu').then((m) => ({ default: m.CarkOyunu })));
 const BulmacaOyunu = React.lazy(() => import('../../Public/oyun/BulmacaOyunu').then((m) => ({ default: m.BulmacaOyunu })));
+const HafizaOyunu = React.lazy(() => import('../../Public/oyun/HafizaOyunu').then((m) => ({ default: m.HafizaOyunu }))); // Aşama 398
 const CalismaOyunu = React.lazy(() => import('../../Public/oyun/CalismaOyunu').then((m) => ({ default: m.CalismaOyunu })));
 
 const ZORLUKLAR: Array<{ v: SerbestZorluk; ad: string }> = [
@@ -42,7 +44,7 @@ const ZORLUKLAR: Array<{ v: SerbestZorluk; ad: string }> = [
   { v: 'zor', ad: 'Zor' },
 ];
 const MOD_ADI = Object.fromEntries(SERBEST_MODLAR.map((m) => [m.mod, m.ad])) as Record<SerbestMod, string>;
-const birim = (mod: SerbestMod) => (mod === 'cark' || mod === 'bulmaca' ? 'kelime' : 'soru');
+const birim = (mod: SerbestMod) => (serbestTur(mod) === 'kelime' ? 'kelime' : 'soru');
 const sayiYaz = (n: number) => n.toLocaleString('tr-TR');
 
 type Ekran = { tur: 'basla' } | { tur: 'oyun'; oyunId: string; token: string; ekran: OyunEkrani } | { tur: 'sonuc'; veri: SerbestSonuc };
@@ -227,6 +229,7 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void; ilkS
     else if (g.tur === 'quiz') oyun = <QuizOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'cark') oyun = <CarkOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'bulmaca') oyun = <BulmacaOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
+    else if (g.tur === 'hafiza') oyun = <HafizaOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'bitti') oyun = <Yukleniyor yazi="Sonuç hazırlanıyor…" />;
     return kap(
       <>
@@ -418,7 +421,7 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void; ilkS
         </button>
       )}
 
-      <div role="radiogroup" aria-label="Oyun türü" className="grid grid-cols-2 gap-2">
+      <div role="radiogroup" aria-label="Oyun türü" className="grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
         {SERBEST_MODLAR.map((m) => {
           const var_ = serbestDersler(banka, m.mod).some((d) => d.n >= SERBEST_SAYILAR[m.mod].enAz);
           const on = ayar.mod === m.mod;
@@ -467,7 +470,7 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void; ilkS
       <Bolum ad="Zorluk">
         <Bolmeli ad="Zorluk" secenekler={ZORLUKLAR.map((z) => ({ v: z.v, ad: z.ad }))} deger={ayar.zorluk} onSec={(v) => ayarla({ zorluk: v })} />
       </Bolum>
-      <Bolum ad={ayar.mod === 'cark' || ayar.mod === 'bulmaca' ? 'Kelime sayısı' : 'Soru sayısı'}>
+      <Bolum ad={birim(ayar.mod) === 'kelime' ? 'Kelime sayısı' : 'Soru sayısı'}>
         <Bolmeli ad="Sayı" secenekler={sayilar.secenek.map((n) => ({ v: n, ad: String(n) }))} deger={ayar.adet} onSec={(v) => ayarla({ adet: v })} />
       </Bolum>
 
