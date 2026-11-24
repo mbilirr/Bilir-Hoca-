@@ -3,7 +3,7 @@
 // kapat / aç / süreyi uzat / sil. Sonuçları RLS ile oyunu hazırlayan ve kurum yöneticisi / Müdür / Müdür Yrd. görür.
 // ============================================================================
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Gamepad2, Link2, Lock, LockOpen, RotateCcw, Trash2 } from 'lucide-react';
+import { Copy, Gamepad2, Link2, Lock, LockOpen, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { Modal, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
@@ -30,6 +30,7 @@ import {
   type OyunKaydi,
 } from '../../../services/oyunOturumService';
 import { QrKod } from './QrKod';
+import type { OyunBaslangic } from './OyunHazirla';
 import { panoyaKopyala } from './kopya';
 import { tarihYaz } from './ortak';
 
@@ -38,7 +39,10 @@ const saatYaz = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 };
 
-export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChanged: () => void }> = ({ oyun: ilk, onClose, onChanged }) => {
+/** Aşama 384: doğru oranı bu sınırın altındaki kazanım "zayıf" sayılır */
+const ZAYIF_ORAN = 0.5;
+
+export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChanged: () => void; onZayifOyun?: (b: OyunBaslangic) => void }> = ({ oyun: ilk, onClose, onChanged, onZayifOyun }) => {
   const [oyun, setOyun] = useState(ilk);
   const [baglanti, setBaglanti] = useState<OyunBaglantilari | null>(null);
   const [denemeler, setDenemeler] = useState<DenemeKaydi[] | null>(null);
@@ -113,6 +117,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
     }, 'Sonuç sıfırlandı');
   };
 
+  const zayif = kazanimlar.filter((k) => k.toplam > 0 && k.dogru / k.toplam < ZAYIF_ORAN).map((k) => k.kod);
   const bitenler = (denemeler || []).filter((d) => d.durum === 'bitti');
   const ortalama = bitenler.length ? Math.round(bitenler.reduce((t, d) => t + d.puan, 0) / bitenler.length) : 0;
   const kisiler = useMemo(() => baglanti?.kisisel || [], [baglanti]);
@@ -255,6 +260,11 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
               })}
             </ul>
             <p className="text-2xs text-subtle">En zayıf kazanım üstte. Düşük çıkanları derste tekrar edebilirsiniz.</p>
+            {onZayifOyun && zayif.length > 0 && (
+              <Button variant="secondary" leftIcon={<Sparkles className="w-3.5 h-3.5" />} onClick={() => onZayifOyun({ ad: `${oyun.ad} · tekrar`.slice(0, 80), classId: oyun.classId, kazanimlar: zayif })}>
+                Zayıf kazanımlardan oyun hazırla ({zayif.length})
+              </Button>
+            )}
           </section>
         )}
 

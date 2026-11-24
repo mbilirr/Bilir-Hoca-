@@ -17,6 +17,7 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
   const [liste, setListe] = useState<OyunKaydi[] | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [acik, setAcik] = useState<string | null>(null);
+  const [baslangic, setBaslangic] = useState<import('./OyunHazirla').OyunBaslangic | null>(null);
 
   const yukle = useCallback(async () => {
     try {
@@ -77,17 +78,31 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
       <Suspense fallback={null}>
         {(yeniAc || acik === 'yeni') && (
           <OyunHazirla
+            baslangic={baslangic}
             onClose={() => {
               setAcik(null);
+              setBaslangic(null);
               onYeniKapandi();
             }}
             onCreated={(id) => {
+              setBaslangic(null);
               onYeniKapandi();
               void yukle().then(() => setAcik(id));
             }}
           />
         )}
-        {secili && <OyunDetay key={secili.id} oyun={secili} onClose={() => setAcik(null)} onChanged={yukle} />}
+        {secili && (
+          <OyunDetay
+            key={secili.id}
+            oyun={secili}
+            onClose={() => setAcik(null)}
+            onChanged={yukle}
+            onZayifOyun={(b) => {
+              setBaslangic(b);
+              setAcik('yeni');
+            }}
+          />
+        )}
       </Suspense>
     </>
   );

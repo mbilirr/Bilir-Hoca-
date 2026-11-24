@@ -6,7 +6,7 @@
 // ============================================================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Gamepad2 } from 'lucide-react';
-import { Modal, Segmented } from '../../ui/kit';
+import { Modal, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { FieldLabel, SelectBox } from '../FormParts';
 import { dataService } from '../../../services/dataService';
@@ -16,12 +16,19 @@ import { BULMACA_KELIME, CARK_KELIME, GUN_SECENEKLERI, MOD_AD, QUIZ_SORU, SORU_S
 
 const SURELER = [10, 15, 20, 30, 45, 60];
 
-export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: string) => void }> = ({ onClose, onCreated }) => {
+/** Aşama 384: zayıf kazanımlardan yeni oyun — ad, sınıf ve kazanımlar hazır gelir; bankadaki uygun sorular seçili açılır */
+export interface OyunBaslangic {
+  ad: string;
+  classId: string;
+  kazanimlar: string[];
+}
+
+export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: string) => void; baslangic?: OyunBaslangic | null }> = ({ onClose, onCreated, baslangic }) => {
   const siniflar = useMemo(() => dataService.getClasses(), []);
   const [mod, setMod] = useState<OyunMod>('quiz');
   const [kapsam, setKapsam] = useState<OyunKapsam>('sinif');
-  const [ad, setAd] = useState('');
-  const [classId, setClassId] = useState(siniflar[0]?.id || '');
+  const [ad, setAd] = useState(baslangic?.ad || '');
+  const [classId, setClassId] = useState(baslangic && siniflar.some((c) => c.id === baslangic.classId) ? baslangic.classId : siniflar[0]?.id || '');
   const [sureSn, setSureSn] = useState<number>(SORU_SN.varsayilan);
   const [gun, setGun] = useState(7);
   const [secili, setSecili] = useState<string[]>([]);
@@ -46,6 +53,16 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
   // tür değişince önceki türün soruları seçili kalmasın
   useEffect(() => setSecili([]), [mod]);
+
+  // zayıf kazanımlardan açıldıysa: banka gelince o kazanımların uygun soruları seçilir (tür değişince yeniden)
+  const kazanimSorulari = useMemo(() => {
+    if (!baslangic || !bank) return [];
+    const kodlar = new Set(baslangic.kazanimlar);
+    return bank.filter((s) => s.tur === tur && s.kazanimKodu && kodlar.has(s.kazanimKodu)).slice(0, lim.en_cok);
+  }, [baslangic, bank, tur, lim.en_cok]);
+  useEffect(() => {
+    if (kazanimSorulari.length) setSecili(kazanimSorulari.map((s) => s.id));
+  }, [kazanimSorulari]);
 
   const sinif = siniflar.find((c) => c.id === classId);
   // bulmacada aynı cevap iki kez olamaz (iki kelime aynı yere düşer)
@@ -172,6 +189,15 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
         </div>
         {sinif && kapsam === 'kisisel' && <p className="text-xs text-muted">{sinif.name} sınıfındaki etkin öğrenciler için ayrı bağlantı üretilir.</p>}
 
+        {baslangic && bank && (
+          <p className={cx('rounded-xl px-3.5 py-2.5 text-xs', kazanimSorulari.length >= lim.en_az ? 'bg-brand-soft text-brand-fg' : 'bg-warning-soft text-warning-fg')}>
+            Zayıf kazanımlar: {baslangic.kazanimlar.join(', ')}.{' '}
+            {kazanimSorulari.length
+              ? `Bankada bu kazanımlara ait ${kazanimSorulari.length} soru seçildi.`
+              : 'Bankada bu kazanımlara ait soru yok.'}
+            {kazanimSorulari.length < lim.en_az && ` En az ${lim.en_az} soru gerekir: listeden ekleyin ya da Soru bankası › "Yapay zekâ ile öner" ile bu kazanımlara soru üretin.`}
+          </p>
+        )}
         <SoruSecici bank={bank} bankHata={bankHata} onTekrar={yukle} tur={tur} secili={secili} onChange={setSecili} enCok={lim.en_cok} />
 
         {hata && (

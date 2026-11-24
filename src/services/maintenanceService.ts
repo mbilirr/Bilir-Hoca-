@@ -125,6 +125,10 @@ const BACKUP_TABLES: BackupTableDef[] = [
   { table: 'ders_yoklama', sheet: 'Ders Yoklaması' },
   { table: 'akademik_takvim', sheet: 'Akademik Takvim' },
   { table: 'oyun_sorulari', sheet: 'Oyun Soruları' }, // Aşama 380
+  // Aşama 384: hazırlanan oyunlar ve sonuçları (sistem sahibi okur: 384 SQL). Oyunun anlık iç durumu (durum_json) alınmaz.
+  { table: 'oyun_oyunlari', sheet: 'Oyunlar' },
+  { table: 'oyun_denemeleri', sheet: 'Oyun Sonuçları', columns: 'id,oyun_id,kurum_id,student_id,ogrenci_ad,durum,puan,dogru,toplam,baslangic,bitis_at' },
+  { table: 'oyun_cevaplari', sheet: 'Oyun Cevapları' },
 ];
 
 // Excel'de bir sayfa en çok bu kadar satır alır (dosya şişip açılmaz olmasın); tamamı .json dosyasındadır
