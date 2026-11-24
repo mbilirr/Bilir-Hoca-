@@ -858,7 +858,7 @@ async function tickDersYoklama(now, deadline) {
       await sendToUsers(
         tch,
         { title: 'Ders yoklaması bekliyor', body: `${dersSatiri(d)} yoklaması bekliyor.`, url: '/#/teacher/grades', tag: `ders-${d.class_id}-${d.tarih}-${d.sira}` },
-        { dedupe: `ders-hatirlat:${d.class_id}|${d.tarih}|${d.sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
+        { dedupe: `ders-hatirlat:${d.class_id}|${d.tarih}|${d.sira}`, deadline, policy: ['devamsizlik', 'ogretmen'] } // Aşama 391: Ders yoklaması izni
       )
     );
   }
@@ -889,7 +889,7 @@ async function dersHatirlatElle(caller, body, deadline) {
   const r = await sendToUsers(
     tch,
     { title: 'Ders yoklaması bekliyor', body: `${dersSatiri({ ...d, sira })} yoklamasını alın (idare hatırlattı).`, url: '/#/teacher/grades', tag: `ders-${classId}-${tarih}-${sira}` },
-    { dedupe: `ders-hatirlat-elle:${classId}|${tarih}|${sira}`, deadline, policy: ['yoklama', 'ogretmen'] }
+    { dedupe: `ders-hatirlat-elle:${classId}|${tarih}|${sira}`, deadline, policy: ['devamsizlik', 'ogretmen'] } // Aşama 391: Ders yoklaması izni
   );
   if (r.sent > 0) return { ok: true, ...r, message: 'Öğretmene bildirim gönderildi.' };
   if (r.devices > 0 && r.users === 0) return { ok: true, ...r, already: true, message: 'Bugün zaten hatırlatıldı.' };

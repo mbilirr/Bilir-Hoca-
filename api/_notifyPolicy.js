@@ -9,7 +9,7 @@
 const CHANNELS = {
   etut: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
   yoklama: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
-  devamsizlik: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] }, // Aşama 223: gün sonu özeti · Aşama 231: ders sonu bildirimi · Aşama 232: sınır uyarısı
+  devamsizlik: { ogrenci: [], veli: ['email', 'sms'], ogretmen: ['email', 'push', 'sms'] }, // Aşama 223: gün sonu özeti · Aşama 231: ders sonu bildirimi · Aşama 232: sınır uyarısı · Aşama 391: öğretmen / idare (Ders yoklaması)
   odev: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
   plan: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: ['email', 'sms', 'whatsapp'] },
   soru: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
@@ -33,6 +33,8 @@ export const MAIL_EVENT_CATEGORY = {
   'ders-devamsizlik-ozet': 'devamsizlik', // Aşama 223
   'ders-devamsizlik-ders': 'devamsizlik', // Aşama 231: ders sonu bildirimi
   'ders-devamsizlik-sinir': 'devamsizlik', // Aşama 232: devamsızlık sınırı uyarısı (veli)
+  'ders-yoklama-gecikme': 'devamsizlik', // Aşama 391: idareye "ders yoklaması alınmadı" (eskiden izinsiz, her zaman giderdi)
+  'ders-devamsizlik-sinir-idare': 'devamsizlik', // Aşama 391: idareye devamsızlık sınırı özeti
   'question-target': 'soru',
   'plan-sent': 'plan',
   'plan-report': 'plan',
@@ -72,6 +74,8 @@ export function allowed(policy, cat, rec, ch) {
   const list = CHANNELS[cat][rec] || [];
   // sistemde karşılığı yoksa eski davranış (e-posta / bildirim gider); SMS ve WhatsApp yalnızca açıkça izin verilirse
   if (!list.includes(ch)) return rec !== 'veli' && (ch === 'email' || ch === 'push');
-  const v = policy && policy[cat] && policy[cat][rec] ? policy[cat][rec][ch] : undefined;
+  let v = policy && policy[cat] && policy[cat][rec] ? policy[cat][rec][ch] : undefined;
+  // Aşama 391: eski kayıtta ders yoklaması hatırlatması "yoklama" izniyle gidiyordu; yeni ayar kaydedilene kadar o seçim geçerli
+  if (v === undefined && cat === 'devamsizlik' && rec === 'ogretmen' && ch === 'push' && policy && policy.yoklama && policy.yoklama.ogretmen) v = policy.yoklama.ogretmen.push;
   return typeof v === 'boolean' ? v : defaultValue(cat, rec, ch);
 }

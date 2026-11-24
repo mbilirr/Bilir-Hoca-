@@ -115,7 +115,7 @@ export const NotificationPolicyPanel: React.FC = () => {
       icon={BellRing}
       tone="info"
       title="Bildirim izinleri"
-      description="Hangi bilgi kime, hangi yolla gitsin? (etüt, ödev, plan, soru, deneme, mesaj, tebrik)"
+      description="Hangi bilgi kime, hangi yolla gitsin? (etüt, ders yoklaması, ödev, plan, soru, deneme, mesaj, tebrik)"
       actions={
         <>
           <button
@@ -196,7 +196,7 @@ export const NotificationPolicyPanel: React.FC = () => {
                   <tr key={c.id} className="border-t border-line">
                     <td className="px-3 py-2">
                       <div className="font-semibold text-fg">{c.label}</div>
-                      <div className="text-xs text-muted leading-snug">{c.hint}</div>
+                      <div className="text-xs text-muted leading-snug">{c.hints?.[rec] ?? c.hint}</div>
                     </td>
                     {POLICY_CHANNELS.map((ch) => {
                       const has = c.channels[rec].includes(ch.id);

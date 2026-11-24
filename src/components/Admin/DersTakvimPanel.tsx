@@ -27,7 +27,7 @@ import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 //  * Tatil günlerinde ders yok sayılır: gecikme e-postası / telefon hatırlatması gitmez, raporlarda sayılmaz,
 //    öğretmen ve öğrenci programında "Tatil" görünür.
 //  * Veli bildirimi: Gün sonu (tek özet) · Ders sonu (her dersten sonra) · İkisi. İzin yine Yönetim › Bildirim izinleri ›
-//    Ders devamsızlığı › Veli anahtarına bağlıdır (kapalıysa hiçbir şey gitmez).
+//    Ders yoklaması › Veli anahtarına bağlıdır (kapalıysa hiçbir şey gitmez).
 // Aşama 232: özürsüz devamsızlık sınırı (gün) + kaç gün kala uyarı → idareye özet, veliye e-posta / SMS (günde bir tarama).
 // Bütün yazmalar veritabanı işlevleriyle (sql/231); ekran her zaman veritabanındaki son hali gösterir.
 // ============================================================================
@@ -273,7 +273,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
             </div>
           )}
           <p className="text-xs text-muted">
-            Bildirim yalnız <b>Yönetim › Bildirim izinleri › Ders devamsızlığı › Veli</b> açıksa gider (e-posta / SMS). Ders sonu seçeneğinde SMS sayısı
+            Bildirim yalnız <b>Yönetim › Bildirim izinleri › Ders yoklaması › Veli</b> açıksa gider (e-posta / SMS). Ders sonu seçeneğinde SMS sayısı
             artabilir.
           </p>
         </div>
@@ -329,7 +329,7 @@ export const DersTakvimPanel: React.FC<{ kurumId: string }> = ({ kurumId }) => {
             <p className="text-xs text-muted">
               {sinirKayitli.sinir === 0
                 ? 'Kapalı (sınır 0).'
-                : `${Math.max(sinirKayitli.sinir - sinirKayitli.kala, 1)}. günde uyarı, ${sinirKayitli.sinir}. günde "sınıra ulaştı" bildirimi. Veliye gitmesi için Bildirim izinleri › Ders devamsızlığı › Veli açık olmalı.`}
+                : `${Math.max(sinirKayitli.sinir - sinirKayitli.kala, 1)}. günde uyarı, ${sinirKayitli.sinir}. günde "sınıra ulaştı" bildirimi. Veliye gitmesi için Bildirim izinleri › Ders yoklaması › Veli açık olmalı.`}
             </p>
           </div>
         )}

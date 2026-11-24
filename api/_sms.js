@@ -280,6 +280,8 @@ const EVENT_TEXT = {
   'ders-devamsizlik-ozet': 'Bugün derse gelmediği / geç kaldığı ders saati var.', // Aşama 223
   'ders-devamsizlik-ders': 'Bugün bir derse gelmedi / geç kaldı.', // Aşama 231
   'ders-devamsizlik-sinir': 'Özürsüz devamsızlık sınıra yaklaştı / ulaştı.', // Aşama 232
+  'ders-yoklama-gecikme': 'Yoklaması alınmamış ders var.', // Aşama 391 (idare)
+  'ders-devamsizlik-sinir-idare': 'Devamsızlık sınırına yaklaşan öğrenci var.', // Aşama 391 (idare)
   'question-target': 'Yeni soru hedefi verildi.',
   'plan-sent': 'Haftalık çalışma planı gönderildi.',
   'plan-report': 'Haftalık plan raporu hazır.',

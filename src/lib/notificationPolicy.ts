@@ -35,6 +35,7 @@ export const POLICY_CATEGORIES: {
   id: PolicyCategory;
   label: string;
   hint: string;
+  hints?: Partial<Record<PolicyRecipient, string>>; // Aşama 391: alıcı sekmesine göre açıklama (yoksa hint)
   channels: Record<PolicyRecipient, PolicyChannel[]>;
 }[] = [
   {
@@ -45,16 +46,21 @@ export const POLICY_CATEGORIES: {
   },
   {
     id: 'yoklama',
-    label: 'Yoklama hatırlatması', // Aşama 230: etüt + ders yoklaması (ders hatırlatması da bu izne bağlı)
-    hint: 'Etüt yoklama bağlantısı, "yoklama alınmadı" ve ders yoklaması hatırlatması (öğretmene)',
+    label: 'Yoklama hatırlatması', // Aşama 230 · Aşama 391: ders yoklaması hatırlatması "Ders yoklaması" satırına taşındı
+    hint: 'Etüt yoklama bağlantısı ve "etüt yoklaması alınmadı" hatırlatması (öğretmene)',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'push', 'sms', 'whatsapp'] },
   },
   // Aşama 223: ders yoklamasından veliye gün sonu tek özet (varsayılan kapalı) · Aşama 231: ders sonu bildirimi · Aşama 232: devamsızlık sınırı uyarısı
+  // Aşama 391: ders programı yoklamasının bütün gönderimleri tek satırda (veli + öğretmen / idare)
   {
     id: 'devamsizlik',
-    label: 'Ders devamsızlığı',
-    hint: 'Veliye derse gelmedi / geç kaldı bildirimi (gün sonu özeti ya da ders sonu) ve devamsızlık sınırı uyarısı; ayarlar Yönetim › Ders programı › Ders saatleri altında',
-    channels: { ogrenci: [], veli: ['email', 'sms'], ogretmen: [] },
+    label: 'Ders yoklaması',
+    hint: 'Ders programından alınan yoklama',
+    hints: {
+      veli: 'Derse gelmedi / geç kaldı bildirimi (ders sonu ya da gün sonu özeti) ve devamsızlık sınırı uyarısı; zamanı Yönetim › Ders programı › Ders saatleri altında',
+      ogretmen: 'Öğretmene ders yoklaması hatırlatması, idareye "ders yoklaması alınmadı" özeti ve devamsızlık sınırı özeti; alıcılar Yönetim › Ders programı › Ders saatleri altında',
+    },
+    channels: { ogrenci: [], veli: ['email', 'sms'], ogretmen: ['email', 'push', 'sms'] },
   },
   {
     id: 'odev',
@@ -129,7 +135,9 @@ export function normalizePolicy(raw: unknown): NotificationPolicy {
   for (const c of POLICY_CATEGORIES) {
     for (const r of POLICY_RECIPIENTS) {
       for (const ch of c.channels[r.id]) {
-        const v = src?.[c.id]?.[r.id]?.[ch];
+        let v = src?.[c.id]?.[r.id]?.[ch];
+        // Aşama 391: eski kayıtta ders yoklaması hatırlatması "Yoklama hatırlatması" izniyle gidiyordu; seçim korunur
+        if (v === undefined && c.id === 'devamsizlik' && r.id === 'ogretmen' && ch === 'push') v = src?.yoklama?.ogretmen?.push;
         if (typeof v === 'boolean') base[c.id][r.id][ch] = v;
       }
     }

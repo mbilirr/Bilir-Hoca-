@@ -3247,7 +3247,9 @@ async function actionDersYoklamaGecikme(req, deadline) {
     out.failed += (summary && summary.failed) || 0;
     out.skipped += (summary && summary.skipped) || 0;
     // En az bir alıcıya gittiyse (ya da daha önce gitmişse) dersler bildirildi sayılır; gitmediyse sonraki turda yeniden denenir
-    if (sent > 0 || (summary && summary.skipped >= items.length)) {
+    // Aşama 391: "Ders yoklaması" e-posta izni kapalıysa (hiçbir iş kalmadıysa) dersler yine işaretlenir; 10 dakikada bir boşuna taranmaz
+    const izinKapali = !!summary && !summary.notConfigured && !(summary.remaining > 0) && !summary.sent && !summary.failed && !summary.skipped;
+    if (sent > 0 || izinKapali || (summary && summary.skipped >= items.length)) {
       await rest('rpc/ders_gecikme_isaretle', { token: 'service', method: 'POST', body: { p_ids: ids, p_alicilar: alicilar } });
     }
   }
