@@ -2,9 +2,11 @@
 // Aşama 380: Oyunlar — soru ekle / düzenle penceresi
 // İki tür: çoktan seçmeli (4 şık) ve kelime (ipucu + tek kelimelik cevap; Bulmaca ve Çark için).
 // Kazanım isteğe bağlıdır; seçilirse ders, sınıf ve konu kazanımdan doldurulur. Kayıt sunucuda yeniden denetlenir.
+// Aşama 393: çoktan seçmeli soruya görsel (PDF'den kesilen ya da JPG/PNG). Görsel kayıtta yüklenir; yapay zekâ
+// görseldeki soru metnini ve şıkları okuyabilir (doğru cevabı öğretmen seçer). Şıklar resimdeyse A-D harfi kalır.
 // ============================================================================
-import React, { useMemo, useState } from 'react';
-import { AlertCircle, Gamepad2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Gamepad2, ImagePlus, ScanText, Trash2, X } from 'lucide-react';
 import { Modal, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { FieldLabel, SelectBox } from './../FormParts';
@@ -15,24 +17,30 @@ import {
   SIK_HARF,
   ZORLUKLAR,
   kaydetOyunSoru,
+  okuOyunGorsel,
   soruHatasi,
+  yukleOyunGorsel,
   type OyunSoru,
   type OyunSoruGirdi,
   type OyunSoruTur,
   type OyunZorluk,
 } from '../../../services/oyunService';
 import { OYUN_DERSLERI, OYUN_SINIFLARI, varsayilanDers } from './ortak';
+import { aiCall, aiOyunGorselOku, aiStatus, newAiState } from '../../../lib/aiApi';
+import { dosyadanGorsel, gorselAiResmi } from '../../../lib/oyunGorsel';
 
 interface Props {
   /** düzenlenecek soru; boşsa yeni soru */
   soru: OyunSoru | null;
   /** yeni soruda ders / sınıf başlangıcı (listedeki süzgeçten) */
   baslangic?: { ders?: string; sinif?: number | null };
+  /** Aşama 393: PDF'den kesilen görsel (yeni soru); açılınca yazısı yapay zekâyla okunur */
+  gorselBaslangic?: string;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export const SoruFormu: React.FC<Props> = ({ soru, baslangic, onClose, onSaved }) => {
+export const SoruFormu: React.FC<Props> = ({ soru, baslangic, gorselBaslangic, onClose, onSaved }) => {
   const [tur, setTur] = useState<OyunSoruTur>(soru?.tur || 'coktan');
   const [ders, setDers] = useState(soru?.ders || baslangic?.ders || varsayilanDers());
   const [sinif, setSinif] = useState<number | null>(soru ? soru.sinif : (baslangic?.sinif ?? null));
@@ -47,6 +55,88 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, onClose, onSaved }
   const [hata, setHata] = useState<string | null>(null);
   const [kaydediyor, setKaydediyor] = useState(false);
   const { bank, hata: bankHata } = useKazanimBankasi();
+  // Aşama 393: görsel — kayıtlı (gorselId) ya da henüz yüklenmemiş yeni resim (yeniGorsel)
+  const [gorselId, setGorselId] = useState<string | null>(soru?.gorselId || null);
+  const [yeniGorsel, setYeniGorsel] = useState<string | null>(gorselBaslangic || null);
+  const [kayitliGorsel, setKayitliGorsel] = useState<string | null>(null);
+  const [okuma, setOkuma] = useState<'yok' | 'okuyor' | 'bitti' | 'olmadi'>('yok');
+  const okumaIptal = useRef(false);
+  const resimRef = useRef<HTMLInputElement>(null);
+  const gorsel = yeniGorsel || (gorselId ? kayitliGorsel : null);
+  const gorselVar = tur === 'coktan' && (!!yeniGorsel || !!gorselId);
+
+  useEffect(() => {
+    if (!gorselId) return;
+    let canli = true;
+    void okuOyunGorsel(gorselId).then((v) => canli && setKayitliGorsel(v));
+    return () => {
+      canli = false;
+    };
+  }, [gorselId]);
+  useEffect(
+    () => () => {
+      okumaIptal.current = true;
+    },
+    []
+  );
+
+  /** Görseldeki yazıyı yapay zekâyla okur; yalnız boş alanları doldurur, şık okunamazsa harfi yazar */
+  const yaziOku = async (veri: string) => {
+    setOkuma('okuyor');
+    okumaIptal.current = false;
+    const harfleriKoy = () => setSiklar((s) => s.map((x, i) => x.trim() || SIK_HARF[i]));
+    try {
+      const st = await aiStatus();
+      if (okumaIptal.current) return;
+      if (!st.ok || (!st.gemini && !st.mistral)) {
+        harfleriKoy();
+        return setOkuma('olmadi');
+      }
+      const r = await aiCall(newAiState(!st.gemini && st.mistral ? 'mistral' : 'gemini', true, { gemini: !!st.gemini, mistral: !!st.mistral }), (p) => aiOyunGorselOku({ provider: p, image: gorselAiResmi(veri) }), {
+        stop: () => okumaIptal.current,
+      });
+      if (okumaIptal.current) return;
+      if (!r.ok || !r.item) {
+        harfleriKoy();
+        return setOkuma('olmadi');
+      }
+      const it = r.item;
+      setMetin((m) => m.trim() || it.metin);
+      const okunan = it.siklar.map((x) => x.trim());
+      const ayri = okunan.every(Boolean) && new Set(okunan.map((x) => x.toLocaleLowerCase('tr-TR'))).size === 4;
+      setSiklar((s) => s.map((x, i) => x.trim() || (ayri ? okunan[i] : SIK_HARF[i])));
+      setOkuma('bitti');
+    } catch {
+      if (!okumaIptal.current) {
+        harfleriKoy();
+        setOkuma('olmadi');
+      }
+    }
+  };
+
+  // PDF'den kesilen görselle açılınca yazı hemen okunur
+  useEffect(() => {
+    if (gorselBaslangic) void yaziOku(gorselBaslangic);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resimSec = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const v = await dosyadanGorsel(file);
+      setYeniGorsel(v);
+      setHata(null);
+      void yaziOku(v);
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : 'Resim açılamadı.');
+    }
+  };
+  const gorselKaldir = () => {
+    okumaIptal.current = true;
+    setOkuma('yok');
+    setYeniGorsel(null);
+    setGorselId(null);
+  };
 
   const dersVar = !!bankSubjectKey(ders);
   const adaylar = useMemo(() => (bank && dersVar ? dersKazanimlari(bank, ders, sinif) : []), [bank, ders, dersVar, sinif]);
@@ -84,6 +174,7 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, onClose, onSaved }
     dogru,
     cevap: cevap.trim(),
     aciklama: aciklama.trim(),
+    gorselId: tur === 'coktan' ? gorselId : null,
   });
 
   const kaydet = async () => {
@@ -93,6 +184,13 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, onClose, onSaved }
     setHata(null);
     setKaydediyor(true);
     try {
+      // yeni görsel önce yüklenir; soru kaydı görselin id'siyle yapılır
+      if (tur === 'coktan' && yeniGorsel) {
+        g.gorselId = await yukleOyunGorsel(yeniGorsel);
+        setGorselId(g.gorselId);
+        setKayitliGorsel(yeniGorsel);
+        setYeniGorsel(null);
+      }
       await kaydetOyunSoru(g);
       basariBildir(soru ? 'Soru güncellendi' : 'Soru eklendi');
       onSaved();
@@ -200,8 +298,47 @@ export const SoruFormu: React.FC<Props> = ({ soru, baslangic, onClose, onSaved }
           <input id="oy-konu" value={konu} maxLength={300} onChange={(e) => setKonu(e.target.value)} className="ui-field w-full" placeholder="Örn. Mevsimlerin oluşumu" />
         </div>
 
+        {tur === 'coktan' && (
+          <div>
+            <FieldLabel optional>Soru görseli</FieldLabel>
+            {gorselVar ? (
+              <div className="space-y-2">
+                <figure className="overflow-hidden rounded-xl border border-line bg-white">
+                  {gorsel ? (
+                    <img src={gorsel} alt="Soru görseli" className="mx-auto block max-h-64 w-auto max-w-full object-contain" />
+                  ) : (
+                    <div className="h-32 animate-pulse bg-surface-2" aria-label="Görsel yükleniyor" />
+                  )}
+                </figure>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" size="sm" leftIcon={<ScanText className="w-3.5 h-3.5" />} disabled={!gorsel || okuma === 'okuyor'} isLoading={okuma === 'okuyor'} loadingText="Yazı okunuyor…" onClick={() => gorsel && void yaziOku(gorsel)}>
+                    Yazıyı yapay zekâyla oku
+                  </Button>
+                  <Button variant="danger-soft" size="sm" leftIcon={<Trash2 className="w-3.5 h-3.5" />} onClick={gorselKaldir}>
+                    Görseli kaldır
+                  </Button>
+                </div>
+                <p className="text-2xs text-subtle" role="status">
+                  {okuma === 'bitti'
+                    ? 'Yazı okundu; boş alanlar dolduruldu. Kontrol edin ve doğru şıkkı seçin.'
+                    : okuma === 'olmadi'
+                      ? 'Yazı okunamadı. Soru metnini kısaca yazın; şıklar resimdeyse harfler kalabilir.'
+                      : 'Oyunda soru bu görselle gösterilir. Şıklar resimdeyse şık kutularında A, B, C, D kalabilir.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <Button variant="secondary" size="sm" leftIcon={<ImagePlus className="w-3.5 h-3.5" />} onClick={() => resimRef.current?.click()}>
+                  Resim ekle
+                </Button>
+                <input ref={resimRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => void resimSec(e.target.files?.[0]).finally(() => (e.target.value = ''))} />
+              </>
+            )}
+          </div>
+        )}
+
         <div>
-          <FieldLabel htmlFor="oy-metin">{tur === 'kelime' ? 'İpucu' : 'Soru'}</FieldLabel>
+          <FieldLabel htmlFor="oy-metin">{tur === 'kelime' ? 'İpucu' : gorselVar ? 'Soru metni (listede ve ekran okuyucuda)' : 'Soru'}</FieldLabel>
           <textarea
             id="oy-metin"
             value={metin}

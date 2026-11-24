@@ -83,6 +83,7 @@ export const SoruSecici: React.FC<{
                         {s.ders}
                         {s.sinif ? ` · ${s.sinif}. sınıf` : ''}
                         {s.kazanimKodu ? ` · ${s.kazanimKodu}` : ''}
+                        {s.gorselId ? ' · Görselli' : ''}
                       </span>
                       <span className="block break-words text-fg">{s.metin}</span>
                       {s.tur === 'kelime' && <span className="block text-xs text-muted">Cevap: {s.cevap}</span>}

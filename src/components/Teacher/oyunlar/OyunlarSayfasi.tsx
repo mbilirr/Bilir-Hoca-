@@ -6,9 +6,10 @@
 // Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
 // Aşama 389: üçüncü sekme Turnuvalar (birkaç oyunun toplam puanıyla sıralama).
+// Aşama 393: "PDF'den soru" (sayfada soruyu kesip görselli soru ekleme); görselli sorularda "Görselli" etiketi.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Gamepad2, Plus, Presentation, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
+import { Edit3, Gamepad2, Image as ImageIcon, Plus, Presentation, Scissors, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
 import { lazyNamed, useEverTrue } from '../../../lib/lazyLoad';
 import { EmptyState, PageHeader, Panel, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
@@ -25,6 +26,7 @@ const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./Oyunlari
 const TurnuvalarPaneli = lazyNamed<React.ComponentProps<typeof import('./TurnuvalarPaneli').TurnuvalarPaneli>>(() => import('./TurnuvalarPaneli'), 'TurnuvalarPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
+const PdfSoruKesici = lazyNamed<React.ComponentProps<typeof import('./PdfSoruKesici').PdfSoruKesici>>(() => import('./PdfSoruKesici'), 'PdfSoruKesici');
 const AiOneriPenceresi = lazyNamed<React.ComponentProps<typeof import('./AiOneriPenceresi').AiOneriPenceresi>>(() => import('./AiOneriPenceresi'), 'AiOneriPenceresi');
 
 const SAYFA = 30;
@@ -47,6 +49,8 @@ export const OyunlarSayfasi: React.FC = () => {
   const tahtaVar = useEverTrue(tahta);
   const [form, setForm] = useState<OyunSoru | 'yeni' | null>(null);
   const [aiAcik, setAiAcik] = useState(false);
+  const [pdfAcik, setPdfAcik] = useState(false);
+  const pdfVar = useEverTrue(pdfAcik);
   const formVar = useEverTrue(form !== null);
   const aiVar = useEverTrue(aiAcik);
 
@@ -119,6 +123,9 @@ export const OyunlarSayfasi: React.FC = () => {
               <Button variant="secondary" leftIcon={<Sparkles className="w-3.5 h-3.5" />} onClick={() => setAiAcik(true)}>
                 Yapay zekâ ile öner
               </Button>
+              <Button variant="secondary" leftIcon={<Scissors className="w-3.5 h-3.5" />} onClick={() => setPdfAcik(true)}>
+                PDF'den soru
+              </Button>
               <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
                 Yeni soru
               </Button>
@@ -180,7 +187,7 @@ export const OyunlarSayfasi: React.FC = () => {
             <EmptyState
               icon={Gamepad2}
               title="Soru bankası boş"
-              description="İlk soruyu elle yazın ya da bir kazanım seçip yapay zekâdan öneri isteyin."
+              description="İlk soruyu elle yazın, PDF'ten kesin ya da bir kazanım seçip yapay zekâdan öneri isteyin."
               action={
                 <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setForm('yeni')}>
                   Yeni soru
@@ -242,6 +249,12 @@ export const OyunlarSayfasi: React.FC = () => {
                                 <span title={s.konu || undefined}>{s.kazanimKodu}</span>
                               </>
                             )}
+                            {s.gorselId && (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-info-soft px-1.5 py-0.5 text-info-fg">
+                                <ImageIcon className="w-3 h-3" aria-hidden />
+                                Görselli
+                              </span>
+                            )}
                             {s.kaynak === 'yapay_zeka' && (
                               <span className="inline-flex items-center gap-1 rounded-lg bg-brand-soft px-1.5 py-0.5 text-brand-fg">
                                 <Sparkles className="w-3 h-3" aria-hidden />
@@ -299,6 +312,7 @@ export const OyunlarSayfasi: React.FC = () => {
       <Suspense fallback={null}>
         {formVar && form !== null && <SoruFormu key={form === 'yeni' ? 'yeni' : form.id} soru={form === 'yeni' ? null : form} baslangic={baslangic} onClose={() => setForm(null)} onSaved={kaydedildi} />}
         {tahtaVar && tahta && <TahtaKurulum onClose={() => setTahta(false)} />}
+        {pdfVar && pdfAcik && <PdfSoruKesici baslangic={baslangic} onClose={() => setPdfAcik(false)} onEklendi={() => void yukle()} />}
         {aiVar && aiAcik && <AiOneriPenceresi baslangic={baslangic} onClose={() => setAiAcik(false)} onSaved={kaydedildi} />}
       </Suspense>
     </div>

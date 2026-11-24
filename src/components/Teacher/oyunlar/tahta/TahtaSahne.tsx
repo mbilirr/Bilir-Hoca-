@@ -7,7 +7,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Clock, Maximize2, Minimize2, Presentation, RotateCcw, Settings2, Trophy, X } from 'lucide-react';
 import { Modal, cx } from '../../../ui/kit';
 import { Button } from '../../../ui/Button';
-import type { OyunSoru } from '../../../../services/oyunService';
+import { okuOyunGorsel, type OyunSoru } from '../../../../services/oyunService';
+import { yalnizHarf } from '../../../Public/oyun/istek';
 import { siralama, tahtaCevap, tahtaKapat, tahtaKur, tahtaSonraki, type TahtaDurum, type TahtaMod } from './kurallar';
 
 const HARF = ['A', 'B', 'C', 'D'];
@@ -20,13 +21,28 @@ const TON = [
   { chip: 'bg-surface-2 text-fg-2', kenar: 'border-line-strong' },
 ];
 
-const Sik: React.FC<{ harf: string; metin: string; durum: 'bos' | 'dogru' | 'yanlis' | 'soluk'; disabled: boolean; onClick: () => void; buyuk?: boolean }> = ({ harf, metin, durum, disabled, onClick, buyuk }) => (
+/** Aşama 393: soru resmi (bir kez indirilir; gelene kadar soru metni görünür) */
+const useGorsel = (id?: string) => {
+  const [veri, setVeri] = useState<{ id: string; v: string | null } | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let iptal = false;
+    void okuOyunGorsel(id).then((v) => !iptal && setVeri({ id, v }));
+    return () => {
+      iptal = true;
+    };
+  }, [id]);
+  return id && veri && veri.id === id ? veri.v : null;
+};
+
+const Sik: React.FC<{ harf: string; metin: string; durum: 'bos' | 'dogru' | 'yanlis' | 'soluk'; disabled: boolean; onClick: () => void; buyuk?: boolean; yalnizHarf?: boolean }> = ({ harf, metin, durum, disabled, onClick, buyuk, yalnizHarf: harfli }) => (
   <button
     type="button"
     disabled={disabled}
     onClick={onClick}
     className={cx(
       'flex w-full items-center gap-3 rounded-2xl border-2 px-4 text-left font-semibold transition-colors disabled:cursor-default',
+      harfli && 'justify-center',
       buyuk ? 'py-5 text-xl sm:text-2xl' : 'py-3.5 text-lg sm:text-xl',
       durum === 'dogru' ? 'border-success bg-success-soft text-success-fg' : durum === 'yanlis' ? 'border-danger bg-danger-soft text-danger-fg' : durum === 'soluk' ? 'border-line bg-surface text-subtle' : 'border-line bg-surface text-fg hover:bg-surface-2'
     )}
@@ -34,7 +50,7 @@ const Sik: React.FC<{ harf: string; metin: string; durum: 'bos' | 'dogru' | 'yan
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-base font-bold text-fg-2">
       {durum === 'dogru' ? <Check className="w-5 h-5 text-success-fg" aria-hidden /> : durum === 'yanlis' ? <X className="w-5 h-5 text-danger-fg" aria-hidden /> : harf}
     </span>
-    <span className="min-w-0 flex-1 break-words">{metin}</span>
+    {!harfli && <span className="min-w-0 flex-1 break-words">{metin}</span>}
   </button>
 );
 
@@ -46,7 +62,7 @@ export const TahtaSahne: React.FC<{
   onClose: () => void;
   onKur: () => void;
 }> = ({ mod, takimAdlari, sorular, sureSn, onClose, onKur }) => {
-  const kur = useCallback(() => tahtaKur(mod, takimAdlari, sorular.map((s) => ({ id: s.id, metin: s.metin, siklar: s.siklar, dogru: s.dogru, aciklama: s.aciklama }))), [mod, takimAdlari, sorular]);
+  const kur = useCallback(() => tahtaKur(mod, takimAdlari, sorular.map((s) => ({ id: s.id, metin: s.metin, siklar: s.siklar, dogru: s.dogru, aciklama: s.aciklama, gorselId: s.gorselId }))), [mod, takimAdlari, sorular]);
   const [d, setD] = useState<TahtaDurum>(kur);
   const sureMs = sureSn * 1000;
   const [kalan, setKalan] = useState(sureMs);
@@ -81,6 +97,8 @@ export const TahtaSahne: React.FC<{
 
   const cevapla = (takim: number, secim: number) => setD((x) => tahtaCevap(x, takim, secim, performance.now() - basla.current, sureMs));
   const soru = d.sorular[d.i];
+  const gorsel = useGorsel(soru?.gorselId);
+  const harfli = !!soru?.gorselId && yalnizHarf(soru.siklar);
   const oran = Math.max(0, Math.min(1, kalan / sureMs));
   const kazanan = d.cevaplar.find((c) => c.dogru);
 
@@ -151,7 +169,13 @@ export const TahtaSahne: React.FC<{
           <span className="w-10 text-right text-lg font-bold tabular-nums text-fg">{d.asama === 'soru' ? Math.ceil(kalan / 1000) : ''}</span>
         </div>
 
-        <p className="text-center text-2xl font-bold leading-snug text-fg sm:text-3xl">{soru.metin}</p>
+        {gorsel ? (
+          <figure className="overflow-hidden rounded-2xl border border-line bg-white">
+            <img src={gorsel} alt={soru.metin} className="mx-auto block max-h-[52vh] w-auto max-w-full object-contain" />
+          </figure>
+        ) : (
+          <p className="text-center text-2xl font-bold leading-snug text-fg sm:text-3xl">{soru.metin}</p>
+        )}
 
         {d.mod === 'duello' ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -163,9 +187,11 @@ export const TahtaSahne: React.FC<{
                     <span className={cx('rounded-lg px-2.5 py-1 text-base font-bold', TON[k % TON.length].chip)}>{t.ad}</span>
                     <span className="text-2xl font-bold tabular-nums text-fg">{t.puan}</span>
                   </div>
-                  {soru.siklar.map((s, i) => (
-                    <Sik key={i} harf={HARF[i]} metin={s} durum={sikDurumu(k, i)} disabled={d.asama !== 'soru' || kilit} onClick={() => cevapla(k, i)} />
-                  ))}
+                  <div className={cx(harfli ? 'grid grid-cols-4 gap-2' : 'space-y-3')}>
+                    {soru.siklar.map((s, i) => (
+                      <Sik key={i} yalnizHarf={harfli} harf={HARF[i]} metin={s} durum={sikDurumu(k, i)} disabled={d.asama !== 'soru' || kilit} onClick={() => cevapla(k, i)} />
+                    ))}
+                  </div>
                   {kilit && d.asama === 'soru' && <p className="text-center text-sm font-semibold text-danger-fg">Yanlış! Bu soruda bekle.</p>}
                 </section>
               );
@@ -179,9 +205,9 @@ export const TahtaSahne: React.FC<{
                 Sıra: <span className={cx('rounded-lg px-2 py-0.5', TON[d.sira % TON.length].chip)}>{d.takimlar[d.sira].ad}</span>
               </p>
             )}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className={cx('grid gap-3', harfli ? 'grid-cols-4' : 'grid-cols-1 md:grid-cols-2')}>
               {soru.siklar.map((s, i) => (
-                <Sik key={i} buyuk harf={HARF[i]} metin={s} durum={sikDurumu(null, i)} disabled={d.asama !== 'soru'} onClick={() => cevapla(d.sira, i)} />
+                <Sik key={i} buyuk yalnizHarf={harfli} harf={HARF[i]} metin={s} durum={sikDurumu(null, i)} disabled={d.asama !== 'soru'} onClick={() => cevapla(d.sira, i)} />
               ))}
             </div>
           </>

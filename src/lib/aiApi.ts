@@ -59,6 +59,7 @@ export interface AiResult {
   provider?: AiProvider;
   model?: string;
   items?: any[];
+  item?: { metin: string; siklar: string[] };
   pages?: AiPageInfo[];
   exhausted?: string[]; // bugünkü hakkı biten Gemini modelleri
   retryAfter?: number; // dakikalık sınırda Google'ın söylediği bekleme (sn)
@@ -200,6 +201,11 @@ export function aiOyunSoru(input: {
   kaynak?: string;
 }): Promise<AiResult> {
   return post({ action: 'oyunSoru', ...input });
+}
+
+/** Aşama 393: kesilen soru görselinden soru metni ve şıkları okur (doğru cevabı bulmaz) */
+export function aiOyunGorselOku(input: { provider: AiProvider; image: AiImage }): Promise<AiResult> {
+  return post({ action: 'oyunGorselOku', ...input });
 }
 
 /** Aşama 388: ders notu sınırları (karakter); sunucuda da aynı (api/ai.js) */

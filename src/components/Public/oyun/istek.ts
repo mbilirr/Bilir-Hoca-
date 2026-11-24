@@ -15,10 +15,15 @@ export interface SinifOgrenci {
   ad: string;
   durum: 'suruyor' | 'bitti' | null;
 }
+/** Aşama 393: şıklar resimdeyse (yalnız A-D harfi yazılı) düğmeler tek satırda, büyük harfle */
+export const yalnizHarf = (siklar: string[]) => siklar.length === 4 && siklar.every((x, i) => x.trim().toLocaleUpperCase('tr-TR') === 'ABCD'[i]);
+
 export interface QuizSoru {
   no: number;
   toplam: number;
   metin: string;
+  /** Aşama 393: PDF'den kesilen soru resmi (data URL); varsa soru resimden okunur */
+  gorsel?: string | null;
   siklar: string[];
   sureSn: number;
   kalanMs: number;

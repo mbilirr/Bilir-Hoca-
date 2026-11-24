@@ -90,7 +90,8 @@ const QUIZ_TOLERANS_MS = 2500; // ağ gecikmesi payı
 export function quizBaslat(sorular, rnd = Math.random) {
   const sira = karistir(sorular.map((s) => s.id), rnd);
   const sik = {};
-  for (const s of sorular) sik[s.id] = karistir([0, 1, 2, 3], rnd);
+  // Aşama 393: görselli soruda şıklar resimdeki sırayla kalır (A-D resimde yazılı olabilir)
+  for (const s of sorular) sik[s.id] = s.gorsel_id ? [0, 1, 2, 3] : karistir([0, 1, 2, 3], rnd);
   return { mod: 'quiz', sira, sik, i: 0, servis: null };
 }
 export function quizBitti(d) {
@@ -108,6 +109,7 @@ export function quizSoru(d, sorular, sureSn, now) {
       no: d.i + 1,
       toplam: d.sira.length,
       metin: s.metin,
+      gorselId: s.gorsel_id || null,
       siklar: d.sik[s.id].map((k) => s.siklar[k]),
       sureSn,
       kalanMs: Math.max(0, sureSn * 1000 - gecen),
@@ -562,6 +564,13 @@ export function oyunApi(deps) {
     return { tur: 'cark', tahta: carkGorunum(d, o.sorular), puan: dn.puan };
   }
 
+  /** Aşama 393: soru görseli (data:image/jpeg) — oyunun kurumuyla eşleşmezse verilmez */
+  async function gorselOku(kurumId, id) {
+    if (!/^[0-9a-f-]{36}$/i.test(String(id))) return null;
+    const r = await rest(`oyun_gorselleri?select=veri&id=eq.${id}&kurum_id=eq.${encodeURIComponent(String(kurumId))}`, sv);
+    return (r && r[0] && r[0].veri) || null;
+  }
+
   const hiz = hizSayaci();
   /** Aşama 386: oyun isteği hız sınırı (adres + bağlantı/öğrenci); aşılırsa 429 */
   function hizDenetle(body, ip) {
@@ -603,6 +612,12 @@ export function oyunApi(deps) {
       const g = gorunum(o, dn, now);
       if (g.yeniDurum && g.yeniDurum !== d) dn = await denemeYaz(dn, g.yeniDurum, dn.puan, dn.dogru, false);
       const { yeniDurum, ...gorunur } = g;
+      // Aşama 393: görselli soruda resim yalnız soru ekrana gelirken, sunucudan eklenir
+      if (gorunur.soru) {
+        const { gorselId, ...soru } = gorunur.soru;
+        gorunur.soru = soru;
+        if (gorselId) soru.gorsel = await gorselOku(o.kurum_id, gorselId);
+      }
       return { ok: true, oyun: ozet(o), ogrenci: { id: String(ogrenci.id), ad: kisaAd(ogrenci.name) }, ...gorunur };
     }
     if (dn.durum === 'bitti') throw new HttpError(409, 'Bu oyun zaten tamamlandı.');
@@ -834,7 +849,7 @@ export function oyunApi(deps) {
       const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
       if (ids.length < lim.en_az || ids.length > lim.en_cok) throw new HttpError(400, `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
       // Sorular ve sınıf çağıranın KENDİ oturumuyla okunur: göremediği sınıf / soru işe yaramaz
-      const sorular = (await rest(`oyun_sorulari?select=id,tur,metin,siklar,dogru,cevap,aciklama,kazanim_kodu,ders,konu,zorluk&id=in.${inList(ids)}`, { token: caller.token })) || [];
+      const sorular = (await rest(`oyun_sorulari?select=id,tur,metin,siklar,dogru,cevap,aciklama,kazanim_kodu,ders,konu,zorluk,gorsel_id&id=in.${inList(ids)}`, { token: caller.token })) || [];
       if (sorular.length !== ids.length) throw new HttpError(404, 'Seçilen sorulardan bazıları bulunamadı (silinmiş olabilir).');
       const uygun = mod === 'quiz' ? 'coktan' : 'kelime';
       if (sorular.some((s) => s.tur !== uygun)) throw new HttpError(400, mod === 'quiz' ? 'Soru yarışında yalnız çoktan seçmeli sorular kullanılır.' : 'Kelime çarkı ve bulmacada yalnız kelime soruları kullanılır.');
@@ -854,6 +869,7 @@ export function oyunApi(deps) {
           cevap: s.tur === 'kelime' ? s.cevap : '',
           aciklama: s.aciklama || '',
           kazanim_kodu: s.kazanim_kodu || null,
+          ...(s.tur === 'coktan' && s.gorsel_id ? { gorsel_id: s.gorsel_id } : {}),
         };
       });
       const bitis = new Date(Date.now() + gun * 86400000).toISOString();

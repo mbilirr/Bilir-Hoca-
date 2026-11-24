@@ -18,6 +18,8 @@ export interface TahtaSoru {
   siklar: string[];
   dogru: number;
   aciklama: string;
+  /** Aşama 393: soru resmi (soru bankasındaki görsel) */
+  gorselId?: string;
 }
 export interface Takim {
   ad: string;
@@ -55,14 +57,22 @@ export function karistir<T>(liste: T[], rnd: () => number = Math.random): T[] {
 export function tahtaKur(
   mod: TahtaMod,
   takimAdlari: string[],
-  sorular: Array<{ id: string; metin: string; siklar: string[]; dogru: number | null; aciklama?: string }>,
+  sorular: Array<{ id: string; metin: string; siklar: string[]; dogru: number | null; aciklama?: string; gorselId?: string | null }>,
   rnd: () => number = Math.random
 ): TahtaDurum {
   const hazir = karistir(sorular, rnd)
     .filter((s) => s.siklar.length === 4 && s.dogru !== null)
     .map((s) => {
-      const sira = karistir([0, 1, 2, 3], rnd);
-      return { id: s.id, metin: s.metin, siklar: sira.map((k) => s.siklar[k]), dogru: sira.indexOf(s.dogru as number), aciklama: s.aciklama || '' };
+      // Aşama 393: görselli soruda şıklar resimdeki sırayla kalır
+      const sira = s.gorselId ? [0, 1, 2, 3] : karistir([0, 1, 2, 3], rnd);
+      return {
+        id: s.id,
+        metin: s.metin,
+        siklar: sira.map((k) => s.siklar[k]),
+        dogru: sira.indexOf(s.dogru as number),
+        aciklama: s.aciklama || '',
+        ...(s.gorselId ? { gorselId: s.gorselId } : {}),
+      };
     });
   return {
     mod,

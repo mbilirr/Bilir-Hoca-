@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Clock, X } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { cx } from '../../ui/kit';
-import { OyunHatasi, oyunCagri, type OyunEkrani, type OyunOzet, type QuizSoru } from './istek';
+import { OyunHatasi, oyunCagri, type OyunEkrani, type OyunOzet, type QuizSoru, yalnizHarf } from './istek';
 
 // Aşama 381: SORU YARIŞI — tek soru, 4 şık, geri sayım. Doğru cevap yalnız cevap verildikten sonra gelir;
 // süre ve puan sunucuda hesaplanır (tarayıcıdaki sayaç yalnız görüntüdür).
@@ -102,6 +102,7 @@ export const QuizOyunu: React.FC<{
     }
   };
 
+  const harfli = !!soru.gorsel && yalnizHarf(soru.siklar);
   const oran = Math.max(0, Math.min(1, kalan / (soru.sureSn * 1000)));
   const az = oran < 0.25;
 
@@ -126,9 +127,15 @@ export const QuizOyunu: React.FC<{
           </div>
           <span className={cx('w-8 text-right text-xs font-semibold tabular-nums', az && !sonuc ? 'text-danger-fg' : 'text-muted')}>{sonuc ? '' : Math.ceil(kalan / 1000)}</span>
         </div>
-        <p className="text-base font-semibold leading-snug text-fg">{soru.metin}</p>
+        {soru.gorsel ? (
+          <figure className="overflow-hidden rounded-xl border border-line bg-white">
+            <img src={soru.gorsel} alt={soru.metin} className="mx-auto block max-h-[60vh] w-auto max-w-full object-contain" />
+          </figure>
+        ) : (
+          <p className="text-base font-semibold leading-snug text-fg">{soru.metin}</p>
+        )}
 
-        <ul className="grid grid-cols-1 gap-2.5">
+        <ul className={cx('grid gap-2.5', harfli ? 'grid-cols-4' : 'grid-cols-1')}>
           {soru.siklar.map((s, i) => {
             const dogru = !!sonuc && i === sonuc.dogruSik;
             const yanlis = !!sonuc && secim === i && !sonuc.dogru;
@@ -140,14 +147,15 @@ export const QuizOyunu: React.FC<{
                   onClick={() => void cevapla(i)}
                   className={cx(
                     'flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left text-sm transition-colors disabled:cursor-default',
+                    harfli && 'justify-center',
                     dogru ? 'border-success bg-success-soft text-success-fg font-semibold' : yanlis ? 'border-danger bg-danger-soft text-danger-fg font-semibold' : 'border-line bg-surface text-fg hover:bg-surface-2',
                     !sonuc && secim === i && 'border-brand'
                   )}
                 >
-                  <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold', dogru || yanlis ? 'bg-surface text-current' : 'bg-surface-2 text-fg-2')}>
+                  <span className={cx('flex shrink-0 items-center justify-center rounded-lg font-bold', harfli ? 'h-8 w-8 text-sm' : 'h-6 w-6 text-2xs', dogru || yanlis ? 'bg-surface text-current' : 'bg-surface-2 text-fg-2')}>
                     {dogru ? <Check className="w-3.5 h-3.5" aria-hidden /> : yanlis ? <X className="w-3.5 h-3.5" aria-hidden /> : HARF[i]}
                   </span>
-                  <span className="min-w-0 flex-1 break-words">{s}</span>
+                  {!harfli && <span className="min-w-0 flex-1 break-words">{s}</span>}
                 </button>
               </li>
             );

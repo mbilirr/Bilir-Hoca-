@@ -26,6 +26,8 @@ export interface OyunSoru {
   cevap: string;
   aciklama: string;
   kaynak: 'elle' | 'yapay_zeka';
+  /** Aşama 393: PDF'den kesilen soru resmi (oyun_gorselleri); yoksa null */
+  gorselId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +46,7 @@ export interface OyunSoruGirdi {
   dogru: number | null;
   cevap: string;
   aciklama: string;
+  gorselId?: string | null;
 }
 
 export const ZORLUKLAR: Array<{ value: OyunZorluk; label: string }> = [
@@ -84,6 +87,7 @@ const soruCevir = (r: any): OyunSoru => ({
   cevap: String(r.cevap || ''),
   aciklama: String(r.aciklama || ''),
   kaynak: r.kaynak === 'yapay_zeka' ? 'yapay_zeka' : 'elle',
+  gorselId: r.gorsel_id ? String(r.gorsel_id) : null,
   createdAt: String(r.created_at || ''),
   updatedAt: String(r.updated_at || ''),
 });
@@ -101,6 +105,7 @@ const satirYap = (g: OyunSoruGirdi) => ({
   dogru: g.tur === 'coktan' ? g.dogru : null,
   cevap: g.tur === 'kelime' ? g.cevap : '',
   aciklama: g.aciklama,
+  gorsel_id: g.tur === 'coktan' && g.gorselId ? g.gorselId : null,
 });
 
 /** Kurumun bütün soruları (RLS kendi kurumunu ve bölümün açık olmasını denetler); en yeni üstte */
@@ -109,7 +114,7 @@ export async function listOyunSorulari(): Promise<OyunSoru[]> {
   for (let from = 0; from < 20000; from += 1000) {
     const { data, error } = await supabase
       .from('oyun_sorulari')
-      .select('id,olusturan,olusturan_ad,tur,sinif,ders,konu,kazanim_kodu,zorluk,metin,siklar,dogru,cevap,aciklama,kaynak,created_at,updated_at')
+      .select('id,olusturan,olusturan_ad,tur,sinif,ders,konu,kazanim_kodu,zorluk,metin,siklar,dogru,cevap,aciklama,kaynak,gorsel_id,created_at,updated_at')
       .order('created_at', { ascending: false })
       .order('id')
       .range(from, from + 999);
@@ -140,6 +145,25 @@ export async function silOyunSorulari(ids: string[]): Promise<number> {
   const { data, error } = await supabase.rpc('oyun_soru_sil', { p_ids: ids });
   if (error) throw hata(error);
   return Number(data) || 0;
+}
+
+/** Aşama 393: kesilen soru resmini kaydeder (JPEG data URL, en çok ~500 KB); id döner */
+export async function yukleOyunGorsel(dataUrl: string): Promise<string> {
+  const { data, error } = await supabase.rpc('oyun_gorsel_kaydet', { p_veri: dataUrl });
+  if (error) throw hata(error);
+  return String(data);
+}
+
+const gorselOnbellek = new Map<string, Promise<string | null>>();
+/** Aşama 393: kayıtlı soru resmini okur (aynı resim bir kez indirilir) */
+export function okuOyunGorsel(id: string): Promise<string | null> {
+  let p = gorselOnbellek.get(id);
+  if (!p) {
+    p = Promise.resolve(supabase.from('oyun_gorselleri').select('veri').eq('id', id).maybeSingle()).then(({ data }) => (data?.veri as string | undefined) || null, () => null);
+    p.then((v) => v || gorselOnbellek.delete(id));
+    gorselOnbellek.set(id, p);
+  }
+  return p;
 }
 
 /** Sunucuyla aynı kural: büyük harfe çevrilir; yalnız harf, 2-15 karakter. Hata metni ya da null */
