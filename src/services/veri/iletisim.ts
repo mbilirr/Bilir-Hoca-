@@ -1108,9 +1108,4 @@ export abstract class IletisimKatmani extends OkulKayitKatmani {
       saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     });
   }
-
-  protected seedInitialNotifications(): void {
-    // Otomatik/rastgele dummy bildirim ve e-posta yüklemesi devre dışı bırakıldı
-    return;
-  }
 }

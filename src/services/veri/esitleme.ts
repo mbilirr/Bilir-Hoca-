@@ -714,7 +714,7 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
             row.name.toLowerCase().replace(/\s+/g, '_'),
           email: cleanRemoteEmail,
           mustChangePassword: false,
-          className: row.class_name || 'Genel',
+          className: row.class_name || 'Sınıfsız', // Aşama 379: sınıfı yoksa uydurma 'Genel' sınıfı değil
           classId: row.class_id || 'class-default',
           studentNumber: row.student_number || '',
           phone: row.phone || '',
@@ -723,7 +723,6 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
           gender: normGender(row.gender),
           createdAt: row.registered_at || new Date().toISOString(),
           status: 'active',
-          createdTeacherId: 'teacher-1',
           schoolLevel: detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
           kurumId: row.kurum_id || null,
         };
@@ -778,7 +777,6 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
         gradeLevel: row.level ? `${row.level}. Sınıf` : undefined,
         schoolLevel: row.level && row.level >= 9 ? 'Lise' : 'Ortaokul',
         academicYear: row.academic_year || currentAcademicYear(),
-        createdTeacherId: 'teacher-1',
         kurumId: row.kurum_id || null,
       };
       if ('description' in row) mapped.description = row.description || undefined;
@@ -2361,7 +2359,6 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
             academicYear: rc.academic_year || currentAcademicYear(),
             // Sütun henüz yoksa (SQL çalıştırılmadıysa) yereldeki açıklama korunur
             description: 'description' in rc ? rc.description || undefined : localCopy?.description,
-            createdTeacherId: 'teacher-1',
             kurumId: rc.kurum_id || null,
           });
         });

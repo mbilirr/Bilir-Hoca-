@@ -36,26 +36,6 @@ export interface EtutTeacherRow {
   active: boolean;
 }
 
-// INITIAL SEED DATA (Empty by default per user request, only designated admin initialized)
-export const INITIAL_CLASSES: ClassGroup[] = [];
-
-export const INITIAL_STUDENTS: Student[] = [];
-
-export const INITIAL_HOMEWORK: Homework[] = [];
-
-export const INITIAL_SUBMISSIONS: HomeworkSubmission[] = [];
-
-export const INITIAL_ETUTS: Etut[] = [];
-
-export const INITIAL_ATTENDANCE: AttendanceRecord[] = [];
-
-export const INITIAL_GRADES: GradeRecord[] = [];
-
-export const INITIAL_MESSAGES: StudentMessage[] = [];
-
-// Öğretmenler yalnızca buluttan (Supabase) gelir; uygulama içine gömülü hayali öğretmen kaydı yoktur.
-export const INITIAL_TEACHERS: Teacher[] = [];
-
 // Sistemin kendi ürettiği giriş adreslerini (std_<no>@okul.internal.net, tch_<ad>@okul.internal.net,
 // eski sürümlerde *@school.internal) ve biçimi bozuk adresleri tespit eder. Bunlar gerçek e-posta değildir.
 // Diğer tüm geçerli adresler (okul.k12.tr, gmail vb.) korunur: otomatik e-postalar students.email'e gider.

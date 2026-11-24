@@ -23,6 +23,7 @@ import tls from 'node:tls';
 import crypto from 'node:crypto';
 import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
 import * as dondurma from './_dondurma.js'; // Aşama 368
+import { HEAD_ADMIN_EMAIL } from './_sahip.js'; // Aşama 109/379: genel yönetici e-postası tek yerde
 // Aşama 75: yardımcı dosyalar (bildirim izinleri, SMS) GÜVENLİ yüklenir. Dosya eksik ya da hatalıysa
 // e-posta sistemi çökmez; izinler varsayılan (eski davranış) kalır, SMS gönderilmez. Hata Vercel günlüğüne yazılır.
 let policyModCache;
@@ -53,8 +54,6 @@ async function smsMod() {
 export const config = { maxDuration: 60 };
 
 const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
-// Aşama 109: genel yönetici e-postası bu dosyada tek yerde (veritabanındaki is_admin kuralıyla aynı olmalı)
-const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta gönderilir, kalanlar sonraki çağrıya kalır
 // Aşama 153: zamanlayıcı çağrısında (her 10 dk) daha uzun süre: işlev sınırı 60 sn, Gmail bekleme payı 12 sn
 const CRON_TIME_BUDGET_MS = 40000;

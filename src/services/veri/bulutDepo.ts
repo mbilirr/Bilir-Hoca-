@@ -97,8 +97,12 @@ export abstract class BulutDepoKatmani extends KurumYetkiKatmani {
           : ''
         : parsedMeta.teacherFeedback || '',
       createdAt: re.created_at || new Date().toISOString(),
-      teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
-      teacherName: parsedMeta.teacherName || 'Öğretmen',
+      // Aşama 379: öğretmen bilinmiyorsa uydurma 'teacher-1' / "Öğretmen" yazılmaz; ad kayıtlı öğretmenden bulunur
+      teacherId: re.etut_teacher_id || parsedMeta.teacherId || '',
+      teacherName:
+        parsedMeta.teacherName ||
+        this.teachers.find((t) => t.id === (re.etut_teacher_id || parsedMeta.teacherId))?.name ||
+        '',
       teacherIds: BulutDepoKatmani.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
       teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
       teacherBranch: parsedMeta.teacherBranch || '',

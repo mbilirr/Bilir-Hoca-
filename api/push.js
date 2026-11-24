@@ -29,6 +29,7 @@
 import crypto from 'node:crypto';
 import { ikiAdimEksik, IKI_ADIM_MESAJ } from './_ikiAdim.js'; // Aşama 294
 import * as dondurma from './_dondurma.js'; // Aşama 368
+import { HEAD_ADMIN_EMAIL } from './_sahip.js'; // Aşama 379: tek yerde
 // Aşama 75: izin dosyası güvenli yüklenir; eksikse bildirimler eskisi gibi gider
 let policyModCache;
 async function policyMod() {
@@ -44,7 +45,6 @@ async function policyMod() {
 }
 
 const DEFAULT_SUPABASE_URL = 'https://ikkmlahnsnzzuagmaxqg.supabase.co';
-const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 
 export function pushEnv() {
   return {

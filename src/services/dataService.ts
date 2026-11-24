@@ -36,9 +36,10 @@ const localStorage = appStorage;
 export { PERMANENT_KEYS, freezeAppStorage };
 import { SoruTakibiKatmani } from './veri/soruTakibi';
 // Aşama 360: ortak türler ve yardımcılar veri/ortak.ts'te; ekranlar eskisi gibi buradan alır
-export { INITIAL_CLASSES, INITIAL_STUDENTS, INITIAL_HOMEWORK, INITIAL_SUBMISSIONS, INITIAL_ETUTS, INITIAL_ATTENDANCE, INITIAL_GRADES, INITIAL_MESSAGES, INITIAL_TEACHERS, isAutoOrFakeEmail, cleanStudentEmail, ADMIN_EMAIL } from './veri/ortak';
+// Aşama 379: boş 'başlangıç örnek verisi' dizileri (INITIAL_*) kaldırıldı; veri yalnız buluttan gelir
+export { isAutoOrFakeEmail, cleanStudentEmail, ADMIN_EMAIL } from './veri/ortak';
 export type { EtutTeacherOption, EtutTeacherRow, InitialCredentialInfo, RealtimeTableCfg, VeriKonusu, VeriDinleyici } from './veri/ortak';
-import { INITIAL_TEACHERS, cleanStudentEmail } from './veri/ortak';
+import { cleanStudentEmail } from './veri/ortak';
 
 // Aşama 360: sınıf katmanlara bölündü (src/services/veri/): temel → kurumYetki → bulutDepo → esitleme → hesaplar → okulKayitlari → iletisim → odevEtut → soruTakibi → dataService
 class DataService extends SoruTakibiKatmani {
@@ -100,11 +101,8 @@ class DataService extends SoruTakibiKatmani {
     const resilientQuestionLogs = loadQuestionLogsWithResilience();
 
     // Load strictly what is saved in storage or fetch from central DB; NEVER seed dummy demo students or classes
-    this.teachers = resilientTeachers.length > 0 ? resilientTeachers : loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
-      if (!this.teachers || this.teachers.length === 0) {
-        this.teachers = INITIAL_TEACHERS.map((t) => ({ ...t, status: 'approved' as const }));
-        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      }
+    this.teachers = resilientTeachers.length > 0 ? resilientTeachers : loadDataWithLegacyFallback<Teacher[]>(STORAGE_KEYS.TEACHERS, []);
+      if (!Array.isArray(this.teachers)) this.teachers = [];
       this.classes = resilientClasses.length > 0 ? resilientClasses : loadDataWithLegacyFallback(STORAGE_KEYS.CLASSES, []);
       this.students = resilientStudents.length > 0 ? resilientStudents : loadDataWithLegacyFallback(STORAGE_KEYS.STUDENTS, []);
       this.homeworks = resilientHomework.length > 0 ? resilientHomework : loadDataWithLegacyFallback(STORAGE_KEYS.HOMEWORK, []);
@@ -126,17 +124,10 @@ class DataService extends SoruTakibiKatmani {
       this.questionLogs = resilientQuestionLogs.length > 0 ? resilientQuestionLogs : loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
       this.weeklyQuestionTargets = loadDataWithLegacyFallback(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, []);
 
-      // Sistem tarafından otomatik yüklenen demo/seed soru kayıtlarını ve soru sayısı 0 olan boş kayıtları temizle
+      // Soru sayısı 0 olan boş kayıtları temizle
+      // Aşama 379: eski sürümün demo soru kayıtlarını ayıklayan kod kaldırıldı (canlı veritabanında böyle kayıt yok, 23 Kas)
       const prevLogsCount = this.questionLogs.length;
-      this.questionLogs = this.questionLogs.filter((q) => {
-        const isAutoSeeded =
-          q.id.startsWith(`qlog-${q.studentId}-`) ||
-          q.id.startsWith('qlog-seed-') ||
-          q.notes === 'Hedef soru sayısı başarıyla aşıldı.' ||
-          q.notes === 'Günlük soru hedefi tamamlandı.';
-        const hasZeroQuestions = !q.totalQuestions || q.totalQuestions <= 0;
-        return !isAutoSeeded && !hasZeroQuestions;
-      });
+      this.questionLogs = this.questionLogs.filter((q) => !!q.totalQuestions && q.totalQuestions > 0);
       if (this.questionLogs.length !== prevLogsCount) {
         saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
       }
@@ -174,33 +165,7 @@ class DataService extends SoruTakibiKatmani {
 
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
 
-      // Migration: Ensure students have createdTeacherId if missing (default to teacher-1)
-      let studentsModified = false;
-      this.students = this.students.map((s) => {
-        if (!s.createdTeacherId) {
-          studentsModified = true;
-          return { ...s, createdTeacherId: 'teacher-1' };
-        }
-        return s;
-      });
-      if (studentsModified) {
-        saveData(STORAGE_KEYS.STUDENTS, this.students);
-      }
-
-      // Migration: Ensure classes have createdTeacherId if missing
-      let classesModified = false;
-      this.classes = this.classes.map((c) => {
-        if (!c.createdTeacherId) {
-          classesModified = true;
-          return { ...c, createdTeacherId: 'teacher-1' };
-        }
-        return c;
-      });
-      if (classesModified) {
-        saveData(STORAGE_KEYS.CLASSES, this.classes);
-      }
-
-      saveData(STORAGE_KEYS.IS_SEEDED, 'true');
+      // Aşama 379: eksik "oluşturan öğretmen" alanına uydurma 'teacher-1' yazan geçiş ve 'örnek veri yüklendi' işareti kaldırıldı
 
     // Migration: Önceden sistem tarafından rastgele atanmış sahte/otomatik mailleri temizle ve 54321 şifrelerini ilk girişte zorunlu güncellemeye al
     let studentsEmailCleaned = false;
@@ -229,10 +194,6 @@ class DataService extends SoruTakibiKatmani {
 
     // Clean up any old duplicate legacy version keys to keep storage lean and prevent quota limit errors
     cleanUpLegacyKeys();
-
-    if (this.studentNotifications.length === 0 && this.homeworks.length > 0) {
-      this.seedInitialNotifications();
-    }
 
     // Background sync with Supabase and Realtime setup
     this.setupAllRealtimeSync();

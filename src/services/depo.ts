@@ -10,7 +10,6 @@ import { sekmeyeYaz, sekmedenSil, sekmedenOku, sekmeYazmalariniBitir, sekmeDepos
 
 export const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
-  IS_SEEDED: 'edu_sys_seeded_v6',
   DELETED_TEACHERS: 'edu_sys_deleted_teachers_v6',
   DELETED_STUDENTS: 'edu_sys_deleted_students_v6',
   DELETED_CLASSES: 'edu_sys_deleted_classes_v6',
@@ -47,7 +46,6 @@ export const STORAGE_KEYS = {
 // =========================================================================
 const BROWSER_PERSISTENT_KEYS = new Set<string>([
   STORAGE_KEYS.DEVICE_ID,
-  STORAGE_KEYS.IS_SEEDED,
   STORAGE_KEYS.REMEMBER_ME,
   STORAGE_KEYS.REMEMBER_ME_TEACHER,
   STORAGE_KEYS.REMEMBER_ME_STUDENT,

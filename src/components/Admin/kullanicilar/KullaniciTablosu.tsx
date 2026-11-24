@@ -151,7 +151,7 @@ export function KullaniciTablosu() {
                         {u.role === 'student' ? (
                           <div>
                             <span className="font-bold text-fg block">
-                              {u.className || 'Genel'}
+                              {u.className || 'Sınıfsız' /* Aşama 379: uydurma 'Genel' yerine */}
                             </span>
                             {u.studentNumber && (
                               <span className="text-xs text-muted">

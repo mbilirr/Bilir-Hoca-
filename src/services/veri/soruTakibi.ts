@@ -462,22 +462,6 @@ export abstract class SoruTakibiKatmani extends OdevEtutKatmani {
     return result;
   }
 
-  public clearAutoSeededQuestionLogs(): void {
-    const prevCount = this.questionLogs.length;
-    this.questionLogs = this.questionLogs.filter((q) => {
-      const isAutoSeeded =
-        q.id.startsWith(`qlog-${q.studentId}-`) ||
-        q.id.startsWith('qlog-seed-') ||
-        q.notes === 'Hedef soru sayısı başarıyla aşıldı.' ||
-        q.notes === 'Günlük soru hedefi tamamlandı.';
-      return !isAutoSeeded;
-    });
-    if (this.questionLogs.length !== prevCount) {
-      saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-      this.notify();
-    }
-  }
-
   public async clearAllQuestionLogs(): Promise<void> {
     const prevLogs = [...this.questionLogs];
     const ids = this.questionLogs.map((q) => q.id);
