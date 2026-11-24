@@ -7,11 +7,13 @@
 import { supabase } from '../lib/supabase';
 import { callMailOnce } from '../lib/mailApi';
 
-export type OyunMod = 'quiz' | 'cark';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca';
 export type OyunKapsam = 'sinif' | 'kisisel';
 export type OyunDurum = 'acik' | 'kapali' | 'doldu';
 
-export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı' };
+export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
+/** soru yarışında "soru", kelime oyunlarında "kelime" */
+export const birimAd = (mod: OyunMod) => (mod === 'quiz' ? 'soru' : 'kelime');
 export const KAPSAM_AD: Record<OyunKapsam, string> = { sinif: 'Sınıf bağlantısı (QR)', kisisel: 'Kişisel bağlantılar' };
 export const DURUM_AD: Record<OyunDurum, string> = { acik: 'Açık', kapali: 'Kapalı', doldu: 'Süresi doldu' };
 export const GUN_SECENEKLERI = [
@@ -24,6 +26,7 @@ export const GUN_SECENEKLERI = [
 /** Sunucudaki sınırlarla aynı (api/_oyun.js) */
 export const QUIZ_SORU = { en_az: 3, en_cok: 30 };
 export const CARK_KELIME = { en_az: 1, en_cok: 10 };
+export const BULMACA_KELIME = { en_az: 2, en_cok: 12 };
 export const SORU_SN = { en_az: 5, en_cok: 120, varsayilan: 20 };
 
 export interface OyunKaydi {
@@ -85,7 +88,7 @@ const oyunCevir = (r: any): OyunKaydi => {
   const o = {
     id: String(r.id),
     ad: String(r.ad || ''),
-    mod: (r.mod === 'cark' ? 'cark' : 'quiz') as OyunMod,
+    mod: (r.mod === 'cark' || r.mod === 'bulmaca' ? r.mod : 'quiz') as OyunMod,
     kapsam: (r.kapsam === 'kisisel' ? 'kisisel' : 'sinif') as OyunKapsam,
     classId: String(r.class_id || ''),
     classAd: String(r.class_ad || ''),

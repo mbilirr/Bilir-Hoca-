@@ -1,5 +1,5 @@
 // Aşama 381: herkese açık oyun sayfasının sunucu çağrıları (giriş gerektirmez; her istekte bağlantı imzası denetlenir)
-export type OyunMod = 'quiz' | 'cark';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca';
 
 export interface OyunBilgi {
   ad: string;
@@ -35,6 +35,26 @@ export interface CarkTahta {
   asama: 'cevir' | 'harf';
   deger: number;
 }
+/** Aşama 382: bulmaca tahtası (cevap yok; yalnız açılmış harfler) */
+export interface BulmacaKelime {
+  k: number;
+  no: number;
+  yon: 'y' | 'd';
+  x: number;
+  y: number;
+  n: number;
+  ipucu: string;
+  durum: 'acik' | 'bildi' | 'kacti';
+  yanlis: number;
+  deger: number;
+  harfler: Array<string | null>;
+}
+export interface BulmacaTahta {
+  gen: number;
+  yuk: number;
+  hak: number;
+  kelimeler: BulmacaKelime[];
+}
 export interface OyunOzet {
   puan: number;
   dogru: number;
@@ -44,6 +64,7 @@ export interface OyunOzet {
 export type OyunEkrani =
   | { tur: 'quiz'; soru: QuizSoru; puan: number }
   | { tur: 'cark'; tahta: CarkTahta; puan: number }
+  | { tur: 'bulmaca'; bulmaca: BulmacaTahta; puan: number }
   | { tur: 'bitti'; sonuc: OyunOzet };
 
 /** Sunucunun anlamlı hata yanıtı: kod 'kapali' | 'doldu' ise oyun artık oynanamaz */

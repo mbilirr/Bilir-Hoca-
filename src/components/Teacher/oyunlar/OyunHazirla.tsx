@@ -12,7 +12,7 @@ import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
 import { FieldLabel, SelectBox } from '../FormParts';
 import { dataService } from '../../../services/dataService';
 import { listOyunSorulari, TUR_AD, type OyunSoru } from '../../../services/oyunService';
-import { CARK_KELIME, GUN_SECENEKLERI, MOD_AD, QUIZ_SORU, SORU_SN, olusturOyun, type OyunKapsam, type OyunMod } from '../../../services/oyunOturumService';
+import { BULMACA_KELIME, CARK_KELIME, GUN_SECENEKLERI, MOD_AD, QUIZ_SORU, SORU_SN, olusturOyun, type OyunKapsam, type OyunMod } from '../../../services/oyunOturumService';
 
 const norm = (v: string) => v.toLocaleLowerCase('tr-TR');
 const SURELER = [10, 15, 20, 30, 45, 60];
@@ -46,7 +46,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   }, []);
 
   const tur = mod === 'quiz' ? 'coktan' : 'kelime';
-  const lim = mod === 'quiz' ? QUIZ_SORU : CARK_KELIME;
+  const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
   const uygun = useMemo(() => (bank || []).filter((s) => s.tur === tur), [bank, tur]);
   const dersler = useMemo(() => Array.from(new Set(uygun.map((s) => s.ders))).sort((a, b) => a.localeCompare(b, 'tr')), [uygun]);
   const gorunen = useMemo(() => {
@@ -69,12 +69,18 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
     });
 
   const sinif = siniflar.find((c) => c.id === classId);
-  const gecerli = ad.trim().length >= 2 && !!classId && secili.length >= lim.en_az && secili.length <= lim.en_cok;
+  // bulmacada aynı cevap iki kez olamaz (iki kelime aynı yere düşer)
+  const tekrarVar = useMemo(() => {
+    if (mod !== 'bulmaca' || !bank) return false;
+    const cevaplar = secili.map((id) => bank.find((s) => s.id === id)?.cevap.toLocaleUpperCase('tr-TR') || id);
+    return new Set(cevaplar).size !== cevaplar.length;
+  }, [mod, bank, secili]);
+  const gecerli = ad.trim().length >= 2 && !!classId && secili.length >= lim.en_az && secili.length <= lim.en_cok && !tekrarVar;
 
   const kaydet = async () => {
     setHata(null);
     if (!gecerli) {
-      setHata(ad.trim().length < 2 ? 'Oyuna bir ad verin.' : !classId ? 'Sınıf seçin.' : `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
+      setHata(ad.trim().length < 2 ? 'Oyuna bir ad verin.' : !classId ? 'Sınıf seçin.' : tekrarVar ? 'Bulmacada aynı cevap iki kez kullanılamaz.' : `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
       return;
     }
     setKaydediyor(true);
@@ -98,7 +104,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted">
-            {secili.length} soru seçili · {lim.en_az}-{lim.en_cok} arası olmalı
+            {tekrarVar ? 'Aynı cevaplı iki kelime seçili' : `${secili.length} soru seçili · ${lim.en_az}-${lim.en_cok} arası olmalı`}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={onClose} disabled={kaydediyor}>
@@ -118,12 +124,17 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
             items={[
               { value: 'quiz', label: MOD_AD.quiz },
               { value: 'cark', label: MOD_AD.cark },
+              { value: 'bulmaca', label: MOD_AD.bulmaca },
             ]}
             value={mod}
             onChange={setMod}
           />
           <p className="text-xs text-muted">
-            {mod === 'quiz' ? 'Her soruda 4 şık ve geri sayım var; hızlı doğru cevap daha çok puan kazandırır.' : 'İpucundan kelimeyi bulma oyunu: çark çevrilir, harf seçilir, kelime tahmin edilir.'}
+            {mod === 'quiz'
+              ? 'Her soruda 4 şık ve geri sayım var; hızlı doğru cevap daha çok puan kazandırır.'
+              : mod === 'cark'
+                ? 'İpucundan kelimeyi bulma oyunu: çark çevrilir, harf seçilir, kelime tahmin edilir.'
+                : 'Kelimeler çengel bulmaca olarak dizilir; öğrenci ipuçlarından kelimeleri yazar, gerekirse harf ipucu alır.'}
           </p>
         </div>
 

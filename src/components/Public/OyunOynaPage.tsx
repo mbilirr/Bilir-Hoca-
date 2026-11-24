@@ -14,8 +14,9 @@ import { OyunHatasi, kalanYazi, oyunCagri, type OyunBilgi, type OyunEkrani, type
 // ============================================================================
 const QuizOyunu = React.lazy(() => import('./oyun/QuizOyunu').then((m) => ({ default: m.QuizOyunu })));
 const CarkOyunu = React.lazy(() => import('./oyun/CarkOyunu').then((m) => ({ default: m.CarkOyunu })));
+const BulmacaOyunu = React.lazy(() => import('./oyun/BulmacaOyunu').then((m) => ({ default: m.BulmacaOyunu })));
 
-const MOD_AD = { quiz: 'Soru yarışı', cark: 'Kelime çarkı' } as const;
+const MOD_AD = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' } as const;
 const secimAnahtari = (token: string) => `oyun-ogrenci:${token.slice(0, 40)}`;
 const okuSecim = (token: string) => {
   try {
@@ -141,7 +142,7 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
           <h2 className="text-lg font-bold text-fg">Oyun tamamlandı{ad ? `, ${ad}` : ''}!</h2>
           <p className="text-4xl font-bold tabular-nums text-fg">{s.puan}</p>
           <p className="text-sm text-muted">
-            puan · {s.toplam} {bilgi.mod === 'cark' ? 'kelimeden' : 'sorudan'} {s.dogru} tanesini bildin
+            puan · {s.toplam} {bilgi.mod === 'quiz' ? 'sorudan' : 'kelimeden'} {s.dogru} tanesini bildin
           </p>
           <p className="text-xs text-success-fg">
             <CheckCircle2 className="mr-1 inline w-3.5 h-3.5 align-[-0.15em]" aria-hidden />
@@ -158,6 +159,13 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
       </React.Suspense>
     );
   }
+  if (ekran?.tur === 'bulmaca' && ogrenciId) {
+    return kapsayici(
+      <React.Suspense fallback={null}>
+        <BulmacaOyunu token={token} studentId={ogrenciId} ilk={ekran} onBitti={bitir} />
+      </React.Suspense>
+    );
+  }
   if (ekran?.tur === 'cark' && ogrenciId) {
     return kapsayici(
       <React.Suspense fallback={null}>
@@ -167,7 +175,12 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
   }
 
   const kalan = kalanYazi(bilgi.bitis);
-  const oyunNotu = bilgi.mod === 'quiz' ? `${bilgi.soruSayisi} soru · her soru için ${bilgi.sureSn} sn · hızlı doğru cevap daha çok puan` : `${bilgi.soruSayisi} kelime · çarkı çevir, harf seç, kelimeyi bul`;
+  const oyunNotu =
+    bilgi.mod === 'quiz'
+      ? `${bilgi.soruSayisi} soru · her soru için ${bilgi.sureSn} sn · hızlı doğru cevap daha çok puan`
+      : bilgi.mod === 'bulmaca'
+        ? `${bilgi.soruSayisi} kelimelik bulmaca · ipuçlarından kelimeleri bul, gerekirse harf al`
+        : `${bilgi.soruSayisi} kelime · çarkı çevir, harf seç, kelimeyi bul`;
 
   // kişisel bağlantı: tek düğme
   if (bilgi.kisisel && bilgi.ogrenci) {

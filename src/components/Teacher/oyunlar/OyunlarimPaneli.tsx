@@ -7,7 +7,7 @@ import { lazyNamed } from '../../../lib/lazyLoad';
 import { EmptyState, Panel, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
 import { Yukleniyor, YuklemeHatasi } from '../../ui/Durum';
-import { DURUM_AD, MOD_AD, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
+import { DURUM_AD, MOD_AD, birimAd, listOyunlar, type OyunKaydi } from '../../../services/oyunOturumService';
 import { tarihYaz } from './ortak';
 
 const OyunHazirla = lazyNamed<React.ComponentProps<typeof import('./OyunHazirla').OyunHazirla>>(() => import('./OyunHazirla'), 'OyunHazirla');
@@ -60,7 +60,7 @@ export const OyunlarimPaneli: React.FC<{ yeniAc: boolean; onYeniKapandi: () => v
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-fg">{o.ad}</span>
                       <span className="block truncate text-xs text-muted">
-                        {MOD_AD[o.mod]} · {o.classAd} · {o.soruSayisi} {o.mod === 'cark' ? 'kelime' : 'soru'} · {tarihYaz(o.createdAt)}
+                        {MOD_AD[o.mod]} · {o.classAd} · {o.soruSayisi} {birimAd(o.mod)} · {tarihYaz(o.createdAt)}
                       </span>
                     </span>
                     <span className={cx('shrink-0 rounded-lg px-2 py-1 text-2xs font-semibold', o.durum === 'acik' ? 'bg-success-soft text-success-fg' : o.durum === 'doldu' ? 'bg-warning-soft text-warning-fg' : 'bg-surface-2 text-fg-2')}>

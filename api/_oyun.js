@@ -4,7 +4,8 @@
 //     Sınıf bağlantısında öğrenci listeden kendi adını seçer. Bağlantıyı iptal etmek = oyunu kapatmak.
 //   * Doğru cevap tarayıcıya HİÇBİR ZAMAN soru sorulurken gitmez; cevap sunucuda denetlenir, puan ve süre sunucuda
 //     hesaplanır (tarayıcıdan gelen süre / puan yok sayılır). Şıkların sırası her öğrenci için ayrı karıştırılır.
-//   * İki mod: "quiz" (çoktan seçmeli, soru başına süre, hız bonuslu) ve "cark" (kelime çarkı: çevir, harf seç, çöz).
+//   * Modlar: "quiz" (çoktan seçmeli, soru başına süre, hız bonuslu), "cark" (kelime çarkı: çevir, harf seç, çöz),
+//     "bulmaca" (Aşama 382: kelime sorularından çengel bulmaca; tahmin, harf ipucu, bitir).
 // Buradaki oyun kuralları saf işlevdir (tests/oyun.test.ts sınar); veritabanı işleri oyunApi() içindedir.
 // ============================================================================
 import crypto from 'node:crypto';
@@ -195,6 +196,215 @@ export function carkCoz(d, sorular, tahmin) {
   return { durum: yeni, olay: { tur: 'yanlis-tahmin' } };
 }
 
+// ----------------------------------------------------------------------------- BULMACA (Aşama 382)
+// Kelime sorularından çengel bulmaca kurulur. Yerleşim oyun kimliğinden tohumlanır: herkes aynı bulmacayı görür ve
+// yerleşim veritabanında saklanmaz (her istekte aynı sonuç). Tarayıcıya yalnız açılmış harfler gider.
+export const BULMACA_KELIME = { en_az: 2, en_cok: 12 };
+export const BULMACA_PUAN = 100;
+export const BULMACA_YANLIS = 25; // her yanlış tahmin kelimenin puanından düşer
+export const BULMACA_IPUCU = 20; // her harf ipucu kelimenin puanından düşer
+export const BULMACA_TABAN = 20; // bilinen kelime en az bu kadar kazandırır
+export const BULMACA_HAK = 3; // bir kelimede 3 yanlış: kelime açılır, puan yok
+
+/** Tohumlu sözde rastgele sayı (mulberry32); aynı tohum her zaman aynı diziyi verir */
+export function tohumluRnd(tohum) {
+  let h = 1779033703 ^ String(tohum).length;
+  for (const c of String(tohum)) h = Math.imul(h ^ c.charCodeAt(0), 3432918353), (h = (h << 13) | (h >>> 19));
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const anahtar = (x, y) => `${x},${y}`;
+
+function yerlestirmeDene(kelimeler) {
+  const hucre = new Map(); // "x,y" → { h: harf, yon: Set }
+  const yerler = [];
+  let kopuk = 0;
+  const kutu = () => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k of hucre.keys()) {
+      const [x, y] = k.split(',').map(Number);
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    return { x0, y0, x1, y1 };
+  };
+  const bos = (x, y) => !hucre.has(anahtar(x, y));
+  const uygunMu = (w, sx, sy, yon) => {
+    const dx = yon === 'y' ? 1 : 0, dy = yon === 'y' ? 0 : 1;
+    if (!bos(sx - dx, sy - dy) || !bos(sx + dx * w.length, sy + dy * w.length)) return -1;
+    let kesisim = 0;
+    for (let j = 0; j < w.length; j++) {
+      const x = sx + dx * j, y = sy + dy * j;
+      const c = hucre.get(anahtar(x, y));
+      if (c) {
+        if (c.h !== w[j] || c.yon.has(yon)) return -1;
+        kesisim++;
+      } else if (!bos(x + dy, y + dx) || !bos(x - dy, y - dx)) return -1; // dik komşular boş olmalı
+    }
+    return kesisim;
+  };
+  const koy = (k, sx, sy, yon) => {
+    const dx = yon === 'y' ? 1 : 0, dy = yon === 'y' ? 0 : 1;
+    for (let j = 0; j < k.w.length; j++) {
+      const key = anahtar(sx + dx * j, sy + dy * j);
+      const c = hucre.get(key) || { h: k.w[j], yon: new Set() };
+      c.yon.add(yon);
+      hucre.set(key, c);
+    }
+    yerler.push({ id: k.id, x: sx, y: sy, yon, n: k.w.length });
+  };
+  kelimeler.forEach((k, i) => {
+    if (i === 0) return koy(k, 0, 0, 'y');
+    let en = null;
+    const b = kutu();
+    for (const [key, c] of hucre) {
+      const [x, y] = key.split(',').map(Number);
+      for (let j = 0; j < k.w.length; j++) {
+        if (k.w[j] !== c.h) continue;
+        for (const yon of ['y', 'd']) {
+          if (c.yon.has(yon)) continue;
+          const sx = yon === 'y' ? x - j : x, sy = yon === 'y' ? y : y - j;
+          const kes = uygunMu(k.w, sx, sy, yon);
+          if (kes < 1) continue;
+          const ex = yon === 'y' ? sx + k.w.length - 1 : sx, ey = yon === 'y' ? sy : sy + k.w.length - 1;
+          const alan = (Math.max(b.x1, ex) - Math.min(b.x0, sx) + 1) * (Math.max(b.y1, ey) - Math.min(b.y0, sy) + 1);
+          // kare yakın, küçük, çok kesişimli yerleşim tercih edilir
+          const gen = Math.max(b.x1, ex) - Math.min(b.x0, sx) + 1, yuk = Math.max(b.y1, ey) - Math.min(b.y0, sy) + 1;
+          const puan = kes * 40 - alan - Math.abs(gen - yuk) * 3;
+          if (!en || puan > en.puan) en = { sx, sy, yon, puan };
+        }
+      }
+    }
+    if (en) return koy(k, en.sx, en.sy, en.yon);
+    // kesişemeyen kelime bulmacanın altına ayrı satıra konur (bulmaca yine çözülebilir)
+    kopuk++;
+    koy(k, b.x0, b.y1 + 2, 'y');
+  });
+  const b = kutu();
+  return { yerler, kopuk, alan: (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1), b };
+}
+
+/**
+ * Bulmaca yerleşimi: { gen, yuk, kelimeler: [{ id, no, yon: 'y'|'d', x, y, n }] } (sıra: soldan sağa, sonra yukarıdan aşağı)
+ * sorular: oyunun soru kopyası (kelime türü); tohum: oyun kimliği
+ */
+export function bulmacaKur(sorular, tohum) {
+  const rnd = tohumluRnd(tohum);
+  const temel = sorular.map((s) => ({ id: s.id, w: Array.from(trUpper(s.cevap)) }));
+  let en = null;
+  for (let deneme = 0; deneme < 40; deneme++) {
+    const sira = deneme === 0 ? temel.slice().sort((a, b) => b.w.length - a.w.length) : karistir(temel, rnd);
+    const r = yerlestirmeDene(sira);
+    const puan = r.kopuk * 10000 + r.alan;
+    if (!en || puan < en.puan) en = { ...r, puan };
+  }
+  const { b } = en;
+  const yerler = en.yerler.map((k) => ({ ...k, x: k.x - b.x0, y: k.y - b.y0 }));
+  // numara: başlangıç hücresi soldan sağa / yukarıdan aşağı okuma sırasında; aynı hücreden iki kelime aynı numarayı alır
+  const baslar = [...new Set(yerler.map((k) => anahtar(k.x, k.y)))]
+    .map((k) => k.split(',').map(Number))
+    .sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+  const no = new Map(baslar.map(([x, y], i) => [anahtar(x, y), i + 1]));
+  const kelimeler = yerler
+    .map((k) => ({ ...k, no: no.get(anahtar(k.x, k.y)) }))
+    .sort((p, q) => (p.yon === q.yon ? p.no - q.no : p.yon === 'y' ? -1 : 1));
+  return { gen: b.x1 - b.x0 + 1, yuk: b.y1 - b.y0 + 1, kelimeler };
+}
+
+export function bulmacaBaslat() {
+  return { mod: 'bulmaca', sonuc: {}, yanlis: {}, ipucu: {} };
+}
+export const bulmacaBitti = (d, sorular) => sorular.every((s) => d.sonuc[s.id] !== undefined);
+
+/** Açık harfler: çözülen ya da kaçan kelimelerin bütün harfleri + alınan ipuçları (kesişen kelimeye de geçer) */
+function acikHucreler(d, duzen, sorular) {
+  const acik = new Map();
+  for (const k of duzen.kelimeler) {
+    const w = Array.from(trUpper(sorular.find((s) => s.id === k.id).cevap));
+    const hepsi = d.sonuc[k.id] !== undefined;
+    const ip = d.ipucu[k.id] || [];
+    w.forEach((h, j) => {
+      if (hepsi || ip.includes(j)) acik.set(anahtar(k.yon === 'y' ? k.x + j : k.x, k.yon === 'y' ? k.y : k.y + j), h);
+    });
+  }
+  return acik;
+}
+const kelimeHarfleri = (k, acik) => Array.from({ length: k.n }, (_, j) => acik.get(anahtar(k.yon === 'y' ? k.x + j : k.x, k.yon === 'y' ? k.y : k.y + j)) || null);
+const kelimePuani = (d, id) => Math.max(BULMACA_TABAN, BULMACA_PUAN - (d.yanlis[id] || 0) * BULMACA_YANLIS - (d.ipucu[id] || []).length * BULMACA_IPUCU);
+
+/** Tahta görünümü: ölçü + her kelimenin ipucu, durumu, açık harfleri (cevap yok) */
+export function bulmacaGorunum(d, sorular, duzen) {
+  const acik = acikHucreler(d, duzen, sorular);
+  return {
+    gen: duzen.gen,
+    yuk: duzen.yuk,
+    hak: BULMACA_HAK,
+    kelimeler: duzen.kelimeler.map((k, i) => ({
+      k: i,
+      no: k.no,
+      yon: k.yon,
+      x: k.x,
+      y: k.y,
+      n: k.n,
+      ipucu: sorular.find((s) => s.id === k.id).metin,
+      durum: d.sonuc[k.id] === true ? 'bildi' : d.sonuc[k.id] === false ? 'kacti' : 'acik',
+      yanlis: d.yanlis[k.id] || 0,
+      deger: kelimePuani(d, k.id),
+      harfler: kelimeHarfleri(k, acik),
+    })),
+  };
+}
+
+const kayitYap = (s, dogru, puan) => ({ soruId: s.id, kazanim: s.kazanim_kodu || null, dogru, puan, sureMs: 0 });
+
+/** Kelime tahmini. Döner: { durum, olay, kayit? } ya da { hata } */
+export function bulmacaTahmin(d, sorular, duzen, k, tahmin) {
+  const yer = duzen.kelimeler[Number(k)];
+  if (!yer) return { hata: 'Kelime bulunamadı.' };
+  if (d.sonuc[yer.id] !== undefined) return { hata: 'Bu kelime zaten açıldı.' };
+  const s = sorular.find((x) => x.id === yer.id);
+  const t = trUpper(String(tahmin || '').replace(/\s+/g, ''));
+  if (!TR_BUYUK.test(t)) return { hata: 'Tahmin yalnız harflerden oluşan tek bir kelime olmalı.' };
+  if (Array.from(t).length !== yer.n) return { hata: `Bu kelime ${yer.n} harfli.` };
+  if (t === trUpper(s.cevap)) {
+    const puan = kelimePuani(d, yer.id);
+    return { durum: { ...d, sonuc: { ...d.sonuc, [yer.id]: true } }, olay: { tur: 'dogru', kazanilan: puan, aciklama: s.aciklama || '' }, kayit: kayitYap(s, true, puan) };
+  }
+  const yanlis = (d.yanlis[yer.id] || 0) + 1;
+  const yeni = { ...d, yanlis: { ...d.yanlis, [yer.id]: yanlis } };
+  if (yanlis >= BULMACA_HAK) {
+    return { durum: { ...yeni, sonuc: { ...d.sonuc, [yer.id]: false } }, olay: { tur: 'kacti', cevap: trUpper(s.cevap), aciklama: s.aciklama || '' }, kayit: kayitYap(s, false, 0) };
+  }
+  return { durum: yeni, olay: { tur: 'yanlis', kalanHak: BULMACA_HAK - yanlis } };
+}
+
+/** Harf ipucu: kelimenin kapalı bir harfini açar (son kapalı harf verilmez) */
+export function bulmacaIpucu(d, sorular, duzen, k, rnd = Math.random) {
+  const yer = duzen.kelimeler[Number(k)];
+  if (!yer) return { hata: 'Kelime bulunamadı.' };
+  if (d.sonuc[yer.id] !== undefined) return { hata: 'Bu kelime zaten açıldı.' };
+  const kapali = kelimeHarfleri(yer, acikHucreler(d, duzen, sorular))
+    .map((h, j) => (h ? -1 : j))
+    .filter((j) => j >= 0);
+  if (kapali.length <= 1) return { hata: 'Son harfi sen bul!' };
+  const j = kapali[Math.floor(rnd() * kapali.length)];
+  return { durum: { ...d, ipucu: { ...d.ipucu, [yer.id]: [...(d.ipucu[yer.id] || []), j] } }, olay: { tur: 'ipucu' } };
+}
+
+/** Oyunu bitir: açılmamış kelimeler bilinmemiş sayılır */
+export function bulmacaBitir(d, sorular) {
+  const kalan = sorular.filter((s) => d.sonuc[s.id] === undefined);
+  const sonuc = { ...d.sonuc };
+  for (const s of kalan) sonuc[s.id] = false;
+  return { durum: { ...d, sonuc }, kayitlar: kalan.map((s) => kayitYap(s, false, 0)) };
+}
+
 // ----------------------------------------------------------------------------- veritabanı işleri
 const durumYazi = {
   kapali: 'Bu oyun öğretmen tarafından kapatıldı.',
@@ -252,7 +462,7 @@ export function oyunApi(deps) {
     let r = await rest(q, sv);
     if (r && r[0]) return r[0];
     if (!olustur) return null;
-    const durum = o.mod === 'cark' ? carkBaslat(o.sorular) : quizBaslat(o.sorular);
+    const durum = o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : quizBaslat(o.sorular);
     await rest('oyun_denemeleri?on_conflict=oyun_id,student_id', {
       ...sv,
       method: 'POST',
@@ -318,6 +528,7 @@ export function oyunApi(deps) {
       const r = quizSoru(d, o.sorular, o.soru_sn, now);
       return { tur: 'quiz', soru: r.soru, puan: dn.puan, yeniDurum: r.durum };
     }
+    if (o.mod === 'bulmaca') return { tur: 'bulmaca', bulmaca: bulmacaGorunum(d, o.sorular, bulmacaKur(o.sorular, o.id)), puan: dn.puan };
     return { tur: 'cark', tahta: carkGorunum(d, o.sorular), puan: dn.puan };
   }
 
@@ -377,6 +588,28 @@ export function oyunApi(deps) {
       dn = await denemeYaz(dn, r.durum, puan, dogru, bitti);
       return { ok: true, olay: r.olay, puan: dn.puan, tahta: bitti ? null : carkGorunum(r.durum, o.sorular), bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
     }
+    if (o.mod === 'bulmaca' && (op === 'kelime' || op === 'ipucu' || op === 'bitir')) {
+      const duzen = bulmacaKur(o.sorular, o.id);
+      let r;
+      if (op === 'bitir') {
+        const b = bulmacaBitir(d, o.sorular);
+        r = { durum: b.durum, olay: { tur: 'bitti' }, kayitlar: b.kayitlar };
+      } else {
+        r = op === 'kelime' ? bulmacaTahmin(d, o.sorular, duzen, body.k, body.tahmin) : bulmacaIpucu(d, o.sorular, duzen, body.k);
+        if (r.hata) throw new HttpError(409, r.hata);
+        r.kayitlar = r.kayit ? [r.kayit] : [];
+      }
+      let puan = dn.puan;
+      let dogru = dn.dogru;
+      for (const k of r.kayitlar) {
+        await cevapYaz(o, dn, k);
+        puan += k.puan;
+        dogru += k.dogru ? 1 : 0;
+      }
+      const bitti = bulmacaBitti(r.durum, o.sorular);
+      dn = await denemeYaz(dn, r.durum, puan, dogru, bitti);
+      return { ok: true, olay: r.olay, puan: dn.puan, bulmaca: bulmacaGorunum(r.durum, o.sorular, duzen), bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
+    }
     throw new HttpError(400, 'Bilinmeyen oyun işlemi.');
   }
 
@@ -412,7 +645,7 @@ export function oyunApi(deps) {
     await yetki(caller);
     const op = String(body.op || '');
     if (op === 'olustur') {
-      const mod = body.mod === 'cark' ? 'cark' : body.mod === 'quiz' ? 'quiz' : '';
+      const mod = ['quiz', 'cark', 'bulmaca'].includes(body.mod) ? body.mod : '';
       if (!mod) throw new HttpError(400, 'Oyun türünü seçin.');
       const kapsam = body.kapsam === 'kisisel' ? 'kisisel' : 'sinif';
       const ad = clean(body.ad || '').slice(0, 80);
@@ -422,13 +655,14 @@ export function oyunApi(deps) {
       const gun = Number(body.gun);
       if (!GUN_SECENEKLERI.includes(gun)) throw new HttpError(400, 'Geçerlilik süresi seçin.');
       const ids = [...new Set((Array.isArray(body.soruIds) ? body.soruIds : []).map((x) => String(x || '')).filter((x) => /^[0-9a-f-]{36}$/i.test(x)))];
-      const lim = mod === 'quiz' ? QUIZ_SORU : CARK_KELIME;
+      const lim = mod === 'quiz' ? QUIZ_SORU : mod === 'bulmaca' ? BULMACA_KELIME : CARK_KELIME;
       if (ids.length < lim.en_az || ids.length > lim.en_cok) throw new HttpError(400, `Bu oyun için ${lim.en_az} ile ${lim.en_cok} arasında soru seçin.`);
       // Sorular ve sınıf çağıranın KENDİ oturumuyla okunur: göremediği sınıf / soru işe yaramaz
       const sorular = (await rest(`oyun_sorulari?select=id,tur,metin,siklar,dogru,cevap,aciklama,kazanim_kodu,ders,konu,zorluk&id=in.${inList(ids)}`, { token: caller.token })) || [];
       if (sorular.length !== ids.length) throw new HttpError(404, 'Seçilen sorulardan bazıları bulunamadı (silinmiş olabilir).');
       const uygun = mod === 'quiz' ? 'coktan' : 'kelime';
-      if (sorular.some((s) => s.tur !== uygun)) throw new HttpError(400, mod === 'quiz' ? 'Soru yarışında yalnız çoktan seçmeli sorular kullanılır.' : 'Kelime çarkında yalnız kelime soruları kullanılır.');
+      if (sorular.some((s) => s.tur !== uygun)) throw new HttpError(400, mod === 'quiz' ? 'Soru yarışında yalnız çoktan seçmeli sorular kullanılır.' : 'Kelime çarkı ve bulmacada yalnız kelime soruları kullanılır.');
+      if (mod === 'bulmaca' && new Set(sorular.map((s) => trUpper(s.cevap))).size !== sorular.length) throw new HttpError(400, 'Bulmacada aynı cevap iki kez kullanılamaz.');
       const sinif = ((await rest(`classes?select=id,name&id=eq.${encodeURIComponent(String(body.classId || ''))}`, { token: caller.token })) || [])[0];
       if (!sinif) throw new HttpError(404, 'Sınıf bulunamadı ya da bu sınıfı görme yetkiniz yok.');
       const ogr = ((await rest(`students?select=id,status&class_id=eq.${encodeURIComponent(String(sinif.id))}&limit=400`, { token: caller.token })) || []).filter((s) => !s.status || s.status === 'active');

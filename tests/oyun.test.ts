@@ -280,3 +280,125 @@ test('sunucu: çark oyunu uçtan uca; kelime kaybedilene kadar cevap gönderilme
   assert.ok(cevaplar.length >= 1);
   assert.ok(guvenlik < 200);
 });
+
+// ----------------------------------------------------------------------------- Aşama 382: bulmaca
+const BS = ['ÇEKİRDEK', 'HÜCRE', 'ZAR', 'DNA', 'GEN', 'KROMOZOM', 'RİBOZOM', 'ENZİM'].map((c, i) => ({ id: 'b' + i, tur: 'kelime', metin: 'İpucu ' + i, siklar: [], dogru: null, cevap: c, aciklama: '', kazanim_kodu: i % 2 ? 'F.8.2.1.1' : null }));
+
+/** yerleşimdeki her hücre tek harf taşır; kelimeler birbirine bitişik yanlış kelime oluşturmaz */
+function yerlesimGecerli(d: any, sorular: any[]) {
+  const izgara = new Map<string, string>();
+  for (const k of d.kelimeler) {
+    const w = Array.from(sorular.find((s) => s.id === k.id).cevap as string);
+    assert.equal(w.length, k.n);
+    w.forEach((h, j) => {
+      const key = k.yon === 'y' ? `${k.x + j},${k.y}` : `${k.x},${k.y + j}`;
+      if (izgara.has(key)) assert.equal(izgara.get(key), h, 'kesişen harf aynı olmalı');
+      izgara.set(key, h);
+      const [x, y] = key.split(',').map(Number);
+      assert.ok(x >= 0 && y >= 0 && x < d.gen && y < d.yuk);
+    });
+  }
+  // her yatay / dikey harf dizisi (2+ harf) bir kelimeye denk gelmeli
+  const diziler = new Set(d.kelimeler.map((k: any) => `${k.yon}:${k.x},${k.y}:${k.n}`));
+  for (const yon of ['y', 'd']) {
+    for (const key of izgara.keys()) {
+      const [x, y] = key.split(',').map(Number);
+      const onceki = yon === 'y' ? `${x - 1},${y}` : `${x},${y - 1}`;
+      if (izgara.has(onceki)) continue;
+      let n = 0;
+      while (izgara.has(yon === 'y' ? `${x + n},${y}` : `${x},${y + n}`)) n++;
+      if (n >= 2) assert.ok(diziler.has(`${yon}:${x},${y}:${n}`), `fazladan kelime: ${yon} ${x},${y} ${n}`);
+    }
+  }
+}
+
+test('bulmaca: yerleşim geçerli, kesişimli ve aynı oyun için hep aynı', () => {
+  const a = o.bulmacaKur(BS, OYUN);
+  const b = o.bulmacaKur(BS, OYUN);
+  assert.deepEqual(a, b);
+  assert.equal(a.kelimeler.length, BS.length);
+  yerlesimGecerli(a, BS);
+  // numaralar okuma sırasında 1'den başlar; yatay kelimeler önce listelenir
+  assert.equal(Math.min(...a.kelimeler.map((k: any) => k.no)), 1);
+  const yonler = a.kelimeler.map((k: any) => k.yon).join('');
+  assert.match(yonler, /^y+d+$/);
+  // farklı oyun kimlikleri, farklı kelime grupları: hep geçerli
+  for (let i = 0; i < 30; i++) {
+    const s = BS.slice(0, 2 + (i % 7));
+    yerlesimGecerli(o.bulmacaKur(s, 'oyun-' + i), s);
+  }
+  // hiç ortak harfi olmayan kelimeler de yerleşir (ayrı satıra)
+  const ayri = [{ ...BS[2], cevap: 'ZAR' }, { ...BS[3], id: 'x', cevap: 'BOŞ' }];
+  yerlesimGecerli(o.bulmacaKur(ayri, OYUN), ayri);
+});
+
+test('bulmaca: tahmin, yanlış hakkı, ipucu, cevap sızmaz, bitir', () => {
+  const duzen = o.bulmacaKur(BS, OYUN);
+  let d = o.bulmacaBaslat();
+  let g = o.bulmacaGorunum(d, BS, duzen);
+  assert.ok(g.kelimeler.every((k: any) => k.harfler.every((h: any) => h === null)));
+  assert.ok(!JSON.stringify(g).includes('KROMOZOM'));
+  const kNo = (id: string) => duzen.kelimeler.findIndex((k: any) => k.id === id);
+  // uzunluk ve biçim denetimi
+  assert.match(o.bulmacaTahmin(d, BS, duzen, kNo('b0'), 'ÇEK').hata, /8 harfli/);
+  assert.match(o.bulmacaTahmin(d, BS, duzen, 99, 'X').hata, /bulunamadı/);
+  // doğru (küçük harfle de)
+  let r = o.bulmacaTahmin(d, BS, duzen, kNo('b0'), 'çekirdek');
+  assert.equal(r.olay.tur, 'dogru');
+  assert.equal(r.kayit.puan, 100);
+  d = r.durum;
+  g = o.bulmacaGorunum(d, BS, duzen);
+  assert.deepEqual(g.kelimeler[kNo('b0')].harfler.join(''), 'ÇEKİRDEK');
+  assert.equal(g.kelimeler[kNo('b0')].durum, 'bildi');
+  assert.match(o.bulmacaTahmin(d, BS, duzen, kNo('b0'), 'ÇEKİRDEK').hata, /zaten/);
+  // ipucu + yanlış puanı düşürür
+  r = o.bulmacaIpucu(d, BS, duzen, kNo('b5'), () => 0);
+  d = r.durum;
+  r = o.bulmacaTahmin(d, BS, duzen, kNo('b5'), 'KROMOZAM');
+  assert.equal(r.olay.tur, 'yanlis');
+  assert.equal(r.olay.kalanHak, 2);
+  d = r.durum;
+  r = o.bulmacaTahmin(d, BS, duzen, kNo('b5'), 'KROMOZOM');
+  assert.equal(r.kayit.puan, 100 - 25 - 20);
+  d = r.durum;
+  // 3 yanlış: kelime kaçar, cevap açılır, puan yok
+  for (let i = 0; i < 2; i++) d = o.bulmacaTahmin(d, BS, duzen, kNo('b2'), 'ZİL').durum;
+  r = o.bulmacaTahmin(d, BS, duzen, kNo('b2'), 'ZOR');
+  assert.equal(r.olay.tur, 'kacti');
+  assert.equal(r.olay.cevap, 'ZAR');
+  assert.equal(r.kayit.dogru, false);
+  d = r.durum;
+  // son kapalı harf ipucuyla verilmez
+  let i = 0;
+  let son: any;
+  while (!(son = o.bulmacaIpucu(d, BS, duzen, kNo('b3'), () => 0)).hata && i++ < 10) d = son.durum;
+  assert.match(son.hata, /Son harfi/);
+  assert.equal(o.bulmacaGorunum(d, BS, duzen).kelimeler[kNo('b3')].harfler.filter((h: any) => !h).length, 1);
+  assert.equal(o.bulmacaBitti(d, BS), false);
+  const b = o.bulmacaBitir(d, BS);
+  assert.equal(o.bulmacaBitti(b.durum, BS), true);
+  assert.equal(b.kayitlar.length, BS.length - 3);
+  assert.ok(b.kayitlar.every((k: any) => !k.dogru && k.puan === 0));
+});
+
+test('sunucu: bulmaca uçtan uca; oyun bitince sonuç kaydedilir', async () => {
+  const { api, denemeler, cevaplar } = sahteSunucu({ ...oyunSatiri('cark', 'kisisel'), mod: 'bulmaca', sorular: BS.slice(0, 4) });
+  const token = o.makeToken(key, OYUN, 's1');
+  const b = await api.play({ op: 'basla', token, studentId: 's1' });
+  assert.equal(b.tur, 'bulmaca');
+  assert.equal(b.bulmaca.kelimeler.length, 4);
+  assert.ok(!JSON.stringify(b).includes('ÇEKİRDEK'));
+  const k0 = b.bulmaca.kelimeler.find((k: any) => k.n === 8).k;
+  let r = await api.play({ op: 'kelime', token, studentId: 's1', k: k0, tahmin: 'ÇEKİRDEK' });
+  assert.equal(r.olay.tur, 'dogru');
+  assert.equal(r.bitti, false);
+  r = await api.play({ op: 'ipucu', token, studentId: 's1', k: (k0 + 1) % 4 });
+  assert.equal(r.olay.tur, 'ipucu');
+  r = await api.play({ op: 'bitir', token, studentId: 's1' });
+  assert.equal(r.bitti, true);
+  assert.equal(r.ozet.dogru, 1);
+  assert.equal(r.ozet.puan, 100);
+  assert.equal(denemeler[0].durum, 'bitti');
+  assert.equal(cevaplar.length, 4);
+  await assert.rejects(() => api.play({ op: 'kelime', token, studentId: 's1', k: 0, tahmin: 'X' }), /tamamlandı/);
+});

@@ -14,6 +14,7 @@ import {
   DURUM_AD,
   GUN_SECENEKLERI,
   MOD_AD,
+  birimAd,
   acOyun,
   kapatOyun,
   listDenemeler,
@@ -122,7 +123,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
   const gorunenKisiler = kisiler.filter((k) => !arama.trim() || k.ad.toLocaleLowerCase('tr-TR').includes(arama.trim().toLocaleLowerCase('tr-TR')));
 
   return (
-    <Modal open onClose={onClose} icon={Gamepad2} title={oyun.ad} description={`${MOD_AD[oyun.mod]} · ${oyun.classAd} · ${oyun.soruSayisi} ${oyun.mod === 'cark' ? 'kelime' : 'soru'}`} size="lg">
+    <Modal open onClose={onClose} icon={Gamepad2} title={oyun.ad} description={`${MOD_AD[oyun.mod]} · ${oyun.classAd} · ${oyun.soruSayisi} ${birimAd(oyun.mod)}`} size="lg">
       <div className="space-y-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
           <span className={cx('rounded-lg px-2 py-1 font-semibold', durum === 'acik' ? 'bg-success-soft text-success-fg' : durum === 'doldu' ? 'bg-warning-soft text-warning-fg' : 'bg-surface-2 text-fg-2')}>{DURUM_AD[durum]}</span>
@@ -209,7 +210,7 @@ export const OyunDetay: React.FC<{ oyun: OyunKaydi; onClose: () => void; onChang
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-fg">{d.ad}</span>
                       <span className="block text-2xs text-muted">
-                        {d.durum === 'bitti' ? `${d.toplam} ${oyun.mod === 'cark' ? 'kelimeden' : 'sorudan'} ${d.dogru} doğru` : 'Oyun sürüyor'}
+                        {d.durum === 'bitti' ? `${d.toplam} ${birimAd(oyun.mod)}dan ${d.dogru} doğru` : 'Oyun sürüyor'}
                         {d.bitisAt ? ` · ${saatYaz(d.bitisAt)}` : ''}
                       </span>
                     </span>
