@@ -23,16 +23,31 @@ export interface OgrenciOyun {
   token?: string;
 }
 
+/** Aşama 389: öğrencinin sınıfını kapsayan en yeni turnuva; yalnız kendi sırası (başkalarının adı gelmez) */
+export interface OgrenciTurnuva {
+  id: string;
+  ad: string;
+  ogretmen: string;
+  oyunSayisi: number;
+  katilan: number;
+  ben: { sira: number; puan: number; oyun: number } | null;
+}
+
 export interface OgrenciOyunlari {
   /** Oyunlar bölümü öğrencinin kurumunda açık mı (kapalıysa sekme gösterilmez) */
   acik: boolean;
   oyunlar: OgrenciOyun[];
+  turnuva: OgrenciTurnuva | null;
 }
 
 export async function ogrenciOyunlari(): Promise<OgrenciOyunlari> {
   const r = await callMailOnce('oyun-ogrenci', { op: 'liste' });
   if (!r.ok) throw new Error(r.error || 'Oyunlar okunamadı.');
-  return { acik: !!r.acik, oyunlar: Array.isArray(r.oyunlar) ? (r.oyunlar as OgrenciOyun[]) : [] };
+  return {
+    acik: !!r.acik,
+    oyunlar: Array.isArray(r.oyunlar) ? (r.oyunlar as OgrenciOyun[]) : [],
+    turnuva: r.turnuva && typeof r.turnuva === 'object' ? (r.turnuva as OgrenciTurnuva) : null,
+  };
 }
 
 /** Önce yarım kalanlar, sonra oynanmamışlar (yeni → eski), en sonda bitenler ve süresi dolanlar */

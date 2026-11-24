@@ -20,6 +20,8 @@ export const GUN_SECENEKLERI = [1, 3, 7, 14, 30];
 export const CARK_HAK = 6;
 export const CARK_DILIMLERI = [100, 150, 200, 250, 300, 400, 500, 'IFLAS'];
 export const OGRENCI_GECMIS_GUN = 7; // Aşama 385: süresi dolan oyun öğrencinin listesinde bu kadar gün kalır (oynadıysa)
+/** Aşama 389: öğrencinin ana sayfasında gösterilen turnuva en çok bu kadar gün öncesinden olabilir */
+const TURNUVA_GECMIS_GUN = 45;
 export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
 export const HARFLER = Array.from('ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ');
 const TR_BUYUK = /^[A-ZÇĞİÖŞÜ]{2,15}$/;
@@ -741,11 +743,12 @@ export function oyunApi(deps) {
     if (st.kurum_id && !kendiKurum.some(modulAcik)) return { ok: true, acik: false, oyunlar: [] };
     const bilinen = new Map(kendiKurum.map((k) => [String(k.id), k]));
     const eksik = oyunlar.map((o) => String(o.kurum_id)).filter((id) => !bilinen.has(id));
-    const [ekKurum, dn] = await Promise.all([
+    const [ekKurum, dn, turnuva] = await Promise.all([
       kurumlariOku(eksik),
       oyunlar.length
         ? rest(`oyun_denemeleri?select=oyun_id,durum,puan,dogru,toplam&student_id=eq.${encodeURIComponent(String(st.id))}&oyun_id=in.${inList(oyunlar.map((o) => o.id))}`, sv).then((r) => r || [])
         : Promise.resolve([]),
+      st.kurum_id ? ogrenciTurnuvasi(st) : Promise.resolve(null),
     ]);
     for (const k of ekKurum) bilinen.set(String(k.id), k);
     oyunlar = oyunlar.filter((o) => modulAcik(bilinen.get(String(o.kurum_id))));
@@ -773,7 +776,44 @@ export function oyunApi(deps) {
       })
       // oynanmamış süresi dolmuş oyun listede kalabalık yapmaz
       .filter((o) => o.acik || o.deneme);
-    return { ok: true, acik: true, oyunlar: liste };
+    return { ok: true, acik: true, oyunlar: liste, turnuva };
+  }
+
+  /**
+   * Aşama 389: öğrencinin sınıfının oyunlarından birini içeren EN YENİ turnuva (kendi kurumunda, son 45 gün) ve
+   * öğrencinin oradaki sırası. Sıra veritabanındaki tek işlevden gelir (öğretmenin gördüğüyle aynı). Başkalarının adı ve
+   * puanı öğrenciye gitmez; yalnız katılımcı sayısı. 389 SQL kurulu değilse turnuva yok sayılır (oyunlar etkilenmez).
+   */
+  async function ogrenciTurnuvasi(st) {
+    try {
+      const sinir = new Date(Date.now() - TURNUVA_GECMIS_GUN * 86400000).toISOString();
+      const tl =
+        (await rest(
+          `oyun_turnuvalari?select=id,ad,oyun_ids,olusturan_ad&kurum_id=eq.${encodeURIComponent(String(st.kurum_id))}&created_at=gt.${encodeURIComponent(sinir)}&order=created_at.desc&limit=20`,
+          sv
+        )) || [];
+      if (!tl.length) return null;
+      const ids = [...new Set(tl.flatMap((t) => (Array.isArray(t.oyun_ids) ? t.oyun_ids : [])).map(String))];
+      const sinifOyunlari = new Set(
+        ((await rest(`oyun_oyunlari?select=id&id=in.${inList(ids)}&class_id=eq.${encodeURIComponent(String(st.class_id))}`, sv)) || []).map((o) => String(o.id))
+      );
+      const t = tl.find((x) => (Array.isArray(x.oyun_ids) ? x.oyun_ids : []).some((id) => sinifOyunlari.has(String(id))));
+      if (!t) return null;
+      const sira = (await rest('rpc/oyun_turnuva_sira', { ...sv, method: 'POST', body: { p_turnuva: t.id } })) || [];
+      const ben = sira.find((r) => String(r.student_id) === String(st.id));
+      return {
+        id: String(t.id),
+        ad: t.ad,
+        ogretmen: t.olusturan_ad || '',
+        oyunSayisi: t.oyun_ids.length,
+        katilan: sira.length,
+        ben: ben ? { sira: Number(ben.sira) || 0, puan: Number(ben.puan) || 0, oyun: Number(ben.oyun_sayisi) || 0 } : null,
+      };
+    } catch (err) {
+      if (/oyun_turnuva/.test(String(err && err.message))) return null; // 389 kurulmadı
+      console.error('[oyun] turnuva okunamadı:', err && err.message);
+      return null; // turnuva okunamaması oyun listesini bozmaz
+    }
   }
 
   async function ogretmen(caller, body, req) {

@@ -5,9 +5,10 @@
 // Yalnız genel yöneticinin "Kurum bölümleri"nden Oyunlar'ı açtığı kurumda görünür.
 // Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
+// Aşama 389: üçüncü sekme Turnuvalar (birkaç oyunun toplam puanıyla sıralama).
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Gamepad2, Plus, Presentation, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Edit3, Gamepad2, Plus, Presentation, Search, Sparkles, Trash2, Trophy } from 'lucide-react';
 import { lazyNamed, useEverTrue } from '../../../lib/lazyLoad';
 import { EmptyState, PageHeader, Panel, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
@@ -21,6 +22,7 @@ import { OYUN_SINIFLARI, tarihYaz } from './ortak';
 
 const TahtaKurulum = lazyNamed<React.ComponentProps<typeof import('./tahta/TahtaKurulum').TahtaKurulum>>(() => import('./tahta/TahtaKurulum'), 'TahtaKurulum');
 const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./OyunlarimPaneli').OyunlarimPaneli>>(() => import('./OyunlarimPaneli'), 'OyunlarimPaneli');
+const TurnuvalarPaneli = lazyNamed<React.ComponentProps<typeof import('./TurnuvalarPaneli').TurnuvalarPaneli>>(() => import('./TurnuvalarPaneli'), 'TurnuvalarPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
 const AiOneriPenceresi = lazyNamed<React.ComponentProps<typeof import('./AiOneriPenceresi').AiOneriPenceresi>>(() => import('./AiOneriPenceresi'), 'AiOneriPenceresi');
@@ -38,8 +40,9 @@ export const OyunlarSayfasi: React.FC = () => {
   const [fBenim, setFBenim] = useState(false);
   const [ara, setAra] = useState('');
   const [adet, setAdet] = useState(SAYFA);
-  const [sekme, setSekme] = useState<'oyunlarim' | 'banka'>('oyunlarim');
+  const [sekme, setSekme] = useState<'oyunlarim' | 'turnuva' | 'banka'>('oyunlarim');
   const [yeniOyun, setYeniOyun] = useState(false);
+  const [yeniTurnuva, setYeniTurnuva] = useState(false);
   const [tahta, setTahta] = useState(false);
   const tahtaVar = useEverTrue(tahta);
   const [form, setForm] = useState<OyunSoru | 'yeni' | null>(null);
@@ -120,6 +123,10 @@ export const OyunlarSayfasi: React.FC = () => {
                 Yeni soru
               </Button>
             </>
+          ) : sekme === 'turnuva' ? (
+            <Button leftIcon={<Trophy className="w-3.5 h-3.5" />} onClick={() => setYeniTurnuva(true)}>
+              Yeni turnuva
+            </Button>
           ) : (
             <>
               <Button variant="secondary" leftIcon={<Presentation className="w-3.5 h-3.5" />} onClick={() => setTahta(true)}>
@@ -133,9 +140,10 @@ export const OyunlarSayfasi: React.FC = () => {
         }
       />
 
-      <Segmented<'oyunlarim' | 'banka'>
+      <Segmented<'oyunlarim' | 'turnuva' | 'banka'>
         items={[
           { value: 'oyunlarim', label: 'Oyunlarım' },
+          { value: 'turnuva', label: 'Turnuvalar' },
           { value: 'banka', label: 'Soru bankası' },
         ]}
         value={sekme}
@@ -145,6 +153,12 @@ export const OyunlarSayfasi: React.FC = () => {
       {sekme === 'oyunlarim' && (
         <Suspense fallback={<Yukleniyor satir={4} metin="Oyunlar yükleniyor…" />}>
           <OyunlarimPaneli yeniAc={yeniOyun} onYeniKapandi={() => setYeniOyun(false)} />
+        </Suspense>
+      )}
+
+      {sekme === 'turnuva' && (
+        <Suspense fallback={<Yukleniyor satir={3} metin="Turnuvalar yükleniyor…" />}>
+          <TurnuvalarPaneli yeniAc={yeniTurnuva} onYeniKapandi={() => setYeniTurnuva(false)} />
         </Suspense>
       )}
 

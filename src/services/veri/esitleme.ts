@@ -165,6 +165,7 @@ export abstract class EsitlemeKatmani extends BulutDepoKatmani {
     'kurum_ders_ayar', 'kurum_ders_tatil', 'sinif_ders_ogretmen', 'ders_programi', 'ders_vekil', 'ders_gun_izin',
     'ders_yoklama_oturum', 'deneme_exams', 'deneme_results',
     'oyun_oyunlari', 'oyun_denemeleri', // Aşama 386 (yalnız tek kanalda; eski yolda ekran kendi okumasıyla)
+    'oyun_turnuvalari', // Aşama 389
   ]);
   protected static readonly EK_ESKI_YOL = new Set<string>([
     'kurum_ders_ayar', 'kurum_ders_tatil', 'sinif_ders_ogretmen', 'ders_programi', 'ders_vekil', 'ders_gun_izin', 'ders_yoklama_oturum',

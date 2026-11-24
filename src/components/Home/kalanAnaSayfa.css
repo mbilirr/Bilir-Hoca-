@@ -215,6 +215,7 @@
 .kl-hw .bar.bad { background: var(--danger); } .kl-hw .bar.warn { background: var(--warning); } .kl-hw .bar.hi { background: var(--brand); } .kl-hw .bar.info { background: var(--info-fg); }
 .kl-hw b { display: flex; align-items: center; gap: calc(0.375 * var(--ak-rem)); font-size: calc(0.78125 * var(--ak-rem)); font-weight: 600; color: var(--fg); min-width: 0; }
 .kl-hw b > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kl-hw b > svg { flex-shrink: 0; width: calc(0.8125 * var(--ak-rem)); height: calc(0.8125 * var(--ak-rem)); color: var(--brand-fg); } /* Aşama 389: turnuva satırı */
 .kl-hw small { display: block; color: var(--muted); font-size: calc(0.71875 * var(--ak-rem)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kl-ann { display: grid; grid-template-columns: calc(1.875 * var(--ak-rem)) minmax(0, 1fr) auto; gap: calc(0.625 * var(--ak-rem)); align-items: start; padding: calc(0.625 * var(--ak-rem)) 0; border-top: 1px solid var(--line); font-size: calc(0.75 * var(--ak-rem)); color: var(--fg); }
 .kl-ann:first-child { border-top: 0; }

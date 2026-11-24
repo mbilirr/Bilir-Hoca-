@@ -1,6 +1,6 @@
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
-import { ArrowRight, Award, BarChart3, Bell, BookOpen, Calendar, Check, Flame, Gamepad2, HelpCircle, Home, MessageSquare, Plus } from 'lucide-react';
+import { ArrowRight, Award, BarChart3, Bell, BookOpen, Calendar, Check, Flame, Gamepad2, HelpCircle, Home, MessageSquare, Plus, Trophy } from 'lucide-react';
 import type { Etut, Homework, HomeworkSubmission, Student, StudentMessage, StudentNotification, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
 import type { OgrBolum } from '../../lib/ogrenciBolum';
@@ -387,6 +387,8 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   }, [oyunYukle]);
   const oyunlar = useMemo(() => (oyunVeri?.acik ? [...oyunVeri.oyunlar].sort(oyunSirasi) : []), [oyunVeri]);
   const oynanabilir = oyunlar.filter((o) => !!o.token).length;
+  const turnuva = oyunVeri?.acik ? oyunVeri.turnuva : null; // Aşama 389
+  const oyunVar = oyunlar.length > 0 || !!turnuva;
   const oyunKapat = () => {
     setOyunAcik(null);
     oyunYukle();
@@ -403,7 +405,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     [
       { id: 'odev', ad: 'Ödev', icon: BookOpen, on: can.odev, n: acikOdev.length },
       { id: 'etut', ad: 'Etüt', icon: Calendar, on: can.etut, n: gelecekEtut.length },
-      { id: 'oyun', ad: 'Oyun', icon: Gamepad2, on: oyunlar.length > 0, n: oynanabilir },
+      { id: 'oyun', ad: 'Oyun', icon: Gamepad2, on: oyunVar, n: oynanabilir },
       { id: 'mesaj', ad: 'Mesaj', icon: MessageSquare, on: can.mesaj, n: cevaplar.length },
       { id: 'bild', ad: 'Bildirim', icon: Bell, on: true, n: bildirimler.length },
     ] as const
@@ -412,7 +414,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   useEffect(() => {
     if (!sekmeler.some((s) => s.id === hub)) setHub((sekmeler[0]?.id as Hub) || 'bild');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [can.odev, can.etut, can.mesaj, oyunlar.length > 0]);
+  }, [can.odev, can.etut, can.mesaj, oyunVar]);
   const sekmeSec = (h: Hub) => {
     setHub(h);
     if (preview) return; // öğretmen önizlemesi öğrencinin "görüldü" kaydını değiştirmez
@@ -627,7 +629,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       <div className="kl-card-h">
         <div>
           <h3>Bana Gelenler</h3>
-          <p>{[can.odev && 'ödev', can.etut && 'etüt', oyunlar.length > 0 && 'oyun', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
+          <p>{[can.odev && 'ödev', can.etut && 'etüt', oyunVar && 'oyun', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
         </div>
       </div>
       <div className="kl-hubtabs" role="tablist" aria-label="Bölüm" style={{ ['--n' as string]: sekmeler.length }}>
@@ -750,10 +752,28 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
         </div>
       )}
 
-      {hub === 'oyun' && oyunlar.length > 0 && (
+      {hub === 'oyun' && oyunVar && (
         <div className="kl-hp" role="tabpanel" id="ogr-oyunlar">
           <div className="kl-body">
-            {oyunlar.slice(0, 4).map((o) => {
+            {turnuva && (
+              // Aşama 389: tek satır turnuva özeti (sabit boy): yalnız kendi sırası ve katılımcı sayısı
+              <div className="kl-hw" key={`t:${turnuva.id}`}>
+                <span className="bar hi" />
+                <div>
+                  <b>
+                    <Trophy aria-hidden />
+                    <span>{turnuva.ad}</span>
+                  </b>
+                  <small>{[`Turnuva · ${turnuva.oyunSayisi} oyun`, `${turnuva.katilan} katılımcı`, turnuva.ogretmen ? kisaAd(turnuva.ogretmen) : ''].filter(Boolean).join(' · ')}</small>
+                </div>
+                {/* telefonda "when" sütunu gizlenir: asıl bilgi (sıra) sağdaki sütunda durur */}
+                <span className="when kl-chip ok tnum">{turnuva.ben ? `${turnuva.ben.puan} puan · ${turnuva.ben.oyun}/${turnuva.oyunSayisi} oyun` : 'Oyunları bitirince sıran çıkar'}</span>
+                <span className={'kl-chip tnum ' + (turnuva.ben ? 'hi' : '')} title={turnuva.ben ? `${turnuva.katilan} katılımcı arasında` : undefined}>
+                  {turnuva.ben ? `${turnuva.ben.sira}. sıra` : '—'}
+                </span>
+              </div>
+            )}
+            {oyunlar.slice(0, turnuva ? 3 : 4).map((o) => {
               const yeniMi = yeni.oyun.includes(`o:${o.id}`);
               const bitti = o.deneme?.durum === 'bitti';
               const chip = bitti
@@ -784,7 +804,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
                 </div>
               );
             })}
-            {oyunlar.length > 4 && <div className="kl-more">+{oyunlar.length - 4} oyun daha</div>}
+            {oyunlar.length > (turnuva ? 3 : 4) && <div className="kl-more">+{oyunlar.length - (turnuva ? 3 : 4)} oyun daha</div>}
           </div>
           <div className="kl-foot">
             <span>{oynanabilir ? <>Oynanacak <b>{oynanabilir} oyun</b> · her oyun bir kez oynanır</> : 'Bütün oyunlarını oynadın'}</span>

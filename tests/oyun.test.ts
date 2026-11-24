@@ -143,7 +143,7 @@ class HttpError extends Error {
   }
 }
 
-function sahteSunucu(oyun: Record<string, any>, modules: Record<string, boolean> = { oyun: true }) {
+function sahteSunucu(oyun: Record<string, any>, modules: Record<string, boolean> = { oyun: true }, ek: { turnuvalar?: any[]; sira?: any[] } = {}) {
   const ogrenciler = [
     { id: 's1', name: 'Ali Yılmaz', class_id: 'c1', class_name: '8/A', status: 'active' },
     { id: 's2', name: 'Ayşe Demir', class_id: 'c1', class_name: '8/A', status: 'active' },
@@ -180,6 +180,12 @@ function sahteSunucu(oyun: Record<string, any>, modules: Record<string, boolean>
       const oyunEsit = (id: string) => (q('oyun_id').startsWith('in.(') ? q('oyun_id').slice(4, -1).split(',').includes(id) : id === q('oyun_id'));
       return denemeler.filter((d) => oyunEsit(d.oyun_id) && (!u.searchParams.get('student_id') || d.student_id === q('student_id')));
     }
+    // Aşama 389: turnuva (verilmediyse tablo yokmuş gibi: 389 SQL kurulmamış)
+    if (tablo === 'oyun_turnuvalari') {
+      if (!ek.turnuvalar) throw new Error('relation "oyun_turnuvalari" does not exist');
+      return ek.turnuvalar;
+    }
+    if (tablo === 'rpc/oyun_turnuva_sira') return (ek.sira || []).filter(() => opt.body && opt.body.p_turnuva);
     if (tablo === 'oyun_cevaplari') {
       if (!cevaplar.some((c) => c.deneme_id === opt.body.deneme_id && c.soru_id === opt.body.soru_id)) cevaplar.push(opt.body);
       return null;
@@ -473,4 +479,27 @@ test('sunucu: aynı öğrenciden döngüyle gelen oyun isteği 429 alır', async
   // başka adresten gelen öğrenci etkilenmez
   const b = await api.play({ op: 'bilgi', token }, '10.0.0.2');
   assert.equal(b.ok, true);
+});
+
+test('öğrenci: turnuvada yalnız kendi sırası ve katılımcı sayısı gelir; 389 kurulu değilse oyunlar etkilenmez', async () => {
+  const ali = { id: 's1', name: 'Ali Yılmaz', class_id: 'c1', kurum_id: 'k1', status: 'active' };
+  const yok = sahteSunucu(oyunSatiri('quiz', 'sinif'));
+  const l0 = await yok.api.ogrenci(ali, { op: 'liste' });
+  assert.equal(l0.oyunlar.length, 1);
+  assert.equal(l0.turnuva, null);
+  const sira = [
+    { student_id: 's2', ad: 'Ayşe Demir', puan: 900, dogru: 8, toplam: 8, oyun_sayisi: 2, sira: 1 },
+    { student_id: 's1', ad: 'Ali Yılmaz', puan: 500, dogru: 5, toplam: 8, oyun_sayisi: 2, sira: 2 },
+  ];
+  const T = { id: 't1', ad: 'Kasım turnuvası', oyun_ids: [OYUN, 'baska-oyun'], olusturan_ad: 'Mehmet Öz' };
+  const var_ = sahteSunucu(oyunSatiri('quiz', 'sinif'), { oyun: true }, { turnuvalar: [T], sira });
+  const l = await var_.api.ogrenci(ali, { op: 'liste' });
+  assert.deepEqual(l.turnuva, { id: 't1', ad: 'Kasım turnuvası', ogretmen: 'Mehmet Öz', oyunSayisi: 2, katilan: 2, ben: { sira: 2, puan: 500, oyun: 2 } });
+  assert.ok(!JSON.stringify(l).includes('Ayşe'), 'başka öğrencinin adı gitmez');
+  // turnuvadaki oyunlardan hiçbiri öğrencinin sınıfında değilse turnuva gösterilmez
+  const can = { id: 's3', name: 'Can Kaya', class_id: 'c2', kurum_id: 'k1', status: 'active' };
+  assert.equal((await var_.api.ogrenci(can, { op: 'liste' })).turnuva, null);
+  // oynamadıysa sırası yok ama turnuva görünür
+  const veli = { id: 's9', name: 'Veli Ak', class_id: 'c1', kurum_id: 'k1', status: 'active' };
+  assert.equal((await var_.api.ogrenci(veli, { op: 'liste' })).turnuva.ben, null);
 });
