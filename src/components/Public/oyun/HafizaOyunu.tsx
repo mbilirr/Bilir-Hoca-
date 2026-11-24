@@ -89,6 +89,9 @@ export const HafizaOyunu: React.FC<{
   };
 
   const yanlisMap = new Map((yanlis || []).map((x) => [x.k, x]));
+  // kartta kısalan uzun ipucu: açık (eşleşmemiş) kartların tam yazısı tahtanın altında okunur
+  const acikKartlar = yanlis || tahta.kartlar.filter((x) => x.durum === 'acik');
+  const uzunAcik = acikKartlar.filter((x) => x.tur === 'ipucu' && (x.metin || '').length > 60);
   const sutun = tahta.kartlar.length <= 6 ? 'grid-cols-3' : tahta.kartlar.length <= 12 ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4';
 
   return (
@@ -153,6 +156,16 @@ export const HafizaOyunu: React.FC<{
           })}
         </ul>
 
+        {uzunAcik.length > 0 && (
+          <div className="space-y-1.5" id="hafiza-acik-yazi">
+            {uzunAcik.map((x) => (
+              <p key={x.k} className={cx('rounded-xl px-3 py-2 text-xs leading-relaxed', yanlis ? 'bg-danger-soft text-danger-fg' : 'bg-brand-soft text-fg')}>
+                <b className="mr-1 font-semibold">İpucu:</b>
+                {x.metin}
+              </p>
+            ))}
+          </div>
+        )}
         <div className="min-h-5" aria-live="polite">
           {sonOzet ? (
             <p className="text-sm font-semibold text-success-fg">Bütün çiftleri buldun!</p>

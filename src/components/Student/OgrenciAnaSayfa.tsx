@@ -20,7 +20,7 @@ import { devamsizligim, haftaBasi, ogrenciProgrami, trBugun, type Devamsizligim,
 import { AkSheet, AnaSayfaKabuk, akBasHarf, type AkMenuOge } from '../Home/AnaSayfaKabuk';
 import '../Home/kalanAnaSayfa.css';
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
-import { ogrenciOyunlari, oyunSirasi, type OgrenciOyun, type OgrenciOyunlari } from '../../services/oyunOgrenciService'; // Aşama 385
+import { SERBEST_MODLAR, ogrenciOyunlari, oyunSirasi, type OgrenciOyun, type OgrenciOyunlari } from '../../services/oyunOgrenciService'; // Aşama 385
 import { MOD_AD, birimAd } from '../../services/oyunOturumService';
 import { kalanYazi } from '../Public/oyun/istek';
 import { Modal } from '../ui/kit';
@@ -804,7 +804,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
                     <Gamepad2 aria-hidden />
                     <span>Kendin oyna</span>
                   </b>
-                  <small>Çalışma · Meydan okuma · Kelime çarkı · Bulmaca</small>
+                  <small>{SERBEST_MODLAR.length} oyun türü · istediğin ders ve konudan</small>
                 </div>
                 <span className="when kl-chip">Okulun soru bankası</span>
                 <button type="button" className="ak-btn sm dark" data-yazma onClick={() => setKendinAcik(true)} id="kendin-oyna-ac">
