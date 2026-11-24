@@ -156,8 +156,12 @@ function sahteSunucu(oyun: Record<string, any>, modules: Record<string, boolean>
     const tablo = u.pathname.slice(1);
     const q = (k: string) => (u.searchParams.get(k) || '').replace(/^eq\./, '');
     const method = opt.method || 'GET';
-    if (tablo === 'oyun_oyunlari') return q('id') === oyun.id ? [oyun] : [];
-    if (tablo === 'kurumlar') return [{ modules }];
+    if (tablo === 'oyun_oyunlari') {
+      // Aşama 385: öğrencinin listesi sınıfa göre arar (soru_sayisi veritabanında hesaplanır)
+      if (u.searchParams.get('class_id')) return q('class_id') === oyun.class_id && !oyun.kapali_at ? [{ ...oyun, soru_sayisi: oyun.sorular.length }] : [];
+      return q('id') === oyun.id ? [oyun] : [];
+    }
+    if (tablo === 'kurumlar') return [{ id: oyun.kurum_id, modules }];
     if (tablo === 'students') {
       if (u.searchParams.get('class_id')) return ogrenciler.filter((s) => s.class_id === q('class_id'));
       return ogrenciler.filter((s) => s.id === q('id'));
@@ -173,7 +177,8 @@ function sahteSunucu(oyun: Record<string, any>, modules: Record<string, boolean>
         Object.assign(d, opt.body);
         return [d];
       }
-      return denemeler.filter((d) => d.oyun_id === q('oyun_id') && (!u.searchParams.get('student_id') || d.student_id === q('student_id')));
+      const oyunEsit = (id: string) => (q('oyun_id').startsWith('in.(') ? q('oyun_id').slice(4, -1).split(',').includes(id) : id === q('oyun_id'));
+      return denemeler.filter((d) => oyunEsit(d.oyun_id) && (!u.searchParams.get('student_id') || d.student_id === q('student_id')));
     }
     if (tablo === 'oyun_cevaplari') {
       if (!cevaplar.some((c) => c.deneme_id === opt.body.deneme_id && c.soru_id === opt.body.soru_id)) cevaplar.push(opt.body);
@@ -401,4 +406,44 @@ test('sunucu: bulmaca uçtan uca; oyun bitince sonuç kaydedilir', async () => {
   assert.equal(denemeler[0].durum, 'bitti');
   assert.equal(cevaplar.length, 4);
   await assert.rejects(() => api.play({ op: 'kelime', token, studentId: 's1', k: 0, tahmin: 'X' }), /tamamlandı/);
+});
+
+// ----------------------------------------------------------------------------- Aşama 385: öğrencinin kendi listesi
+test('öğrenci: kendi sınıfının açık oyunları kendi adına bağlantıyla gelir; bitince bağlantı verilmez', async () => {
+  const { api } = sahteSunucu(oyunSatiri('quiz', 'sinif'));
+  const ali = { id: 's1', name: 'Ali Yılmaz', class_id: 'c1', kurum_id: 'k1', status: 'active' };
+  const l = await api.ogrenci(ali, { op: 'liste' });
+  assert.equal(l.acik, true);
+  assert.equal(l.oyunlar.length, 1);
+  const g = l.oyunlar[0];
+  assert.equal(g.soruSayisi, 4);
+  assert.equal(g.deneme, null);
+  assert.ok(!JSON.stringify(l).includes('"dogru":'), 'cevaplar listeye sızmaz');
+  // sınıf oyunu da öğrencinin kendi adıyla açılır: ad seçmez, başkası yerine oynayamaz
+  const bilgi = await api.play({ op: 'bilgi', token: g.token });
+  assert.equal(bilgi.kisisel, true);
+  assert.equal(bilgi.ogrenci.id, 's1');
+  const b = await api.play({ op: 'basla', token: g.token, studentId: 's2' });
+  assert.equal(b.ogrenci.id, 's1');
+  for (let i = 1; i <= 4; i++) await api.play({ op: 'cevap', token: g.token, no: i, secim: 0 });
+  const son = (await api.ogrenci(ali, { op: 'liste' })).oyunlar[0];
+  assert.equal(son.deneme.durum, 'bitti');
+  assert.equal(son.token, undefined);
+  // başka sınıfın öğrencisi bu oyunu görmez
+  const can = { id: 's3', name: 'Can Kaya', class_id: 'c2', kurum_id: 'k1', status: 'active' };
+  assert.equal((await api.ogrenci(can, { op: 'liste' })).oyunlar.length, 0);
+});
+
+test('öğrenci: bölüm kapalıysa sekme yok; süresi dolan oyun yalnız oynadıysa görünür', async () => {
+  const ali = { id: 's1', name: 'Ali Yılmaz', class_id: 'c1', kurum_id: 'k1', status: 'active' };
+  const kapali = sahteSunucu(oyunSatiri('quiz', 'sinif'), { oyun: false });
+  assert.deepEqual(await kapali.api.ogrenci(ali, { op: 'liste' }), { ok: true, acik: false, oyunlar: [] });
+  const doldu = sahteSunucu(oyunSatiri('quiz', 'sinif', { bitis: new Date(Date.now() - 3600000).toISOString() }));
+  assert.equal((await doldu.api.ogrenci(ali, { op: 'liste' })).oyunlar.length, 0);
+  doldu.denemeler.push({ id: 'd0', oyun_id: OYUN, student_id: 's1', durum: 'bitti', puan: 220, dogru: 2, toplam: 4, v: 3 });
+  const l = (await doldu.api.ogrenci(ali, { op: 'liste' })).oyunlar;
+  assert.equal(l.length, 1);
+  assert.equal(l[0].acik, false);
+  assert.equal(l[0].deneme.puan, 220);
+  assert.equal(l[0].token, undefined);
 });

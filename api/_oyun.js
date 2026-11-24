@@ -19,6 +19,8 @@ export const CARK_KELIME = { en_az: 1, en_cok: 10 };
 export const GUN_SECENEKLERI = [1, 3, 7, 14, 30];
 export const CARK_HAK = 6;
 export const CARK_DILIMLERI = [100, 150, 200, 250, 300, 400, 500, 'IFLAS'];
+export const OGRENCI_GECMIS_GUN = 7; // Aşama 385: süresi dolan oyun öğrencinin listesinde bu kadar gün kalır (oynadıysa)
+export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca' };
 export const HARFLER = Array.from('ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ');
 const TR_BUYUK = /^[A-ZÇĞİÖŞÜ]{2,15}$/;
 
@@ -640,6 +642,95 @@ export function oyunApi(deps) {
     return { kisisel: ogr.sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr')).map((s) => ({ id: String(s.id), ad: clean(s.name), url: url(String(s.id)) })) };
   }
 
+  /** Aşama 385: yeni oyun bildirimi (yazma sunucu anahtarıyla; bildirim kimliği oyun + öğrenciye bağlı, tekrar yazılmaz) */
+  async function ogrencilereBildir(o, ogr, caller, gun) {
+    const birim = o.mod === 'quiz' ? 'soru' : 'kelime';
+    const satirlar = ogr
+      .map((s) => String(s.id))
+      .filter((sid) => sid.length <= 80)
+      .map((sid) => ({
+        id: `oyun-${o.id}-${sid}`,
+        student_id: sid,
+        type: 'general',
+        title: clean(`Yeni oyun: ${o.ad}`).slice(0, 200),
+        message: `${MOD_ADI[o.mod] || 'Oyun'} · ${o.sorular.length} ${birim} · ${gun} gün açık. Ana sayfanda Bana Gelenler › Oyun sekmesinden oynayabilirsin.`,
+        source_id: `oyun:${o.id}`,
+        source_title: clean(o.ad).slice(0, 300),
+        teacher_name: clean(caller.name || '').slice(0, 120) || null,
+        link_tab: 'home',
+        created_by: caller.authId || null,
+      }));
+    if (!satirlar.length) return 0;
+    try {
+      await rest('student_notifications?on_conflict=id', { ...sv, method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: satirlar });
+      return satirlar.length;
+    } catch (err) {
+      console.error('[oyun] bildirim yazılamadı:', err && err.message);
+      return 0; // oyun kuruldu; bildirim yazılamaması oyunu bozmaz
+    }
+  }
+
+  // --------------------------------------------------------------------------- öğrenci (kendi oturumuyla; Aşama 385)
+  /**
+   * Öğrencinin ana sayfasındaki "Oyun" sekmesi: kendi sınıfındaki açık oyunlar + son 7 günde süresi dolanlar.
+   * Oynamak için öğrenciye KENDİ adına imzalı kişisel bağlantı verilir; böylece sınıf bağlantısındaki gibi ad seçmez.
+   */
+  async function ogrenci(st, body) {
+    const op = String(body.op || 'liste');
+    if (op !== 'liste') throw new HttpError(400, 'Bilinmeyen işlem.');
+    const kurumAcik = async (ids) => {
+      const l = [...new Set(ids.filter(Boolean).map(String))];
+      if (!l.length) return new Set();
+      const kr = (await rest(`kurumlar?select=id,modules&id=in.${inList(l)}`, sv)) || [];
+      return new Set(kr.filter((k) => k.modules && k.modules.oyun === true).map((k) => String(k.id)));
+    };
+    // öğrencinin kendi kurumunda bölüm kapalıysa sekme hiç çıkmaz
+    const kendi = st.kurum_id ? await kurumAcik([st.kurum_id]) : new Set();
+    if (!st.class_id || (st.kurum_id && !kendi.size)) return { ok: true, acik: false, oyunlar: [] };
+    const sinir = new Date(Date.now() - OGRENCI_GECMIS_GUN * 86400000).toISOString();
+    let oyunlar;
+    try {
+      oyunlar =
+        (await rest(
+          `oyun_oyunlari?select=id,kurum_id,ad,mod,class_ad,bitis,soru_sayisi,olusturan_ad,created_at&class_id=eq.${encodeURIComponent(String(st.class_id))}&kapali_at=is.null&bitis=gt.${encodeURIComponent(sinir)}&order=created_at.desc&limit=30`,
+          sv
+        )) || [];
+    } catch (err) {
+      if (/soru_sayisi/.test(String(err && err.message))) throw new HttpError(400, 'Oyunlar için 385 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
+      throw err;
+    }
+    const acikKurum = await kurumAcik(oyunlar.map((o) => o.kurum_id));
+    oyunlar = oyunlar.filter((o) => acikKurum.has(String(o.kurum_id)));
+    const dn = oyunlar.length
+      ? (await rest(`oyun_denemeleri?select=oyun_id,durum,puan,dogru,toplam&student_id=eq.${encodeURIComponent(String(st.id))}&oyun_id=in.${inList(oyunlar.map((o) => o.id))}`, sv)) || []
+      : [];
+    const dm = new Map(dn.map((d) => [String(d.oyun_id), d]));
+    const k = key();
+    const simdi = Date.now();
+    const liste = oyunlar
+      .map((o) => {
+        const d = dm.get(String(o.id));
+        const acik = Date.parse(o.bitis) > simdi;
+        const oyna = acik && (!d || d.durum !== 'bitti');
+        return {
+          id: String(o.id),
+          ad: o.ad,
+          mod: o.mod,
+          sinif: o.class_ad || '',
+          soruSayisi: Number(o.soru_sayisi) || 0,
+          bitis: o.bitis,
+          ogretmen: o.olusturan_ad || '',
+          olusturma: o.created_at,
+          acik,
+          deneme: d ? { durum: d.durum, puan: d.puan, dogru: d.dogru, toplam: d.toplam } : null,
+          ...(oyna ? { token: makeToken(k, o.id, String(st.id)) } : {}),
+        };
+      })
+      // oynanmamış süresi dolmuş oyun listede kalabalık yapmaz
+      .filter((o) => o.acik || o.deneme);
+    return { ok: true, acik: true, oyunlar: liste };
+  }
+
   async function ogretmen(caller, body, req) {
     if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).', { fatal: true });
     await yetki(caller);
@@ -701,7 +792,9 @@ export function oyunApi(deps) {
       });
       const o = kayit && kayit[0];
       if (!o) throw new HttpError(500, 'Oyun kaydedilemedi.');
-      return { ok: true, oyun: { id: o.id, bitis }, ...(await baglantilar(o, req)) };
+      // Aşama 385: öğrenciye uygulama içi bildirim (Bildirim sekmesi); oyun ana sayfadaki "Oyun" sekmesinde de çıkar
+      const bildirim = body.bildir === false ? 0 : await ogrencilereBildir(o, ogr, caller, gun);
+      return { ok: true, oyun: { id: o.id, bitis }, bildirim, ...(await baglantilar(o, req)) };
     }
     const o = await oyunum(caller, body.oyunId);
     if (op === 'baglantilar') {
@@ -721,6 +814,8 @@ export function oyunApi(deps) {
     }
     if (op === 'sil') {
       await rest(`oyun_oyunlari?id=eq.${o.id}`, { ...sv, method: 'DELETE', prefer: 'return=minimal' });
+      // Aşama 385: silinen oyunun "Yeni oyun" bildirimi öğrencide kalmaz
+      await rest(`student_notifications?source_id=eq.${encodeURIComponent(`oyun:${o.id}`)}`, { ...sv, method: 'DELETE', prefer: 'return=minimal' }).catch(() => undefined);
       return { ok: true };
     }
     if (op === 'sifirla') {
@@ -732,5 +827,5 @@ export function oyunApi(deps) {
     throw new HttpError(400, 'Bilinmeyen işlem.');
   }
 
-  return { play, ogretmen };
+  return { play, ogretmen, ogrenci };
 }

@@ -5297,6 +5297,23 @@ async function oyunApiGet() {
   return oyunApiCache;
 }
 
+/** Aşama 385: giriş yapmış ÖĞRENCİ (öğretmen işlemleri getCaller ile kalır; öğrenci yalnız kendi oyun listesini alır) */
+async function getOgrenciCaller(req) {
+  if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
+  const auth = String(req.headers.authorization || '');
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token) throw new HttpError(401, 'Oturum bulunamadı. Lütfen yeniden giriş yapın.');
+  const user = await getAuthUser(token);
+  if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+  if (ikiAdimEksik(user, token)) throw new HttpError(403, IKI_ADIM_MESAJ);
+  if (await dondurma.kisiDondurulmus(okuServis, user.id, token)) throw new HttpError(403, dondurma.DONDURMA_MESAJ, { code: 'donduruldu' });
+  const r = await rest(`students?select=id,name,class_id,kurum_id,status&auth_user_id=eq.${encodeURIComponent(user.id)}`, { token: 'service' });
+  const s = r && r[0];
+  if (!s) throw new HttpError(403, 'Bu işlem yalnız öğrenci hesabıyla yapılır.');
+  if (s.status && s.status !== 'active') throw new HttpError(403, 'Öğrenci hesabı etkin değil.');
+  return s;
+}
+
 // ----------------------------------------------------------------------------- Öğretmene rapor (son akşam 20:00)
 const pctOf = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
 const pctColor = (p) => (p >= 80 ? '#047857' : p >= 50 ? '#b45309' : '#b91c1c');
@@ -5820,6 +5837,11 @@ export default async function handler(req, res) {
     if (body.action === 'oyun-play') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
       return res.status(200).json(await (await oyunApiGet()).play(body));
+    }
+    // Aşama 385: öğrencinin kendi oturumuyla açık oyunları (ana sayfa › Bana gelenler › Oyun)
+    if (body.action === 'oyun-ogrenci') {
+      const st = await getOgrenciCaller(req);
+      return res.status(200).json(await (await oyunApiGet()).ogrenci(st, body));
     }
     if (body.action === 'attendance-get' || body.action === 'attendance-save') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');

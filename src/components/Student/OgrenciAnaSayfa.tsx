@@ -1,6 +1,6 @@
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
-import { ArrowRight, Award, BarChart3, Bell, BookOpen, Calendar, Check, Flame, HelpCircle, Home, MessageSquare, Plus } from 'lucide-react';
+import { ArrowRight, Award, BarChart3, Bell, BookOpen, Calendar, Check, Flame, Gamepad2, HelpCircle, Home, MessageSquare, Plus } from 'lucide-react';
 import type { Etut, Homework, HomeworkSubmission, Student, StudentMessage, StudentNotification, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
 import type { OgrBolum } from '../../lib/ogrenciBolum';
@@ -20,13 +20,17 @@ import { devamsizligim, haftaBasi, ogrenciProgrami, trBugun, type Devamsizligim,
 import { AkSheet, AnaSayfaKabuk, akBasHarf, type AkMenuOge } from '../Home/AnaSayfaKabuk';
 import '../Home/kalanAnaSayfa.css';
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
+import { ogrenciOyunlari, oyunSirasi, type OgrenciOyun, type OgrenciOyunlari } from '../../services/oyunOgrenciService'; // Aşama 385
+import { MOD_AD, birimAd } from '../../services/oyunOturumService';
+import { kalanYazi } from '../Public/oyun/istek';
+import { Modal } from '../ui/kit';
 
 // ============================================================================
 // Aşama 253: ÖĞRENCİ ANA SAYFASI (taslak: kalan-roller.html › Öğrenci, 13 Kasım; Odak renkleri, sol menü + hayalet etiket)
 // Bölümler (yalnız öğrenciye AÇIK bölümler; kapalı bölümün verisi hazırlanmaz, sorgusu atılmaz):
 //  * Bugün (koyu kart): soru hedefi halkası + bugün girilen dersler; sağda "Bugünkü planım" (yaptım işareti, ortak
 //    yardımcı planGorevIsaretle ile soru kaydına aktarım; haftalık plan sağdan açılır).
-//  * Bana gelenler: Ödev / Etüt / Mesaj / Bildirim sekmeleri; yeni gelen varsa sekme yanıp söner (tıklanınca durur,
+//  * Bana gelenler: Ödev / Etüt / Oyun (Aşama 385) / Mesaj / Bildirim sekmeleri; yeni gelen varsa sekme yanıp söner (tıklanınca durur,
 //    görüldü kaydı cihazlar arası: useSeenIds; bildirimler okundu olur). Her sekme en çok birkaç satır + "tümü" bağlantısı.
 //  * Bugünkü ders programım: kendi sınıfının bugünkü dersleri (ders_programim), öğle arası, bugünkü etütler; altta
 //    devamsızlık özeti (ders_devamsizligim). Ders programı kullanılmayan kurumda kart çıkmaz.
@@ -35,9 +39,11 @@ import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 // Sayılar Soru Takibi sayfasıyla AYNI fonksiyonlardan (buildStudentQuestionSummary, weekDayGoal).
 // ============================================================================
 
+// Aşama 385: oyun, bağlantıyla açılan sayfanın aynısıyla tam ekran pencerede oynanır
+const OyunOynaPage = lazyNamed<React.ComponentProps<typeof import('../Public/OyunOynaPage').OyunOynaPage>>(() => import('../Public/OyunOynaPage'), 'OyunOynaPage');
 const StudentTodayPlan = lazyNamed<React.ComponentProps<typeof import('./StudentTodayPlan').StudentTodayPlan>>(() => import('./StudentTodayPlan'), 'StudentTodayPlan');
 
-type Hub = 'odev' | 'etut' | 'mesaj' | 'bild';
+type Hub = 'odev' | 'etut' | 'oyun' | 'mesaj' | 'bild';
 
 interface Props {
   student: Student;
@@ -345,7 +351,28 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id, announcements, acik, dataVersion, unreadNotifs]);
 
+  // ================================================================ OYUNLAR (Aşama 385)
+  // Sunucudan öğrencinin kendi oturumuyla gelir; Oyunlar bölümü kurumda kapalıysa ya da hiç oyun yoksa sekme çıkmaz.
+  // Öğretmen önizlemesinde istenmez (öğretmen oturumu öğrencinin listesini alamaz).
+  const [oyunVeri, setOyunVeri] = useState<OgrenciOyunlari | null>(null);
+  const [oyunAcik, setOyunAcik] = useState<OgrenciOyun | null>(null);
+  const oyunYukle = useCallback(() => {
+    if (preview) return;
+    ogrenciOyunlari()
+      .then(setOyunVeri)
+      .catch(() => undefined); // okunamazsa sekme önceki haliyle kalır
+  }, [preview]);
+  // yeni bildirim (ör. "Yeni oyun") gelince liste tazelenir
+  useEffect(oyunYukle, [oyunYukle, unreadNotifs]);
+  const oyunlar = useMemo(() => (oyunVeri?.acik ? [...oyunVeri.oyunlar].sort(oyunSirasi) : []), [oyunVeri]);
+  const oynanabilir = oyunlar.filter((o) => !!o.token).length;
+  const oyunKapat = () => {
+    setOyunAcik(null);
+    oyunYukle();
+  };
+
   const yeni = {
+    oyun: oyunlar.filter((o) => o.token && !o.deneme && !seen.has(`o:${o.id}`) && tazeMi(o.olusturma)).map((o) => `o:${o.id}`),
     odev: acikOdev.filter((x) => !seen.has(`h:${x.hw.id}`) && tazeMi(x.hw.assignedDate || x.hw.createdAt)).map((x) => `h:${x.hw.id}`),
     etut: gelecekEtut.filter((e) => !seen.has(`e:${e.id}`) && tazeMi(e.createdAt)).map((e) => `e:${e.id}`),
     mesaj: cevaplar.filter((m) => !seen.has(`m:${m.id}:${m.repliedAt || ''}`) && tazeMi(m.repliedAt)).map((m) => `m:${m.id}:${m.repliedAt || ''}`),
@@ -355,6 +382,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     [
       { id: 'odev', ad: 'Ödev', icon: BookOpen, on: can.odev, n: acikOdev.length },
       { id: 'etut', ad: 'Etüt', icon: Calendar, on: can.etut, n: gelecekEtut.length },
+      { id: 'oyun', ad: 'Oyun', icon: Gamepad2, on: oyunlar.length > 0, n: oynanabilir },
       { id: 'mesaj', ad: 'Mesaj', icon: MessageSquare, on: can.mesaj, n: cevaplar.length },
       { id: 'bild', ad: 'Bildirim', icon: Bell, on: true, n: bildirimler.length },
     ] as const
@@ -363,7 +391,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   useEffect(() => {
     if (!sekmeler.some((s) => s.id === hub)) setHub((sekmeler[0]?.id as Hub) || 'bild');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [can.odev, can.etut, can.mesaj]);
+  }, [can.odev, can.etut, can.mesaj, oyunlar.length > 0]);
   const sekmeSec = (h: Hub) => {
     setHub(h);
     if (preview) return; // öğretmen önizlemesi öğrencinin "görüldü" kaydını değiştirmez
@@ -578,7 +606,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       <div className="kl-card-h">
         <div>
           <h3>Bana Gelenler</h3>
-          <p>{[can.odev && 'ödev', can.etut && 'etüt', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
+          <p>{[can.odev && 'ödev', can.etut && 'etüt', oyunlar.length > 0 && 'oyun', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
         </div>
       </div>
       <div className="kl-hubtabs" role="tablist" aria-label="Bölüm" style={{ ['--n' as string]: sekmeler.length }}>
@@ -697,6 +725,48 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
             <button type="button" className="od-link" onClick={() => go('etuts')}>
               Etütlerim <ArrowRight />
             </button>
+          </div>
+        </div>
+      )}
+
+      {hub === 'oyun' && oyunlar.length > 0 && (
+        <div className="kl-hp" role="tabpanel" id="ogr-oyunlar">
+          <div className="kl-body">
+            {oyunlar.slice(0, 4).map((o) => {
+              const yeniMi = yeni.oyun.includes(`o:${o.id}`);
+              const bitti = o.deneme?.durum === 'bitti';
+              const chip = bitti
+                ? { c: 'ok', t: 'Bitti' }
+                : !o.acik
+                  ? { c: '', t: 'Süresi doldu' }
+                  : { c: o.deneme ? 'warn' : 'info', t: `${kalanYazi(o.bitis) || '1 dk'} kaldı` };
+              return (
+                <div className="kl-hw" key={o.id}>
+                  <span className={'bar ' + (o.token ? (yeniMi ? 'hi' : 'info') : bitti ? '' : 'warn')} />
+                  <div>
+                    <b>
+                      <span>{o.ad}</span>
+                      {yeniMi && <span className="kl-chip hi">Yeni</span>}
+                    </b>
+                    <small>{[MOD_AD[o.mod], `${o.soruSayisi} ${birimAd(o.mod)}`, o.ogretmen ? kisaAd(o.ogretmen) : ''].filter(Boolean).join(' · ')}</small>
+                  </div>
+                  <span className={'when kl-chip ' + chip.c}>{chip.t}</span>
+                  {o.token ? (
+                    <button type="button" className={'ak-btn sm' + (o.deneme ? '' : ' dark')} data-yazma onClick={() => setOyunAcik(o)}>
+                      {o.deneme ? 'Devam et' : 'Oyna'}
+                    </button>
+                  ) : (
+                    <span className="kl-chip ok tnum" title={o.deneme ? `${o.deneme.toplam} ${birimAd(o.mod)} · ${o.deneme.dogru} doğru` : undefined}>
+                      {o.deneme ? `${o.deneme.puan} puan` : '—'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {oyunlar.length > 4 && <div className="kl-more">+{oyunlar.length - 4} oyun daha</div>}
+          </div>
+          <div className="kl-foot">
+            <span>{oynanabilir ? <>Oynanacak <b>{oynanabilir} oyun</b> · her oyun bir kez oynanır</> : 'Bütün oyunlarını oynadın'}</span>
           </div>
         </div>
       )}
@@ -1088,6 +1158,22 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       {(hubKart || programKart) && <div className={'kl-grid2' + (hubKart && programKart ? '' : ' n1')}>{hubKart}{programKart}</div>}
       {(haftaKart || denemeKart) && <div className={'kl-grid2' + (haftaKart && denemeKart ? '' : ' n1')}>{haftaKart}{denemeKart}</div>}
       {ek}
+      {oyunAcik?.token && (
+        <Modal
+          open
+          onClose={oyunKapat}
+          tamEkran
+          closeOnBackdrop={false}
+          icon={Gamepad2}
+          title={oyunAcik.ad}
+          description={[MOD_AD[oyunAcik.mod], oyunAcik.sinif, oyunAcik.ogretmen ? kisaAd(oyunAcik.ogretmen) : ''].filter(Boolean).join(' · ')}
+          id="ogr-oyun-pencere"
+        >
+          <Suspense fallback={null}>
+            <OyunOynaPage token={oyunAcik.token} onKapat={oyunKapat} />
+          </Suspense>
+        </Modal>
+      )}
     </AnaSayfaKabuk>
   );
 };

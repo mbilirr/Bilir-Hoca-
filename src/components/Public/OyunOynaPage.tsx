@@ -36,7 +36,11 @@ const yazSecim = (token: string, id: string | null) => {
 
 const Kutu: React.FC<{ children: React.ReactNode }> = ({ children }) => <div className="ui-card space-y-4 p-5">{children}</div>;
 
-export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
+/**
+ * Aşama 385: onKapat verilirse sayfa öğrenci ana sayfasındaki tam ekran pencerenin içindedir: başlığı pencere gösterir,
+ * bitince "Ana sayfaya dön" çıkar ve sekme başlığı değiştirilmez.
+ */
+export const OyunOynaPage: React.FC<{ token: string; onKapat?: () => void }> = ({ token, onKapat }) => {
   const [bilgi, setBilgi] = useState<(OyunBilgi & { kisisel: boolean; ogrenci?: { id: string; ad: string }; ogrenciler?: SinifOgrenci[] }) | null>(null);
   const [hata, setHata] = useState<{ mesaj: string; kod: string } | null>(null);
   const [ogrenciId, setOgrenciId] = useState<string | null>(null);
@@ -48,11 +52,11 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
   const hataYaz = (e: unknown) => setHata({ mesaj: e instanceof Error ? e.message : 'Bir sorun oluştu.', kod: e instanceof OyunHatasi ? e.kod : '' });
 
   useEffect(() => {
-    document.title = 'Oyun';
+    if (!onKapat) document.title = 'Oyun';
     oyunCagri<any>(token, 'bilgi')
       .then((b) => {
         setBilgi({ ...b.oyun, kisisel: !!b.kisisel, ogrenci: b.ogrenci, ogrenciler: b.ogrenciler });
-        document.title = b.oyun.ad;
+        if (!onKapat) document.title = b.oyun.ad;
         if (b.ogrenci) setOgrenciId(b.ogrenci.id);
         else {
           const hatirla = okuSecim(token);
@@ -60,6 +64,7 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
         }
       })
       .catch(hataYaz);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const basla = useCallback(
@@ -93,7 +98,12 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
 
   const bitir = useCallback((o: OyunOzet) => setEkran({ tur: 'bitti', sonuc: o }), []);
 
-  const kapsayici = (icerik: React.ReactNode) => (
+  const kapsayici = (icerik: React.ReactNode) =>
+    onKapat ? (
+      <div className="mx-auto max-w-xl space-y-4 pb-6" id="oyun-sayfa">
+        {icerik}
+      </div>
+    ) : (
     <div className="min-h-screen bg-canvas text-fg" id="oyun-sayfa">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-4">
@@ -148,6 +158,11 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
             <CheckCircle2 className="mr-1 inline w-3.5 h-3.5 align-[-0.15em]" aria-hidden />
             Sonucun öğretmenine iletildi. Her öğrenci oyunu bir kez oynar.
           </p>
+          {onKapat && (
+            <Button genislik="uzun" onClick={onKapat}>
+              Ana sayfaya dön
+            </Button>
+          )}
         </div>
       </Kutu>
     );
@@ -189,7 +204,7 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
         <div className="space-y-1">
           <p className="text-base font-semibold text-fg">Merhaba {bilgi.ogrenci.ad}!</p>
           <p className="text-sm text-muted">{oyunNotu}</p>
-          {kalan && <p className="text-xs text-subtle">Bağlantı {kalan} daha açık. Oyunu bir kez oynayabilirsin.</p>}
+          {kalan && <p className="text-xs text-subtle">Oyun {kalan} daha açık; bir kez oynayabilirsin.</p>}
         </div>
         {adimHata && (
           <p role="alert" className="text-xs text-danger-fg">
@@ -210,7 +225,7 @@ export const OyunOynaPage: React.FC<{ token: string }> = ({ token }) => {
       <div className="space-y-1">
         <p className="text-base font-semibold text-fg">Adını seç</p>
         <p className="text-sm text-muted">{oyunNotu}</p>
-        {kalan && <p className="text-xs text-subtle">Bağlantı {kalan} daha açık. Herkes oyunu bir kez oynar.</p>}
+        {kalan && <p className="text-xs text-subtle">Oyun {kalan} daha açık. Herkes oyunu bir kez oynar.</p>}
       </div>
       {adimHata && (
         <p role="alert" className="text-xs text-danger-fg">

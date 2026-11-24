@@ -6,6 +6,7 @@
 // ============================================================================
 import { supabase } from '../lib/supabase';
 import { callMailOnce } from '../lib/mailApi';
+import { notifyPush } from '../lib/push'; // Aşama 385
 
 export type OyunMod = 'quiz' | 'cark' | 'bulmaca';
 export type OyunKapsam = 'sinif' | 'kisisel';
@@ -72,6 +73,8 @@ export interface OyunGirdi {
   soruIds: string[];
   sureSn: number;
   gun: number;
+  /** Aşama 385: öğrencilere "Yeni oyun" bildirimi (uygulama içi + telefon) */
+  bildir: boolean;
 }
 
 const SQL_EKSIK = "Oyun oturumları veritabanında henüz kurulu değil. Supabase SQL Editor'de 381 numaralı SQL dosyasını çalıştırın.";
@@ -159,7 +162,10 @@ async function sunucu(op: string, ek: Record<string, unknown>): Promise<Record<s
 
 export async function olusturOyun(g: OyunGirdi): Promise<{ id: string; baglantilar: OyunBaglantilari }> {
   const r = await sunucu('olustur', { ...g });
-  return { id: String(r.oyun.id), baglantilar: { sinif: r.sinif, kisisel: r.kisisel } };
+  const id = String(r.oyun.id);
+  // Aşama 385: telefon bildirimi ayrı sunucuda (api/push.js); gitmese de oyun kurulmuştur
+  if (g.bildir) notifyPush('oyun-yeni', { oyunId: id });
+  return { id, baglantilar: { sinif: r.sinif, kisisel: r.kisisel } };
 }
 export async function oyunBaglantilari(oyunId: string): Promise<OyunBaglantilari> {
   const r = await sunucu('baglantilar', { oyunId });

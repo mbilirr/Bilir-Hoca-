@@ -17,6 +17,7 @@ const CHANNELS = {
   mesaj: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: ['push', 'whatsapp'] },
   tebrik: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: [] },
   takvim: { ogrenci: [], veli: [], ogretmen: ['email', 'sms'] }, // Aşama 328: yaklaşan zümre etkinliği
+  oyun: { ogrenci: ['push'], veli: [], ogretmen: [] }, // Aşama 385: yeni oyun
 };
 
 /** E-posta olayı → kategori. Listede olmayanlar (hesap bilgisi, deneme e-postası) her zaman gönderilir. */

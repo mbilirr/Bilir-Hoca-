@@ -15,7 +15,7 @@ export type PushState =
   | 'off' // destekleniyor, bu cihazda kapalı
   | 'on'; // bu cihazda açık
 
-export type PushEvent = 'homework-created' | 'announcement' | 'message-reply' | 'message-new' | 'praise';
+export type PushEvent = 'homework-created' | 'announcement' | 'message-reply' | 'message-new' | 'praise' | 'oyun-yeni'; // Aşama 385: oyun-yeni
 
 const isIos = () =>
   typeof navigator !== 'undefined' &&

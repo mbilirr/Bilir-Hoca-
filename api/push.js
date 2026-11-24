@@ -995,6 +995,25 @@ export async function notifyMessageReply(caller, body, deadline) {
   );
 }
 
+// Aşama 385: öğretmen sınıfa yeni oyun hazırladı -> sınıfın öğrencilerine telefon bildirimi.
+// Oyun öğretmenin KENDİ oturumuyla okunur (yalnız kendi hazırladığı / yönetebildiği oyun).
+export async function notifyOyunYeni(caller, body, deadline) {
+  if (caller.role !== 'teacher') throw new HttpError(403, 'Yalnızca öğretmen.');
+  const id = String(body.oyunId || '');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, 'Geçersiz oyun.');
+  const o = await visibleRow('oyun_oyunlari', `id=eq.${id}`, caller.token);
+  if (!o) throw new HttpError(404, 'Oyun bulunamadı.');
+  if (o.kapali_at || Date.parse(o.bitis) <= Date.now()) return { users: 0, sent: 0 };
+  const ogr = (await rest(`students?select=id,status&class_id=eq.${encodeURIComponent(String(o.class_id))}&limit=400`, { token: 'service' })) || [];
+  const users = await studentAuthIds(ogr.filter((s) => !s.status || s.status === 'active').map((s) => s.id));
+  const tur = o.mod === 'quiz' ? 'Soru yarışı' : o.mod === 'bulmaca' ? 'Bulmaca' : 'Kelime çarkı';
+  return sendToUsers(
+    users,
+    { title: `Yeni oyun: ${o.ad || 'Oyun'}`, body: `${tur}${o.class_ad ? ` · ${o.class_ad}` : ''} · ana sayfandan oyna`, url: '/#/student', tag: `oyun-${o.id}` },
+    { dedupe: `oyun-new:${o.id}`, deadline, policy: ['oyun', 'ogrenci'] }
+  );
+}
+
 // Aşama 45: öğretmenin tebrik mesajı -> öğrencinin telefonuna (kayıt, öğretmenin kendi oturumuyla okunur)
 export async function notifyPraise(caller, body, deadline) {
   if (caller.role !== 'teacher') throw new HttpError(403, 'Yalnızca öğretmen.');
@@ -1232,6 +1251,9 @@ export default async function handler(req, res) {
             break;
           case 'praise':
             result = await notifyPraise(caller, body, deadline);
+            break;
+          case 'oyun-yeni': // Aşama 385
+            result = await notifyOyunYeni(caller, body, deadline);
             break;
           default:
             throw new HttpError(400, 'Bilinmeyen bildirim türü.');

@@ -6,7 +6,7 @@
 // Sunucudaki kopya: api/_notifyPolicy.js — kategori / kanal listesi iki dosyada AYNI tutulmalıdır.
 // ============================================================================
 
-export type PolicyCategory = 'etut' | 'yoklama' | 'devamsizlik' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik' | 'takvim'; // Aşama 223: devamsizlik · Aşama 328: takvim
+export type PolicyCategory = 'etut' | 'yoklama' | 'devamsizlik' | 'odev' | 'plan' | 'soru' | 'deneme' | 'mesaj' | 'tebrik' | 'takvim' | 'oyun'; // Aşama 223: devamsizlik · Aşama 328: takvim · Aşama 385: oyun
 export type PolicyRecipient = 'ogrenci' | 'veli' | 'ogretmen';
 export type PolicyChannel = 'email' | 'push' | 'sms' | 'whatsapp';
 
@@ -98,6 +98,13 @@ export const POLICY_CATEGORIES: {
     label: 'Akademik takvim',
     hint: 'Yaklaşan zümre etkinliği hatırlatması (okul dışı 12 gün, okul içi 6 gün önce), bitince "yapıldı mı?" sorusu ve işaretlenen durumun zümre başkanı + idareye bildirimi (SMS yalnız Ertelendi / İptal); üyeler Akademik takvim › Zümreler',
     channels: { ogrenci: [], veli: [], ogretmen: ['email', 'sms'] },
+  },
+  // Aşama 385: öğretmen yeni oyun hazırlayınca sınıfın öğrencilerine (uygulama içi bildirim her zaman yazılır)
+  {
+    id: 'oyun',
+    label: 'Oyunlar',
+    hint: 'Öğretmen sınıfa yeni oyun hazırlayınca öğrencinin telefonuna bildirim',
+    channels: { ogrenci: ['push'], veli: [], ogretmen: [] },
   },
 ];
 

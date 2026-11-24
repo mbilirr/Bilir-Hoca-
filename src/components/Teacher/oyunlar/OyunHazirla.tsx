@@ -31,6 +31,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   const [classId, setClassId] = useState(baslangic && siniflar.some((c) => c.id === baslangic.classId) ? baslangic.classId : siniflar[0]?.id || '');
   const [sureSn, setSureSn] = useState<number>(SORU_SN.varsayilan);
   const [gun, setGun] = useState(7);
+  const [bildir, setBildir] = useState(true); // Aşama 385
   const [secili, setSecili] = useState<string[]>([]);
   const [bank, setBank] = useState<OyunSoru[] | null>(null);
   const [bankHata, setBankHata] = useState<string | null>(null);
@@ -81,7 +82,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
     }
     setKaydediyor(true);
     try {
-      const r = await olusturOyun({ mod, kapsam, ad: ad.trim(), classId, soruIds: secili, sureSn, gun });
+      const r = await olusturOyun({ mod, kapsam, ad: ad.trim(), classId, soruIds: secili, sureSn, gun, bildir });
       onCreated(r.id);
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Oyun hazırlanamadı.');
@@ -160,7 +161,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
               value={kapsam}
               onChange={setKapsam}
             />
-            <p className="mt-1 text-xs text-muted">{kapsam === 'sinif' ? 'Tek bağlantı ve QR kod; öğrenci listeden adını seçer.' : 'Her öğrenciye kendine özel bağlantı; kimse başkasının yerine oynayamaz.'}</p>
+            <p className="mt-1 text-xs text-muted">{kapsam === 'sinif' ? 'Tek bağlantı ve QR kod, sınıfta hızlı başlatmak için; öğrenci listeden adını seçer.' : 'Her öğrenciye kendine özel bağlantı; kimse başkasının yerine oynayamaz.'}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {mod === 'quiz' && (
@@ -188,6 +189,14 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
           </div>
         </div>
         {sinif && kapsam === 'kisisel' && <p className="text-xs text-muted">{sinif.name} sınıfındaki etkin öğrenciler için ayrı bağlantı üretilir.</p>}
+        {/* Aşama 385: oyun her durumda öğrencinin ana sayfasında (Bana gelenler › Oyun) kendi adıyla açılır */}
+        <label className="flex items-start gap-2.5 rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-fg" id="oyun-bildir">
+          <input type="checkbox" checked={bildir} onChange={(ev) => setBildir(ev.target.checked)} className="mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            <span className="font-medium">Öğrencilere bildir</span>
+            <span className="block text-xs text-muted">Oyun, öğrencinin ana sayfasında kendi adıyla açılır; bildirimle haber verilir.</span>
+          </span>
+        </label>
 
         {baslangic && bank && (
           <p className={cx('rounded-xl px-3.5 py-2.5 text-xs', kazanimSorulari.length >= lim.en_az ? 'bg-brand-soft text-brand-fg' : 'bg-warning-soft text-warning-fg')}>
