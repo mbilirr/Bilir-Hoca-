@@ -442,6 +442,60 @@ test('sunucu: hafıza uçtan uca; kart yazısı açılmadan gelmez, eşleşme ka
   assert.equal(cevaplar.length, 3);
 });
 
+test('savunma: yanlış ve süre dolması can götürür, canlar bitince erken biter; bitişte kalan can puanı', () => {
+  const t0 = 2_000_000;
+  // 3 yanlış → oyun 3. soruda biter, 4. soru sorulmaz
+  let d = o.savunmaBaslat(QS);
+  assert.equal(d.can, o.SAVUNMA_CAN);
+  for (let i = 0; i < 3; i++) {
+    d = o.quizSoru(d, QS, 20, t0).durum;
+    const q = QS.find((x) => x.id === d.sira[d.i])!;
+    const yanlisSik = d.sik[q.id].findIndex((k: number) => k !== q.dogru);
+    const r = o.savunmaCevapla(d, QS, i + 1, i === 2 ? null : yanlisSik, 20, t0);
+    assert.equal(r.sonuc.dogru, false);
+    assert.equal(r.sonuc.can, 2 - i);
+    assert.equal(r.bitti, i === 2);
+    assert.equal(r.bonus, 0);
+    d = r.durum;
+  }
+  assert.ok(o.savunmaCevapla(d, QS, 4, 0, 20, t0).hata);
+  // hepsi doğru → 4 × 150 + 3 can × 50
+  d = o.savunmaBaslat(QS);
+  let toplam = 0;
+  for (let i = 0; i < 4; i++) {
+    d = o.quizSoru(d, QS, 20, t0).durum;
+    const q = QS.find((x) => x.id === d.sira[d.i])!;
+    const r = o.savunmaCevapla(d, QS, i + 1, d.sik[q.id].indexOf(q.dogru), 20, t0);
+    toplam += r.sonuc.kazanilan + r.bonus;
+    d = r.durum;
+    if (i === 3) assert.equal(r.bonus, 3 * o.SAVUNMA_CAN_PUAN);
+  }
+  assert.equal(toplam, 4 * 150 + 150);
+  assert.equal(o.MOD_TUR.savunma, 'coktan');
+  assert.equal(o.modBirim('savunma'), 'soru');
+  assert.deepEqual(o.OGRETMEN_LIM.savunma, o.QUIZ_SORU);
+});
+
+test('sunucu: savunma uçtan uca; can sunucuda düşer, kale düşünce oyun biter', async () => {
+  const { api, denemeler, cevaplar } = sahteSunucu({ ...oyunSatiri('quiz', 'kisisel'), mod: 'savunma' });
+  const token = o.makeToken(key, OYUN, 's1');
+  let g = await api.play({ op: 'basla', token, studentId: 's1' });
+  assert.equal(g.tur, 'savunma');
+  assert.equal(g.can, 3);
+  assert.ok(!('dogru' in g.soru));
+  let r: any;
+  for (let i = 0; i < 3; i++) {
+    r = await api.play({ op: 'cevap', token, studentId: 's1', no: g.soru.no, secim: null });
+    assert.equal(r.can, 2 - i);
+    if (!r.bitti) g = await api.play({ op: 'durum', token, studentId: 's1' });
+  }
+  assert.equal(r.bitti, true);
+  assert.equal(r.ozet.dogru, 0);
+  assert.equal(denemeler[0].durum, 'bitti');
+  assert.equal(cevaplar.length, 3);
+  await assert.rejects(() => api.play({ op: 'cevap', token, studentId: 's1', no: 4, secim: 0 }), /tamamlandı/);
+});
+
 // ----------------------------------------------------------------------------- Aşama 385: öğrencinin kendi listesi
 test('öğrenci: kendi sınıfının açık oyunları kendi adına bağlantıyla gelir; bitince bağlantı verilmez', async () => {
   const { api } = sahteSunucu(oyunSatiri('quiz', 'sinif'));

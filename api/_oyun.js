@@ -6,7 +6,8 @@
 //     hesaplanır (tarayıcıdan gelen süre / puan yok sayılır). Şıkların sırası her öğrenci için ayrı karıştırılır.
 //   * Modlar: "quiz" (çoktan seçmeli, soru başına süre, hız bonuslu), "cark" (kelime çarkı: çevir, harf seç, çöz),
 //     "bulmaca" (Aşama 382: kelime sorularından çengel bulmaca; tahmin, harf ipucu, bitir),
-//     "hafiza" (Aşama 398: kelime sorularından eşleştirme; ipucu kartı ile kelime kartı, kartlar sunucuda açılır).
+//     "hafiza" (Aşama 398: kelime sorularından eşleştirme; ipucu kartı ile kelime kartı, kartlar sunucuda açılır),
+//     "savunma" (Aşama 399: süreli çoktan seçmeli; her yanlış / süre dolması bir can götürür, 3 can bitince oyun biter).
 // Buradaki oyun kuralları saf işlevdir (tests/oyun.test.ts sınar); veritabanı işleri oyunApi() içindedir.
 // ============================================================================
 import crypto from 'node:crypto';
@@ -24,20 +25,21 @@ export const OGRENCI_GECMIS_GUN = 7; // Aşama 385: süresi dolan oyun öğrenci
 /** Aşama 389: öğrencinin ana sayfasında gösterilen turnuva en çok bu kadar gün öncesinden olabilir */
 const TURNUVA_GECMIS_GUN = 45;
 // Aşama 396: öğrencinin kendi oyunu
-export const SERBEST_MODLAR = ['calisma', 'quiz', 'cark', 'bulmaca', 'hafiza'];
+export const SERBEST_MODLAR = ['calisma', 'quiz', 'cark', 'bulmaca', 'hafiza', 'savunma'];
 export const SERBEST_SAYI = {
   calisma: { en_az: 3, en_cok: 20, varsayilan: 10 },
   quiz: { en_az: 3, en_cok: 20, varsayilan: 10 },
   cark: { en_az: 1, en_cok: 10, varsayilan: 5 },
   bulmaca: { en_az: 2, en_cok: 12, varsayilan: 8 },
   hafiza: { en_az: 3, en_cok: 8, varsayilan: 6 },
+  savunma: { en_az: 3, en_cok: 20, varsayilan: 10 },
 };
 const SERBEST_GUNLUK = 80;
 const SERBEST_SAKLA_GUN = 30;
 const SERBEST_SORU_SN = 20;
-export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', calisma: 'Çalışma', hafiza: 'Hafıza' };
+export const MOD_ADI = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', calisma: 'Çalışma', hafiza: 'Hafıza', savunma: 'Savunma' };
 /** Aşama 398: türün soru tipi ve birimi (tek yerden) */
-export const MOD_TUR = { quiz: 'coktan', calisma: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime' };
+export const MOD_TUR = { quiz: 'coktan', calisma: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime', savunma: 'coktan' };
 export const modBirim = (mod) => (MOD_TUR[mod] === 'kelime' ? 'kelime' : 'soru');
 export const HARFLER = Array.from('ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ');
 const TR_BUYUK = /^[A-ZÇĞİÖŞÜ]{2,15}$/;
@@ -191,6 +193,27 @@ export function calismaCevapla(d, sorular, no, secim) {
     sonuc: { dogru, dogruSik: perm.indexOf(s.dogru), aciklama: s.aciklama || '', kazanilan: 0, tekrarlanacak: tekrarla },
     kayit: ilk ? { soruId: s.id, kazanim: s.kazanim_kodu || null, dogru, puan: 0, sureMs: 0 } : null,
   };
+}
+
+// ----------------------------------------------------------------------------- SAVUNMA (Aşama 399)
+// Soru yarışı kuralları (süre, hız bonusu) + can: her yanlış ya da süresi dolan soru kaleye bir düşman ulaştırır,
+// bir can gider. Canlar biterse oyun erken biter (kalan sorular sorulmaz, kayda geçmez). Bütün sorular bitince
+// kalan her can SAVUNMA_CAN_PUAN kazandırır.
+export const SAVUNMA_CAN = 3;
+export const SAVUNMA_CAN_PUAN = 50;
+export function savunmaBaslat(sorular, rnd = Math.random) {
+  return { ...quizBaslat(sorular, rnd), mod: 'savunma', can: SAVUNMA_CAN };
+}
+export const savunmaBitti = (d) => quizBitti(d) || d.can <= 0;
+export function savunmaCevapla(d, sorular, no, secim, sureSn, now) {
+  if (savunmaBitti(d)) return { hata: 'Oyun bitti.' };
+  const r = quizCevapla(d, sorular, no, secim, sureSn, now);
+  if (r.hata) return r;
+  const can = r.sonuc.dogru ? d.can : d.can - 1;
+  const durum = { ...r.durum, can };
+  const bitti = savunmaBitti(durum);
+  const bonus = bitti && can > 0 ? can * SAVUNMA_CAN_PUAN : 0;
+  return { durum, sonuc: { ...r.sonuc, can, bonus }, kayit: r.kayit, bitti, bonus };
 }
 
 // ----------------------------------------------------------------------------- ÇARK
@@ -543,7 +566,7 @@ export function hafizaBitir(d, sorular) {
 }
 
 /** Öğretmenin hazırlayabildiği türler ve soru sınırları */
-export const OGRETMEN_LIM = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT };
+export const OGRETMEN_LIM = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT, savunma: QUIZ_SORU };
 
 // ----------------------------------------------------------------------------- veritabanı işleri
 const durumYazi = {
@@ -631,7 +654,7 @@ export function oyunApi(deps) {
     if (r && r[0]) return r[0];
     if (!olustur) return null;
     const durum =
-      o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : o.mod === 'calisma' ? calismaBaslat(o.sorular) : o.mod === 'hafiza' ? hafizaBaslat(o.sorular) : quizBaslat(o.sorular);
+      o.mod === 'cark' ? carkBaslat(o.sorular) : o.mod === 'bulmaca' ? bulmacaBaslat() : o.mod === 'calisma' ? calismaBaslat(o.sorular) : o.mod === 'hafiza' ? hafizaBaslat(o.sorular) : o.mod === 'savunma' ? savunmaBaslat(o.sorular) : quizBaslat(o.sorular);
     await rest('oyun_denemeleri?on_conflict=oyun_id,student_id', {
       ...sv,
       method: 'POST',
@@ -696,6 +719,10 @@ export function oyunApi(deps) {
     if (o.mod === 'quiz') {
       const r = quizSoru(d, o.sorular, o.soru_sn, now);
       return { tur: 'quiz', soru: r.soru, puan: dn.puan, yeniDurum: r.durum };
+    }
+    if (o.mod === 'savunma') {
+      const r = quizSoru(d, o.sorular, o.soru_sn, now);
+      return { tur: 'savunma', soru: r.soru, puan: dn.puan, can: d.can, canEnCok: SAVUNMA_CAN, yeniDurum: r.durum };
     }
     if (o.mod === 'calisma') {
       const r = calismaSoru(d, o.sorular, now);
@@ -771,6 +798,13 @@ export function oyunApi(deps) {
       await cevapYaz(o, dn, r.kayit);
       dn = await denemeYaz(dn, r.durum, dn.puan + r.sonuc.kazanilan, dn.dogru + (r.sonuc.dogru ? 1 : 0), bitti);
       return { ok: true, sonuc: r.sonuc, puan: dn.puan, bitti, ...(bitti ? { ozet: sonucOzeti(dn) } : {}) };
+    }
+    if (o.mod === 'savunma' && op === 'cevap') {
+      const r = savunmaCevapla(d, o.sorular, body.no, body.secim === null || body.secim === undefined ? null : Number(body.secim), o.soru_sn, now);
+      if (r.hata) throw new HttpError(409, r.hata);
+      await cevapYaz(o, dn, r.kayit);
+      dn = await denemeYaz(dn, r.durum, dn.puan + r.sonuc.kazanilan + r.bonus, dn.dogru + (r.sonuc.dogru ? 1 : 0), r.bitti);
+      return { ok: true, sonuc: r.sonuc, puan: dn.puan, can: r.durum.can, bitti: r.bitti, ...(r.bitti ? { ozet: sonucOzeti(dn) } : {}) };
     }
     if (o.mod === 'calisma' && op === 'cevap') {
       const r = calismaCevapla(d, o.sorular, body.no, body.secim === null || body.secim === undefined ? null : Number(body.secim));

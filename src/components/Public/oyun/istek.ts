@@ -1,5 +1,5 @@
 // Aşama 381: herkese açık oyun sayfasının sunucu çağrıları (giriş gerektirmez; her istekte bağlantı imzası denetlenir)
-export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza' | 'savunma';
 
 export interface OyunBilgi {
   ad: string;
@@ -89,6 +89,7 @@ export type OyunEkrani =
   | { tur: 'cark'; tahta: CarkTahta; puan: number }
   | { tur: 'bulmaca'; bulmaca: BulmacaTahta; puan: number }
   | { tur: 'hafiza'; hafiza: HafizaTahta; puan: number }
+  | { tur: 'savunma'; soru: QuizSoru; puan: number; can: number; canEnCok: number }
   | { tur: 'bitti'; sonuc: OyunOzet };
 
 /** Sunucunun anlamlı hata yanıtı: kod 'kapali' | 'doldu' ise oyun artık oynanamaz */

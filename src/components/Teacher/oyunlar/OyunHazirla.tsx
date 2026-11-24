@@ -20,6 +20,7 @@ const MOD_NOT: Record<OyunMod, string> = {
   cark: 'İpucundan kelimeyi bulma oyunu: çark çevrilir, harf seçilir, kelime tahmin edilir.',
   bulmaca: 'Kelimeler çengel bulmaca olarak dizilir; öğrenci ipuçlarından kelimeleri yazar, gerekirse harf ipucu alır.',
   hafiza: 'Her kelimenin ipucu ve kelime kartı kapalı dizilir; öğrenci iki kart açarak eşleştirir. Az hamle, çok puan.',
+  savunma: 'Kaleye düşmanlar yürür; süresinde doğru cevap düşmanı durdurur. Her yanlış bir can götürür, 3 can bitince oyun biter.',
 };
 
 const SURELER = [10, 15, 20, 30, 45, 60];
@@ -135,9 +136,11 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
               { value: 'cark', label: MOD_AD.cark },
               { value: 'bulmaca', label: MOD_AD.bulmaca },
               { value: 'hafiza', label: MOD_AD.hafiza },
+              { value: 'savunma', label: MOD_AD.savunma },
             ]}
             value={mod}
             onChange={setMod}
+            className="max-sm:grid max-sm:grid-cols-3 max-sm:[&>button]:justify-center"
           />
           <p className="text-xs text-muted">{MOD_NOT[mod]}</p>
         </div>
@@ -171,7 +174,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
             <p className="mt-1 text-xs text-muted">{kapsam === 'sinif' ? 'Tek bağlantı ve QR kod, sınıfta hızlı başlatmak için; öğrenci listeden adını seçer.' : 'Her öğrenciye kendine özel bağlantı; kimse başkasının yerine oynayamaz.'}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {mod === 'quiz' && (
+            {(mod === 'quiz' || mod === 'savunma') && (
               <div>
                 <FieldLabel htmlFor="oyun-sure">Soru süresi</FieldLabel>
                 <SelectBox id="oyun-sure" value={String(sureSn)} onChange={(e) => setSureSn(Number(e.target.value))} className="ui-field cursor-pointer w-full">
@@ -183,7 +186,7 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
                 </SelectBox>
               </div>
             )}
-            <div className={mod === 'quiz' ? '' : 'col-span-2'}>
+            <div className={mod === 'quiz' || mod === 'savunma' ? '' : 'col-span-2'}>
               <FieldLabel htmlFor="oyun-gun">Açık kalma süresi</FieldLabel>
               <SelectBox id="oyun-gun" value={String(gun)} onChange={(e) => setGun(Number(e.target.value))} className="ui-field cursor-pointer w-full">
                 {GUN_SECENEKLERI.map((g) => (

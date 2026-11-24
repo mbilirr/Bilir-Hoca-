@@ -63,7 +63,7 @@ export function oyunSirasi(a: OgrenciOyun, b: OgrenciOyun): number {
 // Aşama 396: KENDİN OYNA — öğrenci öğretmen beklemeden okulun soru bankasından oyun kurar.
 // Sorular sunucuda seçilir (öğrenci soru tablosunu okuyamaz); oyun kendi adına imzalı bağlantıyla oynanır.
 // ============================================================================
-export type SerbestMod = 'calisma' | 'quiz' | 'cark' | 'bulmaca' | 'hafiza';
+export type SerbestMod = 'calisma' | 'quiz' | 'cark' | 'bulmaca' | 'hafiza' | 'savunma';
 export type SerbestZorluk = '' | 'kolay' | 'orta' | 'zor';
 
 export const SERBEST_MODLAR: Array<{ mod: SerbestMod; ad: string; not: string }> = [
@@ -72,6 +72,7 @@ export const SERBEST_MODLAR: Array<{ mod: SerbestMod; ad: string; not: string }>
   { mod: 'cark', ad: 'Kelime çarkı', not: 'Harf harf bul' },
   { mod: 'bulmaca', ad: 'Bulmaca', not: 'Çapraz bulmaca' },
   { mod: 'hafiza', ad: 'Hafıza', not: 'Kartları eşleştir' },
+  { mod: 'savunma', ad: 'Savunma', not: 'Kaleni 3 canla koru' },
 ];
 /** sunucudaki SERBEST_SAYI ile aynı: seçilebilir sayılar ve en az sayı */
 export const SERBEST_SAYILAR: Record<SerbestMod, { secenek: number[]; enAz: number }> = {
@@ -80,6 +81,7 @@ export const SERBEST_SAYILAR: Record<SerbestMod, { secenek: number[]; enAz: numb
   cark: { secenek: [3, 5, 8, 10], enAz: 1 },
   bulmaca: { secenek: [4, 6, 8, 10], enAz: 2 },
   hafiza: { secenek: [3, 4, 6, 8], enAz: 3 },
+  savunma: { secenek: [5, 10, 15, 20], enAz: 3 },
 };
 export const serbestTur = (mod: SerbestMod) => (mod === 'cark' || mod === 'bulmaca' || mod === 'hafiza' ? 'kelime' : 'coktan');
 

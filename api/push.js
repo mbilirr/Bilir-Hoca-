@@ -1006,7 +1006,7 @@ export async function notifyOyunYeni(caller, body, deadline) {
   if (o.kapali_at || Date.parse(o.bitis) <= Date.now()) return { users: 0, sent: 0 };
   const ogr = (await rest(`students?select=id,status&class_id=eq.${encodeURIComponent(String(o.class_id))}&limit=400`, { token: 'service' })) || [];
   const users = await studentAuthIds(ogr.filter((s) => !s.status || s.status === 'active').map((s) => s.id));
-  const tur = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza' }[o.mod] || 'Oyun'; // Aşama 398
+  const tur = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza', savunma: 'Savunma' }[o.mod] || 'Oyun'; // Aşama 398
   return sendToUsers(
     users,
     { title: `Yeni oyun: ${o.ad || 'Oyun'}`, body: `${tur}${o.class_ad ? ` · ${o.class_ad}` : ''} · ana sayfandan oyna`, url: '/#/student', tag: `oyun-${o.id}` },

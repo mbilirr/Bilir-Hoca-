@@ -34,6 +34,7 @@ const Gelisimim = React.lazy(() => import('./Gelisimim').then((m) => ({ default:
 const QuizOyunu = React.lazy(() => import('../../Public/oyun/QuizOyunu').then((m) => ({ default: m.QuizOyunu })));
 const CarkOyunu = React.lazy(() => import('../../Public/oyun/CarkOyunu').then((m) => ({ default: m.CarkOyunu })));
 const BulmacaOyunu = React.lazy(() => import('../../Public/oyun/BulmacaOyunu').then((m) => ({ default: m.BulmacaOyunu })));
+const SavunmaOyunu = React.lazy(() => import('../../Public/oyun/SavunmaOyunu').then((m) => ({ default: m.SavunmaOyunu }))); // Aşama 399
 const HafizaOyunu = React.lazy(() => import('../../Public/oyun/HafizaOyunu').then((m) => ({ default: m.HafizaOyunu }))); // Aşama 398
 const CalismaOyunu = React.lazy(() => import('../../Public/oyun/CalismaOyunu').then((m) => ({ default: m.CalismaOyunu })));
 
@@ -229,6 +230,7 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void; ilkS
     else if (g.tur === 'quiz') oyun = <QuizOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'cark') oyun = <CarkOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'bulmaca') oyun = <BulmacaOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
+    else if (g.tur === 'savunma') oyun = <SavunmaOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'hafiza') oyun = <HafizaOyunu token={ekran.token} studentId={studentId} ilk={g} onBitti={sonra} />;
     else if (g.tur === 'bitti') oyun = <Yukleniyor yazi="Sonuç hazırlanıyor…" />;
     return kap(

@@ -8,13 +8,13 @@ import { supabase } from '../lib/supabase';
 import { callMailOnce } from '../lib/mailApi';
 import { notifyPush } from '../lib/push'; // Aşama 385
 
-export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza';
+export type OyunMod = 'quiz' | 'cark' | 'bulmaca' | 'hafiza' | 'savunma';
 export type OyunKapsam = 'sinif' | 'kisisel';
 export type OyunDurum = 'acik' | 'kapali' | 'doldu';
 
-export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza' };
+export const MOD_AD: Record<OyunMod, string> = { quiz: 'Soru yarışı', cark: 'Kelime çarkı', bulmaca: 'Bulmaca', hafiza: 'Hafıza', savunma: 'Savunma' };
 /** Aşama 398: türün soru tipi (tek yerden) */
-export const MOD_TUR: Record<OyunMod, 'coktan' | 'kelime'> = { quiz: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime' };
+export const MOD_TUR: Record<OyunMod, 'coktan' | 'kelime'> = { quiz: 'coktan', cark: 'kelime', bulmaca: 'kelime', hafiza: 'kelime', savunma: 'coktan' };
 /** Aşama 386: canlı sinyal tabloları (sql/386; useTabloSurumu ile dinlenir).
  *  Aşama 387 (HIZ): liste yalnız oyun değişimini, ayrıntı yalnız sonuç değişimini dinler (sınıf oynarken liste boşuna okunmaz). */
 export const OYUN_LISTE_TABLOSU = ['oyun_oyunlari'] as const;
@@ -38,7 +38,7 @@ export const CARK_KELIME = { en_az: 1, en_cok: 10 };
 export const BULMACA_KELIME = { en_az: 2, en_cok: 12 };
 export const HAFIZA_CIFT = { en_az: 3, en_cok: 8 }; // Aşama 398 (sunucuyla aynı)
 /** türün seçilebilir soru sayısı */
-export const MOD_LIM: Record<OyunMod, { en_az: number; en_cok: number }> = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT };
+export const MOD_LIM: Record<OyunMod, { en_az: number; en_cok: number }> = { quiz: QUIZ_SORU, cark: CARK_KELIME, bulmaca: BULMACA_KELIME, hafiza: HAFIZA_CIFT, savunma: QUIZ_SORU };
 export const SORU_SN = { en_az: 5, en_cok: 120, varsayilan: 20 };
 
 export interface OyunKaydi {
