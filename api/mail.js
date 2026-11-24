@@ -2238,6 +2238,9 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
     queue.push(it);
   }
   if (queue.length === 0) return summary;
+  // Aşama 392: öğretmen e-postaları her gönderimde önce gider (süre ya da saatlik/günlük sınır dolarsa öğretmen beklemesin);
+  // sıralama kararlı: öğrenci ve velilerin kendi sırası değişmez
+  queue.sort((x, y) => (x.role === 'ogretmen' ? 0 : 1) - (y.role === 'ogretmen' ? 0 : 1));
   if (!sender) {
     summary.notConfigured = true;
     summary.remaining = queue.length;
