@@ -21,6 +21,8 @@ export interface OyunBaslangic {
   ad: string;
   classId: string;
   kazanimlar: string[];
+  /** Aşama 397: sınıfın zorlandığı konudan (Oyunlar › Öğrenciler): bankada bu ders ve konudaki sorular seçili açılır */
+  konu?: { ders: string; konu: string };
 }
 
 export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: string) => void; baslangic?: OyunBaslangic | null }> = ({ onClose, onCreated, baslangic }) => {
@@ -58,6 +60,8 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
   // zayıf kazanımlardan açıldıysa: banka gelince o kazanımların uygun soruları seçilir (tür değişince yeniden)
   const kazanimSorulari = useMemo(() => {
     if (!baslangic || !bank) return [];
+    const k = baslangic.konu;
+    if (k) return bank.filter((s) => s.tur === tur && s.ders === k.ders && (s.konu || '').trim() === k.konu).slice(0, lim.en_cok);
     const kodlar = new Set(baslangic.kazanimlar);
     return bank.filter((s) => s.tur === tur && s.kazanimKodu && kodlar.has(s.kazanimKodu)).slice(0, lim.en_cok);
   }, [baslangic, bank, tur, lim.en_cok]);
@@ -200,11 +204,11 @@ export const OyunHazirla: React.FC<{ onClose: () => void; onCreated: (oyunId: st
 
         {baslangic && bank && (
           <p className={cx('rounded-xl px-3.5 py-2.5 text-xs', kazanimSorulari.length >= lim.en_az ? 'bg-brand-soft text-brand-fg' : 'bg-warning-soft text-warning-fg')}>
-            Zayıf kazanımlar: {baslangic.kazanimlar.join(', ')}.{' '}
+            {baslangic.konu ? `Sınıfın zorlandığı konu: ${baslangic.konu.konu} (${baslangic.konu.ders}).` : `Zayıf kazanımlar: ${baslangic.kazanimlar.join(', ')}.`}{' '}
             {kazanimSorulari.length
-              ? `Bankada bu kazanımlara ait ${kazanimSorulari.length} soru seçildi.`
-              : 'Bankada bu kazanımlara ait soru yok.'}
-            {kazanimSorulari.length < lim.en_az && ` En az ${lim.en_az} soru gerekir: listeden ekleyin ya da Soru bankası › "Yapay zekâ ile öner" ile bu kazanımlara soru üretin.`}
+              ? `Bankada ${baslangic.konu ? 'bu konuya' : 'bu kazanımlara'} ait ${kazanimSorulari.length} soru seçildi.`
+              : `Bankada ${baslangic.konu ? 'bu konuya' : 'bu kazanımlara'} ait soru yok.`}
+            {kazanimSorulari.length < lim.en_az && ` En az ${lim.en_az} soru gerekir: listeden ekleyin ya da Soru bankası › "Yapay zekâ ile öner" ile ${baslangic.konu ? 'bu konuya' : 'bu kazanımlara'} soru üretin.`}
           </p>
         )}
         <SoruSecici bank={bank} bankHata={bankHata} onTekrar={yukle} tur={tur} secili={secili} onChange={setSecili} enCok={lim.en_cok} />

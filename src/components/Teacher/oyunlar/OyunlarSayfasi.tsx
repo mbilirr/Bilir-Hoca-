@@ -5,6 +5,7 @@
 // Yalnız genel yöneticinin "Kurum bölümleri"nden Oyunlar'ı açtığı kurumda görünür.
 // Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
+// Aşama 397: Öğrenciler sekmesi (sınıfın son 7 gün oyun özeti, zorlanılan konudan oyun).
 // Aşama 389: üçüncü sekme Turnuvalar (birkaç oyunun toplam puanıyla sıralama).
 // Aşama 394: tek "Soru ekle" girişi (elle, PDF'den kes, metin yapıştır, yapay zekâ, ders notu); 395: Excel ile yükle.
 // Aşama 393: "PDF'den soru" (sayfada soruyu kesip görselli soru ekleme); görselli sorularda "Görselli" etiketi.
@@ -24,6 +25,7 @@ import { OYUN_SINIFLARI, tarihYaz } from './ortak';
 
 const TahtaKurulum = lazyNamed<React.ComponentProps<typeof import('./tahta/TahtaKurulum').TahtaKurulum>>(() => import('./tahta/TahtaKurulum'), 'TahtaKurulum');
 const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./OyunlarimPaneli').OyunlarimPaneli>>(() => import('./OyunlarimPaneli'), 'OyunlarimPaneli');
+const OgrencilerPaneli = lazyNamed<React.ComponentProps<typeof import('./OgrencilerPaneli').OgrencilerPaneli>>(() => import('./OgrencilerPaneli'), 'OgrencilerPaneli'); // Aşama 397
 const TurnuvalarPaneli = lazyNamed<React.ComponentProps<typeof import('./TurnuvalarPaneli').TurnuvalarPaneli>>(() => import('./TurnuvalarPaneli'), 'TurnuvalarPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
@@ -46,7 +48,7 @@ export const OyunlarSayfasi: React.FC = () => {
   const [fBenim, setFBenim] = useState(false);
   const [ara, setAra] = useState('');
   const [adet, setAdet] = useState(SAYFA);
-  const [sekme, setSekme] = useState<'oyunlarim' | 'turnuva' | 'banka'>('oyunlarim');
+  const [sekme, setSekme] = useState<'oyunlarim' | 'ogrenciler' | 'turnuva' | 'banka'>('oyunlarim');
   const [yeniOyun, setYeniOyun] = useState(false);
   const [yeniTurnuva, setYeniTurnuva] = useState(false);
   const [tahta, setTahta] = useState(false);
@@ -144,7 +146,7 @@ export const OyunlarSayfasi: React.FC = () => {
               <Button variant="secondary" leftIcon={<Presentation className="w-3.5 h-3.5" />} onClick={() => setTahta(true)}>
                 Tahtada oyna
               </Button>
-              <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setYeniOyun(true)}>
+              <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setSekme('oyunlarim'); setYeniOyun(true); }}>
                 Yeni oyun
               </Button>
             </>
@@ -152,9 +154,10 @@ export const OyunlarSayfasi: React.FC = () => {
         }
       />
 
-      <Segmented<'oyunlarim' | 'turnuva' | 'banka'>
+      <Segmented<'oyunlarim' | 'ogrenciler' | 'turnuva' | 'banka'>
         items={[
           { value: 'oyunlarim', label: 'Oyunlarım' },
+          { value: 'ogrenciler', label: 'Öğrenciler' },
           { value: 'turnuva', label: 'Turnuvalar' },
           { value: 'banka', label: 'Soru bankası' },
         ]}
@@ -165,6 +168,12 @@ export const OyunlarSayfasi: React.FC = () => {
       {sekme === 'oyunlarim' && (
         <Suspense fallback={<Yukleniyor satir={4} metin="Oyunlar yükleniyor…" />}>
           <OyunlarimPaneli yeniAc={yeniOyun} onYeniKapandi={() => setYeniOyun(false)} />
+        </Suspense>
+      )}
+
+      {sekme === 'ogrenciler' && (
+        <Suspense fallback={<Yukleniyor satir={4} metin="Öğrenciler yükleniyor…" />}>
+          <OgrencilerPaneli onOyunHazir={() => setSekme('oyunlarim')} />
         </Suspense>
       )}
 

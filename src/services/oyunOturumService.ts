@@ -182,3 +182,14 @@ export const acOyun = (oyunId: string) => sunucu('ac', { oyunId }).then(() => un
 export const uzatOyun = (oyunId: string, gun: number) => sunucu('uzat', { oyunId, gun }).then((r) => String(r.bitis));
 export const silOyun = (oyunId: string) => sunucu('sil', { oyunId }).then(() => undefined);
 export const sifirlaDeneme = (oyunId: string, studentId: string) => sunucu('sifirla', { oyunId, studentId }).then(() => undefined);
+
+// Aşama 397: öğretmenin sınıfı — son 7 günde kim ne kadar oynadı (bütün oyunlar) ve sınıfın zorlandığı konular
+export interface SinifGelisimi {
+  sinif: { id: string; ad: string };
+  ogrenciler: Array<{ id: string; ad: string; soru: number; dogru: number; seri: number; rozet: number }>;
+  zayif: Array<{ ders: string; konu: string; dogru: number; toplam: number }>;
+}
+export async function sinifGelisimi(classId: string): Promise<SinifGelisimi> {
+  const r = await sunucu('sinif-gelisim', { classId });
+  return { sinif: r.sinif, ogrenciler: Array.isArray(r.ogrenciler) ? r.ogrenciler : [], zayif: Array.isArray(r.zayif) ? r.zayif : [] };
+}

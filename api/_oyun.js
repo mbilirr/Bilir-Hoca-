@@ -801,6 +801,7 @@ export function oyunApi(deps) {
     if (op === 'serbest-bilgi') return serbestBilgi(st);
     if (op === 'serbest-baslat') return serbestBaslat(st, body);
     if (op === 'serbest-sonuc') return serbestSonuc(st, body);
+    if (op === 'gelisim') return gelisim(st);
     if (op !== 'liste') throw new HttpError(400, 'Bilinmeyen işlem.');
     // Aşama 387 (HIZ): kurum bölümleri ve oyunlar aynı anda okunur; kurumlar tablosu en çok bir kez daha okunur
     const modulAcik = (k) => !!(k && k.modules && k.modules.oyun === true);
@@ -1030,6 +1031,11 @@ export function oyunApi(deps) {
       .filter((s) => yanlisIds.has(String(s.id)))
       .map((s) => ({ metin: s.metin, dogru: s.tur === 'kelime' ? s.cevap : (s.siklar || [])[s.dogru] || '', gorselli: !!s.gorsel_id }));
     const z = (zr && zr[0]) || { seri: 0, en_uzun_seri: 0, rekor: {} };
+    // Aşama 397: bu oyunda kazanılan rozetler (397 SQL kurulu değilse yok sayılır)
+    const yeniRozetler = await rest(`oyun_rozetleri?select=rozet,detay&student_id=eq.${encodeURIComponent(sid)}&deneme_id=eq.${dn.id}`, sv).then(
+      (r) => (r || []).map((x) => ({ rozet: x.rozet, detay: x.detay || null })),
+      () => []
+    );
     const rk = (z.rekor || {})[`${o.mod}:${dn.toplam}`] || null;
     return {
       ok: true,
@@ -1038,7 +1044,20 @@ export function oyunApi(deps) {
       rekor: rk ? { enIyi: Number(rk.p) || 0, yeni: String(rk.d) === String(dn.id), onceki: rk.o === null || rk.o === undefined ? null : Number(rk.o) } : null,
       seri: Number(z.seri) || 0,
       yanlislar,
+      yeniRozetler,
     };
+  }
+
+  /** Aşama 397: Gelişimim — takvim (28 gün), konular (30 gün), rozetler */
+  async function gelisim(st) {
+    await serbestBaglam(st);
+    try {
+      const r = await rest('rpc/oyun_gelisim', { ...sv, method: 'POST', body: { p_student: String(st.id) } });
+      return { ok: true, ...(r || {}) };
+    } catch (err) {
+      if (/oyun_gelisim|oyun_rozetleri/.test(String(err && err.message))) throw new HttpError(400, 'Gelişim için 397 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
+      throw err;
+    }
   }
 
   /**
@@ -1143,6 +1162,25 @@ export function oyunApi(deps) {
       // Aşama 385: öğrenciye uygulama içi bildirim (Bildirim sekmesi); oyun ana sayfadaki "Oyun" sekmesinde de çıkar
       const bildirim = body.bildir === false ? 0 : await ogrencilereBildir(o, ogr, caller, gun);
       return { ok: true, oyun: { id: o.id, bitis }, bildirim, ...(await baglantilar(o, req)) };
+    }
+    if (op === 'sinif-gelisim') {
+      // Aşama 397: sınıf öğretmenin KENDİ oturumuyla okunur (göremediği sınıfın özeti verilmez); özet sunucuda hesaplanır
+      const sinif = ((await rest(`classes?select=id,name&id=eq.${encodeURIComponent(String(body.classId || ''))}`, { token: caller.token })) || [])[0];
+      if (!sinif) throw new HttpError(404, 'Sınıf bulunamadı ya da bu sınıfı görme yetkiniz yok.');
+      const ogr = ((await rest(`students?select=id,name,status&class_id=eq.${encodeURIComponent(String(sinif.id))}&limit=400`, { token: caller.token })) || []).filter((x) => !x.status || x.status === 'active');
+      if (!ogr.length) return { ok: true, sinif: { id: String(sinif.id), ad: sinif.name || '' }, ogrenciler: [], zayif: [] };
+      let r;
+      try {
+        r = await rest('rpc/oyun_sinif_gelisim', { ...sv, method: 'POST', body: { p_kurum: caller.kurumId, p_ogrenciler: ogr.map((x) => String(x.id)), p_gun: 7 } });
+      } catch (err) {
+        if (/oyun_sinif_gelisim/.test(String(err && err.message))) throw new HttpError(400, 'Öğrenci gelişimi için 397 numaralı SQL dosyası çalıştırılmalı.', { fatal: true });
+        throw err;
+      }
+      const ad = new Map(ogr.map((x) => [String(x.id), clean(x.name || '')]));
+      const ogrenciler = ((r && r.ogrenciler) || [])
+        .map((x) => ({ id: String(x.id), ad: ad.get(String(x.id)) || '', soru: Number(x.soru) || 0, dogru: Number(x.dogru) || 0, seri: Number(x.seri) || 0, rozet: Number(x.rozet) || 0 }))
+        .sort((a, b) => b.soru - a.soru || a.ad.localeCompare(b.ad, 'tr'));
+      return { ok: true, sinif: { id: String(sinif.id), ad: sinif.name || '' }, ogrenciler, zayif: (r && r.zayif) || [] };
     }
     const o = await oyunum(caller, body.oyunId);
     if (op === 'baglantilar') {

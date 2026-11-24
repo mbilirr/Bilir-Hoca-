@@ -7,12 +7,14 @@
 // Sorular sunucuda seçilir; doğru cevap oyun sırasında tarayıcıya gitmez. Öğretmen bu oyunları listesinde görmez.
 // ============================================================================
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Flame, RotateCcw, Sparkles, Target, Trophy } from 'lucide-react';
+import { AlertCircle, Award, Check, Flame, RotateCcw, Sparkles, Target, Trophy } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { cx } from '../../ui/kit';
 import { oyunCagri, type OyunEkrani } from '../../Public/oyun/istek';
 import {
+  ROZETLER,
   SERBEST_MODLAR,
+  siradakiSeri,
   SERBEST_SAYILAR,
   serbestBaslat,
   serbestBilgi,
@@ -27,6 +29,7 @@ import {
   type SerbestZorluk,
 } from '../../../services/oyunOgrenciService';
 
+const Gelisimim = React.lazy(() => import('./Gelisimim').then((m) => ({ default: m.Gelisimim }))); // Aşama 397
 const QuizOyunu = React.lazy(() => import('../../Public/oyun/QuizOyunu').then((m) => ({ default: m.QuizOyunu })));
 const CarkOyunu = React.lazy(() => import('../../Public/oyun/CarkOyunu').then((m) => ({ default: m.CarkOyunu })));
 const BulmacaOyunu = React.lazy(() => import('../../Public/oyun/BulmacaOyunu').then((m) => ({ default: m.BulmacaOyunu })));
@@ -98,7 +101,8 @@ function Bolmeli<T extends string | number>({ ad, secenekler, deger, onSec }: { 
   );
 }
 
-export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = ({ studentId, onKapat }) => {
+export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void; ilkSekme?: 'oyna' | 'gelisim' }> = ({ studentId, onKapat, ilkSekme = 'oyna' }) => {
+  const [sekme, setSekme] = useState<'oyna' | 'gelisim'>(ilkSekme); // Aşama 397
   const [bilgi, setBilgi] = useState<SerbestBilgi | null>(null);
   const [bilgiHata, setBilgiHata] = useState<string | null>(null);
   const [ekran, setEkran] = useState<Ekran>({ tur: 'basla' });
@@ -189,6 +193,30 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = 
     </div>
   );
 
+  // Aşama 397: Başla ekranının üstünde Oyna | Gelişimim
+  const sekmeler = (
+    <div role="tablist" aria-label="Kendin oyna" className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-2 p-1">
+      {(
+        [
+          ['oyna', 'Oyna'],
+          ['gelisim', 'Gelişimim'],
+        ] as const
+      ).map(([k, ad]) => (
+        <button
+          key={k}
+          type="button"
+          role="tab"
+          id={`ko-sekme-${k}`}
+          aria-selected={sekme === k}
+          onClick={() => setSekme(k)}
+          className={cx('h-8 rounded-lg text-xs font-semibold transition-colors', sekme === k ? 'bg-surface text-fg shadow-card' : 'text-muted hover:text-fg')}
+        >
+          {ad}
+        </button>
+      ))}
+    </div>
+  );
+
   // ------------------------------------------------------------------ oyun
   if (mesgul && ekran.tur !== 'basla') return kap(<Yukleniyor yazi={mesgul} />);
   if (ekran.tur === 'oyun') {
@@ -248,6 +276,31 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = 
             </div>
           </div>
 
+          {(v.yeniRozetler || []).map((r) => {
+            const t = ROZETLER.find((x) => x.kod === r.rozet);
+            if (!t) return null;
+            return (
+              <div key={r.rozet} className="flex items-center gap-3 rounded-xl border border-brand bg-brand-soft px-3.5 py-3" role="status">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">{t.simge}</span>
+                <div className="min-w-0 text-xs">
+                  <p className="text-sm font-semibold text-fg">Yeni rozet: {t.ad}</p>
+                  <p className="text-muted">
+                    {r.rozet === 'konu_ustasi' && r.detay?.konu ? `${r.detay.konu} konusunda ${r.detay.toplam} soruda %${Math.round(((r.detay.dogru || 0) / Math.max(1, r.detay.toplam || 1)) * 100)}` : t.not}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          {(() => {
+            const s = siradakiSeri(v.seri, new Set());
+            return s && v.seri > 0 ? (
+              <p className="flex items-center gap-2 text-xs text-muted">
+                <Award className="w-4 h-4 shrink-0 text-brand-fg" aria-hidden />
+                {s.ad} rozetine {s.kalan} gün kaldı.
+              </p>
+            ) : null;
+          })()}
+
           {v.yanlislar.length > 0 && (
             <div>
               <p className="text-2xs font-bold uppercase tracking-wider text-brand-fg">Yanlış yaptıkların</p>
@@ -281,6 +334,23 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = 
           </div>
         </div>
         {hataKutusu}
+      </>
+    );
+  }
+
+  // ------------------------------------------------------------------ gelişim (Aşama 397)
+  if (sekme === 'gelisim') {
+    return kap(
+      <>
+        {sekmeler}
+        <React.Suspense fallback={<Yukleniyor yazi="Hazırlanıyor…" />}>
+          <Gelisimim
+            onKonu={(ders, konu) => {
+              ayarla({ mod: 'calisma', ders, konu, zorluk: '' });
+              setSekme('oyna');
+            }}
+          />
+        </React.Suspense>
       </>
     );
   }
@@ -319,6 +389,8 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = 
   const zayif = bilgi.zayif && serbestSayi(banka, { mod: 'calisma', ders: bilgi.zayif.ders, konu: bilgi.zayif.konu, zorluk: '' }) >= SERBEST_SAYILAR.calisma.enAz ? bilgi.zayif : null;
 
   return kap(
+    <>
+    {sekmeler}
     <div className="ui-card space-y-4 p-5" id="kendin-basla">
       <div className="grid grid-cols-3 gap-2">
         <Kutucuk deger={bilgi.seri ? `${bilgi.seri} gün` : '—'} ad={bilgi.bugun ? 'seri · bugün tamam' : 'günlük seri'} ikon={<Flame className={cx('w-4 h-4 shrink-0', bilgi.seri ? 'text-warning-fg' : 'text-subtle')} aria-hidden />} />
@@ -424,5 +496,6 @@ export const KendinOyna: React.FC<{ studentId: string; onKapat: () => void }> = 
         </p>
       )}
     </div>
+    </>
   );
 };

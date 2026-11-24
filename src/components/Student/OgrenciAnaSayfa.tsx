@@ -66,6 +66,10 @@ interface Props {
   onOpenStudyPlan: () => void;
   /** Sayfanın altına eklenecek ek parça (telefon bildirimi açma kartı) */
   ek?: React.ReactNode;
+  /** Aşama 397: sol menüdeki "Oyunlar" (diğer bölümlerden) → artınca Kendin oyna açılır */
+  oyunAcSinyal?: number;
+  /** Aşama 397: Kendin oyna açık mı (sol menüde "Oyunlar" görünsün mü) */
+  onOyunDurum?: (acik: boolean) => void;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -129,6 +133,8 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   onOpenNotifications,
   onOpenStudyPlan,
   ek,
+  oyunAcSinyal = 0,
+  onOyunDurum,
 }) => {
   const can = {
     soru: acik('questions'),
@@ -394,6 +400,17 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
   const [kendinAcik, setKendinAcik] = useState(false);
   const oyunVar = oyunlar.length > 0 || !!turnuva || serbestAcik;
   const oyunSinir = 4 - (turnuva ? 1 : 0) - (serbestAcik ? 1 : 0);
+  // Aşama 397: sol menüdeki "Oyunlar" öğesi — durum yukarı bildirilir; başka bölümden gelen istek bir kez açar
+  useEffect(() => {
+    if (oyunVeri) onOyunDurum?.(serbestAcik);
+  }, [oyunVeri, serbestAcik, onOyunDurum]);
+  const islenenOyunSinyal = useRef(0);
+  useEffect(() => {
+    if (oyunAcSinyal > islenenOyunSinyal.current && serbestAcik) {
+      islenenOyunSinyal.current = oyunAcSinyal;
+      setKendinAcik(true);
+    }
+  }, [oyunAcSinyal, serbestAcik]);
   const oyunKapat = () => {
     setOyunAcik(null);
     oyunYukle();
@@ -573,6 +590,7 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
     ...(can.ders ? [{ id: 'grades', title: 'Dersler ve devamsızlık', icon: Award, onClick: () => go('grades') }] : []),
     ...(can.deneme ? [{ id: 'deneme', title: 'Deneme sonuçlarım', icon: BarChart3, onClick: () => go('deneme') }] : []),
     ...(can.mesaj ? [{ id: 'messages', title: 'Öğretmene soru sor', icon: MessageSquare, badge: yeni.mesaj.length, onClick: () => go('messages') }] : []),
+    ...(serbestAcik ? [{ id: 'oyun', title: 'Oyunlar', icon: Gamepad2, onClick: () => setKendinAcik(true) }] : []), // Aşama 397
     { id: 'bildirim', title: 'Bildirimler', icon: Bell, sep: true, badge: unreadNotifs, onClick: onOpenNotifications },
   ].map((m, i) => (i === 1 ? { ...m, sep: true } : m)); // ana sayfadan sonra ayraç
 

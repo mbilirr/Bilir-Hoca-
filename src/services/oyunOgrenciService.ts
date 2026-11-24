@@ -117,6 +117,8 @@ export interface SerbestSonuc {
   rekor: { enIyi: number; yeni: boolean; onceki: number | null } | null;
   seri: number;
   yanlislar: Array<{ metin: string; dogru: string; gorselli: boolean }>;
+  /** Aşama 397: bu oyunda kazanılan rozetler */
+  yeniRozetler?: Array<{ rozet: RozetKod; detay: { ders?: string; konu?: string; dogru?: number; toplam?: number } | null }>;
 }
 
 const serbestCagri = async (op: string, ek: Record<string, unknown> = {}) => {
@@ -159,4 +161,76 @@ export function serbestKonular(banka: SerbestBankaSatiri[], a: Pick<SerbestAyar,
   const m = new Map<string, number>();
   for (const b of banka) if (b.tur === tur && b.ders === a.ders && b.konu && (!a.zorluk || b.zorluk === a.zorluk)) m.set(b.konu, (m.get(b.konu) || 0) + (Number(b.n) || 0));
   return [...m].map(([konu, n]) => ({ konu, n })).sort((x, y) => x.konu.localeCompare(y.konu, 'tr'));
+}
+
+// ============================================================================
+// Aşama 397: ROZETLER VE GELİŞİM — rozetler sunucuda (oyun bitince veritabanında) verilir; burası yalnız gösterir.
+// ============================================================================
+export type RozetKod = 'ilk_adim' | 'seri_3' | 'seri_7' | 'seri_30' | 'konu_ustasi' | 'yuz_dogru' | 'tekrarci' | 'rekor_kirici';
+export const ROZETLER: Array<{ kod: RozetKod; ad: string; not: string; simge: string }> = [
+  { kod: 'ilk_adim', ad: 'İlk adım', not: 'İlk oyunun', simge: '▶' },
+  { kod: 'seri_3', ad: '3 gün seri', not: 'Üst üste 3 gün', simge: '3' },
+  { kod: 'seri_7', ad: 'Haftalık', not: '7 gün seri', simge: '7' },
+  { kod: 'seri_30', ad: 'Ay boyu', not: '30 gün seri', simge: '30' },
+  { kod: 'konu_ustasi', ad: 'Konu ustası', not: 'Bir konuda usta', simge: '★' },
+  { kod: 'yuz_dogru', ad: 'Yüz doğru', not: 'Toplam 100 doğru', simge: '100' },
+  { kod: 'tekrarci', ad: 'Tekrarcı', not: 'Yanlışlarını tekrar etti', simge: '↻' },
+  { kod: 'rekor_kirici', ad: 'Rekor kırıcı', not: 'Kendi rekorunu geç', simge: '▲' },
+];
+/** Usta: son 30 günde en az 10 soruda %80 (veritabanındaki kuralla aynı) */
+export const USTA_EN_AZ = 10;
+export const USTA_ORAN = 0.8;
+
+export interface Gelisim {
+  seri: number;
+  enUzunSeri: number;
+  toplamDogru: number;
+  /** İstanbul'a göre bugün (YYYY-AA-GG) */
+  bugun: string;
+  takvim: Array<{ gun: string; n: number }>;
+  konular: Array<{ ders: string; konu: string; dogru: number; toplam: number }>;
+  rozetler: Array<{ rozet: RozetKod; kazanildi: string; detay: { ders?: string; konu?: string } | null }>;
+}
+export async function gelisimim(): Promise<Gelisim> {
+  const r = await serbestCagri('gelisim');
+  return {
+    seri: Number(r.seri) || 0,
+    enUzunSeri: Number(r.enUzunSeri) || 0,
+    toplamDogru: Number(r.toplamDogru) || 0,
+    bugun: String(r.bugun || ''),
+    takvim: Array.isArray(r.takvim) ? r.takvim : [],
+    konular: Array.isArray(r.konular) ? r.konular : [],
+    rozetler: Array.isArray(r.rozetler) ? r.rozetler : [],
+  };
+}
+
+/** Kazanılmamış rozet için ilerleme (0-1); ölçülemeyenler null */
+export function rozetIlerleme(kod: RozetKod, g: Pick<Gelisim, 'seri' | 'toplamDogru'>): number | null {
+  if (kod === 'seri_3') return Math.min(1, g.seri / 3);
+  if (kod === 'seri_7') return Math.min(1, g.seri / 7);
+  if (kod === 'seri_30') return Math.min(1, g.seri / 30);
+  if (kod === 'yuz_dogru') return Math.min(1, g.toplamDogru / 100);
+  return null;
+}
+/** Sıradaki seri rozeti: kazanılmamış en küçük eşik */
+export function siradakiSeri(seri: number, kazanilan: Set<string>): { kod: RozetKod; ad: string; kalan: number } | null {
+  for (const [kod, n, ad] of [['seri_3', 3, '3 gün seri'], ['seri_7', 7, 'Haftalık'], ['seri_30', 30, 'Ay boyu']] as Array<[RozetKod, number, string]>) {
+    if (!kazanilan.has(kod) && seri < n) return { kod, ad, kalan: n - seri };
+  }
+  return null;
+}
+
+/** Son 28 gün (bugün dahil), pazartesiden başlayan 4-5 haftalık ızgara: null = ızgara dolgusu */
+export function takvimIzgarasi(bugun: string, takvim: Gelisim['takvim']): Array<{ gun: string; n: number; bugun: boolean } | null> {
+  const m = new Map(takvim.map((t) => [String(t.gun).slice(0, 10), Number(t.n) || 0]));
+  const [y, a, d] = bugun.split('-').map(Number);
+  const b = new Date(Date.UTC(y, (a || 1) - 1, d || 1));
+  const gunler: Array<{ gun: string; n: number; bugun: boolean }> = [];
+  for (let i = 27; i >= 0; i--) {
+    const t = new Date(b.getTime() - i * 86400000).toISOString().slice(0, 10);
+    gunler.push({ gun: t, n: m.get(t) || 0, bugun: i === 0 });
+  }
+  const ilkHaftaGunu = (new Date(gunler[0].gun + 'T00:00:00Z').getUTCDay() + 6) % 7; // 0 = pazartesi
+  const sonBos = 6 - ((new Date(gunler[27].gun + 'T00:00:00Z').getUTCDay() + 6) % 7);
+  return [...Array(ilkHaftaGunu).fill(null), ...gunler, ...Array(sonBos).fill(null)];
 }

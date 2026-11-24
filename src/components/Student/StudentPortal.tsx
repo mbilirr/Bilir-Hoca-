@@ -15,6 +15,7 @@ import {
   Bell,
   Home,
   BarChart3,
+  Gamepad2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource, ClassGroup } from '../../types';
@@ -43,6 +44,7 @@ import { useTaslak } from '../../lib/useTaslak'; // Aşama 344
 import { TaslakCubugu } from '../Common/TaslakCubugu';
 import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
 import { basariBildir } from '../../lib/bildirim'; // Aşama 353
+import { ogrenciOyunlari } from '../../services/oyunOgrenciService'; // Aşama 397
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
@@ -118,6 +120,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setActiveTabState(tab);
     pushStudentTab(tab);
   }, []);
+  // Aşama 397: sol menüde "Oyunlar" (Kendin oyna). Durumu ana sayfa bildirir; doğrudan başka bölümle açılırsa bir kez okunur.
+  const [oyunMenu, setOyunMenu] = useState<boolean | null>(null);
+  const [oyunAcSinyal, setOyunAcSinyal] = useState(0);
+  useEffect(() => {
+    if (preview || oyunMenu !== null || activeTab === 'home') return;
+    let canli = true;
+    ogrenciOyunlari()
+      .then((v) => canli && setOyunMenu(!!v.acik && v.serbest))
+      .catch(() => undefined);
+    return () => {
+      canli = false;
+    };
+  }, [preview, oyunMenu, activeTab]);
   useEffect(() => {
     const onPop = () => setActiveTabState(readStudentTab());
     window.addEventListener('popstate', onPop);
@@ -442,6 +457,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         window.scrollTo({ top: 0 });
       },
     })),
+    // Aşama 397: Kendin oyna (ana sayfada açılır; ana sayfadaki menüyle aynı sıra)
+    ...(oyunMenu ? [{ id: 'oyun', title: 'Oyunlar', icon: Gamepad2, onClick: () => { setOyunAcSinyal((n) => n + 1); setActiveTab('home'); } }] : []),
     { id: 'bildirim', title: 'Bildirimler', icon: Bell, sep: true, badge: unreadNotifsCount, onClick: () => setIsNotificationModalOpen(true) },
   ];
 
@@ -589,6 +606,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               onNavigateTab={(tab) => setActiveTab(tab)}
               onTeslim={teslimAc}
               onOpenNotifications={() => setIsNotificationModalOpen(true)}
+              oyunAcSinyal={oyunAcSinyal}
+              onOyunDurum={setOyunMenu}
               onOpenStudyPlan={() => {
                 setDenemeTur('plan');
                 setActiveTab('deneme');

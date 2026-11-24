@@ -81,8 +81,16 @@ function sahte(modules: Record<string, boolean> = { oyun: true }) {
     const method = opt.method || 'GET';
     cagri.push({ yol: `${method} ${tablo}`, govde: opt.body });
     if (tablo === 'kurumlar') return [{ id: 'k1', modules }];
-    if (tablo === 'classes') return [{ name: '8/A', level: 8 }];
-    if (tablo === 'students') return [ali, ayse].filter((s) => s.id === q('id'));
+    // Aşama 397
+    if (tablo === 'oyun_rozetleri') return q('deneme_id') === (denemeler[0] && denemeler[0].id) ? [{ rozet: 'ilk_adim', detay: null }] : [];
+    if (tablo === 'rpc/oyun_gelisim') return { seri: 2, enUzunSeri: 2, toplamDogru: 12, bugun: '2026-11-24', takvim: [], konular: [], rozetler: [{ rozet: 'ilk_adim' }] };
+    if (tablo === 'rpc/oyun_yetkili') return opt.token === 'ogretmen';
+    if (tablo === 'rpc/oyun_sinif_gelisim') {
+      assert.deepEqual(opt.body.p_ogrenciler, ['s1', 's2']);
+      return { ogrenciler: [{ id: 's1', soru: 5, dogru: 4, seri: 1, rozet: 2 }, { id: 's2', soru: 9, dogru: 3, seri: 0, rozet: 0 }], zayif: [{ ders: 'Fen', konu: 'Basınç', dogru: 3, toplam: 12 }] };
+    }
+    if (tablo === 'classes') return opt.token === 'ogretmen' ? (q('id') === 'c1' ? [{ id: 'c1', name: '8/A' }] : []) : [{ name: '8/A', level: 8 }];
+    if (tablo === 'students') return u.searchParams.get('class_id') ? [ali, ayse].map((x) => ({ ...x, name: x.name })) : [ali, ayse].filter((s) => s.id === q('id'));
     if (tablo === 'rpc/oyun_serbest_bilgi') return { seri: 3, bugun: false, enUzunSeri: 5, rekor: {}, sonAyar: null, hafta: { dogru: 7, toplam: 9 }, zayif: null, banka: [] };
     if (tablo === 'rpc/oyun_serbest_sec') {
       assert.equal(opt.body.p_sinif, 8);
@@ -184,6 +192,11 @@ test('serbest: bilgi, oyun kurma, yalnız sahibi oynar, çalışma akışı ve s
   const q = QS.find((x) => x.metin === son.yanlislar[0].metin)!;
   assert.equal(son.yanlislar[0].dogru, q.siklar[q.dogru]);
   assert.equal(son.seri, 4);
+  assert.deepEqual(son.yeniRozetler, [{ rozet: 'ilk_adim', detay: null }]);
+  // Aşama 397: gelişim
+  const gl = await s.api.ogrenci(ali, { op: 'gelisim' });
+  assert.equal(gl.toplamDogru, 12);
+  assert.deepEqual(s.cagri.find((c) => c.yol === 'POST rpc/oyun_gelisim')!.govde, { p_student: 's1' });
 
   // yanlışları tekrar: yalnız yanlış soru, Çalışma modunda; son ayar değişmez
   const t = await s.api.ogrenci(ali, { op: 'serbest-baslat', tekrarOyunId: row.id });
@@ -196,4 +209,14 @@ test('serbest: bilgi, oyun kurma, yalnız sahibi oynar, çalışma akışı ve s
 test('serbest: okulda oyunlar kapalıysa ya da sınıf yoksa açılmaz', async () => {
   await assert.rejects(sahte({ oyun: false }).api.ogrenci(ali, { op: 'serbest-bilgi' }), (e: any) => e.status === 403);
   await assert.rejects(sahte().api.ogrenci({ ...ali, class_id: null }, { op: 'serbest-baslat', mod: 'quiz', ders: 'Fen' }), (e: any) => e.status === 403);
+});
+
+test('öğretmen: sınıf gelişimi yalnız görebildiği sınıfta, adlar sunucudan, çok oynayan üstte', async () => {
+  const s = sahte();
+  const ogretmen = { token: 'ogretmen', kurumId: 'k1', authId: 'a1', name: 'Deneme' };
+  const r = await s.api.ogretmen(ogretmen, { op: 'sinif-gelisim', classId: 'c1' });
+  assert.deepEqual(r.ogrenciler.map((x: any) => [x.ad, x.soru]), [['Ayşe Demir', 9], ['Ali Yılmaz', 5]]);
+  assert.equal(r.zayif[0].konu, 'Basınç');
+  await assert.rejects(s.api.ogretmen(ogretmen, { op: 'sinif-gelisim', classId: 'baska' }), (e: any) => e.status === 404);
+  await assert.rejects(s.api.ogretmen({ ...ogretmen, token: 'yetkisiz' }, { op: 'sinif-gelisim', classId: 'c1' }), (e: any) => e.status === 403);
 });
