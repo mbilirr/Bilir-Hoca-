@@ -3,10 +3,11 @@
 // Kurumun öğretmenleri ve idaresi ortak bir soru bankası kurar (elle ya da yapay zekâ önerisiyle). Soruyu yazan
 // kendisininkini, kurum yöneticisi / Müdür / Müdür Yrd. hepsini düzenler ve siler. Öğrenci bu bankayı görmez.
 // Yalnız genel yöneticinin "Kurum bölümleri"nden Oyunlar'ı açtığı kurumda görünür.
+// Aşama 383: "Tahtada oyna" (Düello / Grup; öğretmenin ekranında, kayıtsız).
 // Aşama 381: iki sekme — Oyunlarım (oyun hazırla, bağlantı / QR, sonuçlar) ve Soru bankası.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Gamepad2, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Edit3, Gamepad2, Plus, Presentation, Search, Sparkles, Trash2 } from 'lucide-react';
 import { lazyNamed, useEverTrue } from '../../../lib/lazyLoad';
 import { EmptyState, PageHeader, Panel, Segmented, cx } from '../../ui/kit';
 import { Button } from '../../ui/Button';
@@ -18,6 +19,7 @@ import { dataService } from '../../../services/dataService';
 import { SIK_HARF, TUR_AD, ZORLUK_AD, listOyunSorulari, silOyunSorulari, type OyunSoru, type OyunSoruTur } from '../../../services/oyunService';
 import { OYUN_SINIFLARI, tarihYaz } from './ortak';
 
+const TahtaKurulum = lazyNamed<React.ComponentProps<typeof import('./tahta/TahtaKurulum').TahtaKurulum>>(() => import('./tahta/TahtaKurulum'), 'TahtaKurulum');
 const OyunlarimPaneli = lazyNamed<React.ComponentProps<typeof import('./OyunlarimPaneli').OyunlarimPaneli>>(() => import('./OyunlarimPaneli'), 'OyunlarimPaneli');
 
 const SoruFormu = lazyNamed<React.ComponentProps<typeof import('./SoruFormu').SoruFormu>>(() => import('./SoruFormu'), 'SoruFormu');
@@ -38,6 +40,8 @@ export const OyunlarSayfasi: React.FC = () => {
   const [adet, setAdet] = useState(SAYFA);
   const [sekme, setSekme] = useState<'oyunlarim' | 'banka'>('oyunlarim');
   const [yeniOyun, setYeniOyun] = useState(false);
+  const [tahta, setTahta] = useState(false);
+  const tahtaVar = useEverTrue(tahta);
   const [form, setForm] = useState<OyunSoru | 'yeni' | null>(null);
   const [aiAcik, setAiAcik] = useState(false);
   const formVar = useEverTrue(form !== null);
@@ -117,9 +121,14 @@ export const OyunlarSayfasi: React.FC = () => {
               </Button>
             </>
           ) : (
-            <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setYeniOyun(true)}>
-              Yeni oyun
-            </Button>
+            <>
+              <Button variant="secondary" leftIcon={<Presentation className="w-3.5 h-3.5" />} onClick={() => setTahta(true)}>
+                Tahtada oyna
+              </Button>
+              <Button leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => setYeniOyun(true)}>
+                Yeni oyun
+              </Button>
+            </>
           )
         }
       />
@@ -275,6 +284,7 @@ export const OyunlarSayfasi: React.FC = () => {
 
       <Suspense fallback={null}>
         {formVar && form !== null && <SoruFormu key={form === 'yeni' ? 'yeni' : form.id} soru={form === 'yeni' ? null : form} baslangic={baslangic} onClose={() => setForm(null)} onSaved={kaydedildi} />}
+        {tahtaVar && tahta && <TahtaKurulum onClose={() => setTahta(false)} />}
         {aiVar && aiAcik && <AiOneriPenceresi baslangic={baslangic} onClose={() => setAiAcik(false)} onSaved={kaydedildi} />}
       </Suspense>
     </div>
