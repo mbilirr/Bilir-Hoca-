@@ -775,11 +775,17 @@ const ATT_TOPIC_MAX = 200;
 function b64u(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function attendanceKey() {
+// Aşama 402: imzalı bağlantılar (etüt yoklama, haftalık plan) MAIL_SECRET_KEY varsa onunla, yoksa servis anahtarıyla imzalanır.
+// MAIL_SECRET_KEY sonradan eklenince / değişince daha önce gönderilmiş bağlantılar bozulmasın diye doğrulama
+// önce yeni anahtarla, sonra servis anahtarıyla denenir (imzalama her zaman yeni anahtarla).
+function linkBases() {
   const e = env();
-  const base = e.secretKey || e.service;
-  if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
-  return crypto.createHash('sha256').update(`etut-attendance:${base}`).digest();
+  if (!e.secretKey && !e.service) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
+  return [e.secretKey, e.service].filter((v, i, a) => v && a.indexOf(v) === i);
+}
+function attendanceKey(base) {
+  const b = base || linkBases()[0];
+  return crypto.createHash('sha256').update(`etut-attendance:${b}`).digest();
 }
 function makeAttendanceToken(etutId, teacherId) {
   const payload = b64u(JSON.stringify({ e: String(etutId), t: String(teacherId), x: Math.floor(Date.now() / 1000) + ATT_TOKEN_DAYS * 86400 }));
@@ -798,11 +804,12 @@ function readAttendanceToken(token) {
   if (typeof token !== 'string' || token.length > 800 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))
     throw new HttpError(400, 'Yoklama bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.');
   const [payload, sig] = token.split('.');
-  const expected = b64u(crypto.createHmac('sha256', attendanceKey()).update(payload).digest());
   const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
-    throw new HttpError(400, 'Yoklama bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.');
+  const imzaDogru = linkBases().some((base) => {
+    const b = Buffer.from(b64u(crypto.createHmac('sha256', attendanceKey(base)).update(payload).digest()));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+  if (!imzaDogru) throw new HttpError(400, 'Yoklama bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.');
   let data;
   try {
     data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
@@ -4430,11 +4437,9 @@ function planWeekText(weekStart) {
   if (!a || !b) return weekStart;
   return a[2] === b[2] ? `${+a[3]}–${+b[3]} ${AYLAR[+b[2] - 1]} ${b[1]}` : `${+a[3]} ${AYLAR[+a[2] - 1]} – ${+b[3]} ${AYLAR[+b[2] - 1]} ${b[1]}`;
 }
-function planKey() {
-  const e = env();
-  const base = e.secretKey || e.service;
-  if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
-  return crypto.createHash('sha256').update(`study-plan:${base}`).digest();
+function planKey(base) {
+  const b = base || linkBases()[0]; // Aşama 402: imzalama yeni anahtarla; doğrulama readPlanToken'da ikisini de dener
+  return crypto.createHash('sha256').update(`study-plan:${b}`).digest();
 }
 function makePlanToken(planId, studentId, weekStart) {
   const end = Date.parse(`${addDaysYmd(weekStart, 7)}T00:00:00Z`) || Date.now();
@@ -4450,10 +4455,12 @@ function readPlanToken(token) {
   const bad = 'Plan bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.';
   if (typeof token !== 'string' || token.length > 800 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) throw new HttpError(400, bad);
   const [payload, sig] = token.split('.');
-  const expected = b64u(crypto.createHmac('sha256', planKey()).update(payload).digest());
   const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(400, bad);
+  const imzaDogru = linkBases().some((base) => {
+    const b = Buffer.from(b64u(crypto.createHmac('sha256', planKey(base)).update(payload).digest()));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+  if (!imzaDogru) throw new HttpError(400, bad);
   let data;
   try {
     data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));

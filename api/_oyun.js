@@ -609,6 +609,13 @@ export function oyunApi(deps) {
     if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
     return linkKey(base);
   };
+  // Aşama 402: MAIL_SECRET_KEY sonradan eklenirse daha önce dağıtılmış (QR, çıktı) oyun bağlantıları bozulmasın:
+  // doğrulama önce yeni anahtarla, sonra servis anahtarıyla denenir; imzalama hep yeni anahtarla.
+  const eskiKey = () => {
+    const e = env();
+    return e.secretKey && e.service && e.secretKey !== e.service ? linkKey(e.service) : null;
+  };
+  const tokenOku = (token) => readToken(key(), token) || (eskiKey() ? readToken(eskiKey(), token) : null);
   const sv = { token: 'service' };
 
   async function oyunYukle(oyunId) {
@@ -621,7 +628,7 @@ export function oyunApi(deps) {
 
   /** Bağlantıdan oyun + öğrenci çözülür; her halükârda sunucu denetler */
   async function baglam(body, { ogrenciGerek }) {
-    const t = readToken(key(), body.token);
+    const t = tokenOku(body.token);
     if (!t) throw new HttpError(400, durumYazi.gecersiz);
     const o = await oyunYukle(t.oyunId);
     if (!o) throw new HttpError(404, durumYazi.gecersiz);
