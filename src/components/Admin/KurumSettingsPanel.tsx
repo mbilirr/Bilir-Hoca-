@@ -162,6 +162,17 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
   const [gmail, setGmail] = useState('');
   const [appPass, setAppPass] = useState('');
   const [mailBusy, setMailBusy] = useState(false);
+  // Aşama 401: sınama alıcısı (boşsa kendi adresi); başarılı sınamadan sonra bu tarayıcıda kurum başına hatırlanır
+  const [testTo, setTestTo] = useState('');
+  const testToKey = kurum ? `kurum_mail_test_to_${kurum.id}` : '';
+  useEffect(() => {
+    if (!testToKey) return;
+    try {
+      setTestTo(localStorage.getItem(testToKey) || '');
+    } catch {
+      setTestTo('');
+    }
+  }, [testToKey]);
   const loadMail = useCallback(async () => {
     if (!kurum || !show('genel')) return setMailAccount(undefined); // Aşama 143: yalnız Genel'de okunur (gereksiz istek yok)
     const r = await callMail('kurum-mail-status', { kurumId: kurum.id });
@@ -194,9 +205,14 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
   const testMail = async () => {
     if (!kurum || mailBusy) return;
     setMailBusy(true);
-    const r = await callMail('kurum-mail-test', { kurumId: kurum.id });
+    const r = await callMail('kurum-mail-test', { kurumId: kurum.id, to: testTo.trim() });
     setMailBusy(false);
-    if (r.ok) setNotice({ tone: 'ok', text: `Sınama e-postası ${(r as any).from || 'kurum hesabından'} adresinden ${(r as any).to || 'size'} adresine gönderildi.` });
+    if (r.ok) {
+      try {
+        if (testToKey) testTo.trim() ? localStorage.setItem(testToKey, testTo.trim()) : localStorage.removeItem(testToKey);
+      } catch {}
+      setNotice({ tone: 'ok', text: `Sınama e-postası ${(r as any).from || 'kurum hesabından'} adresinden ${(r as any).to || 'size'} adresine gönderildi.` });
+    }
     else {
       setNotice({ tone: 'err', text: r.error || 'Sınama e-postası gönderilemedi.' });
       if ((r as any).code === 'cozulemedi') setMailAccount((m) => (m ? { ...m, cozulemedi: true } : m));
@@ -387,14 +403,31 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                     <span className={cx('ui-chip truncate min-w-0', mailAccount.cozulemedi ? 'ui-chip-warning' : 'ui-chip-success')}>
                       {mailAccount.cozulemedi ? 'Bağlantı bozuk' : 'Bağlı'}: {mailAccount.gmail}
                     </span>
-                    <span className="flex items-center gap-2">
-                      <button type="button" id="kurum-mail-test" className={cx(BTN, 'ui-btn-secondary')} onClick={testMail} disabled={mailBusy || !!mailAccount.cozulemedi}>
-                        {mailBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Sına
-                      </button>
-                      <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={disconnectMail} disabled={mailBusy}>
-                        <Unlink className="w-3.5 h-3.5" /> Kaldır
-                      </button>
-                    </span>
+                    <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={disconnectMail} disabled={mailBusy}>
+                      <Unlink className="w-3.5 h-3.5" /> Kaldır
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="email"
+                      id="kurum-mail-test-to"
+                      value={testTo}
+                      onChange={(e) => setTestTo(e.target.value)}
+                      placeholder="Sınama alıcısı (boşsa kendi adresiniz)"
+                      aria-label="Sınama e-postasının alıcısı"
+                      className={cx(CTRL, 'flex-1 min-w-0')}
+                      autoComplete="off"
+                      disabled={!!mailAccount.cozulemedi}
+                    />
+                    <button
+                      type="button"
+                      id="kurum-mail-test"
+                      className={cx(BTN, 'ui-btn-secondary shrink-0')}
+                      onClick={testMail}
+                      disabled={mailBusy || !!mailAccount.cozulemedi || (!!testTo.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(testTo.trim()))}
+                    >
+                      {mailBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Sına
+                    </button>
                   </div>
                   {mailAccount.cozulemedi && (
                     <p className="text-xs font-semibold text-warning-fg flex items-start gap-1.5" role="alert">

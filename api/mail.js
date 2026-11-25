@@ -2728,7 +2728,7 @@ async function actionKurumMailStatus(caller, body) {
     throw new HttpError(503, 'Kurum e-posta tablosu bulunamadı. Supabase SQL Editor\'de sql/82 numaralı dosyayı çalıştırın.');
   }
 }
-// Aşama 401: kurum hesabından sınama e-postası (yalnız kurum yöneticisi; yalnız kendi adresine gider)
+// Aşama 401: kurum hesabından sınama e-postası (yalnız kurum yöneticisi; yazılan tek adrese ya da kendi adresine)
 async function actionKurumMailTest(caller, body, req) {
   const kid = await kurumIdForAdmin(caller, body);
   let row;
@@ -2743,11 +2743,19 @@ async function actionKurumMailTest(caller, body, req) {
     throw new HttpError(409, 'Kayıtlı uygulama şifresi açılamadı (sunucu anahtarı değişmiş). Hesabı uygulama şifresiyle yeniden bağlayın; o zamana kadar e-postalar okul hesabından gider.', { code: 'cozulemedi' });
   const sender = await kurumSender({ kurumId: kid, name: caller.name, email: caller.email });
   if (!sender) throw new HttpError(502, 'Kurum hesabı okunamadı.');
-  const to = caller.email && isEmail(caller.email) ? caller.email : sender.user;
+  // Alıcı yönetici tarafından yazılabilir (tek adres); boşsa yöneticinin kendi adresi. Kötüye kullanılmasın diye saatte en fazla 10 sınama.
+  const yazilan = clean(body.to).toLowerCase();
+  if (yazilan && !isEmail(yazilan)) throw new HttpError(400, 'Geçerli bir alıcı e-posta adresi yazın.');
+  const to = yazilan || (caller.email && isEmail(caller.email) ? caller.email : sender.user);
+  if (caller.authId) {
+    const since = new Date(Date.now() - 3600000).toISOString();
+    const son = await rest(`mail_log?select=id&event=eq.test&sender_auth_id=eq.${caller.authId}&created_at=gte.${encodeURIComponent(since)}&limit=10`, { token: 'service' }).catch(() => []);
+    if ((son || []).length >= 10) throw new HttpError(429, 'Bir saatte en fazla 10 sınama e-postası gönderilebilir. Biraz sonra tekrar deneyin.');
+  }
   const mail = layout({
     heading: 'Kurum e-postası sınaması',
-    greeting: `Merhaba ${caller.name},`,
-    intro: 'Bu e-postayı aldıysanız kurumun bütün e-postaları (etüt, ödev, duyuru…) bu hesaptan gidiyor demektir.',
+    greeting: 'Merhaba,',
+    intro: `Bu bir sınama e-postasıdır (gönderen: ${caller.name}). Bu e-postayı aldıysanız kurumun bütün e-postaları (etüt, ödev, duyuru…) bu hesaptan gidiyor demektir.`,
     rows: [
       ['Gönderen hesap', `${sender.user} (kurum hesabı)`],
       ['Yanıt adresi', sender.user],
@@ -2758,7 +2766,7 @@ async function actionKurumMailTest(caller, body, req) {
   const summary = await deliver(
     sender,
     caller,
-    [{ event: 'test', refId: null, refTitle: 'Kurum sınaması', to, toName: caller.name, role: 'ogretmen', subject: 'Kurum e-postası sınaması – biliredu', ...mail }],
+    [{ event: 'test', refId: null, refTitle: 'Kurum sınaması', to, toName: yazilan ? '' : caller.name, role: 'ogretmen', subject: 'Kurum e-postası sınaması – biliredu', ...mail }],
     Date.now() + TIME_BUDGET_MS,
   );
   if (summary.sent !== 1) throw new HttpError(502, summary.errors[0] || 'Sınama e-postası gönderilemedi.');
