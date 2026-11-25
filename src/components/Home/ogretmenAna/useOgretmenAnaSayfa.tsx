@@ -9,6 +9,7 @@ import { denemeTarihleri, lastExamBrief } from '../../../services/denemeService'
 import { araliktaMi, baslik, etkinlikler, gundeMi, siniflarYazi, type AktEtkinlik } from '../../../services/akademikTakvimService';
 import { useAkademikKayitlar } from '../../Teacher/HaftaninFaaliyetleri';
 import { takvimdeGoster } from '../AktEtkinlikPencere';
+import { sayiOzeti, type HaftaGun, type HaftaOlay, type HaftaTur } from '../HaftaSeridi'; // Aşama 404
 import { dakika } from '../../../lib/dersKisa';
 import { etutEndTime, isEtutAttendanceMissing } from '../../../lib/etutTiming';
 import { useSeenIds } from '../../../lib/useSeenIds';
@@ -552,6 +553,13 @@ export function useOgretmenAnaSayfa({
     return l.sort((a, b) => (a.saat || '').localeCompare(b.saat || ''));
   }, [can.takvim, can.deneme, takvim, bugun, denemeler, etutBugun, simdi, students.length, benimOdev, yerelBugun, odevDurum, go, etkinlikAc]);
   const disKarti = can.etut || can.odev || can.deneme || can.takvim;
+  // Aşama 404: alt yazı açıklama değil gerçek sayı ("Saat sırasıyla" yerine "1 etüt ve 2 ödev son günü")
+  const disOzet = sayiOzeti([
+    [disOlay.filter((o) => o.tur === 'etut').length, 'etüt'],
+    [disOlay.filter((o) => o.tur === 'odev').length, 'ödev son günü'],
+    [disOlay.filter((o) => o.tur === 'den').length, 'deneme'],
+    [disOlay.filter((o) => o.tur === 'akt').length, 'etkinlik'],
+  ]);
   const simdiHm = hhmm(simdi);
   const cizgiOnce = disOlay.findIndex((o) => !!o.saat && o.saat > simdiHm);
 
@@ -582,28 +590,34 @@ export function useOgretmenAnaSayfa({
   };
 
   // ================================================================ BU HAFTA
-  type HaftaOlay = { k: string; tur: 'etut' | 'odev' | 'den' | 'akt' | 'tatil'; yazi: string; akt?: AktEtkinlik };
-  const haftaGunleri = useMemo(() => {
+  // Aşama 404: ortak HaftaSeridi biçimi; her kayıt kendi sayfasını açar, alt yazı gerçek sayıları verir
+  const haftaGunleri = useMemo<HaftaGun[]>(() => {
     const gunler = Array.from({ length: 7 }, (_, i) => gunEkle(pzt, i));
     return gunler.map((g) => {
       const l: HaftaOlay[] = [];
       if (dersHazir && tatilMap.has(g)) l.push({ k: 't', tur: 'tatil', yazi: tatilMap.get(g) || 'Tatil' });
-      if (can.takvim) for (const a of takvim.filter((x) => gundeMi(x, g))) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad), akt: a });
-      if (can.deneme) for (const d of denemeler.filter((x) => x.examDate === g)) l.push({ k: `n|${d.id}`, tur: 'den', yazi: d.name });
+      if (can.takvim) for (const a of takvim.filter((x) => gundeMi(x, g))) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad), dis: a.yer === 'dis', onClick: () => etkinlikAc(a) });
+      if (can.deneme) for (const d of denemeler.filter((x) => x.examDate === g)) l.push({ k: `n|${d.id}`, tur: 'den', yazi: d.name, onClick: () => go('deneme') });
       for (const e of benimEtut.filter((x) => x.date === g).sort((a, b) => (a.time || '').localeCompare(b.time || '')))
-        l.push({ k: `e|${e.id}`, tur: 'etut', yazi: `${e.time ? `${e.time} ` : ''}${e.subject || 'Etüt'}` });
-      for (const h of benimOdev.filter((x) => odevGun(x) === g)) l.push({ k: `o|${h.id}`, tur: 'odev', yazi: `${h.title} son gün` });
-      return { g, l, tatil: dersHazir && tatilMap.has(g) };
+        l.push({ k: `e|${e.id}`, tur: 'etut', yazi: `${e.time ? `${e.time} ` : ''}${e.subject || 'Etüt'}`, title: [e.time, e.subject, e.topic].filter(Boolean).join(' · '), onClick: () => go('etuts') });
+      for (const h of benimOdev.filter((x) => odevGun(x) === g)) l.push({ k: `o|${h.id}`, tur: 'odev', yazi: h.title, title: `${h.title} · son gün`, onClick: () => go('homework', ['homework', h.id, h.title]) });
+      return { g, olaylar: l, tatil: dersHazir && tatilMap.has(g) };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pzt, dersHazir, tatilMap, can.takvim, can.deneme, takvim, denemeler, benimEtut, benimOdev]);
-  // telefonda hafta şeridi bugünden başlasın
-  const haftaRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = haftaRef.current;
-    const bugunEl = el?.querySelector<HTMLElement>('.today');
-    if (el && bugunEl && el.scrollWidth > el.clientWidth) el.scrollLeft = bugunEl.offsetLeft - el.offsetLeft;
-  }, [pzt]);
-  const haftaParcalar = [can.etut && 'etüt', can.odev && 'ödev', can.deneme && 'deneme', can.takvim && 'takvim'].filter(Boolean) as string[];
+  const haftaSay = (tur: HaftaOlay['tur']) => haftaGunleri.reduce((n, d) => n + d.olaylar.filter((o) => o.tur === tur).length, 0);
+  const haftaOzet = sayiOzeti([
+    [can.etut ? haftaSay('etut') : 0, 'etüt'],
+    [can.odev ? haftaSay('odev') : 0, 'ödev son günü'],
+    [haftaSay('den'), 'deneme'],
+    [haftaSay('akt'), 'etkinlik'],
+  ]);
+  const haftaTurleri: HaftaTur[] = [
+    ...(can.etut ? [{ tur: 'etut' as const, ad: 'Etüt', onClick: () => go('etuts') }] : []),
+    ...(can.odev ? [{ tur: 'odev' as const, ad: 'Ödev', onClick: () => go('homework') }] : []),
+    ...(can.deneme ? [{ tur: 'den' as const, ad: 'Deneme', onClick: () => go('deneme') }] : []),
+    ...(can.takvim ? [{ tur: 'akt' as const, ad: 'Takvim', onClick: can.takvimSayfa ? () => go('akademik_takvim') : undefined }] : []),
+  ];
 
   // ================================================================ ÜST BÖLÜM
   const { selam } = akSelam(currentTeacher);
@@ -635,7 +649,7 @@ export function useOgretmenAnaSayfa({
         (isler.length ? (
           <>
             {' '}
-            Sizi bekleyen <b>{isler.length} iş</b> aşağıda; yaptıkça kaybolur.
+            <b>{isler.length} iş</b> sizi bekliyor.
           </>
         ) : (
           ' Bekleyen işiniz yok.'
@@ -879,13 +893,14 @@ export function useOgretmenAnaSayfa({
     kart,
     disOlay,
     disKarti,
+    disOzet,
     simdiHm,
     cizgiOnce,
     odevlerim,
     sonGunYazi,
     haftaGunleri,
-    haftaRef,
-    haftaParcalar,
+    haftaOzet,
+    haftaTurleri,
     selam,
     ad,
     brans,

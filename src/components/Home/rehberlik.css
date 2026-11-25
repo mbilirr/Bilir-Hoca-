@@ -19,8 +19,8 @@
 .rh-hacts { display: flex; align-items: center; gap: calc(0.5 * var(--ak-rem)); flex-wrap: wrap; }
 
 /* bölüm başlığı */
-.rh-sec-h { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(1 * var(--ak-rem)); margin-bottom: calc(1 * var(--ak-rem)); flex-wrap: wrap; }
-.rh-sec-h h2 { margin: 0; font-size: calc(1.0625 * var(--ak-rem)); font-weight: 700; letter-spacing: -.01em; color: var(--fg); }
+.rh-sec-h { display: flex; align-items: center; justify-content: space-between; gap: calc(1 * var(--ak-rem)); margin-bottom: calc(1 * var(--ak-rem)); flex-wrap: wrap; }
+.rh-sec-h h2 { margin: 0; font-size: calc(0.9375 * var(--ak-rem)); /* Aşama 404: bütün ana sayfalarda kart başlığı aynı */ font-weight: 700; letter-spacing: -.01em; color: var(--fg); }
 .rh-sec-h p { margin: calc(0.1875 * var(--ak-rem)) 0 0; font-size: calc(0.75 * var(--ak-rem)); color: var(--muted); max-width: 70ch; }
 
 /* ---- Bugünün soruları ---- */

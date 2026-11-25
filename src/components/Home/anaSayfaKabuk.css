@@ -210,6 +210,8 @@
 .ak-it .w span { display: block; font-size: calc(0.75 * var(--ak-rem)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .ak-it .ak-btn { grid-column: 1 / -1; justify-self: end; }
 .ak-it.bad .ak-av { background: var(--red-soft); color: var(--red); }
+/* Aşama 404: yazı karakteri yerine çizgi simge (✉ ⟳ + yerine) */
+.ak-av.ic svg { width: calc(0.9375 * var(--ak-rem)); height: calc(0.9375 * var(--ak-rem)); stroke-width: 1.75; }
 .ak-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: calc(1.5 * var(--ak-rem)); }
 .ak-two > section:only-child { grid-column: 1 / -1; } /* Aşama 331: tek bölüm kalınca yarım satırda kalmasın */
 .ak-team { display: flex; height: calc(0.625 * var(--ak-rem)); border-radius: calc(0.3125 * var(--ak-rem)); overflow: hidden; gap: calc(0.125 * var(--ak-rem)); margin: calc(0.375 * var(--ak-rem)) 0 calc(0.875 * var(--ak-rem)); }

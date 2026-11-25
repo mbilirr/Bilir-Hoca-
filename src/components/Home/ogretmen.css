@@ -144,36 +144,11 @@
 .og-legend .a { background: var(--success); } .og-legend .b { background: color-mix(in srgb, var(--success) 35%, var(--surface-3)); }
 
 /* ---- Bu hafta ---- */
-.og-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: calc(0.5 * var(--ak-rem)); }
-.og-day { border-radius: var(--r-md); padding: calc(0.75 * var(--ak-rem)); min-height: calc(8.25 * var(--ak-rem)); display: flex; flex-direction: column; gap: calc(0.375 * var(--ak-rem)); background: var(--surface-2); border: 1px solid transparent; transition: transform .35s var(--spring); min-width: 0; }
-.og-day.today { background: var(--surface); border-color: var(--brand); box-shadow: 0 0 0 calc(0.25 * var(--ak-rem)) var(--brand-soft); }
-.og-day.tatil { background: var(--warning-soft); }
-.og-day .dh { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: calc(0.125 * var(--ak-rem)); }
-.og-day .dh span { font-size: calc(0.6875 * var(--ak-rem)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.og-day .dh b { font: 400 calc(1.375 * var(--ak-rem))/1 var(--serif); color: var(--fg); }
-.og-day.today .dh span { color: var(--brand-fg); }
-.og-ev { font-size: calc(0.6875 * var(--ak-rem)); line-height: 1.3; padding: calc(0.3125 * var(--ak-rem)) calc(0.4375 * var(--ak-rem)); border-radius: calc(0.4375 * var(--ak-rem)); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.og-ev.etut { background: var(--info-soft); color: var(--info-fg); } .og-ev.odev { background: var(--success-soft); color: var(--success-fg); }
-.og-ev.den { background: var(--brand-soft); color: var(--brand-fg); } .og-ev.akt { background: var(--surface-3); color: var(--fg-2); }
-.og-ev.tatil { background: color-mix(in srgb, var(--warning) 18%, var(--surface)); color: var(--warning-fg); font-weight: 600; }
-.og-day.today .og-ev.akt { background: var(--surface-2); }
 /* Aşama 337: takvim etkinliği basılabilir; okul dışı turuncu çizgi */
-.og-ev.akt { color: var(--fg); border-left: 3px solid var(--brand); border-radius: 0 calc(0.4375 * var(--ak-rem)) calc(0.4375 * var(--ak-rem)) 0; }
-.og-ev.akt.dis { border-left-color: var(--warning); }
-button.og-ev { display: block; width: 100%; border-top: 0; border-right: 0; border-bottom: 0; text-align: left; font-family: inherit; cursor: pointer; transition: transform .15s ease; }
-button.og-ev:hover { transform: translateY(-1px); }
-button.og-ev:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
-.og-day .none { font-size: calc(0.6875 * var(--ak-rem)); color: var(--subtle); }
-.og-day .plus { font-size: calc(0.6875 * var(--ak-rem)); font-weight: 600; color: var(--muted); }
-@media (hover: hover) and (pointer: fine) { .og-day:hover { transform: translateY(-2px); } }
 
 /* ---- Duyarlı ---- */
 @media (max-width: 64rem) {
   .og-now { grid-template-columns: 1fr; }
-}
-@media (max-width: 56rem) {
-  .og-week { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 46%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: calc(0.25 * var(--ak-rem)); }
-  .og-day { scroll-snap-align: start; }
 }
 @media (max-width: 40rem) {
   .og-now { padding: calc(1.25 * var(--ak-rem)); }
@@ -182,7 +157,6 @@ button.og-ev:focus-visible { outline: 2px solid var(--brand); outline-offset: 1p
   .og-todo .age { display: none; }
   .og-hw li > button { grid-template-columns: minmax(0, 1fr) calc(3.5 * var(--ak-rem)); }
   .og-hw .og-bar2 { grid-column: 1 / -1; grid-row: 2; }
-  .og-week { grid-auto-columns: 70%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ak-ogrt *, .ak-ogrt *::before, .ak-ogrt *::after { animation: none !important; transition: none !important; }

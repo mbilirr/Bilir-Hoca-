@@ -19,6 +19,7 @@ import { planGorevIsaretle } from '../../lib/planGorev';
 import { devamsizligim, haftaBasi, ogrenciProgrami, trBugun, type Devamsizligim, type OgrenciProgram } from '../../services/dersService';
 import { AkSheet, AnaSayfaKabuk, akBasHarf, type AkMenuOge } from '../Home/AnaSayfaKabuk';
 import '../Home/kalanAnaSayfa.css';
+import { sayiOzeti } from '../Home/HaftaSeridi'; // Aşama 404
 import { useBildirimKanali } from '../../lib/bildirim'; // Aşama 353
 import { SERBEST_MODLAR, ogrenciOyunlari, oyunSirasi, type OgrenciOyun, type OgrenciOyunlari } from '../../services/oyunOgrenciService'; // Aşama 385
 import { MOD_AD, birimAd } from '../../services/oyunOturumService';
@@ -652,7 +653,8 @@ export const OgrenciAnaSayfa: React.FC<Props> = ({
       <div className="kl-card-h">
         <div>
           <h3>Bana Gelenler</h3>
-          <p>{[can.odev && 'ödev', can.etut && 'etüt', oyunVar && 'oyun', can.mesaj && 'mesaj', 'bildirim'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' ve $1').replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}lerin tek yerde</p>
+          {/* Aşama 404: alt yazı ne olduğunu anlatmaz, yeni gelenleri sayar */}
+          <p>{sayiOzeti(sekmeler.map((s) => [yeni[s.id as Hub].length, s.ad.toLocaleLowerCase('tr-TR')] as [number, string])).replace(/^(.+)$/, '$1 yeni') || 'Yeni gelen yok'}</p>
         </div>
       </div>
       <div className="kl-hubtabs" role="tablist" aria-label="Bölüm" style={{ ['--n' as string]: sekmeler.length }}>

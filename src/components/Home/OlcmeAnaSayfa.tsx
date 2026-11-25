@@ -689,7 +689,7 @@ export const OlcmeAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
                     <h3>
                       Sizi Bekleyenler {isler.length > 0 && <span className="kl-cnt tnum">{isler.length}</span>}
                     </h3>
-                    <p>Yarım kalan ya da eksik işler · yapınca kaybolur</p>
+                    <p>Yarım kalan ya da eksik işler</p>
                   </div>
                 </div>
                 {isler.length ? (

@@ -24,7 +24,8 @@ import { etutTeacherNames, NO_TEACHER_LABEL } from '../../lib/etutStatus';
 import { isEtutAttendanceMissing } from '../../lib/etutTiming';
 import { givenNamesOf } from '../../lib/greeting';
 import { setQuickFocus } from '../../lib/quickFocus';
-import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
+import { AnaSayfaKabuk, OkIsareti, akBasHarf, akSelam } from './AnaSayfaKabuk';
+import { dersKisa } from '../../lib/dersKisa'; // Aşama 404
 import './rehberlik.css';
 import { usePlanCanli } from '../../lib/planCanli';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
@@ -832,7 +833,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
           <div className="rh-sec-h">
             <div>
               <h2 id="rh-h-heat">Okulun Nabzı</h2>
-              <p>Sınıf başına kaç öğrencide sinyal var. Koyu kare yoğunluğun arttığı yer; dokunun, aşağıdaki masa o sınıfa süzülsün.</p>
+              <p>{P.ad} · sınıf sınıf sinyali olan öğrenci</p>
             </div>
             <div className="rh-ph-r">
               <div className="od-pillseg" role="group" aria-label="Dönem">
@@ -926,9 +927,8 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             </span>
             <span>Çok</span>
             <span className="hint">
-              {can.ders && can.etut
-                ? 'Ders ve etüt yoklaması ayrı sütunlarda, karışmaz.'
-                : `${P.bas === P.bit ? tarihUzun(P.bas) : `${tarihUzun(P.bas)} – ${tarihUzun(P.bit)}`}`}
+              {/* Aşama 404: kullanım ipucu başlıkta değil, renk anahtarının yanında */}
+              {`${P.bas === P.bit ? tarihUzun(P.bas) : `${tarihUzun(P.bas)} – ${tarihUzun(P.bit)}`} · kareye dokunun, masa o sınıfa süzülür`}
             </span>
           </div>
         </section>
@@ -940,7 +940,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
           <div className="rh-sec-h">
             <div>
               <h2 id="rh-h-desk">Rehberlik Masası</h2>
-              <p>Sinyal sayısına göre sıralı ({P.ad.toLocaleLowerCase('tr')}). Bir öğrenci seçin; yanda bütün resmi ve yapabilecekleriniz açılsın.</p>
+              <p>{P.ad} · sinyal sayısına göre sıralı</p>
             </div>
           </div>
           <div className={`rh-desk${secili ? '' : ' tek'}${hepsi ? ' acik' : ''}`}>
@@ -1029,7 +1029,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
           <div className="rh-sec-h">
             <div>
               <h2 id="rh-h-gantt">Bugünün Etütleri</h2>
-              <p>Okulun etütleri öğretmen öğretmen · kırmızı çizgi şu an. Yoklamaları görürsünüz, değiştiremezsiniz.</p>
+              <p>{etutBugun.length ? `${etutBugun.length} etüt · ${serit.satir.length} öğretmen` : 'Bugün okulda etüt yok'}</p>
             </div>
             <button type="button" className="od-link" onClick={() => go('etuts')}>
               Etütler <ArrowRight aria-hidden="true" />
@@ -1070,8 +1070,10 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
                               style={{ left: `${pos(b)}%`, width: `${Math.max(2, pos(b + (e.duration || 40)) - pos(b))}%` }}
                               title={`${e.time}–${hhmm(b + (e.duration || 40))} · ${yazi}`}
                               onClick={() => go('etuts')}
+                              aria-label={`${e.time} ${yazi}`}
                             >
-                              {yazi}
+                              {/* Aşama 404: dar kutuda kesik yazı ("Mate...") yerine ders kısaltması; tamamı ipucunda */}
+                              {dersKisa(e.subject || 'Etüt')}
                             </button>
                           );
                         })}
@@ -1106,7 +1108,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
             </>
           ) : (
             <div className="od-empty">
-              <i>✓</i>Bugün okulda etüt yok.
+              <OkIsareti />Bugün okulda etüt yok.
             </div>
           )}
         </section>
@@ -1183,7 +1185,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
                     </ul>
                   ) : (
                     <div className="od-empty">
-                      <i>✓</i>Bu denemede neti belirgin düşen öğrenci yok.
+                      <OkIsareti />Bu denemede neti belirgin düşen öğrenci yok.
                     </div>
                   )}
                 </>
@@ -1195,7 +1197,7 @@ export const RehberlikAnaSayfa: React.FC<Props> = ({ currentTeacher, students, c
               <div className="rh-sec-h">
                 <div>
                   <h2 id="rh-h-plan">Çalışma Planları</h2>
-                  <p>Bu hafta · gönderilen planlardaki görevlerin tamamlanması</p>
+                  <p>Bu hafta · görev tamamlama</p>
                 </div>
                 <button type="button" className="od-link" onClick={() => go('homework', ['action', 'plan', ''])}>
                   Haftalık planlar <ArrowRight aria-hidden="true" />

@@ -41,7 +41,7 @@ import { takvimdeGoster } from './AktEtkinlikPencere'; // Aşama 337
 import { etutExpectsAttendance, hasEtutAttendance, isEtutEnded } from '../../lib/etutTiming';
 import { odevTeslimGruplari } from '../../lib/odevTeslim';
 import { trBugun } from '../../lib/trSaat';
-import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
+import { AnaSayfaKabuk, OkIsareti, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import { AkTatilSheet } from './AkTatilSheet';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 import { akMesaj } from '../../lib/bildirim'; // Aşama 348
@@ -730,7 +730,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
           <div className="od-sec-h">
             <div>
               <h2 id="od-h-nab">Haftanın Nabzı</h2>
-              <p>Her gün bir nokta · son nokta {nabizHafta === 0 ? 'bugün' : 'haftanın son günü'}</p>
+              <p>{nabizHafta === 0 ? 'Bu hafta · pazartesiden bugüne' : 'Geçen hafta · günlük'}</p>
             </div>
             <div className="od-pillseg" role="group" aria-label="Hafta">
               <button type="button" aria-pressed={nabizHafta === 0} onClick={() => setNabizHafta(0)}>
@@ -829,7 +829,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               </>
             ) : (
               <div className="od-empty">
-                <i aria-hidden="true">✓</i>
+                <OkIsareti />
                 {ogretmen.duzenli ? `${ogretmen.duzenli} öğretmenin hepsi yoklamayı zamanında aldı.` : 'Bu hafta vakti geçen ders yok.'}
               </div>
             )}
@@ -886,7 +886,7 @@ export const MudurAnaSayfa: React.FC<Props> = ({ currentTeacher, students, class
               </>
             ) : (
               <div className="od-empty">
-                <i aria-hidden="true">✓</i>
+                <OkIsareti />
                 Bu hafta 2 gün ve üstü gelmeyen öğrenci yok.
               </div>
             )}

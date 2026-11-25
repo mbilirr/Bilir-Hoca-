@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Check, Minus } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { ogretmenMenuOgeleri, SolMenuDugmeleri, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260: ortak sol menü
 import type { Teacher, TeacherTabType } from '../../types';
@@ -33,6 +34,14 @@ export const akTarih = (d = new Date()) => {
 };
 
 /** "Günaydın" / "İyi günler" / "İyi akşamlar" ve "Mustafa Bey" (cinsiyet kayıtlı değilse yalnız ad) */
+/** Aşama 404: boş durum simgesi — bütün ana sayfalarda aynı (eskiden yazı karakteri "✓" ya da hiç simge yoktu).
+ *  notr: "henüz kayıt yok" gibi iyi/kötü olmayan durumlar (yeşil onay yanıltmasın) */
+export const OkIsareti: React.FC<{ notr?: boolean }> = ({ notr }) => (
+  <i aria-hidden="true" className={notr ? 'notr' : undefined}>
+    {notr ? <Minus /> : <Check />}
+  </i>
+);
+
 export const akSelam = (t?: Teacher | null) => {
   const saat = Number(new Date().toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' }));
   const selam = saat < 12 ? 'Günaydın' : saat < 18 ? 'İyi günler' : 'İyi akşamlar';

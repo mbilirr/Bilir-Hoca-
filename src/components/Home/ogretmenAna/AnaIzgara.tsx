@@ -2,10 +2,11 @@
 import React from 'react';
 import { ArrowRight, BookOpen, Check, HelpCircle, MessageSquare } from 'lucide-react';
 import { yasYazi } from './ortak';
+import { OkIsareti } from '../AnaSayfaKabuk'; // Aşama 404
 import { useOgretmenAnaBaglam } from './useOgretmenAnaSayfa';
 
 export function AnaIzgara() {
-  const { can, go, yerelBugun, odevDurum, odevGun, soruGoruldu, teslimGoruldu, yeniTeslimler, isler, tumIsler, setTumIsler, isKarti, disOlay, disKarti, simdiHm, cizgiOnce, odevlerim, sonGunYazi, akis, akisYeni, tumAkis, setTumAkis, akisKarti, once, gorunenIsler } = useOgretmenAnaBaglam();
+  const { disOzet, can, go, yerelBugun, odevDurum, odevGun, soruGoruldu, teslimGoruldu, yeniTeslimler, isler, tumIsler, setTumIsler, isKarti, disOlay, disKarti, simdiHm, cizgiOnce, odevlerim, sonGunYazi, akis, akisYeni, tumAkis, setTumAkis, akisKarti, once, gorunenIsler } = useOgretmenAnaBaglam();
   return (
     <>
       {/* Aşama 268: düzenli ızgara — satır satır: Sizi bekleyenler | Bugün ders dışında, Ödevlerim | Öğrencilerden.
@@ -19,7 +20,7 @@ export function AnaIzgara() {
                   <h2 id="og-h-bek">
                     Sizi Bekleyenler <span className={`og-count${isler.length ? '' : ' ok'}`}>{isler.length}</span>
                   </h2>
-                  <p>Geciken ya da unutulan işler · yapınca kendiliğinden kaybolur</p>
+                  <p>{isler.length ? 'Geciken ya da unutulan işler' : 'Gecikmiş işiniz yok'}</p>
                 </div>
               </div>
               {isler.length ? (
@@ -62,7 +63,7 @@ export function AnaIzgara() {
               <div className="od-card-h">
                 <div>
                   <h2 id="og-h-dis">Bugün Ders Dışında</h2>
-                  <p>Saat sırasıyla</p>
+                  <p>{disOzet || 'Bugün'}</p>
                 </div>
               </div>
               {disOlay.length ? (
@@ -91,7 +92,7 @@ export function AnaIzgara() {
                 </ol>
               ) : (
                 <div className="od-empty">
-                  <i>✓</i>
+                  <OkIsareti />
                   Bugün ders dışında planlı işiniz yok.
                 </div>
               )}
@@ -155,7 +156,7 @@ export function AnaIzgara() {
                 </>
               ) : (
                 <div className="od-empty">
-                  <i>✓</i>
+                  <OkIsareti />
                   Teslimi süren ödeviniz yok.
                 </div>
               )}
@@ -168,7 +169,7 @@ export function AnaIzgara() {
               <div className="od-card-h">
                 <div>
                   <h2 id="og-h-akis">Öğrencilerden {akisYeni > 0 && <span className="og-count hi">{akisYeni} yeni</span>}</h2>
-                  <p>Son 3 gün · {[can.odev && 'teslim', can.soru && can.odev && 'branşınızda soru', can.mesaj && 'mesaj'].filter(Boolean).join(', ')}</p>
+                  <p>Son 3 gün{akis.length ? ` · ${akis.length} kayıt` : ''}</p>
                 </div>
                 {akisYeni > 0 && (
                   <button
@@ -218,7 +219,7 @@ export function AnaIzgara() {
                 </>
               ) : (
                 <div className="od-empty">
-                  <i>✓</i>
+                  <OkIsareti />
                   Son 3 günde öğrencilerden yeni bir şey gelmedi.
                 </div>
               )}

@@ -8,7 +8,6 @@ import {
   DersAyar,
   DevamsizlikSatiri,
   GUN_ADLARI,
-  GUN_KISA,
   GunHucre,
   GunIzin,
   Tatil,
@@ -31,10 +30,11 @@ import { denemeTarihleri } from '../../services/denemeService';
 import { dersKisa, dakika } from '../../lib/dersKisa';
 import { etutEndTime, etutExpectsAttendance, hasEtutAttendance } from '../../lib/etutTiming';
 import { dersHatirlat } from '../../lib/push';
-import { AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
+import { AnaSayfaKabuk, OkIsareti, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './mudurYardimcisi.css';
 import { baslikYaz } from '../../lib/baslik'; // Aşama 331: başlıklar tek düzende
 import { araliktaMi, baslik, etkinlikler, gundeMi, type AktEtkinlik } from '../../services/akademikTakvimService'; // Aşama 337
+import { HaftaSeridi, sayiOzeti, type HaftaGun, type HaftaOlay, type HaftaTur } from './HaftaSeridi'; // Aşama 404
 import { useAkademikKayitlar } from '../Teacher/HaftaninFaaliyetleri';
 import { AktEtkinlikPencere, takvimdeGoster } from './AktEtkinlikPencere';
 import { akMesaj } from '../../lib/bildirim'; // Aşama 348
@@ -383,6 +383,31 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
     };
   });
   const haftaGoster = can.etut || dersHazir || can.deneme || can.takvim;
+  // Aşama 404: ortak HaftaSeridi — kayıtlar kendi sayfasını açar, alt yazı gerçek sayılar, sağ üstte renk anahtarı
+  const haftaGunleri: HaftaGun[] = hafta.map((d) => {
+    const l: HaftaOlay[] = [];
+    if (d.tatil) l.push({ k: 't', tur: 'tatil', yazi: d.tatil.aciklama || 'Tatil' });
+    for (const a of d.akt) l.push({ k: `a|${a.key}`, tur: 'akt', yazi: baslik(a.ad), dis: a.yer === 'dis', onClick: () => etkinlikAc(a) });
+    if (d.etut > 0) l.push({ k: 'e', tur: 'etut', yazi: `${d.etut} etüt`, onClick: () => git('etuts') });
+    if (d.vekil > 0) l.push({ k: 'v', tur: 'vekil', yazi: `${d.vekil} vekil ders`, onClick: () => git('grades') });
+    if (d.izin > 0) l.push({ k: 'i', tur: 'izin', yazi: `${d.izin} izinli öğrenci`, onClick: () => git('grades') });
+    for (const x of d.deneme) l.push({ k: `n|${x.id}`, tur: 'den', yazi: x.name, onClick: () => git('deneme') });
+    return { g: d.g, olaylar: l, tatil: !!d.tatil };
+  });
+  const haftaTop = (f: (d: (typeof hafta)[number]) => number) => hafta.reduce((n, d) => n + f(d), 0);
+  const haftaOzet = sayiOzeti([
+    [haftaTop((d) => d.etut), 'etüt'],
+    [haftaTop((d) => d.vekil), 'vekil ders'],
+    [haftaTop((d) => d.izin), 'izinli öğrenci'],
+    [haftaTop((d) => d.deneme.length), 'deneme'],
+    [haftaTop((d) => d.akt.length), 'etkinlik'],
+  ]);
+  const haftaTurleri: HaftaTur[] = [
+    ...(can.etut ? [{ tur: 'etut' as const, ad: 'Etüt', onClick: () => git('etuts') }] : []),
+    ...(dersHazir ? [{ tur: 'vekil' as const, ad: 'Vekil', onClick: () => git('grades') }, { tur: 'izin' as const, ad: 'İzinli' }] : []),
+    ...(can.deneme ? [{ tur: 'den' as const, ad: 'Deneme', onClick: () => git('deneme') }] : []),
+    ...(can.takvim ? [{ tur: 'akt' as const, ad: 'Takvim', onClick: dataService.canUseTab('akademik_takvim') ? () => git('akademik_takvim') : undefined }] : []),
+  ];
 
   // ---- başlık
   const { selam, ad } = akSelam(currentTeacher);
@@ -514,7 +539,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
 
   const detay = (() => {
     const x = seciliHucre;
-    if (!x) return <p className="ph">Bir kutuya tıklayın; dersin öğretmeni, yoklama saati ve gelen sayısı burada görünür.</p>;
+    if (!x) return <p className="ph">Bir kutuya tıklayın; dersin öğretmeni, yoklama saati ve gelen sayısı burada görünür. Kırmızı kutu öğretmene hatırlatma gönderir (günde bir kez).</p>;
     const tag = {
       ok: ['Alındı', 'ok'],
       late: ['Alınmadı', 'bad'],
@@ -584,19 +609,25 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
 
   return (
     <AnaSayfaKabuk currentTeacher={currentTeacher} unreadMessages={unreadMessages} onNavigate={onNavigateTab} tema="odak" sinif="ak-myrd" overlay={katman}>
-      <div className="my-hero">
+      {/* Aşama 404: başlık öteki ana sayfalarla aynı düzende (büyük harf üst satır, serif selam, adı vurgulu) */}
+      <div className="od-hero my-hero">
         <div>
-          <span className="eyebrow">
+          <div className="od-eyebrow my-eye">
             {dersHazir && okulGunu && simdiSira > 0 && <i className="my-live" aria-hidden="true" />}
             {gunYazi}
             {anYazi && ` · ${anYazi}`}
-          </span>
+          </div>
           <h1>
             {selam}
-            {ad && ` ${ad}`}
+            {ad && (
+              <>
+                {' '}
+                <em>{ad}</em>
+              </>
+            )}
           </h1>
           {dersHazir && okulGunu && (
-            <p>
+            <p className="od-lede">
               {gecikenSayi > 0 ? (
                 <>
                   <b className="bad">{gecikenSayi} yoklama</b> gecikti
@@ -648,7 +679,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
           <div className="my-card-h">
             <div>
               <h2 id="my-h-map">Yoklama Haritası</h2>
-              <p>Bugün · her kutu bir ders saati · kırmızı kutuya tıklayınca öğretmene hatırlatma gider (günde bir kez)</p>
+              <p>Bugün · sınıf ve ders saatine göre</p>
             </div>
             <div className="my-seg" role="group" aria-label="Harita süzgeci">
               <button type="button" aria-pressed={suzgec === 'all'} onClick={() => setSuzgec('all')}>
@@ -828,12 +859,19 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
           <div className="my-card-h">
             <div>
               <h2 id="my-h-vek">Bugün Vekil ve İzinler</h2>
-              <p>Vekil öğretmen yoklamayı kendisi alır · gün boyu izinli öğrenci "İzinli" sayılır</p>
+              <p>{sayiOzeti([[vekilBugunListe.length, 'vekil ders'], [izinBugun.length, 'izinli öğrenci']]) || gunYazi}</p>
             </div>
             <button type="button" className="od-link" onClick={() => git('grades')}>
-              İzinler <ArrowRight aria-hidden="true" />
+              Dersler <ArrowRight aria-hidden="true" />
             </button>
           </div>
+          {/* Aşama 404: ikisi de boşsa tek boş durum (iki ayrı "yok" satırı yerine) */}
+          {!vekilBugunListe.length && !izinBugun.length ? (
+            <div className="od-empty">
+              <OkIsareti notr />
+              Bugün vekil ders ve gün boyu izinli öğrenci yok.
+            </div>
+          ) : (
           <div className="my-two wide">
             {vekilBugunListe.length ? (
               <ul className="my-rows">
@@ -865,7 +903,10 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                 })}
               </ul>
             ) : (
-              <p className="my-none">Bugün vekil ders yok.</p>
+              <div className="od-empty">
+                <OkIsareti notr />
+                Bugün vekil ders yok.
+              </div>
             )}
             {izinBugun.length ? (
               <ul className="my-rows">
@@ -894,9 +935,13 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                 {izinBugun.length > 6 && <li className="my-none">+{izinBugun.length - 6} öğrenci daha</li>}
               </ul>
             ) : (
-              <p className="my-none">Bugün gün boyu izinli öğrenci yok.</p>
+              <div className="od-empty">
+                <OkIsareti notr />
+                Bugün gün boyu izinli öğrenci yok.
+              </div>
             )}
           </div>
+          )}
         </section>
       )}
 
@@ -908,7 +953,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
               <div className="my-card-h">
                 <div>
                   <h2 id="my-h-gel">Bugün Gelmeyenler</h2>
-                  <p>Yalnız ders yoklamasından · etüt karışmaz</p>
+                  <p>{gelmeyenler.length ? `${gelmeyenler.length} öğrenci · ders yoklamasından` : 'Ders yoklamasından'}</p>
                 </div>
                 <button type="button" className="od-link" onClick={() => setRapor('devamsizlik')}>
                   Devamsızlık raporu <ArrowRight aria-hidden="true" />
@@ -945,7 +990,19 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                   )}
                 </>
               ) : (
-                <p className="my-none">{vadeli.length ? 'Bugün derse gelmeyen öğrenci yok.' : 'Henüz yoklaması alınan ders yok.'}</p>
+                <div className="od-empty">
+                  {vadeli.length ? (
+                    <>
+                      <OkIsareti />
+                      Bugün derse gelmeyen öğrenci yok.
+                    </>
+                  ) : (
+                    <>
+                      <OkIsareti notr />
+                      Henüz yoklaması alınan ders yok.
+                    </>
+                  )}
+                </div>
               )}
             </section>
           )}
@@ -961,7 +1018,7 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                   </p>
                 </div>
                 <button type="button" className="od-link" onClick={() => git('etuts')}>
-                  Tüm etütler <ArrowRight aria-hidden="true" />
+                  Etütler <ArrowRight aria-hidden="true" />
                 </button>
               </div>
               {etutBugun.length ? (
@@ -1003,67 +1060,18 @@ export const MudurYardimcisiAnaSayfa: React.FC<Props> = ({
                   {etutBugun.length > 8 && <li className="my-none">+{etutBugun.length - 8} etüt daha</li>}
                 </ol>
               ) : (
-                <p className="my-none">Etütler sayfasından planlanan etütler burada saat sırasıyla görünür.</p>
+                <div className="od-empty">
+                  <OkIsareti notr />
+                  Bugün planlı etüt yok.
+                </div>
               )}
             </section>
           )}
         </div>
       )}
 
-      {/* ===== OKULUN HAFTASI ===== */}
-      {haftaGoster && (
-        <section className="my-card" aria-labelledby="my-h-okh">
-          <div className="my-card-h">
-            <div>
-              <h2 id="my-h-okh">Okulun Haftası</h2>
-              <p>
-                {/* Aşama 337: boş parça yazılmaz ("Her gün: · …" olmasın) */}
-                {[
-                  [can.etut && 'etüt', dersHazir && 'vekil ders ve izinli öğrenci sayısı'].filter(Boolean).join(', ').replace(/^(.+)$/, 'Her gün: $1'),
-                  [can.deneme && 'deneme', dersHazir && 'tatil'].filter(Boolean).join(' ve ').replace(/^(.+)$/, '$1 günleri'),
-                  can.takvim ? 'akademik takvim etkinlikleri' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-                  .replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))}
-              </p>
-            </div>
-            {can.etut && (
-              <button type="button" className="od-link" onClick={() => git('etuts')}>
-                Etütler <ArrowRight aria-hidden="true" />
-              </button>
-            )}
-          </div>
-          <div className="my-week">
-            {hafta.map((d, i) => {
-              const bos = !d.etut && !d.vekil && !d.izin && !d.deneme.length && !d.tatil && !d.akt.length;
-              return (
-                <div key={d.g} className={'my-day' + (d.g === bugun ? ' today' : '')}>
-                  <div className="dh">
-                    <span>{d.g === bugun ? 'Bugün' : GUN_KISA[i]}</span>
-                    <b className="tnum">{Number(d.g.slice(8, 10))}</b>
-                  </div>
-                  {d.tatil && <span className="my-ev t">{d.tatil.aciklama || 'Tatil'}</span>}
-                  {d.akt.map((a) => (
-                    <button key={a.key} type="button" className={'my-ev a' + (a.yer === 'dis' ? ' dis' : '')} title={baslik(a.ad)} onClick={() => etkinlikAc(a)}>
-                      {baslik(a.ad)}
-                    </button>
-                  ))}
-                  {d.etut > 0 && <span className="my-ev">{d.etut} etüt</span>}
-                  {d.vekil > 0 && <span className="my-ev v">{d.vekil} vekil ders</span>}
-                  {d.izin > 0 && <span className="my-ev i">{d.izin} izinli öğrenci</span>}
-                  {d.deneme.map((x) => (
-                    <span key={x.id} className="my-ev d" title={x.name}>
-                      {x.name}
-                    </span>
-                  ))}
-                  {bos && <span className="none">Boş gün</span>}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* ===== OKULUN HAFTASI (Aşama 404: ortak şerit) ===== */}
+      {haftaGoster && <HaftaSeridi kart="my" id="my-h-okh" baslik="Okulun Haftası" ozet={haftaOzet} turler={haftaTurleri} gunler={haftaGunleri} bugun={bugun} />}
       <AktEtkinlikPencere etkinlik={aktSecili} onClose={() => setAktSecili(null)} />
     </AnaSayfaKabuk>
   );

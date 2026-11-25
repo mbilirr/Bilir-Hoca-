@@ -1,4 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { KeyRound, Mail, UserPlus } from 'lucide-react'; // Aşama 404
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 370: yeni sürümde eksik parça → sayfa bir kez yenilenir
 import { TekrarDugmesi } from '../ui/Durum'; // Aşama 305
 import { dataService, KURUM_MODULES } from '../../services/dataService';
@@ -405,8 +406,6 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
           )}
         </div>
       </div>
-      <span className="grow" />
-      <span className="note">Eksikler tamamlandıkça hazırlık yükselir. Sayılar Yönetim ve Dersler bölümlerinden gelir.</span>
     </>
   );
 
@@ -445,7 +444,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
           <div className="n">
             <b className={'tnum' + (eksik.length ? '' : ' ok')}>{yukleniyor ? '—' : eksik.length}</b>
             <strong id="ky-eksik">{eksik.length ? 'Eksik Kaldı' : 'Eksik Yok'}</strong>
-            <span>Tamamlayınca listeden düşer, hazırlık yükselir.</span>
+            <span>{eksik.length ? 'Kurulum adımı tamamlanmadı' : 'Bütün kurulum adımları tamam'}</span>
           </div>
           <div>
             {eksik.map((a) => (
@@ -505,11 +504,6 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
         <section aria-labelledby="ky-bugun">
           <div className="ak-h2 sm">
             <span id="ky-bugun">Bugün Kurumda</span>
-            {raporVar && (
-              <button type="button" className="lnk" onClick={() => setRapor('yoklama')}>
-                Kurum raporu ›
-              </button>
-            )}
           </div>
           <div className="ak-acc">
             {ozet && (
@@ -548,12 +542,12 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               <div className={'ak-it' + (etutEksik.length ? ' bad' : '')}>
                 <span className="ak-av tnum">{bugunEtut.length}</span>
                 <span className="w">
-                  <b>{bugunEtut.length ? 'Etüt Var' : 'Bugün Etüt Yok'}</b>
+                  <b>{bugunEtut.length ? 'Bugünkü Etütler' : 'Bugün Etüt Yok'}</b>
                   <span>
                     {etutEksik.length
                       ? `${etutEksik.length} etüdün yoklaması alınmadı`
                       : bugunEtut.length
-                        ? `${bugunEtut.filter((e) => hasEtutAttendance(e)).length} etüdün yoklaması alındı`
+                        ? `${bugunEtut.filter((e) => hasEtutAttendance(e)).length}/${bugunEtut.length} yoklama alındı`
                         : 'Etütler sayfasından planlanır'}
                   </span>
                 </span>
@@ -576,8 +570,8 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
           <div className="ak-acc">
             {can.ogretmenYonet && (
               <div className="ak-it">
-                <span className="ak-av" aria-hidden="true">
-                  +
+                <span className="ak-av ic" aria-hidden="true">
+                  <UserPlus />
                 </span>
                 <span className="w">
                   <b>Öğretmen Ekle</b>
@@ -590,8 +584,8 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
             )}
             {can.ogrenciYonet && (
               <div className="ak-it">
-                <span className="ak-av" aria-hidden="true">
-                  ✉
+                <span className="ak-av ic" aria-hidden="true">
+                  <Mail />
                 </span>
                 <span className="w">
                   <b>Giriş Bilgisi Gönder</b>
@@ -603,8 +597,8 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               </div>
             )}
             <div className="ak-it">
-              <span className="ak-av" aria-hidden="true">
-                ⟳
+              <span className="ak-av ic" aria-hidden="true">
+                <KeyRound />
               </span>
               <span className="w">
                 <b>Şifre Yenileme</b>
@@ -658,7 +652,7 @@ export const KurumYoneticisiAnaSayfa: React.FC<Props> = ({ currentTeacher, stude
               </span>
             ))}
           </div>
-          <p className="ak-sub">Bölümleri genel yönetici açar. Açık olmayan bölüm menüde ve bu sayfada görünmez.</p>
+          <p className="ak-sub">Bölümleri genel yönetici açar; kapalı bölüm menüde görünmez.</p>
         </section>
       </div>
 

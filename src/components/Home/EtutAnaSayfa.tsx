@@ -9,6 +9,7 @@ import { getEtutStatus } from '../../lib/etutStatus';
 import { gradeOf } from '../../lib/teacherGrades';
 import { AkSheet, AnaSayfaKabuk, akBasHarf, akSelam } from './AnaSayfaKabuk';
 import './kalanAnaSayfa.css';
+import { HaftaSeridi } from './HaftaSeridi'; // Aşama 404
 
 // ============================================================================
 // Aşama 253: ETÜT ÖĞRETMENİ ANA SAYFASI (taslak: kalan-roller.html › Etüt öğretmeni, Odak renkleri)
@@ -446,7 +447,7 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
                   <h3>
                     Sizi Bekleyenler {eksikYoklama.length + gorusYok.length > 0 && <span className="kl-cnt tnum">{eksikYoklama.length + gorusYok.length}</span>}
                   </h3>
-                  <p>Geciken işler · yapınca kaybolur</p>
+                  <p>Geciken işler</p>
                 </div>
               </div>
               {eksikYoklama.length + gorusYok.length ? (
@@ -552,51 +553,43 @@ export const EtutAnaSayfa: React.FC<Props> = ({ currentTeacher, students, classe
             </section>
           </div>
 
-          {/* ===== Bu hafta ===== */}
-          <section className="kl-card" aria-label="Bu hafta">
-            <div className="kl-card-h">
-              <div>
-                <h3>Bu Hafta</h3>
-                <p>{haftaToplam ? `${haftaToplam} etüt · ${sureYazi(haftaDk)}` : 'Bu hafta etüdünüz yok'}</p>
-              </div>
-              <button type="button" className="od-link" onClick={() => go('etuts')}>
-                Etütlerim <ArrowRight />
-              </button>
-            </div>
-            <div className="kl-week">
-              {hafta.map((g) => (
-                <div className={'kl-day' + (g.y === bugun ? ' today' : '')} key={g.y}>
-                  <div className="dh">
-                    {g.gun} <b>{g.no}</b>
-                  </div>
-                  {g.etutler.length ? (
-                    <>
-                      {g.etutler.slice(0, 3).map((e) => {
-                        const st = getEtutStatus(e, simdi);
-                        const cls = st === 'done' ? ' ok' : isEtutAttendanceMissing(e, simdi) ? ' bad' : '';
-                        return (
-                          <span className={'kl-ev' + cls} key={e.id} title={dersKonu(e)}>
-                            {e.time ? `${e.time} ` : ''}
-                            {e.subject || 'Etüt'}
-                          </span>
-                        );
-                      })}
-                      {g.etutler.length > 3 && <span className="kl-ev mute">+{g.etutler.length - 3} etüt</span>}
-                    </>
-                  ) : (
-                    <span className="kl-ev mute">Boş gün</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* ===== Bu hafta (Aşama 404: ortak şerit) ===== */}
+          <HaftaSeridi
+            kart="kl"
+            id="kl-h-hafta"
+            baslik="Bu Hafta"
+            ozet={haftaToplam ? `${haftaToplam} etüt · ${sureYazi(haftaDk)}` : ''}
+            bosYazi="etüdünüz yok"
+            turler={[
+              { tur: 'etut', ad: 'Planlı', onClick: () => go('etuts') },
+              { tur: 'etut', durum: 'ok', ad: 'Yoklama alındı' },
+              { tur: 'etut', durum: 'bad', ad: 'Yoklama eksik' },
+            ]}
+            gunler={hafta.map((g) => ({
+              g: g.y,
+              olaylar: [...g.etutler]
+                .sort((x, y) => (x.time || '').localeCompare(y.time || ''))
+                .map((e) => {
+                  const st = getEtutStatus(e, simdi);
+                  return {
+                    k: e.id,
+                    tur: 'etut' as const,
+                    yazi: `${e.time ? `${e.time} ` : ''}${e.subject || 'Etüt'}`,
+                    title: dersKonu(e),
+                    durum: st === 'done' ? ('ok' as const) : isEtutAttendanceMissing(e, simdi) ? ('bad' as const) : undefined,
+                    onClick: () => go('etuts'),
+                  };
+                }),
+            }))}
+            bugun={bugun}
+          />
 
           {/* ===== Etüt öğrencilerim (özet) ===== */}
           <section className="kl-card" aria-label="Etüt öğrencilerim">
             <div className="kl-card-h">
               <div>
                 <h3>Etüt Öğrencilerim</h3>
-                <p>Bu ay etüdüme atanan öğrencilerin özeti · liste Etütlerim sayfasında</p>
+                <p>{AYLAR[simdi.getMonth()]} · etüde atanan öğrenciler</p>
               </div>
               <button type="button" className="od-link" onClick={() => go('etuts')}>
                 Etütlerim <ArrowRight />
