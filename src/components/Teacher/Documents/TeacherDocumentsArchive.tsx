@@ -501,6 +501,36 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
         )}
       </div>
 
+      {/* Aşama 405: arşiv seçilmeden sayfa boş kalmasın — türler sayılarıyla seçilebilir kartlar */}
+      {visibleCategories.length === 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {CATEGORIES.map((c) => {
+            const Icon = c.icon;
+            const n = documents.filter((d) => getDocCategoryKey(d) === c.id).length;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setSelectedArchiveCategory(c.id);
+                  setExpandedCategories((p) => ({ ...p, [c.id]: true }));
+                }}
+                className="group flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-line-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              >
+                <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${c.bgLight} ${c.color}`}>
+                  <Icon className="w-5 h-5" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-fg truncate">{c.title}</span>
+                  <span className="block text-xs text-muted truncate">{c.description}</span>
+                </span>
+                <span className="text-xs font-semibold tabular-nums text-fg-2 shrink-0">{n ? `${n} belge` : 'Boş'}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* SEÇİLEN BELGE TÜRÜ AÇILIR (SADECE SEÇİLEN KATEGORİ) */}
       {visibleCategories.length > 0 && (
         <div className="space-y-3">

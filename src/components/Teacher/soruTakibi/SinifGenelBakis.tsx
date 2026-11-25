@@ -313,11 +313,8 @@ export function SinifGenelBakis() {
             {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}
             {(() => {
               if (todaySolvedStudents.length === 0) {
-                return (
-                  <div className="bg-surface-2 rounded-xl p-6 text-center text-xs text-subtle border border-dashed border-line">
-                    Bugün henüz sisteme soru girişi yapan öğrenci bulunmuyor. Yukarıdaki menüden geçmiş günlerin analizini incelemek istediğiniz sınıfı veya öğrenciyi seçebilirsiniz.
-                  </div>
-                );
+                // Aşama 405: üstteki boş durum zaten yol gösteriyor; ikinci açıklama kutusu kaldırıldı
+                return <p className="text-center text-xs text-subtle">Bugün soru giren öğrenci yok</p>;
               }
 
               return (

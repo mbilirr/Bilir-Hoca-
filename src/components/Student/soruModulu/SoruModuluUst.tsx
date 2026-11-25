@@ -3,6 +3,7 @@ import { Download, BarChart3, Layers } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
 import { downloadWeeklyPDF, downloadMonthlyPDF } from '../../../utils/questionAnalytics';
 import { useSoruModuluBaglam } from './useSoruModulu';
+import { IconBox } from '../../ui/kit';
 
 export function SoruModuluUst() {
   const { activeStudent, activeTab, setActiveTab, allLogs, weeklyAnalytics, monthlyAnalytics } = useSoruModuluBaglam();
@@ -11,9 +12,7 @@ export function SoruModuluUst() {
       <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-fg text-surface flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-brand-fg" />
-            </div>
+            <IconBox icon={BarChart3} tone="brand" />
             <div>
               <h2 className="text-lg font-bold text-fg tracking-tight">
                 Soru Çözümü ve İlerleme

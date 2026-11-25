@@ -69,7 +69,13 @@ export const StudentDersProgrami: React.FC = () => {
   }, [v]);
 
   if (v === undefined) return null; // ilk okuma: bölüm sessizce gelir
-  if (!v || !ayar?.kayitli) return hata ? <p data-ders-hata role="alert" className="text-xs font-semibold text-danger-fg">{hata}</p> : null;
+  // Aşama 405: düz kırmızı yazı yerine ortak hata kutusu (Tekrar dene ile)
+  if (!v || !ayar?.kayitli)
+    return hata ? (
+      <div data-ders-hata>
+        <YuklemeHatasi mesaj={hata} onTekrar={() => void yukle()} />
+      </div>
+    ) : null;
   if (!v.hucreler.length && !tatil.size && bas === haftaBasi(bugun)) return null; // sınıfın programı yok
 
   return (

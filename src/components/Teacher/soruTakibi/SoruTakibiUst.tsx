@@ -9,9 +9,9 @@ export function SoruTakibiUst() {
   const { classes, students, selectedClassId, selectedStudentId, setSelectedStudentId, activeStudent, activeClass, classStudents, isStudentDropdownOpen, setIsStudentDropdownOpen, studentSearchQuery, setStudentSearchQuery, dropdownScope, setDropdownScope, studentDropdownRef, handleSelectClass, handleSelectStudent, activeAnalysisMode, setActiveAnalysisMode, setIsManageLogsModalOpen, activeLogs, getStudentTodayQuestionCount, filteredDropdownStudents, myActiveTarget, setIsStudentTargetsModalOpen, setIsClassTargetsModalOpen, studentTargetsCount, classTargetsCount, openNewTarget, handleOpenStudentTargetModal, handleOpenClassTargetModal, weeklyAnalytics, monthlyAnalytics } = useSoruTakibiBaglam();
   return (
     <>
-      <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
-        {/* Top Looker Studio Header Brand */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-line">
+      {/* Aşama 405: sayfa başlığı öteki sayfalardaki gibi kutunun dışında; süzgeçler ayrı kartta */}
+      <div className="space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center shrink-0">
               <BarChart3 className="w-5 h-5" />
@@ -114,7 +114,8 @@ export function SoruTakibiUst() {
         </div>
 
         {/* Looker Studio Filter & Parameter Ribbon */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
+        <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* 1. Sınıf Seçimi */}
           <div className="bg-surface-2 p-3 rounded-xl border border-line">
             <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center justify-between">
@@ -375,6 +376,7 @@ export function SoruTakibiUst() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </>

@@ -182,7 +182,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         icon={MessageSquare}
         tone="danger"
         title="Mesajlar"
-        description={unreadCount ? `${unreadCount} okunmamış mesaj` : undefined}
+        description={unreadCount ? `${unreadCount} okunmamış mesaj` : 'Öğrenci soruları ve duyurular'} // Aşama 405: alt yazı her zaman (öteki sayfalarla aynı başlık düzeni)
         actions={
       <Segmented
         size="sm"

@@ -36,7 +36,7 @@ import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileM
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { SolMenu, type AkMenuOge } from '../Layout/SolMenu'; // Aşama 260
-import { IconBox, Modal, type Tone } from '../ui/kit'; // Aşama 351: Modal
+import { IconBox, Modal, PageHeader, type Tone } from '../ui/kit'; // Aşama 351: Modal · 405: PageHeader
 import { ogrenciEtutDurum } from '../../lib/etutOgrenciDurum'; // Aşama 214
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
@@ -622,6 +622,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* TAB 1: HOMEWORKS */}
       {activeTab === 'homework' && tabOpen('homework') && (
         <div className="space-y-4">
+          {/* Aşama 405: her öğrenci sayfası aynı başlık düzeniyle açılır */}
+          <PageHeader icon={BookOpen} tone="warning" title="Ödevlerim" description={myHomeworks.length ? `${myHomeworks.length} ödev` : 'Henüz ödevin yok'} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {myHomeworks.map((hw) => {
               const statusInfo = dataService.getStudentHomeworkStatus(hw.id, currentStudent.id);
@@ -912,6 +914,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* TAB 3: GRADES & ATTENDANCE */}
       {activeTab === 'grades' && tabOpen('grades') && (
         <div className="space-y-6">
+          <PageHeader icon={Award} tone="brand" title="Not ve Devamsızlık" description="Ders programın, devamsızlığın ve sınav notların" />
           {/* Aşama 223: ders saati yoklamasından kendi devamsızlığı (yalnız bu sekme açılınca okunur) */}
           {/* Aşama 231: kendi sınıfının haftalık ders programı (ders programı kullanılmayan kurumda görünmez) */}
           {/* Aşama 292: iki bölüm de aynı bağlantı hatasını yazarsa uyarı bir kez görünür */}
@@ -1028,6 +1031,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       {/* TAB 4: MESSAGES */}
       {activeTab === 'messages' && tabOpen('messages') && (
+        <div className="space-y-6">
+        <PageHeader icon={MessageSquare} tone="info" title="Öğretmene Soru Sor" description="Sorunu yaz, öğretmenin yanıtı burada görünür" />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Send Form */}
           <div className="lg:col-span-5 bg-surface border border-line rounded-2xl p-6 shadow-xl space-y-4">
@@ -1181,6 +1186,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
 

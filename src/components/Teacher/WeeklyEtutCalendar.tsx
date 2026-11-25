@@ -222,7 +222,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
     (mins, d) => mins + (etutsByDay[d.dateKey] || []).reduce((s, e) => s + (e.duration || 45), 0),
     0
   );
-  const totalHoursStr = (totalMinutesThisWeek / 60).toFixed(1);
+  const totalHoursStr = (totalMinutesThisWeek / 60).toLocaleString('tr-TR', { maximumFractionDigits: 1 }); // Aşama 405: 2,7
   const missingThisWeek = weekDays.reduce(
     (c, d) => c + (etutsByDay[d.dateKey] || []).filter((e) => isEtutAttendanceMissing(e, now)).length,
     0
@@ -405,12 +405,12 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         <span className="flex items-center gap-1 min-w-0 text-xs leading-tight">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
           <span className="font-bold text-fg truncate">{subjectShort(etut.subject)}</span>
-          {per && <span className="font-bold text-fg-2 shrink-0" data-etut-period>{per}</span>}
-          {withTime && etut.time && <span className="font-mono font-semibold tabular-nums text-fg-2 shrink-0">S:{etut.time}</span>}
+          {/* Aşama 405: "7D S:15:30" yerine sade saat; ders saati alt satırda "7. ders" */}
+          {withTime && etut.time && <span className="font-semibold tabular-nums text-fg-2 shrink-0">{etut.time.slice(0, 5)}</span>}
           {missing && <AlertCircle className="w-3 h-3 text-danger shrink-0" aria-label="Yoklama alınmadı" />}
           {status === 'done' && <CheckCircle2 className="w-3 h-3 text-success-fg shrink-0" aria-label="Yoklaması alındı" />}
         </span>
-        <span className="block text-2xs text-muted truncate leading-tight">{[teacherShort(etutTeacherNames(etut)), who].filter(Boolean).join(' · ')}</span>
+        <span className="block text-2xs text-muted truncate leading-tight">{[per ? `${per.replace('D', '')}. ders` : '', teacherShort(etutTeacherNames(etut)), who].filter(Boolean).join(' · ')}</span>
       </button>
     );
   };
@@ -436,7 +436,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           className="w-full flex items-center gap-1 px-1.5 py-1 bg-canvas/60 hover:bg-surface-2 cursor-pointer text-left"
           title={closed ? 'Etütleri göster' : 'Grubu kapat'}
         >
-          <span className="font-mono text-2xs font-bold tabular-nums text-fg-2">{slot.time === '--:--' ? slot.time : `S:${slot.time}`}</span>
+          <span className="text-2xs font-bold tabular-nums text-fg-2">{slot.time === '--:--' ? 'Saatsiz' : slot.time}</span>
           <span className="text-2xs font-semibold text-muted">· {slot.items.length} etüt</span>
           {missing && <span className="w-1.5 h-1.5 rounded-full bg-danger" title="Yoklaması alınmamış etüt var" />}
           <ChevronDown className={`w-3 h-3 ml-auto text-subtle transition-transform ${closed ? '-rotate-90' : ''}`} />

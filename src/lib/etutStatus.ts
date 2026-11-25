@@ -165,12 +165,12 @@ export function periodShort(period?: string): string {
   const m = /(\d{1,2})/.exec(String(period || ''));
   return m ? `${Number(m[1])}D` : '';
 }
-/** "Gülderen Akgün" → "G.Akgün", "Ali Rıza Yılmaz" → "A.R.Yılmaz"; birden çok öğretmende "+N" */
+/** "Gülderen Akgün" → "G. Akgün", "Ali Rıza Yılmaz" → "A.R. Yılmaz"; birden çok öğretmende "+N" (Aşama 405: soyaddan önce boşluk) */
 export function teacherShort(names: string[]): string {
   if (!names.length) return '';
   const parts = names[0].trim().split(/\s+/).filter(Boolean);
   const last = parts[parts.length - 1] || '';
   const initials = parts.slice(0, -1).map((p) => `${p.charAt(0).toLocaleUpperCase('tr-TR')}.`).join('');
-  const short = `${initials}${last}`;
+  const short = initials ? `${initials} ${last}` : last;
   return names.length > 1 ? `${short} +${names.length - 1}` : short;
 }
