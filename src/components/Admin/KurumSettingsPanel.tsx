@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Send, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { dataService, KURUM_MODULES, kurumModulListesi } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
 import { YuklemeHatasi } from '../ui/Durum'; // Aşama 305
@@ -158,7 +158,7 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
   };
 
   // ---- kurum e-postası
-  const [mailAccount, setMailAccount] = useState<{ gmail: string } | null | undefined>(undefined);
+  const [mailAccount, setMailAccount] = useState<{ gmail: string; cozulemedi?: boolean } | null | undefined>(undefined);
   const [gmail, setGmail] = useState('');
   const [appPass, setAppPass] = useState('');
   const [mailBusy, setMailBusy] = useState(false);
@@ -189,6 +189,18 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
       setNotice({ tone: 'ok', text: 'Kurum e-posta hesabı bağlandı. Kurumdaki bütün e-postalar artık bu adresten gidecek.' });
       refreshAfter();
     } else setNotice({ tone: 'err', text: r.error || 'Bağlanamadı.' });
+  };
+  // Aşama 401: kurum hesabından yöneticinin kendi adresine sınama e-postası
+  const testMail = async () => {
+    if (!kurum || mailBusy) return;
+    setMailBusy(true);
+    const r = await callMail('kurum-mail-test', { kurumId: kurum.id });
+    setMailBusy(false);
+    if (r.ok) setNotice({ tone: 'ok', text: `Sınama e-postası ${(r as any).from || 'kurum hesabından'} adresinden ${(r as any).to || 'size'} adresine gönderildi.` });
+    else {
+      setNotice({ tone: 'err', text: r.error || 'Sınama e-postası gönderilemedi.' });
+      if ((r as any).code === 'cozulemedi') setMailAccount((m) => (m ? { ...m, cozulemedi: true } : m));
+    }
   };
   const disconnectMail = async () => {
     if (!kurum || mailBusy) return;
@@ -370,11 +382,26 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
               {mailAccount === undefined ? (
                 <p className="text-xs text-muted">Durum okunuyor…</p>
               ) : mailAccount ? (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="ui-chip ui-chip-success truncate">Bağlı: {mailAccount.gmail}</span>
-                  <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={disconnectMail} disabled={mailBusy}>
-                    <Unlink className="w-3.5 h-3.5" /> Kaldır
-                  </button>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className={cx('ui-chip truncate min-w-0', mailAccount.cozulemedi ? 'ui-chip-warning' : 'ui-chip-success')}>
+                      {mailAccount.cozulemedi ? 'Bağlantı bozuk' : 'Bağlı'}: {mailAccount.gmail}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <button type="button" id="kurum-mail-test" className={cx(BTN, 'ui-btn-secondary')} onClick={testMail} disabled={mailBusy || !!mailAccount.cozulemedi}>
+                        {mailBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Sına
+                      </button>
+                      <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={disconnectMail} disabled={mailBusy}>
+                        <Unlink className="w-3.5 h-3.5" /> Kaldır
+                      </button>
+                    </span>
+                  </div>
+                  {mailAccount.cozulemedi && (
+                    <p className="text-xs font-semibold text-warning-fg flex items-start gap-1.5" role="alert">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />
+                      Kayıtlı uygulama şifresi açılamıyor; e-postalar şu an okul hesabından gidiyor. Aşağıdan uygulama şifresiyle yeniden bağlayın.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <span className="ui-chip ui-chip-neutral">Bağlı değil</span>

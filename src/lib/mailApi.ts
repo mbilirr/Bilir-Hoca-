@@ -31,6 +31,7 @@ export type MailAction =
   | 'kurum-mail-status' // Aşama 82: kurum gönderim hesabı
   | 'kurum-mail-connect'
   | 'kurum-mail-disconnect'
+  | 'kurum-mail-test' // Aşama 401: kurum hesabından sınama
   | 'oyun' // Aşama 381: Oyunlar (oyun hazırla, bağlantılar, kapat / aç / uzat / sil / sıfırla)
   | 'oyun-ogrenci' // Aşama 385: öğrencinin kendi oturumuyla açık oyunları
   | 'veli' // Aşama 367: veli görünümü bağlantıları (durum / gönder / kopyala / iptal)

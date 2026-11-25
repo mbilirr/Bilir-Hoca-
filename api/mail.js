@@ -2719,12 +2719,50 @@ async function kurumIdForAdmin(caller, body) {
 async function actionKurumMailStatus(caller, body) {
   const kid = await kurumIdForAdmin(caller, body);
   try {
-    const rows = await rest(`kurum_mail_accounts?select=gmail,updated_at&kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+    const rows = await rest(`kurum_mail_accounts?select=gmail,secret,updated_at&kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
     const r = rows && rows[0];
-    return { ok: true, account: r ? { gmail: r.gmail, updatedAt: r.updated_at } : null };
+    // Aşama 401: kayıtlı şifre bu sunucunun anahtarıyla açılamıyorsa (taşıma / anahtar değişikliği) e-postalar sessizce
+    // okul hesabına düşer; ekranda uyarı çıksın diye bildirilir (şifrenin kendisi asla dönmez)
+    return { ok: true, account: r ? { gmail: r.gmail, updatedAt: r.updated_at, cozulemedi: !decryptSecret(r.secret) } : null };
   } catch {
     throw new HttpError(503, 'Kurum e-posta tablosu bulunamadı. Supabase SQL Editor\'de sql/82 numaralı dosyayı çalıştırın.');
   }
+}
+// Aşama 401: kurum hesabından sınama e-postası (yalnız kurum yöneticisi; yalnız kendi adresine gider)
+async function actionKurumMailTest(caller, body, req) {
+  const kid = await kurumIdForAdmin(caller, body);
+  let row;
+  try {
+    const rows = await rest(`kurum_mail_accounts?select=gmail,secret&kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+    row = rows && rows[0];
+  } catch {
+    throw new HttpError(503, 'Kurum e-posta tablosu bulunamadı. Supabase SQL Editor\'de sql/82 numaralı dosyayı çalıştırın.');
+  }
+  if (!row) throw new HttpError(400, 'Kurum e-posta hesabı bağlı değil.', { code: 'not-configured' });
+  if (!decryptSecret(row.secret))
+    throw new HttpError(409, 'Kayıtlı uygulama şifresi açılamadı (sunucu anahtarı değişmiş). Hesabı uygulama şifresiyle yeniden bağlayın; o zamana kadar e-postalar okul hesabından gider.', { code: 'cozulemedi' });
+  const sender = await kurumSender({ kurumId: kid, name: caller.name, email: caller.email });
+  if (!sender) throw new HttpError(502, 'Kurum hesabı okunamadı.');
+  const to = caller.email && isEmail(caller.email) ? caller.email : sender.user;
+  const mail = layout({
+    heading: 'Kurum e-postası sınaması',
+    greeting: `Merhaba ${caller.name},`,
+    intro: 'Bu e-postayı aldıysanız kurumun bütün e-postaları (etüt, ödev, duyuru…) bu hesaptan gidiyor demektir.',
+    rows: [
+      ['Gönderen hesap', `${sender.user} (kurum hesabı)`],
+      ['Yanıt adresi', sender.user],
+    ],
+    buttonLabel: 'Sisteme git',
+    url: appUrl(req),
+  });
+  const summary = await deliver(
+    sender,
+    caller,
+    [{ event: 'test', refId: null, refTitle: 'Kurum sınaması', to, toName: caller.name, role: 'ogretmen', subject: 'Kurum e-postası sınaması – biliredu', ...mail }],
+    Date.now() + TIME_BUDGET_MS,
+  );
+  if (summary.sent !== 1) throw new HttpError(502, summary.errors[0] || 'Sınama e-postası gönderilemedi.');
+  return { ok: true, to, from: sender.user };
 }
 async function actionKurumMailConnect(caller, body) {
   const kid = await kurumIdForAdmin(caller, body);
@@ -5938,6 +5976,9 @@ export default async function handler(req, res) {
         break;
       case 'kurum-mail-disconnect':
         result = await actionKurumMailDisconnect(caller, body);
+        break;
+      case 'kurum-mail-test': // Aşama 401
+        result = await actionKurumMailTest(caller, body, req);
         break;
       case 'sms-status':
         result = await actionSmsStatus(caller);
