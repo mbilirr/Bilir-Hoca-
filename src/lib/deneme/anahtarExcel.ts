@@ -30,6 +30,9 @@ export interface ExcelKeyResult {
   // Aşama 271: dosya başlığındaki "Sınıf: 6" ve "Yanlış Etkisi: 3" (yoksa boş)
   grade?: string;
   wrongPerCorrect?: number;
+  /** Aşama 427: dosyada "Uygulama adı" sütunuyla birden çok sınav varsa cevaplı olanların adları ve okunan sınav */
+  sinavlar?: string[];
+  sinav?: string;
 }
 
 const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
@@ -55,8 +58,8 @@ function toDateStr(v: unknown): string {
 // dosyalar: "A Soru" soru numarası, "Kitapçık" sütununda B yazan satırlar atlanır (B karşılığı "B Soru"dan),
 // "Test" sütunu ders sütunu tanınmazsa yedek olarak kullanılır, "Kazanım-1" boşsa "Kazanım-2" alınır.
 
-type Cols = { no: number; ans: number; b: number; c: number; d: number; code: number; text: number; konu: number; ders: number; kit: number; test: number; text2: number };
-const NO_COLS: Cols = { no: -1, ans: -1, b: -1, c: -1, d: -1, code: -1, text: -1, konu: -1, ders: -1, kit: -1, test: -1, text2: -1 };
+type Cols = { no: number; ans: number; b: number; c: number; d: number; code: number; text: number; konu: number; ders: number; kit: number; test: number; text2: number; sinav: number };
+const NO_COLS: Cols = { no: -1, ans: -1, b: -1, c: -1, d: -1, code: -1, text: -1, konu: -1, ders: -1, kit: -1, test: -1, text2: -1, sinav: -1 };
 
 const hdr = (c: string) => foldTr(c).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -77,7 +80,11 @@ function headerOf(cells: string[]): { cols: Cols; subject: string | null; subjec
         if (c.length > 2) strong++;
       }
     };
-    if (/^soru ?no|^soru$|^no$|^sira ?no|^sira$|^s no$/.test(c)) take('no');
+    // Aşama 427: MEB "Soru No - Kitapçık A/B/C/D" sütunları ve "Uygulama Adı" (dosyada birden çok sınav olabilir)
+    const kitNo = /^soru no (?:kitapcik|kitapcigi) ([a-d])$/.exec(c);
+    if (kitNo) take(({ a: 'no', b: 'b', c: 'c', d: 'd' } as const)[kitNo[1] as 'a' | 'b' | 'c' | 'd']);
+    else if (/^(uygulama|sinav|deneme) adi$/.test(c)) take('sinav');
+    else if (/^soru ?no|^soru$|^no$|^sira ?no|^sira$|^s no$/.test(c)) take('no');
     // Aşama 118: "A Soru", "A Soru No", "A Kitapçığı Soru No" = A kitapçığındaki soru numarası
     else if (/^a (kitapcigi |kitapcik |kit )?(soru|sira)( no| numarasi)?$|^a no$/.test(c)) take('no');
     else if (/^kitapcik( turu| tipi)?$|^kt$|^kit$/.test(c)) take('kit');
@@ -87,7 +94,7 @@ function headerOf(cells: string[]): { cols: Cols; subject: string | null; subjec
     // Aşama 336: 4 kitapçıklı anahtarlarda C ve D sütunları (numara ya da cevap harfi)
     else if (/^c karsil|^c kitap|^c kit|^c$|^c no|^c soru|^c grub|^c cevap/.test(c)) take('c');
     else if (/^d karsil|^d kitap|^d kit|^d$|^d no|^d soru|^d grub|^d cevap/.test(c)) take('d');
-    else if (/kazanim kod|^kod$|^kod no|^kazanim no|kazanim numara|cikti(si)? kod/.test(c)) take('code');
+    else if (/kazanim kod|^kod$|^kod no|^kazanim no|kazanim numara|cikti(si)? kod|^kazanim\b.*\bkodu?$/.test(c)) take('code');
     else if (/konu/.test(c)) take('konu');
     else if (/^alt ders|^ders$|^ders adi|^brans/.test(c)) take('ders');
     else if (/kazanim|ogrenme ciktisi|^cikti/.test(c) && !/\bid\b|kimlik|video|url/.test(c)) {
@@ -135,7 +142,8 @@ function headerHint(cells: string[], cols: Cols): string {
 }
 
 // Aşama 271: Maarif kodları da tanınır: "T.O.5.24", "T.S.5.3.4", "MAT.5.1.2.9", "ENG. 5.R2.1" (iki harf öbeği, harfli bölüm)
-const CODE_PART = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\\s*\\.\\s*){0,2}\\d{1,2}(?:\\s*\\.\\s*[A-Za-z]?\\d{1,2}){1,4}';
+// Aşama 427: harf öbeği rakama bitişik de olabilir: MEB İngilizce "E8.1.R2."
+const CODE_PART = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}(?:\\s*\\.\\s*|(?=\\d))){0,2}\\d{1,2}(?:\\s*\\.\\s*[A-Za-z]?\\d{1,2}){1,4}';
 const CODE_RE = new RegExp(`^\\s*(${CODE_PART})\\.?\\s*[-–:)]?\\s*(.*)$`, 's');
 const CODE_REST = new RegExp(`^(\\s*[,;/]\\s*${CODE_PART}\\.?)+`);
 
@@ -180,7 +188,7 @@ const intOfCell = (v: unknown): number => {
 };
 
 /** Excel sayfalarının satırlarından cevap anahtarı (dosya okuma dışındaki her şey; test edilebilir) */
-export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }>, subjects?: ExamSubject[]): ExcelKeyResult {
+export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }>, subjects?: ExamSubject[], sinavSecim?: string): ExcelKeyResult {
   const questions: ExamQuestions = {};
   const warnings: string[] = [];
   let examName = '';
@@ -195,6 +203,9 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
   let table = false;
   // Aşama 129b: "A KİTAPÇIĞI" gibi cevap başlığının altında harf değil metin varsa (Özdebir) dosya kazanım listesidir
   let kazOnly = false;
+  // Aşama 427: "Uygulama adı" sütunu: cevaplı sınavlar sırasıyla; seçilmediyse ilk cevaplı sınav okunur
+  const sinavlar: string[] = [];
+  let sinav = sinavSecim || '';
 
   for (const sh of sheets) {
     const rows = sh.rows;
@@ -299,6 +310,12 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
         ans = f >= 0 ? ansOfCell(row[f]) : '';
       }
       if (!no || (!ans && !kazOnly)) continue;
+      const sv = c.sinav >= 0 ? cells[c.sinav] : '';
+      if (sv) {
+        if (ans && !sinavlar.includes(sv)) sinavlar.push(sv);
+        if (!sinav && ans) sinav = sv;
+        if (sv !== sinav) continue;
+      }
       const list = (questions[subj] = questions[subj] || []);
       if (list.some((q) => q.no === no)) continue;
       const q: ExamQuestion = { no, answer: ans };
@@ -383,6 +400,8 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
     if (rawText.length > 40000) break;
   }
   rawText = rawText.slice(0, 40000);
+  if (sinav && sinavlar.length) examName = examName || sinav;
+  if (sinavlar.length > 1) warnings.push(`Dosyada ${sinavlar.length} sınav var; "${sinav}" okundu.`);
   if (!found.length) warnings.push('Excel dosyasında cevap anahtarı tablosu bulunamadı.');
   else if (skippedB) warnings.push(`B kitapçığı satırları (${skippedB}) atlandı; B karşılıkları A satırlarından alındı.`);
   const kazanimOnly = kazOnly && found.length > 0 && method === 'baslik' && found.every((k) => questions[k].every((q) => !q.answer));
@@ -399,6 +418,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
     ...(ekKeys.C || ekKeys.D ? { ekKeys } : {}),
     table: table && method === 'baslik' && found.length >= 2,
     kazanimOnly,
+    ...(sinavlar.length > 1 ? { sinavlar, sinav } : {}),
   };
 }
 
@@ -439,7 +459,7 @@ function pickGrid(D: Duzen, base: ExcelKeyResult, layout: LSheet[], subjects?: E
   };
 }
 
-export async function readKeyExcel(file: File, subjects?: ExamSubject[]): Promise<ExcelKeyResult> {
+export async function readKeyExcel(file: File, subjects?: ExamSubject[], sinav?: string): Promise<ExcelKeyResult> {
   const mod: any = await import('xlsx');
   const XLSX: typeof import('xlsx') = mod && mod.read ? mod : mod.default;
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
@@ -468,7 +488,7 @@ export async function readKeyExcel(file: File, subjects?: ExamSubject[]): Promis
     return { name, rows };
   });
   const D = await import('./anahtarDuzen');
-  const r = finishKey(D, { ...pickGrid(D, parseKeySheets(sheets, subjects), layout, subjects), source: 'excel' }, subjects);
+  const r = finishKey(D, { ...pickGrid(D, parseKeySheets(sheets, subjects, sinav), layout, subjects), source: 'excel' }, subjects);
   return { ...r, ...headMeta(sheets) };
 }
 

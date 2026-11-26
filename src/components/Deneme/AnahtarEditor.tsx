@@ -61,6 +61,7 @@ export const AnahtarEditor: React.FC<{
   const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
   // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
   const [lastExcel, setLastExcel] = useState<ExcelKeyResult | null>(null);
+  const lastFileRef = useRef<File | null>(null); // Aşama 427: aynı dosyadan başka sınavı okumak için
   const [offer, setOffer] = useState<{ kind: 'kazanim' | 'all'; subjects: string[] } | null>(null);
   // Aşama 62: B kitapçığı soru soru (karışık sıra) — ders başına araçlar
   const [customB, setCustomB] = useState<Set<string>>(new Set());
@@ -245,15 +246,16 @@ export const AnahtarEditor: React.FC<{
     else setOffer(null);
   };
 
-  const onExcel = async (file?: File | null) => {
+  const onExcel = async (file?: File | null, sinav?: string) => {
     if (!file) return;
+    lastFileRef.current = file;
     setBusy(true);
     setMsg(null);
     setOffer(null);
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
     try {
       if (isPdf) setBusyText('PDF okunuyor…');
-      const r = isPdf ? await readKeyPdf(file, subjects) : await readKeyExcel(file, subjects);
+      const r = isPdf ? await readKeyPdf(file, subjects) : await readKeyExcel(file, subjects, sinav);
       setBusyText('');
       setLastExcel(r);
       // Biçim tanınmadıysa: dosyanın hücre metni yapay zekâyla okunur
@@ -385,6 +387,23 @@ export const AnahtarEditor: React.FC<{
         <InfoTip text="Sistem yalnızca Kazanım bankasındaki MEB kazanımlarını kullanır. Excel'deki kazanımlar bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir." />
       </p>
       {busy && busyText && <p className="text-xs text-muted">{busyText}</p>}
+      {lastExcel?.sinavlar && lastExcel.sinavlar.length > 1 && (
+        <label className="flex flex-wrap items-center gap-2 text-xs text-fg-2" id="deneme-key-sinav">
+          Dosyadaki sınav
+          <select
+            className="ui-input py-1 text-xs w-auto max-w-full"
+            value={lastExcel.sinav || ''}
+            disabled={busy}
+            onChange={(e) => void onExcel(lastFileRef.current, e.target.value)}
+          >
+            {lastExcel.sinavlar.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {aiOpen && (
         <KazanimAI
           open

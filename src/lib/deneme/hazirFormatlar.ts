@@ -2,6 +2,7 @@
 // Aşama 335: HAZIR OPTİK FORMATLARI (5-6-7 ve LGS)
 // Mustafa'nın verdiği 160 TXT ve 11 FMT ile çıkarıldı; her TXT bunlardan yalnız BİRİNE temiz uyar.
 // Aşama 336: Sinan Kuzucu (A-B-C-D kitapçık) formatları eklendi.
+// Aşama 427: MEB Değerlendirme Sınavı (dat TXT) eklendi.
 // Kurumun kayıtlı formatlarından sonra denenir; uymazsa FMT'siz okuma (optikOtomatik) devreye girer.
 // Hazır format düzenlenemez/silinemez; düzenlenirse kuruma yeni format olarak kaydedilir.
 // Kurum optiğinin "Değerler" kutuları BİLEREK yok (dersleri bilinmiyor; bkz. KURULUM-335).
@@ -74,6 +75,25 @@ const TANIMLAR: Tanim[] = [
       [91, 10, 'answers', 'ing', 'İngilizce'],
       [101, 20, 'answers', 'mat', 'Matematik'],
       [121, 20, 'answers', 'fen', 'Fen bilimleri'],
+    ],
+  },
+  {
+    // Aşama 427: MEB Değerlendirme Sınavı optiği (dat-<sınav>-<kurum>.txt). Her ders 20'lik kutu; 10 soruluk
+    // derslerde kutunun ikinci yarısı boş. 1-6 kurum kodu, 7-12 sınav kodu, 13-14 sabit, 15-18 okul no.
+    id: 'hazir:meb168',
+    name: 'MEB Değerlendirme Sınavı (dat TXT)',
+    len: 168,
+    alanlar: [
+      [15, 4, 'number', null, 'Öğrenci no'],
+      [20, 1, 'booklet', null, 'Kitapçık'],
+      [21, 20, 'answers', 'tr', 'Türkçe'],
+      [41, 20, 'answers', 'sos', 'Sosyal / İnkılap'],
+      [61, 20, 'answers', 'din', 'Din kültürü'],
+      [81, 20, 'answers', 'ing', 'İngilizce'],
+      [101, 20, 'answers', 'mat', 'Matematik'],
+      [121, 20, 'answers', 'fen', 'Fen bilimleri'],
+      [141, 14, 'name', null, 'Ad'],
+      [155, 14, 'surname', null, 'Soyad'],
     ],
   },
   {
