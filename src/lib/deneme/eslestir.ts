@@ -298,6 +298,25 @@ export function matchGroups(
         const sim = g.name ? nameSimilarity(g.name, s.name) : 1;
         const cm = classMatches(s, classes, g.grade, g.section);
         if (sim >= 0.6 && cm !== false) return { ...base, studentId: s.id, status: 'ok' as MatchStatus, method: 'numara', reason: '', candidates: [s.id] };
+        // Aşama 428: numara başka öğrenciye ait (ad çok farklı). Numaradaki öğrenci önceden SEÇİLMEZ; adı tutan öğrenci varsa o önerilir.
+        if (g.name && sim < 0.5) {
+          const byName = students
+            .filter((x) => x.id !== s.id)
+            .map((x) => ({ x, sim: nameSimilarity(g.name, x.name) }))
+            .filter((r) => r.sim >= 0.55)
+            .sort((p, q) => q.sim - p.sim)
+            .slice(0, 4);
+          const top = byName[0];
+          const clear = top && top.sim >= 0.88 && (byName.length < 2 || byName[1].sim < top.sim - 0.08);
+          return {
+            ...base,
+            studentId: clear ? top.x.id : null,
+            status: 'check' as MatchStatus,
+            method: clear ? 'ad soyad' : 'numara',
+            reason: clear ? `Numara ${num} başka öğrencide (${s.name}); ad soyadla bulundu` : `Numara ${num} başka bir öğrenciye ait (${s.name}); ad soyad farklı`,
+            candidates: [...byName.map((r) => r.x.id), s.id],
+          };
+        }
         return {
           ...base,
           studentId: s.id,
@@ -346,7 +365,7 @@ export function matchGroups(
   for (const it of items) {
     if (it.studentId && (count.get(it.studentId) || 0) > 1) {
       it.status = 'check';
-      it.reason = 'Aynı öğrenci birden fazla satırla eşleşti';
+      it.reason = it.reason ? `${it.reason}. Aynı öğrenci birden fazla satırla eşleşti` : 'Aynı öğrenci birden fazla satırla eşleşti';
     }
   }
   return items;
