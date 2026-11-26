@@ -59,7 +59,7 @@ export interface AiResult {
   provider?: AiProvider;
   model?: string;
   items?: any[];
-  item?: { metin: string; siklar: string[] };
+  item?: { metin: string; siklar: string[]; no?: number };
   pages?: AiPageInfo[];
   exhausted?: string[]; // bugünkü hakkı biten Gemini modelleri
   retryAfter?: number; // dakikalık sınırda Google'ın söylediği bekleme (sn)
@@ -206,6 +206,24 @@ export function aiOyunSoru(input: {
 /** Aşama 393: kesilen soru görselinden soru metni ve şıkları okur (doğru cevabı bulmaz) */
 export function aiOyunGorselOku(input: { provider: AiProvider; image: AiImage }): Promise<AiResult> {
   return post({ action: 'oyunGorselOku', ...input });
+}
+
+/** Aşama 407: kitap sayfasındaki çoktan seçmeli soruların kutuları ([üst, sol, alt, sağ], 0-1000) ve numaraları */
+export interface AiSoruKutusu {
+  no: number;
+  kutu: [number, number, number, number];
+}
+export function aiOyunSoruKutu(input: { provider: AiProvider; image: AiImage }): Promise<AiResult> {
+  return post({ action: 'oyunSoruKutu', ...input });
+}
+
+/** Aşama 407: cevap anahtarı sayfasında yazan cevaplar (test test; çözüm yapılmaz) */
+export interface AiAnahtarTesti {
+  ad: string;
+  cevaplar: Array<{ no: number; cevap: string }>;
+}
+export function aiOyunAnahtarOku(input: { provider: AiProvider; image: AiImage }): Promise<AiResult> {
+  return post({ action: 'oyunAnahtarOku', ...input });
 }
 
 /** Aşama 394: yapıştırılan metni çoktan seçmeli sorulara ayırır (doğru cevap metinde yazılı değilse dogru = -1) */

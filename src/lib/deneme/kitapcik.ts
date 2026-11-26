@@ -39,12 +39,30 @@ function loadPdfJs(): Promise<any> {
   return pdfLib;
 }
 
+/** Aşama 407: PDF bu boyuttan büyükse bütün dosya belleğe okunmaz (300 MB'lık taranmış kitaplar) */
+export const PDF_PARCALI_ESIK = 24 * 1024 * 1024;
+const PDF_PARCA = 1024 * 1024;
+
 async function openPdfDoc(file: File): Promise<any> {
   const lib = await loadPdfJs();
-  const data = new Uint8Array(await file.arrayBuffer());
+  // Aşama 407: büyük dosyada pdf.js yalnız gereken parçaları ister; parça dosyadan o an okunur. Açılış hızlanır,
+  // tarayıcı belleğine yalnız bakılan sayfaların verisi girer (telefonda da açılır).
+  let src: any;
+  if (file.size > PDF_PARCALI_ESIK && typeof lib.PDFDataRangeTransport === 'function') {
+    const ilk = new Uint8Array(await file.slice(0, PDF_PARCA).arrayBuffer());
+    const tasima = new lib.PDFDataRangeTransport(file.size, ilk);
+    tasima.requestDataRange = (bas: number, son: number) => {
+      void file
+        .slice(bas, son)
+        .arrayBuffer()
+        .then((b) => tasima.onDataRange(bas, new Uint8Array(b)))
+        .catch(() => tasima.onDataRange(bas, new Uint8Array(0)));
+    };
+    src = { range: tasima, length: file.size, rangeChunkSize: PDF_PARCA, disableAutoFetch: true, disableStream: true };
+  } else src = { data: new Uint8Array(await file.arrayBuffer()) };
   try {
     // isEvalSupported: false → güvenlik (pdf.js'in yazı tipi için kod üretmesi kapalı)
-    return await lib.getDocument({ data, isEvalSupported: false }).promise;
+    return await lib.getDocument({ ...src, isEvalSupported: false }).promise;
   } catch (e: any) {
     if (e && /password/i.test(String(e.name || e.message))) throw new Error(`${file.name}: PDF dosyası şifreli. Şifresiz bir kopya seçin.`);
     throw new Error(`${file.name}: PDF dosyası açılamadı. Dosyanın bozuk olmadığından emin olun.`);
