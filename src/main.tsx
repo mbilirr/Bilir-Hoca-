@@ -101,7 +101,16 @@ const oyunToken = (() => {
   }
 })();
 const OyunOynaPage = lazyNamed(() => import('./components/Public/OyunOynaPage'), 'OyunOynaPage');
-const isPublicPage = !!(attendanceToken || planToken || oyunToken);
+// Aşama 423: ders öğretmeninin etüt konusu bağlantısı (…/?etut-konu=…) giriş gerektirmeyen sayfayı açar
+const etutKonuToken = (() => {
+  try {
+    return attendanceToken || planToken || oyunToken ? null : new URLSearchParams(window.location.search).get('etut-konu');
+  } catch {
+    return null;
+  }
+})();
+const EtutKonuPage = lazyNamed(() => import('./components/Public/EtutKonuPage'), 'EtutKonuPage');
+const isPublicPage = !!(attendanceToken || planToken || oyunToken || etutKonuToken);
 
 // Aşama 124: uygulama dosyaları (/assets) cihazda tutulsun diye servis çalışanı açılışta (boşta) kaydedilir.
 // Bildirim izni İSTEMEZ; yalnız kayıt. Sayfanın kendisi (index.html) her zaman sunucudan gelir.
@@ -135,6 +144,10 @@ const ciz = () =>
       ) : oyunToken ? (
         <Suspense fallback={null}>
           <OyunOynaPage token={oyunToken} />
+        </Suspense>
+      ) : etutKonuToken ? (
+        <Suspense fallback={null}>
+          <EtutKonuPage token={etutKonuToken} />
         </Suspense>
       ) : (
         <App />

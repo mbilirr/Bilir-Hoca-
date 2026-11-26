@@ -18,6 +18,9 @@ const OLAY: Record<string, [string, OlayGrubu]> = {
   'etut-attendance': ['Etüt yoklama bağlantısı', 'etut'],
   'etut-scheduled': ['Etüt hatırlatması', 'etut'],
   'etut-no-attendance': ['Yoklama alınmadı uyarısı', 'etut'],
+  'etut-eksik-ogrenci': ['Etüde yazılmamış öğrenciler', 'etut'], // Aşama 422
+  'etut-konu-onay': ['Etüt konusu sorusu', 'etut'], // Aşama 423
+  'etut-konu-degisti': ['Etüt konusu değişti', 'etut'], // Aşama 423
   'akademik-takvim': ['Zümre etkinliği yaklaşıyor', 'takvim'],
   'akademik-durum-sor': ['Etkinlik yapıldı mı?', 'takvim'],
   'akademik-durum': ['Etkinlik durumu', 'takvim'],

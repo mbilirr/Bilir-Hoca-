@@ -68,7 +68,7 @@ const dailyLimitFor = (addr) => {
   if (Number.isFinite(n) && n > 0) return Math.floor(n);
   return /@(gmail|googlemail)\.com$/i.test(String(addr || '')) ? 450 : 1800;
 };
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet', 'ders-devamsizlik-ders', 'ders-devamsizlik-sinir', 'ders-devamsizlik-sinir-idare', 'akademik-takvim', 'akademik-durum-sor']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet · Aşama 231: ders-devamsizlik-ders · Aşama 232: sınır · Aşama 328: akademik-takvim
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce', 'ders-yoklama-gecikme', 'ders-devamsizlik-ozet', 'ders-devamsizlik-ders', 'ders-devamsizlik-sinir', 'ders-devamsizlik-sinir-idare', 'akademik-takvim', 'akademik-durum-sor', 'etut-eksik-ogrenci', 'etut-konu-onay']); // Aşama 221: ders-yoklama-gecikme · Aşama 223: ders-devamsizlik-ozet · Aşama 231: ders-devamsizlik-ders · Aşama 232: sınır · Aşama 328: akademik-takvim · Aşama 422: etut-eksik-ogrenci · Aşama 423: etut-konu-onay
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -775,13 +775,13 @@ const ATT_TOPIC_MAX = 200;
 function b64u(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-// Aşama 402: imzalı bağlantılar (etüt yoklama, haftalık plan) MAIL_SECRET_KEY varsa onunla, yoksa servis anahtarıyla imzalanır.
-// MAIL_SECRET_KEY sonradan eklenince / değişince daha önce gönderilmiş bağlantılar bozulmasın diye doğrulama
-// önce yeni anahtarla, sonra servis anahtarıyla denenir (imzalama her zaman yeni anahtarla).
+// Aşama 403: imzalı bağlantılar (etüt yoklama, haftalık plan) TEK anahtarla imzalanır ve doğrulanır:
+// MAIL_SECRET_KEY (yoksa servis anahtarı). Eski servis anahtarıyla imzalı bağlantılar artık açılmaz.
 function linkBases() {
   const e = env();
-  if (!e.secretKey && !e.service) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
-  return [e.secretKey, e.service].filter((v, i, a) => v && a.indexOf(v) === i);
+  const base = e.secretKey || e.service;
+  if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
+  return [base];
 }
 function attendanceKey(base) {
   const b = base || linkBases()[0];
@@ -3233,6 +3233,302 @@ async function actionNoAttendanceAlerts(req, deadline) {
     out.noEmail = summary.noEmail || 0;
   }
   return out;
+}
+
+// ----------------------------------------------------------------------------- Aşama 422: etüde yazılmamış öğrenciler
+// Rehberlik öğretmeni bir sınıftan öğrencileri bir saatte etüde yazdıysa, o saatte HİÇBİR etüde yazılmamış aynı
+// sınıf öğrencileri etüt günü 09:30'dan sonra TEK e-postayla (saat saat, sınıf sınıf) rehberlik öğretmenine gider.
+// Öğretmen başına günde bir kez (etut_eksik_bildirim). 422 SQL kurulu değilse sessizce geçer.
+const ETUT_EKSIK_BAS_DK = 9 * 60 + 30;
+const ETUT_EKSIK_SON_DK = 20 * 60;
+async function etutRpc(fn, body) {
+  try {
+    return await rest(`rpc/${fn}`, { token: 'service', method: 'POST', body });
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === 'PGRST202' || err.code === '42883' || err.code === '42P01')) return null; // SQL kurulu değil
+    throw err;
+  }
+}
+async function actionEtutEksik(req, deadline) {
+  const out = { ogretmen: 0, sent: 0, failed: 0, skipped: 0 };
+  const now = istanbulNow();
+  if (now.minutes < ETUT_EKSIK_BAS_DK || now.minutes >= ETUT_EKSIK_SON_DK) return out;
+  const tarih = now.date;
+  const list = await etutRpc('etut_eksik_tara', { p_tarih: tarih });
+  const url = appUrl(req);
+  for (const k of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const kurumId = String((k && k.kurum_id) || '');
+    if (!KURUM_ID_RE.test(kurumId)) continue;
+    const bos = [];
+    const items = [];
+    const dolu = [];
+    for (const o of Array.isArray(k.ogretmenler) ? k.ogretmenler : []) {
+      const id = String((o && o.id) || '');
+      if (!id) continue;
+      const satirlar = Array.isArray(o.satirlar) ? o.satirlar : [];
+      const eksik = satirlar.reduce((n, s) => n + (Array.isArray(s && s.ogrenciler) ? s.ogrenciler.length : 0), 0);
+      if (!eksik) {
+        bos.push({ teacher_id: id, kurum_id: kurumId, eksik: 0 });
+        continue;
+      }
+      const rows = satirlar.slice(0, 40).map((s) => {
+        const adlar = (Array.isArray(s.ogrenciler) ? s.ogrenciler : [])
+          .map((x) => `${clean(x && x.ad)}${clean(x && x.no) ? ` (${clean(x.no)})` : ''}`)
+          .filter(Boolean);
+        return [`${clean(s.saat) || 'Saatsiz'} · ${clean(s.sinif)}`, `${adlar.length} öğrenci: ${adlar.join(', ')}`];
+      });
+      const subject = `Etüde yazılmamış ${eksik} öğrenci – ${trDate(tarih)}`;
+      items.push({
+        event: 'etut-eksik-ogrenci',
+        refId: `${id}|${tarih}`,
+        refTitle: `Etüde yazılmamış öğrenciler – ${tarih}`,
+        to: clean(o.email),
+        toName: clean(o.ad),
+        role: 'ogretmen',
+        subject,
+        ...layout({
+          heading: 'Etüde yazılmamış öğrenciler',
+          greeting: clean(o.ad) ? `Merhaba ${clean(o.ad)},` : 'Merhaba,',
+          intro: `Bugün (${trDate(tarih)}) etüt yazdığınız sınıflarda, aşağıdaki saatlerde hiçbir etüde yazılmamış öğrenciler var.`,
+          rows,
+          buttonLabel: 'Etütlere git',
+          url,
+          footer: 'Bu e-posta etüt günü 09:30\'da bir kez gönderilir. Öğrenci, o saatte herhangi bir öğretmenin etüdüne yazılmışsa listede yer almaz.',
+        }),
+      });
+      dolu.push({ teacher_id: id, kurum_id: kurumId, eksik });
+    }
+    if (bos.length) await etutRpc('etut_eksik_isaretle', { p_tarih: tarih, p_kayitlar: bos });
+    if (!items.length) continue;
+    out.ogretmen += items.length;
+    if (await aktGonder(kurumId, items, deadline, out)) await etutRpc('etut_eksik_isaretle', { p_tarih: tarih, p_kayitlar: dolu });
+  }
+  return out;
+}
+
+// ----------------------------------------------------------------------------- Aşama 423: etüt konusu ders öğretmenine sorulur
+// Rehberlik öğretmeninin yazdığı etütlerde öğrencinin sınıfının o dersine giren öğretmen (Sınıflar ve dersler › Derse girer)
+// gruptaki son etütten 1 saat sonra TEK e-posta alır; girişsiz bağlantıdan konuyu değiştirir ya da "Böyle kalsın" der.
+// Yanıt vermezse rehberliğin yazdığı konu geçerlidir. 423 SQL kurulu değilse sessizce geçer.
+const ETUT_KONU_GUN = 30;
+const ETUT_KONU_MAX = 200;
+function etutKonuKey(base) {
+  const b = base || linkBases()[0];
+  return crypto.createHash('sha256').update(`etut-konu:${b}`).digest();
+}
+function etutKonuUrl(base, grup, ogretmenId) {
+  const payload = b64u(JSON.stringify({ g: String(grup), t: String(ogretmenId), x: Math.floor(Date.now() / 1000) + ETUT_KONU_GUN * 86400 }));
+  const sig = b64u(crypto.createHmac('sha256', etutKonuKey()).update(payload).digest());
+  return `${String(base).replace(/\/+$/, '')}/?etut-konu=${payload}.${sig}`;
+}
+function readEtutKonuToken(token) {
+  const bad = 'Bağlantı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.';
+  if (typeof token !== 'string' || token.length > 800 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) throw new HttpError(400, bad);
+  const [payload, sig] = token.split('.');
+  const a = Buffer.from(sig);
+  const imzaDogru = linkBases().some((base) => {
+    const b = Buffer.from(b64u(crypto.createHmac('sha256', etutKonuKey(base)).update(payload).digest()));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+  if (!imzaDogru) throw new HttpError(400, bad);
+  let data;
+  try {
+    data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  } catch {
+    throw new HttpError(400, bad);
+  }
+  if (!data || !isUuid(data.g) || typeof data.t !== 'string' || !data.t) throw new HttpError(400, bad);
+  if (!(Number(data.x) > Date.now() / 1000)) throw new HttpError(410, 'Bu bağlantının süresi dolmuş.');
+  return { grup: data.g, ogretmenId: data.t };
+}
+async function actionEtutKonuTara(req, deadline) {
+  const out = { grup: 0, sent: 0, failed: 0, skipped: 0 };
+  const list = await etutRpc('etut_konu_tara', {});
+  const url = appUrl(req);
+  for (const g of Array.isArray(list) ? list : []) {
+    if (Date.now() > deadline) break;
+    const kurumId = String((g && g.kurum_id) || '');
+    const o = (g && g.ogretmen) || {};
+    const r = (g && g.rehber) || {};
+    const etutler = (Array.isArray(g && g.etutler) ? g.etutler : []).filter((e) => e && e.id);
+    if (!KURUM_ID_RE.test(kurumId) || !o.id || !etutler.length) continue;
+    const grup = crypto.randomUUID();
+    const ders = clean(g.ders);
+    const rehberAd = clean(r.ad) || 'Rehberlik öğretmeni';
+    const rows = etutler.slice(0, 40).map((e) => {
+      const siniflar = (Array.isArray(e.siniflar) ? e.siniflar : []).map(clean).filter(Boolean).join(', ');
+      const ogr = (Array.isArray(e.ogrenciler) ? e.ogrenciler : []).map(clean).filter(Boolean);
+      return [
+        `${trDate(e.tarih, clean(e.saat) || undefined)}`,
+        `Konu: ${clean(e.konu) || '-'}\n${siniflar ? `${siniflar} · ` : ''}${ogr.length} öğrenci: ${ogr.join(', ')}`,
+      ];
+    });
+    const fazla = etutler.length > 40 ? ` (+${etutler.length - 40} etüt daha)` : '';
+    const items = [
+      {
+        event: 'etut-konu-onay',
+        refId: grup,
+        refTitle: `${ders} etüt konuları – ${rehberAd}`,
+        to: clean(o.email),
+        toName: clean(o.ad),
+        role: 'ogretmen',
+        subject: `${rehberAd} ${etutler.length} ${ders} etüdü yazdı – konuyu değiştirmek ister misiniz?`.slice(0, 160),
+        ...layout({
+          heading: 'Etüt konusunu değiştirmek ister misiniz?',
+          greeting: clean(o.ad) ? `Merhaba ${clean(o.ad)},` : 'Merhaba,',
+          intro: `${rehberAd}, dersine girdiğiniz sınıfların öğrencilerine aşağıdaki ${ders} etütlerini yazdı ve konularını belirledi.${fazla} Konuyu değiştirebilir ya da "Böyle kalsın" diyebilirsiniz. Bir şey yapmazsanız yazılan konu geçerli olur.`,
+          rows,
+          buttonLabel: 'Konuları gör ve değiştir',
+          url: etutKonuUrl(url, grup, o.id),
+          footer: 'Bağlantı giriş gerektirmez; yalnız size gönderilmiştir, kimseyle paylaşmayın. Etüt gününe kadar değişiklik yapılabilir.',
+        }),
+      },
+    ];
+    out.grup++;
+    if (await aktGonder(kurumId, items, deadline, out)) {
+      await etutRpc('etut_konu_isaretle', {
+        p_grup: grup,
+        p_kurum: kurumId,
+        p_ogretmen: String(o.id),
+        p_rehber: r.id ? String(r.id) : null,
+        p_ders: ders,
+        p_etutler: etutler.map((e) => ({ id: String(e.id), konu: clean(e.konu) })),
+      });
+    }
+  }
+  return out;
+}
+async function loadEtutKonu(token) {
+  const { grup, ogretmenId } = readEtutKonuToken(token);
+  const kayitlar = await rest(
+    `etut_konu_onay?select=etut_id,kurum_id,rehber_id,ders,eski_konu,yeni_konu,durum,yanit_at&grup=eq.${grup}&ogretmen_id=eq.${encodeURIComponent(ogretmenId)}`,
+    { token: 'service' },
+  );
+  if (!kayitlar || !kayitlar.length) throw new HttpError(404, 'Bu bağlantıdaki etütler bulunamadı.');
+  if (await dondurma.ogretmenDondurulmus(okuServis, ogretmenId)) throw new HttpError(410, dondurma.DONDURMA_SAYFA_YAZI);
+  const kurumId = String(kayitlar[0].kurum_id || '');
+  const ids = kayitlar.map((k) => String(k.etut_id));
+  const etutRows = await rest(`etuts?select=id,subject,topic,date,time,assigned_student_ids&id=in.${inList(ids)}`, { token: 'service' });
+  const siniflar = await rest(
+    `sinif_ders_ogretmen?select=class_id&teacher_id=eq.${encodeURIComponent(ogretmenId)}&kurum_id=eq.${encodeURIComponent(kurumId)}`,
+    { token: 'service' },
+  );
+  const sinifSet = new Set((siniflar || []).map((s) => String(s.class_id)));
+  const ogrIds = Array.from(new Set((etutRows || []).flatMap((e) => (Array.isArray(e.assigned_student_ids) ? e.assigned_student_ids.map(String) : []))));
+  const ogrenciler = (await studentsByIds(ogrIds, 'service')).filter((s) => sinifSet.has(String(s.class_id)));
+  const ogrMap = new Map(ogrenciler.map((s) => [String(s.id), s]));
+  const ogretmen = await resolveEtutTeacher(ogretmenId, null);
+  const rehberId = kayitlar[0].rehber_id ? String(kayitlar[0].rehber_id) : '';
+  const rehber = rehberId ? await resolveEtutTeacher(rehberId, null) : null;
+  const today = istanbulToday();
+  const byId = new Map((etutRows || []).map((e) => [String(e.id), e]));
+  const etutler = kayitlar
+    .map((k) => {
+      const e = byId.get(String(k.etut_id));
+      if (!e) return null;
+      const ogr = (Array.isArray(e.assigned_student_ids) ? e.assigned_student_ids : []).map((id) => ogrMap.get(String(id))).filter(Boolean);
+      return {
+        id: String(e.id),
+        ders: clean(e.subject),
+        konu: clean(e.topic),
+        tarih: String(e.date || ''),
+        saat: clean(e.time),
+        durum: k.durum,
+        yanitAt: k.yanit_at || null,
+        acik: String(e.date || '') >= today,
+        ogrenciler: ogr.map((s) => ({ ad: clean(s.name), sinif: clean(s.class_name) })).sort((a, b) => a.ad.localeCompare(b.ad, 'tr')),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
+  return { grup, ogretmenId, kurumId, kayitlar, etutler, ogretmen, rehber };
+}
+async function actionEtutKonuGet(body) {
+  const c = await loadEtutKonu(body.token);
+  return {
+    ok: true,
+    ogretmen: (c.ogretmen && clean(c.ogretmen.name)) || '',
+    rehber: (c.rehber && clean(c.rehber.name)) || 'Rehberlik öğretmeni',
+    ders: clean(c.kayitlar[0].ders),
+    etutler: c.etutler,
+  };
+}
+async function actionEtutKonuSave(body, req, deadline) {
+  const c = await loadEtutKonu(body.token);
+  const kararlar = body.kararlar && typeof body.kararlar === 'object' && !Array.isArray(body.kararlar) ? body.kararlar : {};
+  const byId = new Map(c.etutler.map((e) => [e.id, e]));
+  const now = new Date().toISOString();
+  const degisen = [];
+  let kaydedilen = 0;
+  for (const [id, k] of Object.entries(kararlar)) {
+    const e = byId.get(String(id));
+    if (!e || !k || typeof k !== 'object') continue;
+    if (!e.acik) throw new HttpError(409, `${trDate(e.tarih)} tarihli etüdün günü geçti; konusu artık değiştirilemez.`);
+    if (k.durum === 'kaldi') {
+      await rest(`etut_konu_onay?etut_id=eq.${encodeURIComponent(e.id)}&ogretmen_id=eq.${encodeURIComponent(c.ogretmenId)}&grup=eq.${c.grup}`, {
+        token: 'service',
+        method: 'PATCH',
+        body: { durum: 'kaldi', yanit_at: now },
+        prefer: 'return=minimal',
+      });
+      kaydedilen++;
+      continue;
+    }
+    if (k.durum !== 'degisti') continue;
+    const konu = String(k.konu == null ? '' : k.konu).replace(/\s+/g, ' ').trim();
+    if (!konu) throw new HttpError(400, 'Yeni konu boş olamaz.');
+    if (konu.length > ETUT_KONU_MAX) throw new HttpError(400, `Konu en fazla ${ETUT_KONU_MAX} karakter olabilir.`);
+    if (konu === e.konu) {
+      await rest(`etut_konu_onay?etut_id=eq.${encodeURIComponent(e.id)}&ogretmen_id=eq.${encodeURIComponent(c.ogretmenId)}&grup=eq.${c.grup}`, {
+        token: 'service',
+        method: 'PATCH',
+        body: { durum: 'kaldi', yanit_at: now },
+        prefer: 'return=minimal',
+      });
+      kaydedilen++;
+      continue;
+    }
+    await rest(`etuts?id=eq.${encodeURIComponent(e.id)}`, { token: 'service', method: 'PATCH', body: { topic: konu }, prefer: 'return=minimal' });
+    await rest(`etut_konu_onay?etut_id=eq.${encodeURIComponent(e.id)}&ogretmen_id=eq.${encodeURIComponent(c.ogretmenId)}&grup=eq.${c.grup}`, {
+      token: 'service',
+      method: 'PATCH',
+      body: { durum: 'degisti', yeni_konu: konu, yanit_at: now },
+      prefer: 'return=minimal',
+    });
+    degisen.push({ ...e, eski: e.konu, konu });
+    kaydedilen++;
+  }
+  if (!kaydedilen) throw new HttpError(400, 'Kaydedilecek seçim yok.');
+  // Değişen konu rehberlik öğretmenine bildirilir (e-posta gitmese de kayıt yapılmıştır)
+  if (degisen.length && c.rehber && isEmail(c.rehber.email) && KURUM_ID_RE.test(c.kurumId)) {
+    try {
+      const ogrAd = (c.ogretmen && clean(c.ogretmen.name)) || 'Ders öğretmeni';
+      const items = [
+        {
+          event: 'etut-konu-degisti',
+          refId: `${c.grup}|${now}`,
+          refTitle: `Etüt konusu değişti – ${ogrAd}`,
+          to: c.rehber.email,
+          toName: clean(c.rehber.name),
+          role: 'ogretmen',
+          subject: `${ogrAd} ${degisen.length} etüdün konusunu değiştirdi`,
+          ...layout({
+            heading: 'Etüt konusu değişti',
+            greeting: clean(c.rehber.name) ? `Merhaba ${clean(c.rehber.name)},` : 'Merhaba,',
+            intro: `${ogrAd}, yazdığınız etütlerden aşağıdakilerin konusunu değiştirdi. Yeni konu etüde kaydedildi.`,
+            rows: degisen.slice(0, 40).map((d) => [trDate(d.tarih, d.saat || undefined), `${d.eski || '-'} → ${d.konu}`]),
+            buttonLabel: 'Etütlere git',
+            url: appUrl(req),
+          }),
+        },
+      ];
+      await aktGonder(c.kurumId, items, deadline, { sent: 0, failed: 0, skipped: 0 });
+    } catch (err) {
+      console.error('[mail] etüt konusu değişti bildirimi hatası', err && err.message);
+    }
+  }
+  return { ok: true, saved: kaydedilen, changed: degisen.length };
 }
 
 // ----------------------------------------------------------------------------- Aşama 221: geciken DERS yoklaması
@@ -5806,7 +6102,20 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('[mail] akademik takvim durum hatası', err && err.message);
         }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0, veliDevamsizlik: dv ? dv.sent : 0, veliDersSonu: dd ? dd.sent : 0, devamsizlikSinir: ds ? ds.sent : 0, akademikTakvim: at ? at.sent : 0, akademikDurum: ad ? ad.sent : 0 });
+        // Aşama 422: rehberliğe 09:30'da etüde yazılmamış öğrenciler · Aşama 423: ders öğretmenine etüt konusu sorusu
+        let ee = null;
+        try {
+          ee = await actionEtutEksik(req, cronDeadline);
+        } catch (err) {
+          console.error('[mail] etüde yazılmamış öğrenci hatası', err && err.message);
+        }
+        let ek = null;
+        try {
+          ek = await actionEtutKonuTara(req, cronDeadline);
+        } catch (err) {
+          console.error('[mail] etüt konusu sorusu hatası', err && err.message);
+        }
+        return res.status(200).json({ etutEksik: ee ? ee.sent : 0, etutKonu: ek ? ek.sent : 0, ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0, dersGecikme: dg ? dg.sent : 0, veliDevamsizlik: dv ? dv.sent : 0, veliDersSonu: dd ? dd.sent : 0, devamsizlikSinir: ds ? ds.sent : 0, akademikTakvim: at ? at.sent : 0, akademikDurum: ad ? ad.sent : 0 });
       }
       const r = await actionReminders(req, cronDeadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
@@ -5844,6 +6153,19 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] günlük akademik takvim durum hatası', err && err.message);
       }
+      // Aşama 422 / 423: 10 dakikalık zamanlayıcı kurulmadıysa günlük görevde de bakılır
+      let ee = null;
+      try {
+        ee = await actionEtutEksik(req, cronDeadline);
+      } catch (err) {
+        console.error('[mail] günlük etüde yazılmamış öğrenci hatası', err && err.message);
+      }
+      let ek = null;
+      try {
+        ek = await actionEtutKonuTara(req, cronDeadline);
+      } catch (err) {
+        console.error('[mail] günlük etüt konusu sorusu hatası', err && err.message);
+      }
       // Aşama 101: süresi dolan karne linkleri ve PDF'leri
       let karneCleaned = 0;
       try {
@@ -5865,6 +6187,8 @@ export default async function handler(req, res) {
         noAttendance: na ? na.sent : 0,
         akademikTakvim: at ? at.sent : 0,
         akademikDurum: ad ? ad.sent : 0,
+        etutEksik: ee ? ee.sent : 0,
+        etutKonu: ek ? ek.sent : 0,
         etutSent: er ? er.sent : 0,
         planReports: pr ? pr.sent : 0,
         ok: r.ok,
@@ -5910,6 +6234,12 @@ export default async function handler(req, res) {
     if (body.action === 'attendance-get' || body.action === 'attendance-save') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
       const r = body.action === 'attendance-get' ? await actionAttendanceGet(body) : await actionAttendanceSave(body);
+      return res.status(200).json(r);
+    }
+    // Aşama 423: e-postadaki etüt konusu bağlantısı (giriş gerektirmez; imzalı bağlantı denetlenir)
+    if (body.action === 'etut-konu-get' || body.action === 'etut-konu-save') {
+      if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
+      const r = body.action === 'etut-konu-get' ? await actionEtutKonuGet(body) : await actionEtutKonuSave(body, req, deadline);
       return res.status(200).json(r);
     }
     // Aşama 262: şifremi unuttum (giriş gerektirmez; yanıt her durumda aynı)

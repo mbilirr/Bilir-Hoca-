@@ -30,6 +30,9 @@ export const MAIL_EVENT_CATEGORY = {
   'etut-cancelled': 'etut',
   'etut-attendance': 'yoklama',
   'etut-no-attendance': 'yoklama',
+  'etut-eksik-ogrenci': 'etut', // Aşama 422: rehberliğe etüde yazılmamış öğrenciler
+  'etut-konu-onay': 'etut', // Aşama 423: ders öğretmenine etüt konusu sorusu
+  'etut-konu-degisti': 'etut', // Aşama 423: değişen konu rehberliğe
   'ders-devamsizlik-ozet': 'devamsizlik', // Aşama 223
   'ders-devamsizlik-ders': 'devamsizlik', // Aşama 231: ders sonu bildirimi
   'ders-devamsizlik-sinir': 'devamsizlik', // Aşama 232: devamsızlık sınırı uyarısı (veli)

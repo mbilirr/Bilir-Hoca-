@@ -277,6 +277,9 @@ const EVENT_TEXT = {
   'etut-cancelled': 'Bir etüt iptal edildi.',
   'etut-attendance': 'Etüt yoklaması bekleniyor.',
   'etut-no-attendance': 'Yoklaması alınmamış bir etüt var.',
+  'etut-eksik-ogrenci': 'Bugün etüde yazılmamış öğrenciler var.', // Aşama 422
+  'etut-konu-onay': 'Etüt konusu için görüşünüz bekleniyor.', // Aşama 423
+  'etut-konu-degisti': 'Bir etüdün konusu değiştirildi.', // Aşama 423
   'ders-devamsizlik-ozet': 'Bugün derse gelmediği / geç kaldığı ders saati var.', // Aşama 223
   'ders-devamsizlik-ders': 'Bugün bir derse gelmedi / geç kaldı.', // Aşama 231
   'ders-devamsizlik-sinir': 'Özürsüz devamsızlık sınıra yaklaştı / ulaştı.', // Aşama 232
