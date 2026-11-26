@@ -88,6 +88,7 @@ interface Row {
   reason: string;
   changes: Change[]; // seçili alanlara göre
   notes: string[]; // uygulanamayan değerler (ör. sınıf sistemde yok)
+  numCand?: { clean: string; ownerId?: string }; // Aşama 429b: okul no değişikliği adayı (toplu kontrolle kesinleşir)
 }
 
 // ----------------------------------------------------------------------------- yardımcılar
@@ -356,7 +357,15 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
       };
       const num = numKey(p.number);
       const list = num ? byNum.get(num) || [] : [];
-      if (list.length === 1) {
+      // Aşama 429b: "Okul no" güncellenirken Excel'deki numara artık eski numara değildir (numaralar yer değiştirmiş olabilir);
+      // bu yüzden önce ad soyad (tam eşleşme, tek öğrenci) ile bulunur, bulunamazsa numarayla.
+      const exactName = fields.studentNumber && p.name ? students.filter((s) => nameSimilarity(p.name, s.name) === 1) : [];
+      if (exactName.length === 1) {
+        r.student = exactName[0];
+        r.by = 'ad soyad';
+        r.status = 'ok';
+        r.reason = 'Ad soyadla bulundu';
+      } else if (list.length === 1) {
         const s = list[0];
         r.student = s;
         r.by = 'numara';
@@ -417,8 +426,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           const clean = p.number.trim().replace(/\s+/g, '');
           const owner = allByNum.get(num);
           if (!/^[0-9A-Za-z_-]{1,20}$/.test(clean)) r.notes.push(`Okul no "${clean}" geçersiz (yalnızca rakam/harf)`);
-          else if (owner && owner.id !== s.id) r.notes.push(`Okul no ${clean} şu an "${owner.name}" adlı öğrencide; değiştirilmez`);
-          else r.changes.push({ field: 'studentNumber', from: s.studentNumber || '—', to: clean, value: clean });
+          else r.numCand = { clean, ownerId: owner && owner.id !== s.id ? owner.id : undefined }; // kesinleşmesi toplu kontrolde
         }
         if (fields.phone && p.phone) {
           const ph = normalizeTurkishPhone(p.phone);
@@ -459,10 +467,37 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               r.changes.push({ field: 'tc', from: existingTc.has(s.id) ? 'kayıtlı (farklı)' : 'yok', to: 'kaydedilecek', value: myTc });
           }
         }
-        if (r.status === 'ok' && !r.changes.length) r.status = 'same';
       }
       return r;
     });
+
+    // Aşama 429b: okul numaraları toplu kontrol — numara başka öğrencideyse, o öğrencinin numarası da bu dosyayla
+    // değişiyorsa (yer değiştirme/kaydırma) izin verilir; son durumda iki öğrencide aynı numara kalmaz.
+    {
+      const live = new Set(base.filter((r) => r.numCand && r.student).map((r) => r.student!.id));
+      let again = true;
+      while (again) {
+        again = false;
+        const target = new Map<string, number>();
+        for (const r of base) if (r.numCand && live.has(r.student!.id)) target.set(r.numCand.clean.toLowerCase(), (target.get(r.numCand.clean.toLowerCase()) || 0) + 1);
+        for (const r of base) {
+          if (!r.numCand || !live.has(r.student!.id)) continue;
+          const { clean, ownerId } = r.numCand;
+          if ((target.get(clean.toLowerCase()) || 0) > 1) r.notes.push(`Okul no ${clean} dosyada birden fazla öğrenciye yazılmış; değiştirilmez`);
+          else if (ownerId && !live.has(ownerId)) {
+            const o = allStudents.find((x) => x.id === ownerId);
+            r.notes.push(`Okul no ${clean} şu an "${o?.name || 'başka bir öğrenci'}" adlı öğrencide; değiştirilmez`);
+          } else continue;
+          live.delete(r.student!.id);
+          r.numCand = undefined;
+          again = true;
+        }
+      }
+      for (const r of base) {
+        if (r.numCand && r.student && live.has(r.student.id)) r.changes.push({ field: 'studentNumber', from: r.student.studentNumber || '—', to: r.numCand.clean, value: r.numCand.clean });
+        if (r.student && r.status === 'ok' && !r.changes.length) r.status = 'same';
+      }
+    }
 
     // Aynı öğrenci birden fazla satırla eşleştiyse hiçbirine dokunulmaz
     const count = new Map<string, number>();
@@ -606,6 +641,23 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     const failed: Array<{ name: string; error: string }> = [];
     const tcList: Array<{ id: string; hash: string; name: string }> = [];
     const genderList: Array<{ id: string; gender: 'K' | 'E' }> = []; // Aşama 171: tek istekte toplu
+    // Aşama 429b: numaralar yer değiştiriyorsa (bir öğrencinin yeni numarası şu an başkasında) önce hepsi geçici numaraya alınır
+    const numRows = list.filter((r) => r.changes.some((c) => c.field === 'studentNumber'));
+    const held = new Set(allStudents.map((x) => numKey(x.studentNumber)));
+    const tempOf = new Map<string, string>(); // öğrenci → özgün numarası (geçici numaradaysa)
+    if (numRows.some((r) => held.has(numKey(r.changes.find((c) => c.field === 'studentNumber')!.value)))) {
+      const stamp = Date.now().toString(36);
+      for (let k = 0; k < numRows.length; k++) {
+        const s0 = numRows[k].student!;
+        try {
+          await dataService.updateStudent(s0.id, { studentNumber: `z${stamp}${k}` });
+          tempOf.set(s0.id, s0.studentNumber || '');
+        } catch (e: any) {
+          numRows[k].changes = numRows[k].changes.filter((c) => c.field !== 'studentNumber');
+          failed.push({ name: s0.name, error: e?.message || 'Numara geçici olarak değiştirilemedi' });
+        }
+      }
+    }
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       const s = r.student!;
@@ -634,6 +686,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         if (!r.changes.some((c) => c.field === 'tc')) ok++;
       } catch (e: any) {
         failed.push({ name: s.name, error: e?.message || 'Kaydedilemedi' });
+        const orig = tempOf.get(s.id);
+        if (orig) await dataService.updateStudent(s.id, { studentNumber: orig }).catch(() => {}); // eski numarasına döner
         const k = tcList.findIndex((x) => x.id === s.id);
         if (k >= 0) tcList.splice(k, 1);
       }
