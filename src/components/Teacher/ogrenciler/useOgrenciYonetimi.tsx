@@ -13,6 +13,7 @@ import { kayitliSube, siniftanSube, subeAdi, SUBE_EN_UZUN } from '../../../lib/s
 import { useEverTrue } from '../../../lib/lazyLoad';
 import { canSendCredentials, useMyGrantCred } from '../../../lib/grantCred';
 import { useMyGrantMove } from '../../../lib/grantMove';
+import { gradeOf } from '../../../lib/teacherGrades'; // Aşama 429
 import { matchTurkishSearch } from '../../../utils/turkishSearch';
 import { BRANCH_OPTIONS, getGradesForSchoolLevel, detectSchoolLevelFromGrade, formatClassDisplayName } from '../../../constants/schoolConstants';
 import confetti from 'canvas-confetti';
@@ -29,6 +30,8 @@ export function useOgrenciYonetimi({
 }: StudentManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('all');
+  // Aşama 429: sınıf seviyesi süzgeci ('all' ya da '5', '6' …); sınıf listesi seçilen seviyeye daralır
+  const [gradeFilter, setGradeFilterRaw] = useState('all');
   const [sortOrder, setSortOrder] = useState<'default' | 'name-asc' | 'name-desc' | 'number-asc'>('default');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   // Aşama 142: seçilenlerden giriş bilgisi gönderilebilenler (öğrenciye şifre verebilen; kendi kurumu)
@@ -367,6 +370,45 @@ export function useOgrenciYonetimi({
     return true;
   };
 
+  // Aşama 429: sınıf seviyeleri (kurumdaki sınıflardan) ve her öğrencinin seviyesi
+  const classGrade = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of classes) {
+      const g = gradeOf(c);
+      if (g !== null) m.set(c.id, g);
+    }
+    return m;
+  }, [classes]);
+  const studentGrade = (s: Student): number | null => (s.classId ? classGrade.get(s.classId) ?? null : null);
+  const gradeOptions = useMemo(() => {
+    const count = new Map<number, number>();
+    for (const g of classGrade.values()) if (!count.has(g)) count.set(g, 0);
+    for (const s of students) {
+      const g = s.classId ? classGrade.get(s.classId) : undefined;
+      if (g !== undefined) count.set(g, (count.get(g) || 0) + 1);
+    }
+    return Array.from(count.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([grade, n]) => ({ grade, count: n }));
+  }, [classGrade, students]);
+  /** Seviye değişince seçili sınıf o seviyede değilse sınıf süzgeci "Tüm Sınıflar"a döner */
+  const setGradeFilter = (v: string) => {
+    setGradeFilterRaw(v);
+    // "Yok" (sınıfsız) seçiliyse de döner: sınıfsız öğrencinin seviyesi yoktur
+    if (v !== 'all' && selectedClassFilter !== 'all' && selectedClassFilter !== 'duplicates' && String(classGrade.get(selectedClassFilter) ?? '') !== v) {
+      setSelectedClassFilter('all');
+    }
+  };
+  const gradeClasses = useMemo(
+    () => (gradeFilter === 'all' ? classes : classes.filter((c) => String(classGrade.get(c.id) ?? '') === gradeFilter)),
+    [classes, classGrade, gradeFilter]
+  );
+  const gradeStudentCount = useMemo(
+    () => (gradeFilter === 'all' ? students.length : students.filter((s) => String(studentGrade(s) ?? '') === gradeFilter).length),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [students, classGrade, gradeFilter]
+  );
+
   const unassignedStudentsCount = useMemo(() => {
     return students.filter(isStudentUnassigned).length;
   }, [students, classes]);
@@ -393,6 +435,8 @@ export function useOgrenciYonetimi({
       } else {
         matchesClass = s.classId === selectedClassFilter;
       }
+      // Aşama 429: sınıf seviyesi
+      if (gradeFilter !== 'all' && String(studentGrade(s) ?? '') !== gradeFilter) return false;
       // Aşama 171: cinsiyet süzgeci
       const matchesGender =
         genderFilter === 'all' || (genderFilter === 'none' ? !s.gender : s.gender === genderFilter);
@@ -448,7 +492,8 @@ export function useOgrenciYonetimi({
     }
 
     return list;
-  }, [students, classes, deferredSearch, selectedClassFilter, genderFilter, sortOrder, duplicateStudentGroups]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, classes, classGrade, deferredSearch, selectedClassFilter, gradeFilter, genderFilter, sortOrder, duplicateStudentGroups]);
   // Aşama 171: cinsiyet sayıları (süzgeç seçeneklerinde)
   const genderCounts = useMemo(() => {
     let k = 0, e = 0;
@@ -485,7 +530,7 @@ export function useOgrenciYonetimi({
     for (const st of students) if (st.classId) m.set(st.classId, (m.get(st.classId) || 0) + 1);
     return m;
   }, [students]);
-  const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${selectedClassFilter}|${sortOrder}`, undefined, 15);
+  const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${gradeFilter}|${selectedClassFilter}|${genderFilter}|${sortOrder}`, undefined, 15);
 
   // Çoklu öğrenci seçimi mantığı
   const allFilteredSelected = useMemo(() => {
@@ -1224,6 +1269,11 @@ export function useOgrenciYonetimi({
     setSearchTerm,
     selectedClassFilter,
     setSelectedClassFilter,
+    gradeFilter,
+    setGradeFilter,
+    gradeOptions,
+    gradeClasses,
+    gradeStudentCount,
     sortOrder,
     setSortOrder,
     selectedStudentIds,

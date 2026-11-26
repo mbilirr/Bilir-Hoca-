@@ -10,7 +10,7 @@ import { ExcelStudentUploadModal, ExcelStudentUpdateModal, ExcelClassUploadModal
 import { useOgrenciBaglam } from './useOgrenciYonetimi';
 
 export function OgrenciPencereleri() {
-  const { students, classes, selectedClassFilter, selectedStudentIds, credSendList, setCredSendList, credPickOpen, setCredPickOpen, credPickStudents, isBulkDeleteModalOpen, setIsBulkDeleteModalOpen, isExcelModalOpen, setIsExcelModalOpen, isExcelUpdateOpen, setIsExcelUpdateOpen, isListExportOpen, setIsListExportOpen, isExcelClassModalOpen, setIsExcelClassModalOpen, everExcelOpen, everExcelUpdateOpen, everExcelClassOpen, studentToDelete, setStudentToDelete, classToDelete, setClassToDelete, credentialsResult, setCredentialsResult, passwordTarget, setPasswordTarget, passwordTargetValue, setPasswordTargetValue, passwordTargetError, isSettingPassword, setStudentSuccessFeedback, isGenderFillOpen, setIsGenderFillOpen, handleConfirmBulkDelete, handleConfirmSetPassword } = useOgrenciBaglam();
+  const { students, classes, selectedClassFilter, gradeFilter, selectedStudentIds, credSendList, setCredSendList, credPickOpen, setCredPickOpen, credPickStudents, isBulkDeleteModalOpen, setIsBulkDeleteModalOpen, isExcelModalOpen, setIsExcelModalOpen, isExcelUpdateOpen, setIsExcelUpdateOpen, isListExportOpen, setIsListExportOpen, isExcelClassModalOpen, setIsExcelClassModalOpen, everExcelOpen, everExcelUpdateOpen, everExcelClassOpen, studentToDelete, setStudentToDelete, classToDelete, setClassToDelete, credentialsResult, setCredentialsResult, passwordTarget, setPasswordTarget, passwordTargetValue, setPasswordTargetValue, passwordTargetError, isSettingPassword, setStudentSuccessFeedback, isGenderFillOpen, setIsGenderFillOpen, handleConfirmBulkDelete, handleConfirmSetPassword } = useOgrenciBaglam();
   return (
     <>
       {everExcelOpen && (
@@ -54,6 +54,9 @@ export function OgrenciPencereleri() {
             onClose={() => setIsExcelUpdateOpen(false)}
             classes={classes}
             students={students}
+            initialGrade={gradeFilter}
+            initialClassId={selectedClassFilter}
+            initialStudentIds={selectedStudentIds}
             onDone={(msg: string) => setStudentSuccessFeedback(msg)}
           />
         </Suspense>

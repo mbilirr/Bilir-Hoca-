@@ -6,7 +6,7 @@ import { useOgrenciBaglam } from './useOgrenciYonetimi';
 import { OgrenciKarti, OgrenciTabloSatiri } from './OgrenciSatirlari';
 
 export function OgrenciListesiSekmesi() {
-  const { satirIslemleri, students, classes, searchTerm, setSearchTerm, selectedClassFilter, setSelectedClassFilter, sortOrder, setSortOrder, selectedStudentIds, setSelectedStudentIds, setCredSendList, grantMoveOn, credSendStudents, setIsBulkDeleteModalOpen, isAdmin, canAddStudents, genderFilter, setGenderFilter, duplicateStudentGroups, isStudentUnassigned, unassignedStudentsCount, filteredStudents, genderCounts, isPhoneList, quickClassOptions, grantedQuickOptions, classCountMap, pagedStudents, allFilteredSelected, someFilteredSelected, handleToggleSelectAll } = useOgrenciBaglam();
+  const { satirIslemleri, students, classes, searchTerm, setSearchTerm, selectedClassFilter, setSelectedClassFilter, gradeFilter, setGradeFilter, gradeOptions, gradeClasses, gradeStudentCount, sortOrder, setSortOrder, selectedStudentIds, setSelectedStudentIds, setCredSendList, grantMoveOn, credSendStudents, setIsBulkDeleteModalOpen, isAdmin, canAddStudents, genderFilter, setGenderFilter, duplicateStudentGroups, isStudentUnassigned, unassignedStudentsCount, filteredStudents, genderCounts, isPhoneList, quickClassOptions, grantedQuickOptions, classCountMap, pagedStudents, allFilteredSelected, someFilteredSelected, handleToggleSelectAll } = useOgrenciBaglam();
   return (
     <>
       <div className="space-y-4">
@@ -61,7 +61,27 @@ export function OgrenciListesiSekmesi() {
               />
             </div>
 
-            <div className="grid grid-cols-3 md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
+            <div className={`grid ${gradeOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-3'} md:flex items-center gap-2 md:gap-3 w-full md:w-auto`}>
+              {/* Aşama 429: Sınıf seviyesi (5. Sınıf, 6. Sınıf …); Sınıf listesi bu seviyeye daralır */}
+              {gradeOptions.length > 1 && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <select
+                    id="ogrenci-seviye-suzgeci"
+                    aria-label="Sınıf seviyesine göre süz"
+                    value={gradeFilter}
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="ui-field w-full md:w-auto min-w-0 text-fg-2 font-semibold cursor-pointer"
+                  >
+                    <option value="all">Sınıf Seviyesi</option>
+                    {gradeOptions.map((o) => (
+                      <option key={o.grade} value={String(o.grade)}>
+                        {o.grade}. Sınıf ({o.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Sınıf Filtresi (Tanımsız seçeneği dahil) */}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="hidden lg:inline text-xs text-muted font-semibold whitespace-nowrap">Sınıf:</span>
@@ -70,12 +90,12 @@ export function OgrenciListesiSekmesi() {
                   onChange={(e) => setSelectedClassFilter(e.target.value)}
                   className="ui-field w-full md:w-auto min-w-0 text-fg-2 font-semibold cursor-pointer"
                 >
-                  <option value="all">Tüm Sınıflar ({students.length})</option>
+                  <option value="all">Tüm Sınıflar ({gradeStudentCount})</option>
                   {duplicateStudentGroups.totalDuplicates > 0 && (
                     <option value="duplicates">⚠️ Mükerrer Kayıtlar ({duplicateStudentGroups.totalDuplicates})</option>
                   )}
-                  <option value="unassigned">Yok ({unassignedStudentsCount})</option>
-                  {classes.map((cls) => (
+                  {gradeFilter === 'all' && <option value="unassigned">Yok ({unassignedStudentsCount})</option>}
+                  {gradeClasses.map((cls) => (
                     <option key={cls.id} value={cls.id}>
                       {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({classCountMap.get(cls.id) || 0})
                     </option>

@@ -6,6 +6,8 @@
 //   * Boş Excel hücresi hiçbir bilgiyi silmez.
 //   * Yeni öğrenci eklenmez, sınıf açılmaz, şifre ve hesaplar değişmez.
 //   * Okul numarası değişikliği öğrencinin giriş adını da değiştirdiği için ayrıca işaretlenmelidir.
+// Aşama 429: Kapsam (sınıf seviyesi › sınıf › öğrenci). İndirilen liste ve güncellenecek öğrenciler yalnız
+//   seçilen kapsamdır; dosyada kapsam dışındaki öğrencilerin satırları atlanır (dokunulmaz).
 // ============================================================================
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
@@ -18,6 +20,8 @@ import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeSe
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { Modal, cx } from '../ui/kit';
 import { dogumTarihiYaz } from '../../lib/dogumTarihi'; // Aşama 324
+import { gradeOf } from '../../lib/teacherGrades'; // Aşama 429
+import { formatClassDisplayName } from '../../constants/schoolConstants'; // Aşama 429
 import { HelpDisclosure, InfoTip } from '../ui/Compact';
 import {
   STUDENT_COLUMNS,
@@ -40,6 +44,10 @@ interface Props {
   classes: ClassGroup[];
   students: Student[];
   onDone?: (message: string) => void;
+  // Aşama 429: pencere Öğrenciler sayfasındaki seçimle açılır (seviye, sınıf, işaretli öğrenciler)
+  initialGrade?: string;
+  initialClassId?: string;
+  initialStudentIds?: string[];
 }
 
 type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'gender' | 'birthDate' | 'parents' | 'tc';
@@ -169,9 +177,85 @@ const STATUS_INFO: Record<Status, { label: string; chip: string }> = {
 };
 
 // ----------------------------------------------------------------------------- bileşen
-export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, classes: allClasses, students: allStudents, onDone }) => {
+export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, classes: allClasses, students: allStudents, onDone, initialGrade, initialClassId, initialStudentIds }) => {
   const classes = useMemo(() => allClasses.filter((c) => dataService.canManageClass(c)), [allClasses]);
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
+
+  // Aşama 429: kapsam — 'all' ya da seviye ('5'), sınıf kimliği, öğrenci ('all' | 'secili' | öğrenci kimliği)
+  const [scopeGrade, setScopeGrade] = useState('all');
+  const [scopeClass, setScopeClass] = useState('all');
+  const [scopeStudent, setScopeStudent] = useState('all');
+  const [pickedIds, setPickedIds] = useState<string[]>([]);
+  const classGrade = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of classes) {
+      const g = gradeOf(c);
+      if (g !== null) m.set(c.id, String(g));
+    }
+    return m;
+  }, [classes]);
+  const gradeOptions = useMemo(() => Array.from(new Set(classGrade.values())).sort((a, b) => Number(a) - Number(b)), [classGrade]);
+  const scopeClasses = useMemo(
+    () =>
+      classes
+        .filter((c) => scopeGrade === 'all' || classGrade.get(c.id) === scopeGrade)
+        .sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })),
+    [classes, classGrade, scopeGrade]
+  );
+  // Seviye ve sınıfa uyan öğrenciler (öğrenci seçeneği bunlardan)
+  const classScopeStudents = useMemo(
+    () =>
+      students
+        .filter((s) => (scopeClass !== 'all' ? s.classId === scopeClass : scopeGrade === 'all' || (!!s.classId && classGrade.get(s.classId) === scopeGrade)))
+        .sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    [students, scopeGrade, scopeClass, classGrade]
+  );
+  const pickedSet = useMemo(() => new Set(pickedIds), [pickedIds]);
+  const scopeStudents = useMemo(
+    () =>
+      scopeStudent === 'all'
+        ? classScopeStudents
+        : scopeStudent === 'secili'
+          ? classScopeStudents.filter((s) => pickedSet.has(s.id))
+          : classScopeStudents.filter((s) => s.id === scopeStudent),
+    [classScopeStudents, scopeStudent, pickedSet]
+  );
+  const scopeIds = useMemo(() => new Set(scopeStudents.map((s) => s.id)), [scopeStudents]);
+  const scoped = scopeGrade !== 'all' || scopeClass !== 'all' || scopeStudent !== 'all';
+  const scopeClassObj = scopeClass !== 'all' ? classes.find((c) => c.id === scopeClass) : undefined;
+  const scopeLabel =
+    scopeStudent !== 'all' && scopeStudent !== 'secili'
+      ? scopeStudents[0]?.name || 'Öğrenci'
+      : [
+          scopeClassObj ? formatClassDisplayName(scopeClassObj.name, scopeClassObj.branch, scopeClassObj.gradeLevel) : scopeGrade !== 'all' ? `${scopeGrade}. Sınıf` : 'Bütün öğrenciler',
+          scopeStudent === 'secili' ? 'seçili öğrenciler' : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+  // Pencere her açılışta sayfadaki seçimle başlar
+  useEffect(() => {
+    if (!isOpen) return;
+    const ids = (initialStudentIds || []).filter((id) => students.some((s) => s.id === id));
+    const cls = initialClassId && classes.some((c) => c.id === initialClassId) ? initialClassId : 'all';
+    const grade = cls !== 'all' ? classGrade.get(cls) || 'all' : initialGrade && gradeOptions.includes(initialGrade) ? initialGrade : 'all';
+    setPickedIds(ids);
+    setScopeGrade(grade);
+    setScopeClass(cls);
+    setScopeStudent(ids.length === 1 ? ids[0] : ids.length > 1 ? 'secili' : 'all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const changeGrade = (v: string) => {
+    setScopeGrade(v);
+    if (scopeClass !== 'all' && v !== 'all' && classGrade.get(scopeClass) !== v) setScopeClass('all');
+    if (scopeStudent !== 'all' && scopeStudent !== 'secili') setScopeStudent('all');
+  };
+  const changeClass = (v: string) => {
+    setScopeClass(v);
+    if (v !== 'all') setScopeGrade(classGrade.get(v) || scopeGrade);
+    if (scopeStudent !== 'all' && scopeStudent !== 'secili') setScopeStudent('all');
+  };
 
   const [parsed, setParsed] = useState<
     Array<{
@@ -235,7 +319,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Eşleştirme ve değişiklikler (alan seçimleri değişince yeniden hesaplanır)
-  const rows: Row[] = useMemo(() => {
+  const allRows: Row[] = useMemo(() => {
     const byNum = new Map<string, Student[]>();
     for (const s of students) {
       const k = numKey(s.studentNumber);
@@ -392,6 +476,19 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     return base;
   }, [parsed, students, allStudents, classes, fields, tcHashes, existingTc, tcState, canTc]);
 
+  // Aşama 429: yalnız kapsamdaki öğrencilerin satırları. Bulunamayan satır, Excel'deki sınıfı kapsamdaysa gösterilir.
+  const rows: Row[] = useMemo(() => {
+    if (!scoped) return allRows;
+    const scopeClassIds = new Set(scopeStudent === 'all' ? scopeClasses.filter((c) => scopeClass === 'all' || c.id === scopeClass).map((c) => c.id) : []);
+    return allRows.filter((r) => {
+      if (r.student) return scopeIds.has(r.student.id);
+      if (!scopeClassIds.size || !r.excelClass) return false;
+      const m = findClass(r.excelClass, classes);
+      return !!m.cls && scopeClassIds.has(m.cls.id);
+    });
+  }, [allRows, scoped, scopeIds, scopeStudent, scopeClasses, scopeClass, classes]);
+  const skippedRows = allRows.length - rows.length;
+
   const isOn = (r: Row) => (r.status === 'ok' || r.status === 'check') && r.changes.length > 0 && (selected[r.key] ?? r.status === 'ok');
   const toApply = rows.filter(isOn);
   const counts = {
@@ -466,7 +563,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
 
   // Mevcut listeyi indir: düzenleyip geri yüklemek için
   const downloadCurrent = () => {
-    const data = [...students]
+    const data = [...scopeStudents]
       .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true }) || a.name.localeCompare(b.name, 'tr'))
       .map((s) => ({
         'Öğrenci No': s.studentNumber || '',
@@ -495,7 +592,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Öğrenciler');
-    XLSX.writeFile(wb, 'Ogrenci_Listesi_Guncelleme.xlsx');
+    const ek = scoped ? '_' + trFold(scopeLabel).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : '';
+    XLSX.writeFile(wb, `Ogrenci_Listesi_Guncelleme${ek}.xlsx`);
   };
 
   const apply = async () => {
@@ -657,15 +755,73 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
 
         {!result && (
           <>
+            {/* Aşama 429: kapsam — yalnız seçilen seviye, sınıf ya da öğrenci güncellenir */}
+            <div className={cx('grid grid-cols-1 gap-2', gradeOptions.length > 1 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+              {gradeOptions.length > 1 && (
+                <select
+                  aria-label="Sınıf seviyesi"
+                  value={scopeGrade}
+                  onChange={(e) => changeGrade(e.target.value)}
+                  disabled={busy}
+                  className="ui-field w-full min-w-0 text-fg-2 font-semibold cursor-pointer"
+                >
+                  <option value="all">Sınıf Seviyesi</option>
+                  {gradeOptions.map((g) => (
+                    <option key={g} value={g}>
+                      {g}. Sınıf
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                aria-label="Sınıf"
+                value={scopeClass}
+                onChange={(e) => changeClass(e.target.value)}
+                disabled={busy}
+                className="ui-field w-full min-w-0 text-fg-2 font-semibold cursor-pointer"
+              >
+                <option value="all">{scopeGrade === 'all' ? 'Tüm Sınıflar' : `Bütün ${scopeGrade}. Sınıflar`}</option>
+                {scopeClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {formatClassDisplayName(c.name, c.branch, c.gradeLevel)}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Öğrenci"
+                value={scopeStudent}
+                onChange={(e) => setScopeStudent(e.target.value)}
+                disabled={busy}
+                className="ui-field w-full min-w-0 text-fg-2 font-semibold cursor-pointer"
+              >
+                <option value="all">Tüm Öğrenciler ({classScopeStudents.length})</option>
+                {pickedIds.length > 1 && <option value="secili">Seçili Öğrenciler ({classScopeStudents.filter((s) => pickedSet.has(s.id)).length})</option>}
+                {classScopeStudents.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {scopeClass === 'all' && s.className ? ` · ${s.className}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               {/* Aşama 184: uzun açıklama ⓘ içine alındı */}
-              <p className="text-xs text-muted flex items-center gap-1">
-                Mevcut listeyi indirip düzeltin ya da e-Okul listesini yükleyin.
-                <InfoTip text="Öğrenciler okul numarasıyla, numara yoksa ad soyadla bulunur. Yalnız dosyada olan bilgiler güncellenir." />
+              <p className="text-xs text-muted flex items-center gap-1 min-w-0">
+                <span className="truncate">
+                  <strong className="text-fg">{scopeLabel}</strong> · {scopeStudents.length} öğrenci
+                </span>
+                <InfoTip text="Listeyi indirip düzeltin ya da e-Okul listesini yükleyin. Yalnız seçilen öğrenciler güncellenir; dosyadaki diğer satırlara dokunulmaz. Öğrenciler okul numarasıyla, numara yoksa ad soyadla bulunur." />
               </p>
-              <button type="button" onClick={downloadCurrent} className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" title="Yetkili olduğunuz öğrencilerin listesini Excel olarak indirin">
+              <button
+                type="button"
+                onClick={downloadCurrent}
+                disabled={!scopeStudents.length}
+                className="ui-btn ui-btn-ghost ui-btn-sm shrink-0"
+                title="Seçilen öğrencilerin listesini Excel olarak indirin"
+              >
                 <Download className="w-3.5 h-3.5 text-success-fg" />
-                Mevcut listeyi indir (.xlsx)
+                Listeyi İndir ({scopeStudents.length})
               </button>
             </div>
 
@@ -763,6 +919,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                 </button>
               ))}
               {counts.same > 0 && <span className="text-xs text-muted">{counts.same} öğrencide değişiklik yok.</span>}
+              {skippedRows > 0 && <span className="text-xs text-muted">{skippedRows} satır seçimin dışında, atlandı.</span>}
             </div>
           </div>
         )}
