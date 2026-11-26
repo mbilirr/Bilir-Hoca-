@@ -131,7 +131,8 @@ export async function readPlanFile(file: File, yearHint: number, grade = '8'): P
         const h = folded.findIndex((c) => /^hafta/.test(c));
         if (h >= 0) {
           haftaCol = h;
-          codeCols = folded.map((c, i) => (/(unite|konu|kazanim)/.test(c) && !/aciklama/.test(c) ? i : -1)).filter((i) => i >= 0);
+          // Maarif planlarında kodlar "ÖĞRENME ÇIKTILARI" / "SÜREÇ BİLEŞENLERİ" sütunundadır (ör. FB.7.1.1.)
+          codeCols = folded.map((c, i) => (/(unite|konu|kazanim|cikti|surec)/.test(c) && !/aciklama/.test(c) ? i : -1)).filter((i) => i >= 0);
         }
         continue;
       }
@@ -143,7 +144,9 @@ export async function readPlanFile(file: File, yearHint: number, grade = '8'): P
         weeks++;
       }
       if (!cur) continue;
-      for (const ci of codeCols)
+      // Başlıktan sütun bulunamadıysa satırın bütün hücreleri taranır (hafta sütunu hariç)
+      const scan = codeCols.length ? codeCols : cells.map((_, i) => i).filter((i) => i !== haftaCol);
+      for (const ci of scan)
         for (const k of codesIn(cells[ci] || '', grade)) {
           const old = first.get(k);
           if (!old || cur < old) first.set(k, cur);
