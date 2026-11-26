@@ -80,7 +80,7 @@ function headerOf(cells: string[]): { cols: Cols; subject: string | null; subjec
         if (c.length > 2) strong++;
       }
     };
-    // Aşama 427: MEB "Soru No - Kitapçık A/B/C/D" sütunları ve "Uygulama Adı" (dosyada birden çok sınav olabilir)
+    // Aşama 427: Okulistik "Soru No - Kitapçık A/B/C/D" sütunları ve "Uygulama Adı" (dosyada birden çok sınav olabilir)
     const kitNo = /^soru no (?:kitapcik|kitapcigi) ([a-d])$/.exec(c);
     if (kitNo) take(({ a: 'no', b: 'b', c: 'c', d: 'd' } as const)[kitNo[1] as 'a' | 'b' | 'c' | 'd']);
     else if (/^(uygulama|sinav|deneme) adi$/.test(c)) take('sinav');
@@ -142,7 +142,7 @@ function headerHint(cells: string[], cols: Cols): string {
 }
 
 // Aşama 271: Maarif kodları da tanınır: "T.O.5.24", "T.S.5.3.4", "MAT.5.1.2.9", "ENG. 5.R2.1" (iki harf öbeği, harfli bölüm)
-// Aşama 427: harf öbeği rakama bitişik de olabilir: MEB İngilizce "E8.1.R2."
+// Aşama 427: harf öbeği rakama bitişik de olabilir: Okulistik İngilizce "E8.1.R2."
 const CODE_PART = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}(?:\\s*\\.\\s*|(?=\\d))){0,2}\\d{1,2}(?:\\s*\\.\\s*[A-Za-z]?\\d{1,2}){1,4}';
 const CODE_RE = new RegExp(`^\\s*(${CODE_PART})\\.?\\s*[-–:)]?\\s*(.*)$`, 's');
 const CODE_REST = new RegExp(`^(\\s*[,;/]\\s*${CODE_PART}\\.?)+`);

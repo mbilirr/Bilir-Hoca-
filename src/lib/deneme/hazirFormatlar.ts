@@ -2,7 +2,7 @@
 // Aşama 335: HAZIR OPTİK FORMATLARI (5-6-7 ve LGS)
 // Mustafa'nın verdiği 160 TXT ve 11 FMT ile çıkarıldı; her TXT bunlardan yalnız BİRİNE temiz uyar.
 // Aşama 336: Sinan Kuzucu (A-B-C-D kitapçık) formatları eklendi.
-// Aşama 427: MEB Değerlendirme Sınavı (dat TXT) eklendi.
+// Aşama 427: Okulistik Değerlendirme Sınavı (dat TXT) eklendi.
 // Kurumun kayıtlı formatlarından sonra denenir; uymazsa FMT'siz okuma (optikOtomatik) devreye girer.
 // Hazır format düzenlenemez/silinemez; düzenlenirse kuruma yeni format olarak kaydedilir.
 // Kurum optiğinin "Değerler" kutuları BİLEREK yok (dersleri bilinmiyor; bkz. KURULUM-335).
@@ -78,10 +78,10 @@ const TANIMLAR: Tanim[] = [
     ],
   },
   {
-    // Aşama 427: MEB Değerlendirme Sınavı optiği (dat-<sınav>-<kurum>.txt). Her ders 20'lik kutu; 10 soruluk
+    // Aşama 427: Okulistik Değerlendirme Sınavı optiği (dat-<sınav>-<kurum>.txt). Her ders 20'lik kutu; 10 soruluk
     // derslerde kutunun ikinci yarısı boş. 1-6 kurum kodu, 7-12 sınav kodu, 13-14 sabit, 15-18 okul no.
-    id: 'hazir:meb168',
-    name: 'MEB Değerlendirme Sınavı (dat TXT)',
+    id: 'hazir:okulistik168',
+    name: 'Okulistik Değerlendirme Sınavı (dat TXT)',
     len: 168,
     alanlar: [
       [15, 4, 'number', null, 'Öğrenci no'],

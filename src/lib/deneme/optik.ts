@@ -96,7 +96,7 @@ export function guessSubjectKey(label: string): string | null {
     .replace(/\s+/g, ' ')
     .trim();
   if (!l || /^bos\b|bos alan|bosluk/.test(l)) return null;
-  // Aşama 427: MEB kısaltması "T.C. İnk. T. ve Ata."
+  // Aşama 427: Okulistik kısaltması "T.C. İnk. T. ve Ata."
   if (/inkilap|sosyal|\bsos\b|tarih|ataturk|\bink\b|\bata\b/.test(l)) return 'sos';
   if (/\bdin\b|din kul|ahlak|^dn\b/.test(l)) return 'din';
   if (/ingiliz|\bing\b|ngl.?z|yabanci|\by ?dil\b|\bydil|^dil\b|almanca|arapca/.test(l)) return 'ing';
