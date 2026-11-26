@@ -600,14 +600,24 @@ export const DenemeKarne: React.FC<{
   useEffect(() => setVeliNote(''), [studentId]);
   // Aşama 424: veli karnesinde öğrencinin etütleri (son denemeden 30 gün önce → bugün)
   const [veliEtutler, setVeliEtutler] = useState<KarneEtut[] | undefined>(undefined);
+  // Aşama 425: etütler gelmeden PDF / e-posta / SMS'e basılırsa önce beklenir (karne etütsüz çıkmasın)
+  const veliEtutRef = useRef<KarneEtut[] | undefined>(undefined);
+  const veliEtutBekle = useRef<Promise<void> | null>(null);
   const etutAralik = useMemo(() => karneEtutAraligi(fullExams), [fullExams]);
   useEffect(() => {
     setVeliEtutler(undefined);
+    veliEtutRef.current = undefined;
+    veliEtutBekle.current = null;
     if (mode !== 'ogrenci' || tur !== 'veli' || !studentId || !fullExams.length) return;
     let alive = true;
-    karneEtutleri([studentId], etutAralik.bas, etutAralik.bit)
-      .then((m) => alive && setVeliEtutler(m.get(studentId) || []))
-      .catch(() => alive && setVeliEtutler([]));
+    const yaz = (l: KarneEtut[]) => {
+      if (!alive) return;
+      veliEtutRef.current = l;
+      setVeliEtutler(l);
+    };
+    veliEtutBekle.current = karneEtutleri([studentId], etutAralik.bas, etutAralik.bit)
+      .then((m) => yaz(m.get(studentId) || []))
+      .catch(() => yaz([]));
     return () => {
       alive = false;
     };
@@ -748,7 +758,7 @@ export const DenemeKarne: React.FC<{
         { tur, exams: fullExams, scopeLabel: label, bank, teacherName, tekExamId },
         { id: student.id, name: student.name, className: student.className || '', no: student.studentNumber },
         results,
-        { target, detailExamId, veliNote, planPicks: planPicks ?? undefined, etutler: veliEtutler }
+        { target, detailExamId, veliNote, planPicks: planPicks ?? undefined, etutler: veliEtutRef.current ?? veliEtutler }
       );
       return k ? { blocks: k.blocks, footer: k.footer, file: k.file, orientation: k.orientation } : null;
     }
@@ -764,6 +774,7 @@ export const DenemeKarne: React.FC<{
     setBusy(true);
     setNotice(null);
     try {
+      if (veliEtutBekle.current) await veliEtutBekle.current; // Aşama 425
       await fn();
     } catch (e: any) {
       setNotice({ tone: 'danger', text: e?.message || 'İşlem yapılamadı.' });

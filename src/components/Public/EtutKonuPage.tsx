@@ -156,6 +156,12 @@ export const EtutKonuPage: React.FC<{ token: string }> = ({ token }) => {
               </p>
             </section>
 
+            {/* Aşama 425: bağlantıdaki etütlerin hepsi silindiyse boş sayfa yerine açıklama */}
+            {data.etutler.length === 0 && (
+              <div className="ui-card p-5 text-sm text-muted" id="etut-konu-bos">
+                Bu bağlantıdaki etütler silinmiş. Yapmanız gereken bir şey yok.
+              </div>
+            )}
             {data.etutler.some((e) => e.acik) && (
               <div className="flex justify-end">
                 <button type="button" id="etut-konu-hepsi" onClick={hepsiKalsin} className="ui-btn ui-btn-secondary ui-btn-sm">
