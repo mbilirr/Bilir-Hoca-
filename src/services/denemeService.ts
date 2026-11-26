@@ -504,6 +504,23 @@ export async function getTarget(studentId: string): Promise<number | null> {
   return data && data.target_score !== null && data.target_score !== undefined ? Number(data.target_score) : null;
 }
 
+// Aşama 424: veli karnesindeki "Aldığı etütler" bölümü (424 SQL kurulu değilse ya da etüt bölümü kapalıysa boş liste)
+export type KarneEtut = { tarih: string; saat: string; ders: string; konu: string; durum: string };
+export async function karneEtutleri(studentIds: string[], bas: string, bit: string): Promise<Map<string, KarneEtut[]>> {
+  const out = new Map<string, KarneEtut[]>();
+  const ids = Array.from(new Set(studentIds.filter(Boolean)));
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.rpc('deneme_karne_etutleri', { p_student_ids: ids.slice(i, i + 200), p_bas: bas, p_bit: bit });
+    if (error) return out; // karne etütsüz de çıkar
+    for (const r of (data || []) as Array<KarneEtut & { student_id: string }>) {
+      const list = out.get(r.student_id) || [];
+      list.push({ tarih: r.tarih, saat: r.saat || '', ders: r.ders || '', konu: r.konu || '', durum: r.durum || '' });
+      out.set(r.student_id, list);
+    }
+  }
+  return out;
+}
+
 export async function setTarget(studentId: string, score: number | null): Promise<void> {
   if (score === null) {
     const { error } = await supabase.from('deneme_targets').delete().eq('student_id', studentId);

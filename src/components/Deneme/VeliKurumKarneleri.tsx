@@ -1,8 +1,9 @@
 import React from 'react';
-import { CheckCircle2, Heart, Lightbulb, MessageSquareText, Sparkles, Target, Trophy } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Heart, Lightbulb, MessageSquareText, Sparkles, Target, Trophy } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
-import { dateRange, dateTr, denemeEtiketleri } from '../../lib/deneme/karneModel';
+import { ETUT_DURUM_YAZI, KARNE_ETUT_SATIR, dateRange, dateTr, denemeEtiketleri, etutOzeti } from '../../lib/deneme/karneModel';
+import type { KarneEtut } from '../../services/denemeService';
 import { LGS_PERCENTILE_NOTE } from '../../lib/deneme/lgsYuzdelik';
 import { LGS_BANDS, TIER_INFO, priorityAdvice, type KurumOzet, type PriorityKarne, type PriorityTier, type VeliKarneData } from '../../lib/deneme/veliKurumKarne';
 // Aşama 272: birleştirilmiş karnenin tasarım dili (ortak)
@@ -48,8 +49,11 @@ export const VeliKarneView: React.FC<{
   note: string;
   onNote?: (v: string) => void;
   teacherName?: string;
-}> = ({ data: d, studentName, className, note, onNote, teacherName }) => {
+  /** Aşama 424: öğrencinin etütleri (undefined: yükleniyor / yok) */
+  etutler?: KarneEtut[];
+}> = ({ data: d, studentName, className, note, onNote, teacherName, etutler }) => {
   if (!d) return <p className="text-sm text-muted">Seçilen kapsamda deneme sonucu yok.</p>;
+  const et = etutOzeti(etutler, d.lastExam.examDate);
   const side: Array<[string, string]> = [
     ['Sınıf sırası', d.rank ? `${d.rank.cls} / ${d.rank.clsCount}` : '—'],
     ['Okul sırası', d.rank ? `${d.rank.overall} / ${d.rank.overallCount}` : '—'],
@@ -121,6 +125,42 @@ export const VeliKarneView: React.FC<{
           list={d.improve}
         />
       </div>
+      {et && (
+        <KBolum
+          baslik={
+            <>
+              <CalendarClock className="h-4 w-4 text-brand-fg" /> Aldığı etütler
+            </>
+          }
+          aciklama={et.list.length > KARNE_ETUT_SATIR ? `Karnede son ${KARNE_ETUT_SATIR} etüt yer alır` : 'Karnede yer alır'}
+        >
+          <p className="text-sm leading-relaxed text-fg" id="veli-etut-ozet">
+            {et.cumle}
+          </p>
+          <ul className="divide-y divide-line rounded-xl border border-line" id="veli-etut-liste">
+            {et.list.slice(-KARNE_ETUT_SATIR).map((e, i) => (
+              <li key={`${e.tarih}${e.saat}${i}`} className="flex items-center gap-3 px-3 py-2 text-xs">
+                <span className="w-24 shrink-0 tabular-nums text-muted">
+                  {dateTr(e.tarih)}
+                  {e.saat ? ` ${e.saat}` : ''}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-fg">
+                  <b className="font-semibold">{e.ders}</b>
+                  {e.konu ? ` · ${e.konu}` : ''}
+                </span>
+                <span
+                  className={cx(
+                    'shrink-0 font-semibold',
+                    e.durum === 'absent' ? 'text-danger-fg' : e.durum === 'present' || e.durum === 'late' ? 'text-success-fg' : 'text-muted'
+                  )}
+                >
+                  {ETUT_DURUM_YAZI[e.durum] || e.durum}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </KBolum>
+      )}
       <KBolum>
         <label className="flex items-center gap-1.5 text-base font-extrabold text-fg" htmlFor="veli-not">
           <MessageSquareText className="h-4 w-4 text-brand-fg" /> Öğretmenin notu{teacherName ? ` (${teacherName})` : ''}

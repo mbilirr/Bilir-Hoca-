@@ -4,7 +4,7 @@
 // böylece her yolda aynı karne çıkar. Yalnızca o öğrencinin sonuçları verilir.
 // ============================================================================
 import type { KarneTur } from '../../components/Deneme/KarneIleri';
-import type { BankRow, DenemeExam, DenemeResult } from '../../services/denemeService';
+import type { BankRow, DenemeExam, DenemeResult, KarneEtut } from '../../services/denemeService';
 import type { StudySuggestion } from './kazanimKarne';
 import type { PdfBlock } from './karnePdf';
 import { priorityKarne, veliKarneData } from './veliKurumKarne';
@@ -34,7 +34,8 @@ export type BuiltKarne = { blocks: PdfBlock[]; footer: string; file: string; tit
 /** Aşama 135: tekExamId — tek sayfa karnenin denemesi (boşsa kapsamdaki son deneme) */
 export type KarneContext = { tur: KarneTur; exams: DenemeExam[]; scopeLabel: string; bank?: BankRow[] | null; teacherName?: string; tekExamId?: string };
 export type KarneStudent = { id: string; name: string; className: string; no?: string };
-export type KarneExtra = { target: number | null; detailExamId?: string; veliNote?: string; planPicks?: StudySuggestion[] };
+/** Aşama 424: etutler — veli karnesinin "Aldığı etütler" bölümü */
+export type KarneExtra = { target: number | null; detailExamId?: string; veliNote?: string; planPicks?: StudySuggestion[]; etutler?: KarneEtut[] };
 
 /** Öğrencinin seçili türdeki karnesi; sonucu yoksa null */
 export function buildStudentKarne(ctx: KarneContext, s: KarneStudent, studentResults: DenemeResult[], extra: KarneExtra): BuiltKarne | null {
@@ -56,7 +57,7 @@ export function buildStudentKarne(ctx: KarneContext, s: KarneStudent, studentRes
   }
   if (tur === 'veli') {
     const d = veliKarneData(exams, results, extra.target, usedSubjects(exams));
-    return out(d ? veliKarneBlocks(d, { ...base, note: extra.veliNote || '', teacherName: ctx.teacherName || '' }) : null, 'veli bilgilendirme karnesi', 'Veli-Karnesi');
+    return out(d ? veliKarneBlocks(d, { ...base, note: extra.veliNote || '', teacherName: ctx.teacherName || '', etutler: extra.etutler }) : null, 'veli bilgilendirme karnesi', 'Veli-Karnesi');
   }
   if (tur === 'oncelik') {
     const pk = priorityKarne(exams, results, usedSubjects(exams));

@@ -2,7 +2,7 @@
 // DENEME ANALİZİ (Aşama 47) — KARNE İÇERİKLERİ (PDF blokları)
 // Öğrenci karnesi, sınıf karnesi ve sınıflar arası karşılaştırma.
 // ============================================================================
-import type { DenemeExam, DenemeResult } from '../../services/denemeService';
+import type { DenemeExam, DenemeResult, KarneEtut } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from './analiz';
 import { examScoring, fmtNet, fmtScore, puanAdi, puanNotu, round2, subjectsOfExams, tamOturum, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
@@ -1180,7 +1180,52 @@ export function kazanimHeatBlocks(h: KazHeat, o: HeatOptions, scopeLabel: string
 }
 
 // ============================================================================ Aşama 56: Veli Karnesi (tek sayfa)
-export function veliKarneBlocks(d: VeliKarneData, opts: { studentName: string; className: string; note: string; teacherName: string }): PdfBlock[] {
+// ============================================================================ Aşama 424: veli karnesinde etütler
+/** Etüt aralığı: son denemeden 30 gün önce başlar, bugüne kadar sürer (sonraki etütler de veliyi ilgilendirir) */
+export const KARNE_ETUT_GUN = 30;
+const ymdEkle = (ymd: string, gun: number) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + gun));
+  return d.toISOString().slice(0, 10);
+};
+export const bugunYmd = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+/** Yükleme aralığı: seçili denemelerin en erkeninden 30 gün önce → bugün (öğrenciye göre süzme etutOzeti'nde) */
+export const karneEtutAraligi = (exams: DenemeExam[]) => {
+  const ds = exams.map((e) => e.examDate || '').filter(Boolean).sort();
+  return { bas: ds.length ? ymdEkle(ds[0], -KARNE_ETUT_GUN) : ymdEkle(bugunYmd(), -KARNE_ETUT_GUN), bit: bugunYmd() };
+};
+export const ETUT_DURUM_YAZI: Record<string, string> = {
+  present: 'Katıldı',
+  late: 'Geç kaldı',
+  absent: 'Gelmedi',
+  excused: 'İzinli',
+  planli: 'Planlandı',
+  yoklamasiz: 'Yoklama alınmadı',
+};
+export type EtutOzeti = { bas: string; bit: string; list: KarneEtut[]; katildi: number; gelmedi: number; izinli: number; planli: number; cumle: string };
+/** Son denemeden 30 gün önce → bugün aralığındaki etütler; hiç yoksa null (karnede bölüm çıkmaz) */
+export function etutOzeti(etutler: KarneEtut[] | undefined, sonDenemeTarihi: string): EtutOzeti | null {
+  const bas = ymdEkle(sonDenemeTarihi || bugunYmd(), -KARNE_ETUT_GUN) || '0000-00-00';
+  const bit = bugunYmd();
+  const list = (etutler || []).filter((e) => e.tarih >= bas && e.tarih <= bit).sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
+  if (!list.length) return null;
+  const say = (...d: string[]) => list.filter((e) => d.includes(e.durum)).length;
+  const katildi = say('present', 'late');
+  const gelmedi = say('absent');
+  const izinli = say('excused');
+  const planli = say('planli');
+  const parca = [katildi && `${katildi} etüde katıldı`, gelmedi && `${gelmedi} etüde gelmedi`, izinli && `${izinli} etütte izinliydi`, planli && `${planli} etüt planlandı`].filter(Boolean);
+  const cumle = `${dateTr(bas)} - ${dateTr(bit)} arasında ${list.length} etüde yazıldı${parca.length ? `: ${parca.join(', ')}` : ''}.`;
+  return { bas, bit, list, katildi, gelmedi, izinli, planli, cumle };
+}
+/** Tek sayfaya sığsın diye karnede en çok bu kadar etüt satırı yazılır (en yeniler) */
+export const KARNE_ETUT_SATIR = 5;
+
+export function veliKarneBlocks(d: VeliKarneData, opts: { studentName: string; className: string; note: string; teacherName: string; etutler?: KarneEtut[] }): PdfBlock[] {
   const r = d.last;
   const side: Array<[string, string]> = [
     ['Sınıf sırası', d.rank ? `${d.rank.cls} / ${d.rank.clsCount}` : '-'],
@@ -1198,6 +1243,25 @@ export function veliKarneBlocks(d: VeliKarneData, opts: { studentName: string; c
   if (d.trend.some((t) => t.clsAvg !== null)) series.push({ name: 'Sınıf ortalaması', values: d.trend.map((t) => t.clsAvg) });
   if (d.target !== null) series.push({ name: 'Hedef', values: d.trend.map(() => d.target) });
   const note = opts.note.trim();
+  // Aşama 424: öğrencinin etütleri (yoksa bölüm çıkmaz)
+  const et = etutOzeti(opts.etutler, d.lastExam.examDate);
+  const etutBlok: PdfBlock[] = et
+    ? [
+        {
+          kind: 'callout',
+          title: 'Aldığı etütler',
+          tone: 'info',
+          lines: [
+            et.cumle,
+            ...et.list.slice(-KARNE_ETUT_SATIR).map((e) => ({
+              label: `${dateTr(e.tarih)}${e.saat ? ` ${e.saat}` : ''} · ${e.ders}:`,
+              text: `${e.konu || '-'} (${ETUT_DURUM_YAZI[e.durum] || e.durum})`,
+              tone: e.durum === 'absent' ? ('danger' as const) : e.durum === 'present' || e.durum === 'late' ? ('success' as const) : undefined,
+            })),
+          ],
+        },
+      ]
+    : [];
   return [
     {
       kind: 'hero',
@@ -1223,6 +1287,7 @@ export function veliKarneBlocks(d: VeliKarneData, opts: { studentName: string; c
       tone: 'warning',
       lines: d.improve.length ? d.improve.map((t) => ({ label: `${t.subject.name}:`, text: `${t.name} (başarı %${t.rate}). ${t.hint}.`, tone: 'warning' as const })) : ['Belirgin bir eksik konu görünmüyor. Düzenli tekrar ve deneme çözümüyle devam.'],
     },
+    ...etutBlok,
     {
       kind: 'callout',
       title: `Öğretmenin notu${opts.teacherName ? ` (${opts.teacherName})` : ''}`,

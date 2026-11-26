@@ -14,7 +14,7 @@ import { Segmented, cx } from '../ui/kit';
 import { Yukleniyor } from '../ui/Durum'; // Aşama 305
 import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
-import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, listResultsLite, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { byUploadOrder, getExamsFull, getTarget, karneEtutleri, listKazanimlar, listResultsFor, listResultsLite, setTarget, type BankRow, type DenemeExam, type DenemeResult, type KarneEtut } from '../../services/denemeService';
 import {
   SCOPES,
   classCombinedBlocks,
@@ -26,6 +26,7 @@ import {
   pickScope,
   scopeLabel,
   dateTr,
+  karneEtutAraligi,
   type ScopeKey,
 } from '../../lib/deneme/karneModel';
 import { buildKarnePdfParts, downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
@@ -189,6 +190,7 @@ const TopluKarneGonder: React.FC<{
   const [queue, setQueue] = useState<Record<string, QueueState>>({});
   const [open, setOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const examsRef = useRef<DenemeExam[]>([]); // Aşama 424: etüt aralığı için yüklenen denemeler
   const label = cls ? cls.name : 'Tüm sınıflar';
   const key = `${cls ? cls.id : 'all'}|${examIds.join(',')}`;
 
@@ -207,6 +209,7 @@ const TopluKarneGonder: React.FC<{
     try {
       const [exams, results] = await Promise.all([getExamsFull(examIds), listResultsFor({ examIds, classId: cls ? cls.id : undefined })]);
       const v = { exams, results };
+      examsRef.current = exams;
       setLoaded(v);
       return v;
     } finally {
@@ -237,12 +240,23 @@ const TopluKarneGonder: React.FC<{
   // Aşama 135: tek sayfa karnede SMS linki ve e-posta başlığı yalnız seçili denemeye göre
   const isTek = tur === 'tek' && !!tekExamId;
   const linkExamIds = isTek ? [tekExamId!] : examIds;
+  // Aşama 424: veli karnesinde etütler sınıfın bütün öğrencileri için tek seferde okunur (öğrenci başına istek yok)
+  const etutRef = useRef<{ key: string; p: Promise<Map<string, KarneEtut[]>> } | null>(null);
+  const etutlerOf = (s: Student) => {
+    const k = `${key}|${classStudents.length}`;
+    if (!etutRef.current || etutRef.current.key !== k) {
+      const { bas, bit } = karneEtutAraligi(examsRef.current);
+      etutRef.current = { key: k, p: karneEtutleri(classStudents.map((x) => x.id), bas, bit).catch(() => new Map()) };
+    }
+    return etutRef.current.p.then((m) => m.get(s.id) || []);
+  };
   const loadExtra = async (s: Student): Promise<KarneExtra> => {
     if (tur !== 'genel' && tur !== 'veli') return { target: null };
+    const etutler = tur === 'veli' ? await etutlerOf(s) : undefined;
     try {
-      return { target: await getTarget(s.id) };
+      return { target: await getTarget(s.id), etutler };
     } catch {
-      return { target: null };
+      return { target: null, etutler };
     }
   };
 
@@ -584,6 +598,20 @@ export const DenemeKarne: React.FC<{
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
   const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
   useEffect(() => setVeliNote(''), [studentId]);
+  // Aşama 424: veli karnesinde öğrencinin etütleri (son denemeden 30 gün önce → bugün)
+  const [veliEtutler, setVeliEtutler] = useState<KarneEtut[] | undefined>(undefined);
+  const etutAralik = useMemo(() => karneEtutAraligi(fullExams), [fullExams]);
+  useEffect(() => {
+    setVeliEtutler(undefined);
+    if (mode !== 'ogrenci' || tur !== 'veli' || !studentId || !fullExams.length) return;
+    let alive = true;
+    karneEtutleri([studentId], etutAralik.bas, etutAralik.bit)
+      .then((m) => alive && setVeliEtutler(m.get(studentId) || []))
+      .catch(() => alive && setVeliEtutler([]));
+    return () => {
+      alive = false;
+    };
+  }, [mode, tur, studentId, fullExams, etutAralik]);
   // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
   useEffect(() => setDetailExamId(''), [scope, picked]);
   const isAdmin = dataService.isCurrentUserAdmin();
@@ -720,7 +748,7 @@ export const DenemeKarne: React.FC<{
         { tur, exams: fullExams, scopeLabel: label, bank, teacherName, tekExamId },
         { id: student.id, name: student.name, className: student.className || '', no: student.studentNumber },
         results,
-        { target, detailExamId, veliNote, planPicks: planPicks ?? undefined }
+        { target, detailExamId, veliNote, planPicks: planPicks ?? undefined, etutler: veliEtutler }
       );
       return k ? { blocks: k.blocks, footer: k.footer, file: k.file, orientation: k.orientation } : null;
     }
@@ -1088,7 +1116,7 @@ export const DenemeKarne: React.FC<{
       ) : mode === 'ogrenci' && tur === 'plan' ? (
         <CalismaPlaniView exams={fullExams} results={results} editable onChange={setPlanPicks} onTransfer={limited ? undefined : (list) => setTransfer(list)} />
       ) : /* Aşama 105: veli ve öncelik karnesi genel öğrenci karnesinden önce */ mode === 'ogrenci' && tur === 'veli' ? (
-        <VeliKarneView data={veliData} studentName={student?.name || ''} className={student?.className || ''} note={veliNote} onNote={setVeliNote} teacherName={teacherName} />
+        <VeliKarneView data={veliData} studentName={student?.name || ''} className={student?.className || ''} note={veliNote} onNote={setVeliNote} teacherName={teacherName} etutler={veliEtutler} />
       ) : mode === 'ogrenci' && tur === 'oncelik' && pk ? (
         <OncelikKarneView pk={pk} />
       ) : mode === 'ogrenci' ? (
