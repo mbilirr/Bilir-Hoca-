@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   AlertCircle,
   ArrowDown,
@@ -8,6 +9,7 @@ import {
   ChevronDown,
   ClipboardX,
   FileSpreadsheet,
+  Files,
   Filter,
   Percent,
   Printer,
@@ -50,6 +52,7 @@ import {
   type DatePreset,
   type GroupRow,
   type StudentInfo,
+  type StudentReport,
   type StudentSort,
 } from './EtutAnalysisData';
 import { EtutAnalysisPrint, type PrintReportProps } from './EtutAnalysisPrint';
@@ -368,6 +371,28 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
   const hasData = mode === 'summary' ? !!summary && summary.etutCount > 0 : !!studentReport && studentReport.rows.length > 0;
 
+  // Aşama 421: öğrenci raporunun yazdırma biçimi tek yerde (tek öğrenci ve toplu PDF aynı sayfayı basar)
+  const studentPrint = (info: StudentInfo, report: StudentReport): PrintReportProps => {
+    const s = info.student;
+    const note = report.levelUnknownCount > 0 ? `${report.levelUnknownCount} etüt "tüm öğrenciler" olarak atanmış ve kademe/sınıf bilgisi yok; bu etütler tüm öğrencilere sayıldı.` : null;
+    return {
+      title: 'Öğrenci Etüt Raporu',
+      subtitle: `${s.name}${s.studentNumber ? ` · No ${s.studentNumber}` : ''} · ${info.classLabel}`,
+      meta: metaPairs.filter(([k]) => k !== 'Sınıf'),
+      kpis: [
+        ['Atanan etüt', String(report.rows.length)],
+        ['Katılım oranı', formatRate(report.rate)],
+        ['Gelmedi', String(report.counts.absent)],
+        ['Yoklama alınmadı', String(report.counts.unrecorded)],
+      ],
+      countsLine: countsPairs(report.counts)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(' · '),
+      notes: [RATE_HINT, ...(note ? [note] : [])],
+      tables: [studentEtutTable(report.rows)],
+    };
+  };
+
   const printProps: PrintReportProps | null = useMemo(() => {
     if (mode === 'summary' && summary) {
       return {
@@ -392,25 +417,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         ],
       };
     }
-    if (mode === 'student' && studentReport && currentInfo) {
-      const s = currentInfo.student;
-      return {
-        title: 'Öğrenci Etüt Raporu',
-        subtitle: `${s.name}${s.studentNumber ? ` · No ${s.studentNumber}` : ''} · ${currentInfo.classLabel}`,
-        meta: metaPairs.filter(([k]) => k !== 'Sınıf'),
-        kpis: [
-          ['Atanan etüt', String(studentReport.rows.length)],
-          ['Katılım oranı', formatRate(studentReport.rate)],
-          ['Gelmedi', String(studentReport.counts.absent)],
-          ['Yoklama alınmadı', String(studentReport.counts.unrecorded)],
-        ],
-        countsLine: countsPairs(studentReport.counts)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(' · '),
-        notes: [RATE_HINT, ...(levelNote ? [levelNote] : [])],
-        tables: [studentEtutTable(studentReport.rows)],
-      };
-    }
+    if (mode === 'student' && studentReport && currentInfo) return studentPrint(currentInfo, studentReport);
     return null;
     // metaPairs / etiketler yukarıdaki durumlardan türetilir
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -418,6 +425,27 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
   // ---- Çıktılar
   const handlePrint = () => window.print();
+
+  // Aşama 421: toplu PDF — listedeki (sınıf + arama süzgeci) etüdü olan her öğrenci ayrı sayfada, tek yazdırmada
+  const [topluRapor, setTopluRapor] = useState<PrintReportProps[] | null>(null);
+  const handleTopluPdf = () => {
+    const list: PrintReportProps[] = [];
+    for (const info of selectableStudents) {
+      const report = buildStudentReport(scoped, info, today);
+      if (report.rows.length) list.push(studentPrint(info, report));
+    }
+    if (!list.length) {
+      setFeedback('Listedeki öğrencilerin bu süzgeçlerde etüdü yok.');
+      return;
+    }
+    const bitince = () => {
+      window.removeEventListener('afterprint', bitince);
+      setTopluRapor(null);
+    };
+    window.addEventListener('afterprint', bitince);
+    flushSync(() => setTopluRapor(list));
+    window.print();
+  };
 
   const handleExcel = async () => {
     if (!printProps) return;
@@ -531,6 +559,19 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <FileSpreadsheet className="w-4 h-4" />
             <span>{exporting ? 'Hazırlanıyor…' : "Excel'e aktar"}</span>
           </button>
+          {mode === 'student' && (
+            <button
+              type="button"
+              id="etut-analysis-toplu-pdf"
+              className="ui-btn ui-btn-secondary"
+              onClick={handleTopluPdf}
+              disabled={selectableStudents.length === 0}
+              title="Listedeki her öğrenci ayrı sayfada; yazdırma penceresinden tek PDF olarak kaydedin"
+            >
+              <Files className="w-4 h-4" />
+              <span>Toplu PDF ({selectableStudents.length})</span>
+            </button>
+          )}
           <button
             type="button"
             id="etut-analysis-print"
@@ -860,7 +901,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           ))}
       </div>
 
-      {printProps && hasData && <EtutAnalysisPrint {...printProps} />}
+      {topluRapor ? <EtutAnalysisPrint reports={topluRapor} /> : printProps && hasData && <EtutAnalysisPrint reports={[printProps]} />}
     </Modal>
   );
 };

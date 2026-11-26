@@ -56,6 +56,8 @@ const PRINT_CSS = `
   .etut-print-area td.n, .etut-print-area th.n { text-align: right; font-variant-numeric: tabular-nums; }
   .etut-print-area .ep-sign { display: flex; justify-content: space-between; gap: 20mm; margin-top: 18mm; break-inside: avoid; page-break-inside: avoid; font-size: 9pt; }
   .etut-print-area .ep-sign div { flex: 1; border-top: 0.75pt solid #000; padding-top: 3pt; text-align: center; }
+  /* Aşama 421: toplu öğrenci raporu — her öğrenci yeni sayfada başlar */
+  .etut-print-area .ep-page + .ep-page { break-before: page; page-break-before: always; }
   .etut-print-area .ep-foot { margin-top: 8mm; border-top: 0.5pt solid #888; padding-top: 3pt; font-size: 8pt; display: flex; justify-content: space-between; }
 }
 `;
@@ -72,7 +74,88 @@ export interface PrintReportProps {
 
 const nowText = () => new Date().toLocaleString('tr-TR', { dateStyle: 'long', timeStyle: 'short' });
 
-export const EtutAnalysisPrint: React.FC<PrintReportProps> = ({ title, subtitle, meta, kpis, countsLine, notes, tables }) => {
+/** Tek raporun gövdesi (başlık, göstergeler, tablolar, imza, alt satır) */
+const ReportPage: React.FC<PrintReportProps & { printedAt: string }> = ({ title, subtitle, meta, kpis, countsLine, notes, tables, printedAt }) => (
+  <section className="ep-page">
+    <header className="ep-head">
+      <div className="ep-inst">{REPORT_INSTITUTION}</div>
+      <h1>{title}</h1>
+      <div className="ep-sub">{subtitle}</div>
+      <dl className="ep-meta">
+        {meta.map(([k, v]) => (
+          <React.Fragment key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </header>
+
+    <div className="ep-kpis">
+      {kpis.map(([k, v]) => (
+        <div className="ep-kpi" key={k}>
+          <b>{v}</b>
+          <span>{k}</span>
+        </div>
+      ))}
+    </div>
+    <p className="ep-counts">{countsLine}</p>
+    {notes.map((n) => (
+      <p className="ep-note" key={n}>
+        {n}
+      </p>
+    ))}
+
+    {tables.map((t) => (
+      <section key={t.title}>
+        <h2>{t.title}</h2>
+        <table>
+          <thead>
+            <tr>
+              {t.head.map((h, i) => (
+                <th key={i} className={t.numericFrom != null && i >= t.numericFrom ? 'n' : undefined}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {t.rows.length === 0 ? (
+              <tr>
+                <td colSpan={t.head.length}>Kayıt yok.</td>
+              </tr>
+            ) : (
+              t.rows.map((r, ri) => (
+                <tr key={ri}>
+                  {r.map((c, ci) => (
+                    <td key={ci} className={t.numericFrom != null && ci >= t.numericFrom ? 'n' : undefined}>
+                      {c}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+    ))}
+
+    <div className="ep-sign">
+      <div>Etüt sorumlusu</div>
+      <div>Okul yönetimi</div>
+    </div>
+    <footer className="ep-foot">
+      <span>{REPORT_INSTITUTION}</span>
+      <span>Yazdırılma: {printedAt}</span>
+    </footer>
+  </section>
+);
+
+/**
+ * Aşama 421: bir ya da birden çok rapor. Toplu öğrenci raporunda her öğrenci ayrı sayfada başlar
+ * (tarayıcının "PDF olarak kaydet" seçeneğiyle tek PDF olur).
+ */
+export const EtutAnalysisPrint: React.FC<{ reports: PrintReportProps[] }> = ({ reports }) => {
   // Yazdırma anındaki saat (pencere uzun süre açık kalsa da doğru görünsün)
   const [printedAt, setPrintedAt] = useState(nowText);
   useEffect(() => {
@@ -83,77 +166,9 @@ export const EtutAnalysisPrint: React.FC<PrintReportProps> = ({ title, subtitle,
   return createPortal(
     <div className="etut-print-area" aria-hidden="true">
       <style>{PRINT_CSS}</style>
-      <header className="ep-head">
-        <div className="ep-inst">{REPORT_INSTITUTION}</div>
-        <h1>{title}</h1>
-        <div className="ep-sub">{subtitle}</div>
-        <dl className="ep-meta">
-          {meta.map(([k, v]) => (
-            <React.Fragment key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
-      </header>
-
-      <div className="ep-kpis">
-        {kpis.map(([k, v]) => (
-          <div className="ep-kpi" key={k}>
-            <b>{v}</b>
-            <span>{k}</span>
-          </div>
-        ))}
-      </div>
-      <p className="ep-counts">{countsLine}</p>
-      {notes.map((n) => (
-        <p className="ep-note" key={n}>
-          {n}
-        </p>
+      {reports.map((r, i) => (
+        <ReportPage key={i} {...r} printedAt={printedAt} />
       ))}
-
-      {tables.map((t) => (
-        <section key={t.title}>
-          <h2>{t.title}</h2>
-          <table>
-            <thead>
-              <tr>
-                {t.head.map((h, i) => (
-                  <th key={i} className={t.numericFrom != null && i >= t.numericFrom ? 'n' : undefined}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {t.rows.length === 0 ? (
-                <tr>
-                  <td colSpan={t.head.length}>Kayıt yok.</td>
-                </tr>
-              ) : (
-                t.rows.map((r, ri) => (
-                  <tr key={ri}>
-                    {r.map((c, ci) => (
-                      <td key={ci} className={t.numericFrom != null && ci >= t.numericFrom ? 'n' : undefined}>
-                        {c}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
-      ))}
-
-      <div className="ep-sign">
-        <div>Etüt sorumlusu</div>
-        <div>Okul yönetimi</div>
-      </div>
-      <footer className="ep-foot">
-        <span>{REPORT_INSTITUTION}</span>
-        <span>Yazdırılma: {printedAt}</span>
-      </footer>
     </div>,
     document.body
   );
