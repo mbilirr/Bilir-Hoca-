@@ -994,7 +994,9 @@ export abstract class KurumYetkiKatmani extends VeriTemeli {
     if (!this.isKurumAdmin()) return false;
     const kid = this.getMyKurumId();
     if (!kid) return false;
-    return ownerIds.some((id) => !!id && this.teachers.some((t) => t.id === id && (t.kurumId || null) === kid));
+    // Aşama 420: dış etüt öğretmeni (ext-<kimlik>) kurum listesinde öğretmen değildir; veritabanı (sql/420) bu satırı
+    // kurum yöneticisine yalnız kendi kurumunun dış öğretmeniyse verir, bu yüzden ext- sahibi de kurumundan sayılır.
+    return ownerIds.some((id) => !!id && (id.startsWith('ext-') || this.teachers.some((t) => t.id === id && (t.kurumId || null) === kid)));
   }
   /** Etüdün özel bilgilerini (yorum, not, konu, yoklama) görebilir mi */
   public canSeeEtutDetails(e: Etut): boolean {

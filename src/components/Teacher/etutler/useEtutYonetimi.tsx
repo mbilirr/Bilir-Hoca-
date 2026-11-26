@@ -78,7 +78,10 @@ export function useEtutYonetimi({ etuts, students, classes }: EtutManagementProp
   const wideView = isAdminView || isZumreView;
   // Ana sayfadaki "Benim / Tümü" seçimiyle aynı kayıt: ana sayfada görülen sayı burada da aynen görünür
   const [scopeFilter, setScopeState] = useState<'all' | 'mine'>(() => {
-    const fallback = dataService.showsKurumOzeti() ? 'all' : 'mine';
+    // Aşama 420: idare (kurum yöneticisi, Müdür, Müdür Yrd.) Etütler sayfasını her açılışta "Tüm Okul" ile açar;
+    // ana sayfada ya da burada daha önce "Benim" seçilmiş olsa da kurumun etütleri önce görünür.
+    if (dataService.showsKurumOzeti()) return 'all';
+    const fallback = 'mine';
     try {
       const v = window.localStorage.getItem(HOME_SCOPE_KEY);
       return v === 'mine' || v === 'all' ? v : fallback;
