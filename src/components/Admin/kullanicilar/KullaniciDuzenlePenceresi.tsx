@@ -38,7 +38,8 @@ export function KullaniciDuzenlePenceresi() {
                   <button
                     type="button"
                     onClick={() => setSinifDersUser(editModalUser)}
-                    className="ui-btn ui-btn-primary ui-btn-sm h-8 w-40 justify-center"
+                    // Aşama 426: Yetkiler ile aynı renk (dolu düğme "seçili sekme" gibi görünüyordu)
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center"
                     id="edit-siniflar-btn"
                     title="Derse girdiği ve gördüğü sınıflar, sınıf öğretmenliği"
                   >

@@ -181,6 +181,11 @@ export function SiniflarVeDerslerPenceresi() {
   const hepsineGir = () => setSecim((s) => ({ ...s, ...Object.fromEntries(duzeySiniflari.map((c) => [c.id, 'ders' as SubeDurum])) }));
   const duzeyNo = Number(aktifDuzey);
   const duzeyKademede = kademeSu.all || kademeSu.grades.includes(duzeyNo);
+  // Aşama 426: düzeyin bütün şubeleri "Yok"; "Hepsini görür" (kademe) açıksa o da kapanır, yoksa şubeler yine görünürdü
+  const hepsiYok = () => {
+    setSecim((s) => ({ ...s, ...Object.fromEntries(duzeySiniflari.map((c) => [c.id, 'yok' as SubeDurum])) }));
+    if (duzeyKademede && erisimYazilir && !veri?.kademeYok && duzeyNo >= 1) kademeAc();
+  };
   const kademeAc = () => {
     if (!Number.isFinite(duzeyNo) || duzeyNo < 1) return;
     const tum = kademeSu.all ? Array.from(new Set(siniflar.map(gradeOf).filter((g): g is number => g !== null))) : kademeSu.grades;
@@ -402,7 +407,7 @@ export function SiniflarVeDerslerPenceresi() {
                   onChange={setDuzey}
                   items={duzeyler.map((d) => ({ value: d, label: duzeyAd(d), badge: duzeyRozet(d), id: `svd-duzey-${d}` }))}
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {erisimYazilir && !hepsiniGorur && !veri.kademeYok && duzeyNo >= 1 && (
                     <button
                       type="button"
@@ -418,6 +423,9 @@ export function SiniflarVeDerslerPenceresi() {
                   )}
                   <button type="button" id="svd-hepsine-gir" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32" onClick={hepsineGir} disabled={!ders}>
                     Hepsine girer
+                  </button>
+                  <button type="button" id="svd-hepsi-yok" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32" onClick={hepsiYok} title={`${duzeyAd(aktifDuzey)} şubelerinin hepsini Yok yapar`}>
+                    Hepsi yok
                   </button>
                 </div>
               </div>
